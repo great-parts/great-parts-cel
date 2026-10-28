@@ -9,7 +9,7 @@ internal static class Commands
     internal const string Solution = "Great.Parts.Cel.slnx";
 
     /// <summary>The names of the commands, as the messages of <see cref="Program"/> list them.</summary>
-    internal const string Known = "test, test-aot";
+    internal const string Known = "test, test-aot, mutate";
 
     /// <summary>
     /// <c>eng/test</c>: the build of both target frameworks of every project of the solution, then every test project of the
@@ -22,6 +22,15 @@ internal static class Commands
         new("dotnet", ["test", "--solution", Solution, "-c", "Release", "--no-build"]),
         new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "suppressions", "duplicates", "ratchet", "packages", "--no-build"]),
     ];
+
+    /// <summary>The configuration of <c>mutate</c> when the command gets no argument.</summary>
+    private const string DefaultMutateConfiguration = "stryker-config.json";
+
+    /// <summary>The report of Stryker.NET that <c>mutate</c> reads, under the output directory of the run.</summary>
+    private const string MutateReport = "artifacts/mutate/reports/mutation-report.json";
+
+    /// <summary>The directories of <c>mutate</c> under <c>artifacts/</c>, deleted before a run so every report comes from it.</summary>
+    private static readonly string[] MutateWritten = ["artifacts/mutate"];
 
     /// <summary>The directories of <c>eng/test</c> under <c>artifacts/</c>, deleted before a run so every package comes from the current build.</summary>
     private static readonly string[] TestWritten = ["artifacts/packages"];
@@ -57,17 +66,36 @@ internal static class Commands
     {
         "test" => TestWritten,
         "test-aot" => AotWritten,
+        "mutate" => MutateWritten,
         _ => [],
     };
 
     /// <summary>Returns the steps of a command, or <see langword="null"/> when the command is unknown.</summary>
     /// <param name="name">The command name.</param>
-    internal static IReadOnlyList<Step>? Find(string name) => name switch
+    /// <param name="arguments">The arguments after the command name; only <c>mutate</c> uses them, for its configuration.</param>
+    internal static IReadOnlyList<Step>? Find(string name, IReadOnlyList<string> arguments) => name switch
     {
         "test" => Test,
         "test-aot" => TestAot,
+        "mutate" => MutateSteps(arguments),
         _ => null,
     };
+
+    /// <summary>
+    /// <c>mutate</c>: the restore of the local tool Stryker.NET, then its run with the configuration given as the argument, or with
+    /// <c>stryker-config.json</c>. The report goes to <c>artifacts/mutate/</c>. The third step reads the report with the same configuration
+    /// and prints the findings; it runs even when the run of the tool failed, so the surviving mutants are visible.
+    /// </summary>
+    private static Step[] MutateSteps(IReadOnlyList<string> arguments)
+    {
+        string configuration = arguments.Count > 0 ? arguments[0] : DefaultMutateConfiguration;
+        return
+        [
+            new("dotnet", ["tool", "restore"], StopsOnFailure: true),
+            new("dotnet", ["stryker", "--config-file", configuration, "--output", "artifacts/mutate"]),
+            new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--", "mutation", "--report", MutateReport, "--config", configuration]),
+        ];
+    }
 
     private static IEnumerable<Step> BuildTestAot()
     {

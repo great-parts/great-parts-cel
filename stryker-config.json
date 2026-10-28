@@ -1,0 +1,23 @@
+{
+  "stryker-config": {
+    "project": "src/Great.Parts.Cel/Great.Parts.Cel.csproj",
+    "test-projects": [
+      "tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj",
+      "tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj"
+    ],
+    "target-framework": "net11.0",
+    "test-runner": "mtp",
+    "coverage-analysis": "perTest",
+    "reporters": ["json", "progress"],
+    "mutation-level": "Standard",
+    "since": {
+      "enabled": true,
+      "target": "main"
+    },
+    "thresholds": {
+      "high": 80,
+      "low": 80,
+      "break": 80
+    }
+  }
+}

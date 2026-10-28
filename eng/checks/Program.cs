@@ -22,6 +22,8 @@ internal static class Program
         [TestCountCommand.JitOption] = "a report",
         [TestCountCommand.AotOption] = "a report",
         [TestCountCommand.WhereOption] = "a text",
+        [MutationCommand.ReportOption] = "a report",
+        [MutationCommand.ConfigOption] = "a configuration file",
     };
 
     internal static int Main(string[] args) =>
@@ -52,8 +54,8 @@ internal static class Program
             return Invalid(error, problem);
         }
 
-        // A relative path of a report is taken from the working directory, not from the root of the repository.
-        foreach (string reportOption in new[] { TestCountCommand.JitOption, TestCountCommand.AotOption })
+        // A relative path of a report or a configuration file is taken from the working directory, not from the root of the repository.
+        foreach (string reportOption in new[] { TestCountCommand.JitOption, TestCountCommand.AotOption, MutationCommand.ReportOption, MutationCommand.ConfigOption })
         {
             if (options.TryGetValue(reportOption, out string? report) && report.Length > 0)
             {

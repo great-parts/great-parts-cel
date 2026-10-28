@@ -36,6 +36,18 @@ public static class EngCodes
     /// <summary>The license expression of the package is missing or differs from the package list.</summary>
     public const string Eng207 = "ENG207";
 
+    /// <summary>A mutant survived: the tests ran and none of them failed. It is an error when the mutation score is below the threshold, otherwise a warning.</summary>
+    public const string Eng501 = "ENG501";
+
+    /// <summary>A mutant has no test that covers its code. It is an error when the mutation score is below the threshold, otherwise a warning.</summary>
+    public const string Eng502 = "ENG502";
+
+    /// <summary>The mutation score of the changed code is below the threshold of the configuration.</summary>
+    public const string Eng503 = "ENG503";
+
+    /// <summary>A changed file of the project under test was not mutated: it is missing in the report, or it has mutants but none was counted.</summary>
+    public const string Eng504 = "ENG504";
+
     /// <summary>The file <c>eng/ratchet.json</c> is not valid: it is not JSON, has an unknown or repeated key, keys out of order, or a value that is not allowed.</summary>
     public const string Eng600 = "ENG600";
 

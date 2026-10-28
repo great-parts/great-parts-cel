@@ -303,6 +303,19 @@ public sealed class ProgramTests
     }
 
     [Fact]
+    public void ReportAndConfigOptionsOfMutation_TakeTheNextTokenAsTheirValueAndAreFullPaths()
+    {
+        using TempDirectory root = new();
+        StubCommand command = new("first");
+
+        Result result = Run(root.Path, [command], "--report", "mutation.json", "first", "--config", "../stryker.json", "--root", root.Path);
+
+        Assert.Equal((0, string.Empty), (result.ExitCode, result.Error));
+        Assert.Equal(Path.Combine(root.Path, "mutation.json"), command.LastOptions["--report"]);
+        Assert.Equal(Path.GetFullPath("../stryker.json", root.Path), command.LastOptions["--config"]);
+    }
+
+    [Fact]
     public void WhereOption_IsTakenAsItIsAndNotParsed()
     {
         using TempDirectory root = new();
@@ -319,6 +332,8 @@ public sealed class ProgramTests
     [InlineData("--jit", "the option --jit needs a report")]
     [InlineData("--aot", "the option --aot needs a report")]
     [InlineData("--where", "the option --where needs a text")]
+    [InlineData("--report", "the option --report needs a report")]
+    [InlineData("--config", "the option --config needs a configuration file")]
     public static void ReportAndWhereOptionsWithoutValue_ExitCodeIsTwoAndNothingRuns(string option, string message)
     {
         using TempDirectory root = new();

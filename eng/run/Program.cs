@@ -20,7 +20,7 @@ internal static class Program
         }
 
         string command = args[0];
-        IReadOnlyList<Step>? steps = Commands.Find(command);
+        IReadOnlyList<Step>? steps = Commands.Find(command, args[1..]);
         if (steps is null)
         {
             return Fail(command, $"unknown command; known commands: {Commands.Known}");
@@ -29,6 +29,20 @@ internal static class Program
         if (!File.Exists(Commands.Solution))
         {
             return Fail(command, $"{Commands.Solution} is not in the working directory; run in the repository root");
+        }
+
+        if (command == "mutate")
+        {
+            if (args.Length > 2)
+            {
+                return Fail(command, "at most one argument, the configuration file");
+            }
+
+            // In a linked worktree .git is a file with a host path: Stryker.NET could not match the changed files (docs/design/eng-mutate.md).
+            if (File.Exists(".git"))
+            {
+                return Fail(command, "linked worktree");
+            }
         }
 
         // An older package in artifacts/packages would be a package without a list for the check of the packages.

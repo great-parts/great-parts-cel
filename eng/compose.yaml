@@ -15,6 +15,18 @@ services:
       - nuget:/root/.nuget/packages
     entrypoint: [dotnet, run, --project, eng/run, --, test]
 
+  # eng/mutate: mutation testing of the changed code (docs/design/eng-mutate.md). The configuration file is the argument after the
+  # service name; without one it is stryker-config.json. It has no second Compose file: in a linked worktree the command stops.
+  mutate:
+    build:
+      context: docker
+      target: sdk
+    working_dir: /repo
+    volumes:
+      - ..:/repo
+      - nuget:/root/.nuget/packages
+    entrypoint: [dotnet, run, --project, eng/run, --, mutate]
+
   # eng/test for Native AOT: tests under JIT and Native AOT on linux-x64 for both targets, and the test count. It runs on the
   # image stage with the native toolchain and is not part of the service test; it takes minutes.
   test-aot:

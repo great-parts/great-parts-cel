@@ -28,8 +28,10 @@ A command that takes an argument is followed by it, for example `signoff <range>
 | `--jit <report>` | `test-count`: the xUnit XML report of the JIT run; other commands ignore it |
 | `--aot <report>` | `test-count`: the report of the Native AOT run of the same commit, operating system and target; other commands ignore it |
 | `--where <text>` | `test-count`: the text for messages, used as it is and not parsed, for example `linux-x64, net11.0`; other commands ignore it |
+| `--report <file>` | `mutation`: the JSON report of Stryker.NET; other commands ignore it |
+| `--config <file>` | `mutation`: the Stryker.NET configuration file of the run; other commands ignore it |
 
-A relative path of a report is taken from the working directory. `test-count` without any of the three options is exit code 2.
+A relative path of a report or a configuration file is taken from the working directory. `test-count` without any of its three options, or `mutation` without `--report` or without `--config`, is exit code 2.
 
 Commands run in the given order. Several commands in one run share their scans: `ratchet` uses the suppressions and the duplicate pairs that `suppressions` and `duplicates` found in the same run instead of scanning again. The container commands call it this way, see [eng-test.md](eng-test.md).
 
@@ -41,7 +43,7 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `packages` | result of `dotnet pack`, `eng/packages/*.txt` | `ENG200`–`ENG207` | the same | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `signoff` | commits of a range | `ENG701` | CI: push to `main`, pull request of an outside contributor | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `test-count` | two test reports | `ENG810`, `ENG811` | `eng/test` for Native AOT; CI, Native AOT cells | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
-| `mutation` | mutation report, `stryker-config.json`, changed files from git | `ENG501`–`ENG504` | `eng/mutate`; nightly mutation run | [eng-mutate.md](eng-mutate.md) |
+| `mutation` | mutation report, its configuration file, changed files from git when `since` is enabled | `ENG501`–`ENG504` | `eng/mutate`; nightly mutation run | [eng-mutate.md](eng-mutate.md) |
 | `examples` | `README.md`, `docs/**/*.md`, `<code>` of XML documentation | `ENG301`, `ENG302`; compiler errors | `eng/docs`; CI, one Linux cell | [eng-docs.md](eng-docs.md) |
 | `links` | lychee report | `ENG401`–`ENG404`, `ENG409` | the same; external links only in CI | [eng-docs.md](eng-docs.md) |
 | `error-codes` | built library and its XML documentation, error codes page | `ENG303` | the same | [eng-docs.md](eng-docs.md) |
