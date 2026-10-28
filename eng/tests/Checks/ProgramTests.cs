@@ -287,6 +287,50 @@ public sealed class ProgramTests
         Assert.Equal(root.Path, command.LastRoot);
     }
 
+    [Fact]
+    public void ReportAndWhereOptions_TakeTheNextTokenAsTheirValueAndReportsAreFullPaths()
+    {
+        using TempDirectory root = new();
+        StubCommand command = new("first");
+
+        Result result = Run(root.Path, [command], "--jit", "jit.xml", "first", "--where", "linux-x64, net11.0", "--aot", "../aot.xml", "--root", root.Path);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(string.Empty, result.Error);
+        Assert.Equal(Path.Combine(root.Path, "jit.xml"), command.LastOptions["--jit"]);
+        Assert.Equal(Path.GetFullPath("../aot.xml", root.Path), command.LastOptions["--aot"]);
+        Assert.Equal("linux-x64, net11.0", command.LastOptions["--where"]);
+    }
+
+    [Fact]
+    public void WhereOption_IsTakenAsItIsAndNotParsed()
+    {
+        using TempDirectory root = new();
+        StubCommand command = new("first");
+
+        Result result = Run(root.Path, [command], "first", "--where", "--jit", "--root", root.Path);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("--jit", command.LastOptions["--where"]);
+        Assert.False(command.LastOptions.ContainsKey("--jit"));
+    }
+
+    [Theory]
+    [InlineData("--jit", "the option --jit needs a report")]
+    [InlineData("--aot", "the option --aot needs a report")]
+    [InlineData("--where", "the option --where needs a text")]
+    public static void ReportAndWhereOptionsWithoutValue_ExitCodeIsTwoAndNothingRuns(string option, string message)
+    {
+        using TempDirectory root = new();
+        StubCommand command = new("first");
+
+        Result result = Run(root.Path, [command], "first", "--root", root.Path, option);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Equal("eng/checks: " + message + Newline, result.Error);
+        Assert.Equal(0, command.Runs);
+    }
+
     private static Finding Error(string path, int line, int column) => new(path, line, column, FindingSeverity.Error, "ENG101", "m");
 
     private static string[] Lines(string output) => output.Split(Newline, StringSplitOptions.RemoveEmptyEntries);

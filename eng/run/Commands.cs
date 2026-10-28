@@ -8,6 +8,9 @@ internal static class Commands
     /// <summary>The solution of the repository; also the marker of the repository root.</summary>
     internal const string Solution = "Great.Parts.Cel.slnx";
 
+    /// <summary>The names of the commands, as the messages of <see cref="Program"/> list them.</summary>
+    internal const string Known = "test, test-aot";
+
     /// <summary>
     /// <c>eng/test</c>: the build of both target frameworks of every project of the solution, then every test project of the
     /// solution under JIT, then the source and package checks of <c>eng/checks</c>. A failed build stops the command; the tests and
@@ -24,6 +27,28 @@ internal static class Commands
     private static readonly string[] TestWritten = ["artifacts/packages"];
 
     /// <summary>
+    /// The test projects that <c>test-aot</c> runs under JIT and publishes under Native AOT, one place for the list. The projects
+    /// are in <c>tests/</c> and named as their directories; <c>Great.Parts.Cel.Conformance</c> joins with its increment.
+    /// </summary>
+    private static readonly string[] AotProjects = ["Great.Parts.Cel.Tests"];
+
+    /// <summary>The target frameworks of the projects of <see cref="AotProjects"/>.</summary>
+    private static readonly string[] AotTargets = ["net10.0", "net11.0"];
+
+    /// <summary>The runtime identifier of the Native AOT publish, also the label of its test count.</summary>
+    private const string AotRuntime = "linux-x64";
+
+    /// <summary>The directories of <c>test-aot</c> under <c>artifacts/</c>, deleted before a run so every report and file comes from it.</summary>
+    private static readonly string[] AotWritten = ["artifacts/test-results", "artifacts/aot"];
+
+    /// <summary>
+    /// <c>test-aot</c>: for every target and every project the build and the JIT run of the test module, the Native AOT publish, the
+    /// run of the published executable, and the comparison of the two reports. None of the steps stops the command, so one run shows
+    /// every failing pair and step.
+    /// </summary>
+    private static readonly Step[] TestAot = [.. BuildTestAot()];
+
+    /// <summary>
     /// Returns the directories under <c>artifacts/</c> that a command writes, relative to the repository root, or an empty list when
     /// the command is unknown. The command deletes them before its first step.
     /// </summary>
@@ -31,6 +56,7 @@ internal static class Commands
     internal static IReadOnlyList<string> Written(string name) => name switch
     {
         "test" => TestWritten,
+        "test-aot" => AotWritten,
         _ => [],
     };
 
@@ -39,6 +65,28 @@ internal static class Commands
     internal static IReadOnlyList<Step>? Find(string name) => name switch
     {
         "test" => Test,
+        "test-aot" => TestAot,
         _ => null,
     };
+
+    private static IEnumerable<Step> BuildTestAot()
+    {
+        foreach (string target in AotTargets)
+        {
+            foreach (string project in AotProjects)
+            {
+                string directory = $"tests/{project}";
+                string jitReport = $"artifacts/test-results/jit/{project}/{target}/report.xml";
+                string aotReport = $"artifacts/test-results/aot/{project}/{target}/report.xml";
+                string published = $"artifacts/aot/{project}/{target}";
+
+                // The restore of the build has no runtime identifier; the publish reuses it with --no-restore, so no lock file changes.
+                yield return new("dotnet", ["build", directory, "-f", target, "-c", "Release"]);
+                yield return new("dotnet", [$"{directory}/bin/Release/{target}/{project}.dll", "-result-xml", jitReport]);
+                yield return new("dotnet", ["publish", directory, "-f", target, "-r", AotRuntime, "-c", "Release", "--no-restore", "-p:InvariantGlobalization=true", "-o", $"{published}/"]);
+                yield return new($"{published}/{project}", ["-result-xml", aotReport]);
+                yield return new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--", "test-count", "--jit", jitReport, "--aot", aotReport, "--where", $"{AotRuntime}, {target}"]);
+            }
+        }
+    }
 }

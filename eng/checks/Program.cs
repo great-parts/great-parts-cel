@@ -15,6 +15,15 @@ internal static class Program
     private const string RootOption = "--root";
     private const string NoBuildOption = PackagesCommand.NoBuildOption;
 
+    // The options that take the next token as their value, with what the value is, for the message of a missing one.
+    private static readonly Dictionary<string, string> ValueOptions = new(StringComparer.Ordinal)
+    {
+        [RootOption] = "a directory",
+        [TestCountCommand.JitOption] = "a report",
+        [TestCountCommand.AotOption] = "a report",
+        [TestCountCommand.WhereOption] = "a text",
+    };
+
     internal static int Main(string[] args) =>
         Run(args, CommandRegistry.All, Directory.GetCurrentDirectory(), Console.Out, Console.Error);
 
@@ -41,6 +50,15 @@ internal static class Program
         if (root is null)
         {
             return Invalid(error, problem);
+        }
+
+        // A relative path of a report is taken from the working directory, not from the root of the repository.
+        foreach (string reportOption in new[] { TestCountCommand.JitOption, TestCountCommand.AotOption })
+        {
+            if (options.TryGetValue(reportOption, out string? report) && report.Length > 0)
+            {
+                options[reportOption] = Path.GetFullPath(report, workingDirectory);
+            }
         }
 
         CheckContext context = new(root, options, arguments);
@@ -83,15 +101,15 @@ internal static class Program
         for (int index = 0; index < args.Count; index++)
         {
             string arg = args[index];
-            if (arg == RootOption)
+            if (ValueOptions.TryGetValue(arg, out string? needs))
             {
                 if (index + 1 >= args.Count)
                 {
-                    problem = $"the option {RootOption} needs a directory";
+                    problem = $"the option {arg} needs {needs}";
                     return false;
                 }
 
-                options[RootOption] = args[++index];
+                options[arg] = args[++index];
             }
             else if (arg == NoBuildOption)
             {

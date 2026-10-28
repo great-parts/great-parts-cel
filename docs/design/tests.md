@@ -14,6 +14,7 @@ The tests of the library: `tests/Great.Parts.Cel.Tests` and `tests/Great.Parts.C
 Common settings:
 
 - `dotnet test` runs on the test platform that `global.json` selects; every project uses the same version of `xunit.v3.aot`, under JIT as well.
+- Tests run in two ways: the `test` command of `eng/test` runs them with `dotnet test` on Microsoft Testing Platform; the `test-aot` command runs the xUnit.net runner inside the test module — `dotnet <module>.dll` under JIT and the published executable under Native AOT — each with `-result-xml`, so that `test-count` compares two reports of the same kind ([eng-test.md](eng-test.md)).
 - The library grants `InternalsVisibleTo` to `Great.Parts.Cel.Tests`, `Great.Parts.Cel.Properties` and `Great.Parts.Cel.Conformance` only.
 - Test projects set `IsPackable=false` and turn off, each with a reason, `CS1591` — tests have no XML documentation — and `CA1707` — test method names are `<Situation>_<Expectation>`.
 - `ImplicitUsings` is off, as in the library: every `using` is written out, and `IDE0005` rejects the unused ones.
@@ -76,7 +77,8 @@ Rules that keep the two sets equal:
 
 Project settings:
 
-- `PublishAot=true` and `RuntimeIdentifiers` with `linux-x64` and `win-x64` are in the project files of the two projects. Restore is then the same for JIT and Native AOT, and publishing does not change the lock file.
+- `PublishAot=true` and `RuntimeIdentifiers` with `linux-x64` and `win-x64` are in the project files of the two projects. Restore is then the same for JIT and Native AOT: the publish runs with `--no-restore` after a restore without a runtime identifier and changes no lock file, neither of the project nor of the projects it references.
+- `PublishDocumentationFile=false` is in the same project files, with its reason: the Native AOT publish of the SDK looks for the XML documentation file in the runtime output, where the build does not put it, and fails with `MSB3030`. A test executable needs no documentation file; `GenerateDocumentationFile` stays `true`.
 - `InvariantGlobalization=true` is given only on the `dotnet publish` command line. The JIT run keeps ICU, the published run uses the invariant mode, and the same expectations hold in both.
 
-A failed test under Native AOT shows its name and the file and line of the test method, which the test framework records at build time. If a report of a published run has no source for a test, the file and line are found by the test name in the PDB of the JIT build of the same commit, as `test-count` does.
+Under Native AOT the stack trace of a failed test is cut down: the console and the `<stack-trace>` element of the report show the name of the test and the message, and for a thrown exception the method and an offset, but no file and line. The file and line are in the report of the run: the attributes `source-file` and `source-line` of its `<test>` element, which the test framework records at build time — the file and the line of the `[Fact]` or `[Theory]` attribute, with the absolute path as the build saw it. If a report of a published run has no source for a test, the file and line are found by the test name in the PDB of the JIT build of the same commit, as `test-count` does.

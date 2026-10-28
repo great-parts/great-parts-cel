@@ -16,14 +16,14 @@ internal static class Program
     {
         if (args.Length == 0)
         {
-            return Fail("eng/run", "no command given; known commands: test");
+            return Fail("eng/run", $"no command given; known commands: {Commands.Known}");
         }
 
         string command = args[0];
         IReadOnlyList<Step>? steps = Commands.Find(command);
         if (steps is null)
         {
-            return Fail(command, "unknown command; known commands: test");
+            return Fail(command, $"unknown command; known commands: {Commands.Known}");
         }
 
         if (!File.Exists(Commands.Solution))
@@ -75,7 +75,7 @@ internal static class Program
             }
 
             process.WaitForExit();
-            reason = null;
+            reason = process.ExitCode == 0 ? null : $"exit code {process.ExitCode}";
             return process.ExitCode == 0;
         }
         catch (Win32Exception exception)

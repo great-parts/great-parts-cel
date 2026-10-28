@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Unit tests of the library (docs/design/tests.md). The tests run under JIT and as a published Native AOT executable;
+    the same tests must run in both modes. InvariantGlobalization is set on the publish command line only.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- Restore is the same for JIT and Native AOT, so publishing does not change the lock file. -->
+    <PublishAot>true</PublishAot>
+    <RuntimeIdentifiers>linux-x64;win-x64</RuntimeIdentifiers>
+    <!--
+      The published test executable needs no XML documentation. Without this, publishing under Native AOT fails with
+      MSB3030: the build output is not copied to bin/ and the publish step looks for the documentation file there.
+    -->
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Tests have no XML documentation. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Test method names are <Situation>_<Expectation>, with an underscore. -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.aot" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -15,6 +15,18 @@ services:
       - nuget:/root/.nuget/packages
     entrypoint: [dotnet, run, --project, eng/run, --, test]
 
+  # eng/test for Native AOT: tests under JIT and Native AOT on linux-x64 for both targets, and the test count. It runs on the
+  # image stage with the native toolchain and is not part of the service test; it takes minutes.
+  test-aot:
+    build:
+      context: docker
+      target: sdk-aot
+    working_dir: /repo
+    volumes:
+      - ..:/repo
+      - nuget:/root/.nuget/packages
+    entrypoint: [dotnet, run, --project, eng/run, --, test-aot]
+
   # Builds a sample application on the .NET SDK 10.0.100 from the packed Great.Parts.Cel of artifacts/packages; run it
   # after the service test. It has its own packages folder under artifacts/min-sdk and does not use the volume nuget.
   # "$$" is a literal "$" for Compose.

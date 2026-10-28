@@ -56,4 +56,10 @@ public static class EngCodes
 
     /// <summary>A commit of the checked range has no <c>Signed-off-by</c> trailer.</summary>
     public const string Eng701 = "ENG701";
+
+    /// <summary>A test ran under JIT but not under Native AOT: the report of the Native AOT run does not have it.</summary>
+    public const string Eng810 = "ENG810";
+
+    /// <summary>A test ran under Native AOT but not under JIT: the report of the JIT run does not have it.</summary>
+    public const string Eng811 = "ENG811";
 }

@@ -93,9 +93,9 @@ Steps 3 and 4 both run even when one fails, so a single run shows all failures.
 
 For each target `net10.0` and `net11.0` and each of the projects `Great.Parts.Cel.Tests` and `Great.Parts.Cel.Conformance`:
 
-1. Run the tests under JIT with an xUnit XML report into `artifacts/test-results/jit/`.
-2. Publish for linux-x64 under Native AOT: `dotnet publish -f <target> -r linux-x64 -c Release -p:InvariantGlobalization=true -o artifacts/aot/<project>/<target>/`. Trimming and AOT warnings of the publish are compiler lines with a file and a line.
-3. Run the published executable with the same report option into `artifacts/test-results/aot/`.
+1. Build the project for the target, `dotnet build <project> -f <target> -c Release`, and run the built module under JIT: `dotnet <project directory>/bin/Release/<target>/<project>.dll -result-xml artifacts/test-results/jit/<project>/<target>/report.xml`.
+2. Publish for linux-x64 under Native AOT with the restore of step 1: `dotnet publish <project> -f <target> -r linux-x64 -c Release --no-restore -p:InvariantGlobalization=true -o artifacts/aot/<project>/<target>/`. Trimming and AOT warnings of the publish fail it, as every warning does, and name the file and the line without a column, with the absolute path as the build saw it: `<path>(<line>): Trim analysis error IL2xxx: …` or `… AOT analysis error IL3xxx: …`. The file and the line come from the PDB of the library next to its assembly; without it the line starts with `ILC :`. A restore with `-r` would add targets for the runtime identifier to the lock files of the referenced projects, and a locked restore in CI would then fail; see [tests.md](tests.md).
+3. Run the published executable `artifacts/aot/<project>/<target>/<project>` with `-result-xml artifacts/test-results/aot/<project>/<target>/report.xml`.
 4. `eng/checks test-count` on the two reports, with `linux-x64` and the target as the label.
 
 All four steps run for every pair, so one run shows every failing pair. The command takes minutes and is not part of `test`; CI runs the same publish and comparison in its Native AOT cells on linux-x64 and win-x64. Why `InvariantGlobalization` is set only on the publish command line is explained in [tests.md](tests.md).

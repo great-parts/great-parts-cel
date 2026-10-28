@@ -11,4 +11,8 @@
     <Project Path="src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
     <Project Path="src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj" />
+    <Project Path="tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj" />
+  </Folder>
 </Solution>

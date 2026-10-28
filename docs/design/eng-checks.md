@@ -25,6 +25,11 @@ A command that takes an argument is followed by it, for example `signoff <range>
 | :- | :- |
 | `--root <directory>` | the repository root, instead of the search from the working directory, see [Repository helpers](#repository-helpers) |
 | `--no-build` | `packages` packs the Release build that already exists instead of building it, see [eng-checks-artifacts.md](eng-checks-artifacts.md#packages); other commands ignore it |
+| `--jit <report>` | `test-count`: the xUnit XML report of the JIT run; other commands ignore it |
+| `--aot <report>` | `test-count`: the report of the Native AOT run of the same commit, operating system and target; other commands ignore it |
+| `--where <text>` | `test-count`: the text for messages, used as it is and not parsed, for example `linux-x64, net11.0`; other commands ignore it |
+
+A relative path of a report is taken from the working directory. `test-count` without any of the three options is exit code 2.
 
 Commands run in the given order. Several commands in one run share their scans: `ratchet` uses the suppressions and the duplicate pairs that `suppressions` and `duplicates` found in the same run instead of scanning again. The container commands call it this way, see [eng-test.md](eng-test.md).
 

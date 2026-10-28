@@ -63,14 +63,18 @@ Compares the tests that ran under JIT with the tests that ran under Native AOT f
 eng/checks test-count --jit <report> --aot <report> --where "<runtime identifier>, <target>"
 ```
 
-- The reports are xUnit XML reports of the test platform (`--report-xunit`), one per test module and run.
+- The reports are xUnit.net v2+ XML reports, one per test module and run, written by the xUnit.net runner inside the test module with its option `-result-xml <file>`: the JIT build runs as `dotnet <module>.dll`, the published executable runs directly. `dotnet test` and its options are not used for these runs.
 - A test is the pair of the `type` and `name` attributes of a `<test>` element. Tests with the result `NotRun` are not counted; every other result counts, so a failed test is still a test that ran.
-- A test only in the JIT report is `ENG810`, a test only in the Native AOT report is `ENG811`. The message names the test and `--where`.
-- The place is the test method: `source-file` and `source-line` of the report that has the test; the column is the first character of that line that is not white space. When that report has no source, the method is found by its name in the PDB of the JIT build of the same commit, read with `System.Reflection.Metadata`.
-- Paths become relative to the repository root. A deterministic build writes the root as `/_/`; both forms are accepted.
+- A test only in the JIT report is `ENG810`, a test only in the Native AOT report is `ENG811`. The message names the test by its `name` attribute, which is the full name with the namespace and, for a theory case, the arguments, and `--where`.
+- The place is the test method: `source-file` and `source-line` of the report that has the test; the column is the first character of that line that is not white space. The test framework records these at build time, under JIT and under Native AOT alike; `source-line` is the line of the `[Fact]` or `[Theory]` attribute, not of the method. When that report has no source, the method is found by its name in the PDB of the JIT build of the same commit, read with `System.Reflection.Metadata`: the place is the first visible sequence point of the method — of its state machine for an async method — which in the Release build is the first statement of the body, so it can lie a few lines below the line that the report would give. The JIT build is the file in the `name` attribute of the `<assembly>` element of the JIT report, and its PDB is the file next to it with the extension `.pdb`. The attribute is the absolute path of the built `.dll` as the run saw it, and the command reads it as it is, so it runs where the JIT run ran: in the same container in `eng/test` for Native AOT. In the Native AOT report that attribute is the published executable and is not read.
+- A report that cannot be read, or a needed PDB that is missing or cannot be read, is an unread input: exit code 2, and the message names the file ([eng-checks.md](eng-checks.md#layout)). When the method is not in the PDB either, the place is the line of the `<test>` element in the report that has the test, column 1; the finding stays a finding and is not an input error.
+- When the JIT report has several `<assembly>` elements and the PDB is needed, the PDBs of all of them are read; for a method found in more than one, the first assembly in report order wins, and any assembly or PDB that cannot be read is an unread input.
+- When the place has a source file but that file, or that line in it, cannot be read, the column is 1. The source file is not an input of the command, so this is not an error.
+- Paths become relative to the repository root. A deterministic build writes the root as `/_/`; both forms are accepted. A path outside the root that does not start with `/_/` is written as it is, with `/` as the separator.
+- A finding whose place is a `<test>` element names the report file by the same rule: relative to the root, or as it is when the report lies outside the root.
 
 ```text
-tests/Great.Parts.Cel.Tests/Values/CelValueEqualityTests.cs(42,5): error ENG810: test 'CelValueEqualityTests.NaN_NotEqualToItself' ran under JIT but not under Native AOT (linux-x64, net11.0)
+tests/Great.Parts.Cel.Tests/Values/CelValueEqualityTests.cs(42,5): error ENG810: test 'Great.Parts.Cel.Tests.Values.CelValueEqualityTests.NaN_NotEqualToItself' ran under JIT but not under Native AOT (linux-x64, net11.0)
 ```
 
 The command runs in `eng/test` for Native AOT ([eng-test.md](eng-test.md)) and in the Native AOT cells of CI, for each pair of reports. The rules that keep the two sets equal are in [tests.md](tests.md).
