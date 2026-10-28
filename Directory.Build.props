@@ -21,6 +21,8 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <!-- License of every package of the repository, written to the package metadata as an SPDX expression. -->
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <!-- Copyright line of every package of the repository, written to the package metadata and the assemblies. -->
+    <Copyright>Copyright 2026 The Great.Parts Authors</Copyright>
   </PropertyGroup>
 
   <!-- Thresholds of the code metrics rules (CA1502 and others). -->
