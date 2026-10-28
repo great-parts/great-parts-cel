@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel.Protobuf</RootNamespace>
+    <!-- Trimming and Native AOT analyzers: IL2xxx and IL3xxx are build errors. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!--
+    The package depends only on Great.Parts.Cel and Google.Protobuf. The core gives this assembly no
+    access to its internals: the two packages are installed independently, so only the public API of the
+    core is used.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Banned APIs: every use is RS0030. -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../eng/BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+
+  <!-- Public API snapshot shared by both target frameworks; this package has no API specific to net11.0. -->
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

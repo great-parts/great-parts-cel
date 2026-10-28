@@ -1,0 +1,157 @@
+// Banned APIs of the Great.Parts.Cel packages and of the code created by the source generator.
+// Format: <documentation comment ID>;<reason>. The reason is shown in RS0030.
+// An entry of a method without a parameter list matches only its parameterless overload, so every overload is listed.
+
+// Files and console
+T:System.IO.File;The library does not access the file system; the application passes all data
+T:System.IO.Directory;The library does not access the file system; the application passes all data
+T:System.IO.FileStream;The library does not access the file system; the application passes all data
+T:System.IO.FileInfo;The library does not access the file system; the application passes all data
+M:System.IO.Path.GetTempPath;The library does not access the file system; the application passes all data
+M:System.IO.Path.GetFullPath(System.String);The library does not access the file system; the application passes all data
+T:System.Console;The library does not write to the console
+
+// Network
+N:System.Net;The library does not access the network
+N:System.Net.Http;The library does not access the network
+N:System.Net.Sockets;The library does not access the network
+
+// Environment and processes
+T:System.Environment;The library does not read environment variables or process state
+T:System.Diagnostics.Process;The library does not start processes
+
+// Threads: evaluation is synchronous and the library creates no threads
+T:System.Threading.Thread;Evaluation is synchronous; the library creates no threads
+T:System.Threading.ThreadPool;Evaluation is synchronous; the library creates no threads
+T:System.Threading.Timer;The library creates no timers
+T:System.Threading.Tasks.Task;Evaluation is synchronous; the library creates no threads
+T:System.Threading.Tasks.Task`1;Evaluation is synchronous; the library creates no threads
+T:System.Threading.Tasks.Parallel;Evaluation is synchronous; the library creates no threads
+
+// Current culture
+P:System.Globalization.CultureInfo.CurrentCulture;Results must not depend on the process culture; use the invariant culture or own formatting
+P:System.Globalization.CultureInfo.CurrentUICulture;Results must not depend on the process culture; use the invariant culture or own formatting
+P:System.StringComparer.CurrentCulture;Results must not depend on the process culture; use ordinal comparison
+
+// Time zones and clocks
+T:System.TimeZoneInfo;Time zone rules come only from the application; the host time zone database differs between operating systems
+P:System.DateTime.Now;The library does not read the clock; the application passes time values
+P:System.DateTime.UtcNow;The library does not read the clock; the application passes time values
+P:System.DateTime.Today;The library does not read the clock; the application passes time values
+P:System.DateTimeOffset.Now;The library does not read the clock; the application passes time values
+P:System.DateTimeOffset.UtcNow;The library does not read the clock; the application passes time values
+P:System.TimeProvider.System;The library does not read the clock; the application passes time values
+
+// .NET regular expressions
+T:System.Text.RegularExpressions.Regex;matches uses its own linear-time RE2 engine
+
+// Decimal128 parsing and formatting by .NET: format, culture and rounding are not documented
+M:System.Numerics.Decimal128.Parse(System.ReadOnlySpan{System.Byte},System.Globalization.NumberStyles,System.IFormatProvider);Use the library's own decimal parser
+M:System.Numerics.Decimal128.Parse(System.ReadOnlySpan{System.Byte},System.IFormatProvider);Use the library's own decimal parser
+M:System.Numerics.Decimal128.Parse(System.ReadOnlySpan{System.Char},System.Globalization.NumberStyles,System.IFormatProvider);Use the library's own decimal parser
+M:System.Numerics.Decimal128.Parse(System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal parser
+M:System.Numerics.Decimal128.Parse(System.String,System.Globalization.NumberStyles,System.IFormatProvider);Use the library's own decimal parser
+M:System.Numerics.Decimal128.Parse(System.String,System.Globalization.NumberStyles);Use the library's own decimal parser
+M:System.Numerics.Decimal128.Parse(System.String,System.IFormatProvider);Use the library's own decimal parser
+M:System.Numerics.Decimal128.Parse(System.String);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParse(System.ReadOnlySpan{System.Byte},System.IFormatProvider,System.Numerics.Decimal128@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParse(System.ReadOnlySpan{System.Byte},System.Numerics.Decimal128@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParse(System.ReadOnlySpan{System.Char},System.Globalization.NumberStyles,System.IFormatProvider,System.Numerics.Decimal128@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParse(System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Numerics.Decimal128@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParse(System.ReadOnlySpan{System.Char},System.Numerics.Decimal128@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParse(System.String,System.Globalization.NumberStyles,System.IFormatProvider,System.Numerics.Decimal128@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParse(System.String,System.IFormatProvider,System.Numerics.Decimal128@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParse(System.String,System.Numerics.Decimal128@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParsePartial(System.ReadOnlySpan{System.Byte},System.Globalization.NumberStyles,System.IFormatProvider,System.Numerics.Decimal128@,System.Int32@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParsePartial(System.ReadOnlySpan{System.Char},System.Globalization.NumberStyles,System.IFormatProvider,System.Numerics.Decimal128@,System.Int32@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.TryParsePartial(System.String,System.Globalization.NumberStyles,System.IFormatProvider,System.Numerics.Decimal128@,System.Int32@);Use the library's own decimal parser
+M:System.Numerics.Decimal128.ToString;Use the library's own decimal formatter
+M:System.Numerics.Decimal128.ToString(System.IFormatProvider);Use the library's own decimal formatter
+M:System.Numerics.Decimal128.ToString(System.String,System.IFormatProvider);Use the library's own decimal formatter
+M:System.Numerics.Decimal128.ToString(System.String);Use the library's own decimal formatter
+M:System.Numerics.Decimal128.TryFormat(System.Span{System.Byte},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal formatter
+M:System.Numerics.Decimal128.TryFormat(System.Span{System.Char},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal formatter
+M:System.Numerics.Decimal128.op_Explicit(System.Double)~System.Numerics.Decimal128;Use the library's conversion through the shortest double digits
+
+// Reflection: the public API works under Native AOT without reflection
+M:System.Type.GetProperties;Use generated type descriptions instead of reflection
+M:System.Type.GetProperties(System.Reflection.BindingFlags);Use generated type descriptions instead of reflection
+M:System.Type.GetFields;Use generated type descriptions instead of reflection
+M:System.Type.GetFields(System.Reflection.BindingFlags);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Int32,System.Reflection.BindingFlags,System.Reflection.Binder,System.Reflection.CallingConventions,System.Type[],System.Reflection.ParameterModifier[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Int32,System.Reflection.BindingFlags,System.Reflection.Binder,System.Type[],System.Reflection.ParameterModifier[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Int32,System.Reflection.BindingFlags,System.Type[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Int32,System.Type[],System.Reflection.ParameterModifier[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Int32,System.Type[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Reflection.BindingFlags,System.Reflection.Binder,System.Reflection.CallingConventions,System.Type[],System.Reflection.ParameterModifier[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Reflection.BindingFlags,System.Reflection.Binder,System.Type[],System.Reflection.ParameterModifier[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Reflection.BindingFlags,System.Type[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Reflection.BindingFlags);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Type[],System.Reflection.ParameterModifier[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String,System.Type[]);Use generated type descriptions instead of reflection
+M:System.Type.GetMethod(System.String);Use generated type descriptions instead of reflection
+M:System.Reflection.PropertyInfo.GetValue(System.Object,System.Object[]);Use generated type descriptions instead of reflection
+M:System.Reflection.PropertyInfo.GetValue(System.Object,System.Reflection.BindingFlags,System.Reflection.Binder,System.Object[],System.Globalization.CultureInfo);Use generated type descriptions instead of reflection
+M:System.Reflection.PropertyInfo.GetValue(System.Object);Use generated type descriptions instead of reflection
+M:System.Reflection.MethodBase.Invoke(System.Object,System.Object[]);Use generated type descriptions instead of reflection
+M:System.Reflection.MethodBase.Invoke(System.Object,System.Reflection.BindingFlags,System.Reflection.Binder,System.Object[],System.Globalization.CultureInfo);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.String,System.String,System.Boolean,System.Reflection.BindingFlags,System.Reflection.Binder,System.Object[],System.Globalization.CultureInfo,System.Object[]);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.String,System.String,System.Object[]);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.String,System.String);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.Type,System.Boolean);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.Type,System.Object[],System.Object[]);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.Type,System.Object[]);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.Type,System.Reflection.BindingFlags,System.Reflection.Binder,System.Object[],System.Globalization.CultureInfo,System.Object[]);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.Type,System.Reflection.BindingFlags,System.Reflection.Binder,System.Object[],System.Globalization.CultureInfo);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance(System.Type);Use generated type descriptions instead of reflection
+M:System.Activator.CreateInstance``1;Use generated type descriptions instead of reflection
+M:System.Type.MakeGenericType(System.Type[]);Not available under Native AOT
+M:System.Reflection.MethodInfo.MakeGenericMethod(System.Type[]);Not available under Native AOT
+M:System.Linq.Expressions.LambdaExpression.Compile;The evaluator interprets an immutable plan and compiles no code
+M:System.Linq.Expressions.LambdaExpression.Compile(System.Boolean);The evaluator interprets an immutable plan and compiles no code
+M:System.Linq.Expressions.LambdaExpression.Compile(System.Runtime.CompilerServices.DebugInfoGenerator);The evaluator interprets an immutable plan and compiles no code
+M:System.Linq.Expressions.Expression`1.Compile;The evaluator interprets an immutable plan and compiles no code
+M:System.Linq.Expressions.Expression`1.Compile(System.Boolean);The evaluator interprets an immutable plan and compiles no code
+M:System.Linq.Expressions.Expression`1.Compile(System.Runtime.CompilerServices.DebugInfoGenerator);The evaluator interprets an immutable plan and compiles no code
+
+// Substring search: the worst case is O(n*m), and the cost limit does not bound its time
+M:System.String.IndexOf(System.String);Use the library's linear-time substring search
+M:System.String.IndexOf(System.String,System.Int32);Use the library's linear-time substring search
+M:System.String.IndexOf(System.String,System.Int32,System.Int32);Use the library's linear-time substring search
+M:System.String.IndexOf(System.String,System.StringComparison);Use the library's linear-time substring search
+M:System.String.IndexOf(System.String,System.Int32,System.StringComparison);Use the library's linear-time substring search
+M:System.String.IndexOf(System.String,System.Int32,System.Int32,System.StringComparison);Use the library's linear-time substring search
+M:System.String.LastIndexOf(System.String);Use the library's linear-time substring search
+M:System.String.LastIndexOf(System.String,System.Int32);Use the library's linear-time substring search
+M:System.String.LastIndexOf(System.String,System.Int32,System.Int32);Use the library's linear-time substring search
+M:System.String.LastIndexOf(System.String,System.StringComparison);Use the library's linear-time substring search
+M:System.String.LastIndexOf(System.String,System.Int32,System.StringComparison);Use the library's linear-time substring search
+M:System.String.LastIndexOf(System.String,System.Int32,System.Int32,System.StringComparison);Use the library's linear-time substring search
+M:System.String.Contains(System.String);Use the library's linear-time substring search
+M:System.String.Contains(System.String,System.StringComparison);Use the library's linear-time substring search
+M:System.String.Replace(System.String,System.String);Use the library's linear-time substring search
+M:System.String.Replace(System.String,System.String,System.StringComparison);Use the library's linear-time substring search
+M:System.String.Replace(System.String,System.String,System.Boolean,System.Globalization.CultureInfo);Use the library's linear-time substring search
+M:System.String.Split(System.String,System.StringSplitOptions);Use the library's linear-time substring search
+M:System.String.Split(System.String,System.Int32,System.StringSplitOptions);Use the library's linear-time substring search
+M:System.String.Split(System.String[],System.StringSplitOptions);Use the library's linear-time substring search
+M:System.String.Split(System.String[],System.Int32,System.StringSplitOptions);Use the library's linear-time substring search
+M:System.Text.StringBuilder.Replace(System.String,System.String);Use the library's linear-time substring search
+M:System.Text.StringBuilder.Replace(System.String,System.String,System.Int32,System.Int32);Use the library's linear-time substring search
+M:System.Text.StringBuilder.Replace(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Use the library's linear-time substring search
+M:System.Text.StringBuilder.Replace(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.Int32,System.Int32);Use the library's linear-time substring search
+M:System.MemoryExtensions.IndexOf(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's linear-time substring search
+M:System.MemoryExtensions.IndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.IndexOf``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.IndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.LastIndexOf(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's linear-time substring search
+M:System.MemoryExtensions.LastIndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.LastIndexOf``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.LastIndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.Contains(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's linear-time substring search
+M:System.MemoryExtensions.Count``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.Count``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.Count``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.Split(System.ReadOnlySpan{System.Char},System.Span{System.Range},System.ReadOnlySpan{System.Char},System.StringSplitOptions);Use the library's linear-time substring search
+M:System.MemoryExtensions.Split``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
+M:System.MemoryExtensions.SplitAny(System.ReadOnlySpan{System.Char},System.Span{System.Range},System.ReadOnlySpan{System.String},System.StringSplitOptions);Use the library's linear-time substring search

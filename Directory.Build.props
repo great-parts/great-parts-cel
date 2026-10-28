@@ -1,0 +1,43 @@
+<Project>
+  <!--
+    Strict checks for every C# project of the repository: the library, the source generator,
+    tests and eng/. Generated code (the obj/ directory and what Roslyn treats as generated) is not
+    checked. A rule is turned off only with a reason next to it; outside the directories listed in
+    docs/design/eng-checks-source.md, marking code as generated turns rules off too and needs a reason.
+  -->
+  <PropertyGroup>
+    <!-- Nullable reference types; a possible null dereference is a build error. -->
+    <Nullable>enable</Nullable>
+    <!-- Every warning is a build error. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- All .NET code analysis rules. -->
+    <AnalysisMode>All</AnalysisMode>
+    <!-- Code style rules run in the build; their levels are set in .editorconfig. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- XML documentation; a public member without it (CS1591) is a build error in package projects. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- The language version is the default of each target framework; the SDK version is pinned in global.json. -->
+    <!-- Packages restore from lock files; continuous integration restores in locked mode. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <!-- License of every package of the repository, written to the package metadata as an SPDX expression. -->
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <!-- Thresholds of the code metrics rules (CA1502 and others). -->
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)CodeMetricsConfig.txt" />
+  </ItemGroup>
+
+  <!--
+    An invalid line of CodeMetricsConfig.txt is CA1509 and a build error. The diagnostic is reported in that file,
+    not in a source file, so .editorconfig does not set its severity and the rule stays silent without this property.
+  -->
+  <PropertyGroup>
+    <WarningsAsErrors>$(WarningsAsErrors);CA1509</WarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+    <RestoreLockedMode>true</RestoreLockedMode>
+  </PropertyGroup>
+</Project>

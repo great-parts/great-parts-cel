@@ -1,0 +1,19 @@
+# Containers of eng/ (docs/design/eng-test.md). From the repository root:
+#   docker compose -f eng/compose.yaml run --rm test
+# From a linked git worktree add eng/compose.worktree.yaml (docs/design/eng-test.md, "Linked worktrees").
+name: great-parts-cel-eng
+
+services:
+  # eng/test: build, tests and checks. Arguments after the service name go to the command of eng/run.
+  test:
+    build:
+      context: docker
+      target: sdk
+    working_dir: /repo
+    volumes:
+      - ..:/repo
+      - nuget:/root/.nuget/packages
+    entrypoint: [dotnet, run, --project, eng/run, --, test]
+
+volumes:
+  nuget:

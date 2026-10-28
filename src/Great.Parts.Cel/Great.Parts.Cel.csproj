@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel</RootNamespace>
+    <!-- Trimming and Native AOT analyzers: IL2xxx and IL3xxx are build errors. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Banned APIs: every use is RS0030. -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../eng/BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+
+  <!-- Public API snapshot shared by both target frameworks. -->
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <!-- Additions for net11.0 only: the decimal API. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <AdditionalFiles Include="PublicAPI/net11.0/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/net11.0/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+</Project>

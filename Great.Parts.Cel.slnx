@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/eng/">
+    <Project Path="eng/run/Great.Parts.Cel.Eng.Run.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <Project Path="src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
+  </Folder>
+</Solution>

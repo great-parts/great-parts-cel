@@ -1,0 +1,429 @@
+#nullable enable
+Great.Parts.Cel.CelBindings
+Great.Parts.Cel.CelBindings.Add<T>(string! name, T value) -> Great.Parts.Cel.CelBindings!
+Great.Parts.Cel.CelBindings.CelBindings() -> void
+Great.Parts.Cel.CelBuildResult
+Great.Parts.Cel.CelBuildResult.Environment.get -> Great.Parts.Cel.CelEnvironment?
+Great.Parts.Cel.CelBuildResult.Errors.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelError!>
+Great.Parts.Cel.CelBuildResult.GetEnvironmentOrThrow() -> Great.Parts.Cel.CelEnvironment!
+Great.Parts.Cel.CelBuildResult.IsSuccess.get -> bool
+Great.Parts.Cel.CelCompilationCache
+Great.Parts.Cel.CelCompilationCache.CelCompilationCache(Great.Parts.Cel.CelEnvironment! environment, int maxEntryCount, int maxTotalTextLength) -> void
+Great.Parts.Cel.CelCompilationCache.Evaluate<T>(string! expression, Great.Parts.Cel.CelBindings! bindings, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.CelCompilationCache.GetOrCompile<T>(string! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelCompileResult<T>!
+Great.Parts.Cel.CelCompileOptions
+Great.Parts.Cel.CelCompileOptions.CelCompileOptions() -> void
+Great.Parts.Cel.CelCompileOptions.ExpectedType.get -> Great.Parts.Cel.Types.CelType?
+Great.Parts.Cel.CelCompileOptions.ExpectedType.init -> void
+Great.Parts.Cel.CelCompileOptions.SourceLocation.get -> Great.Parts.Cel.Diagnostics.CelSourceLocation?
+Great.Parts.Cel.CelCompileOptions.SourceLocation.init -> void
+Great.Parts.Cel.CelCompileResult<T>
+Great.Parts.Cel.CelCompileResult<T>.Errors.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelError!>
+Great.Parts.Cel.CelCompileResult<T>.GetProgramOrThrow() -> Great.Parts.Cel.CelProgram<T>!
+Great.Parts.Cel.CelCompileResult<T>.IsSuccess.get -> bool
+Great.Parts.Cel.CelCompileResult<T>.Program.get -> Great.Parts.Cel.CelProgram<T>?
+Great.Parts.Cel.CelEnvironment
+Great.Parts.Cel.CelEnvironment.Compile<T>(string! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelCompileResult<T>!
+Great.Parts.Cel.CelEnvironment.Evaluate<T>(string! expression, Great.Parts.Cel.CelBindings! bindings, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.CelEnvironment.ToBuilder() -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder
+Great.Parts.Cel.CelEnvironmentBuilder.AddExtension(Great.Parts.Cel.Declarations.CelExtension! extension) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction(Great.Parts.Cel.Declarations.CelFunctionDecl! declaration) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<T1, T2, T3, T4, TResult>(string! name, System.Func<T1, T2, T3, T4, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<T1, T2, T3, TResult>(string! name, System.Func<T1, T2, T3, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<T1, T2, TResult>(string! name, System.Func<T1, T2, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<T1, TResult>(string! name, System.Func<T1, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<TResult>(string! name, System.Func<TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunctionImplementation(string! overloadId, Great.Parts.Cel.Declarations.CelFunctionImplementation! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunctionImplementation<T1, T2, T3, T4, TResult>(string! overloadId, System.Func<T1, T2, T3, T4, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunctionImplementation<T1, T2, T3, TResult>(string! overloadId, System.Func<T1, T2, T3, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunctionImplementation<T1, T2, TResult>(string! overloadId, System.Func<T1, T2, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunctionImplementation<T1, TResult>(string! overloadId, System.Func<T1, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunctionImplementation<TResult>(string! overloadId, System.Func<TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddTypes(Great.Parts.Cel.Values.CelTypeProvider! provider) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddVariable(Great.Parts.Cel.Declarations.CelVariableDecl! declaration) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddVariable(string! name, Great.Parts.Cel.Types.CelType! type) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddVariable<T>(string! name) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.Build() -> Great.Parts.Cel.CelBuildResult!
+Great.Parts.Cel.CelEnvironmentBuilder.CelEnvironmentBuilder(Great.Parts.Cel.CelStandardLibrary! standardLibrary) -> void
+Great.Parts.Cel.CelEnvironmentBuilder.UseContainer(string! container) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.UseTimeZones(Great.Parts.Cel.Values.CelTimeZoneDatabase! database) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEvalOptions
+Great.Parts.Cel.CelEvalOptions.CelEvalOptions() -> void
+Great.Parts.Cel.CelEvalOptions.CostLimit.get -> ulong?
+Great.Parts.Cel.CelEvalOptions.CostLimit.init -> void
+Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.CelEvalResult<T>.CelEvalResult() -> void
+Great.Parts.Cel.CelEvalResult<T>.Errors.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelError!>
+Great.Parts.Cel.CelEvalResult<T>.GetValueOrThrow() -> T
+Great.Parts.Cel.CelEvalResult<T>.IsSuccess.get -> bool
+Great.Parts.Cel.CelEvalResult<T>.Value.get -> T?
+Great.Parts.Cel.CelExtensions
+Great.Parts.Cel.CelProgram<T>
+Great.Parts.Cel.CelProgram<T>.Evaluate(Great.Parts.Cel.CelBindings! bindings, Great.Parts.Cel.CelEvalOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.CelProgram<T>.ResultType.get -> Great.Parts.Cel.Types.CelType!
+Great.Parts.Cel.CelStandardLibrary
+Great.Parts.Cel.CelStandardLibrary.Version.get -> uint
+Great.Parts.Cel.Configuration.CelEnvironmentJson
+Great.Parts.Cel.Declarations.CelCostFunction
+Great.Parts.Cel.Declarations.CelExtension
+Great.Parts.Cel.Declarations.CelExtension.Name.get -> string!
+Great.Parts.Cel.Declarations.CelExtension.Version.get -> uint
+Great.Parts.Cel.Declarations.CelFunctionDecl
+Great.Parts.Cel.Declarations.CelFunctionDecl.CelFunctionDecl(string! name, params System.ReadOnlySpan<Great.Parts.Cel.Declarations.CelOverloadDecl!> overloads) -> void
+Great.Parts.Cel.Declarations.CelFunctionDecl.Name.get -> string!
+Great.Parts.Cel.Declarations.CelFunctionDecl.Overloads.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Declarations.CelOverloadDecl!>
+Great.Parts.Cel.Declarations.CelFunctionImplementation
+Great.Parts.Cel.Declarations.CelOverloadDecl
+Great.Parts.Cel.Declarations.CelOverloadDecl.Cost.get -> Great.Parts.Cel.Declarations.CelCostFunction?
+Great.Parts.Cel.Declarations.CelOverloadDecl.IsReceiverStyle.get -> bool
+Great.Parts.Cel.Declarations.CelOverloadDecl.OverloadId.get -> string!
+Great.Parts.Cel.Declarations.CelOverloadDecl.ParameterTypes.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Types.CelType!>
+Great.Parts.Cel.Declarations.CelOverloadDecl.ResultType.get -> Great.Parts.Cel.Types.CelType!
+Great.Parts.Cel.Declarations.CelOverloadDecl.WithCost(Great.Parts.Cel.Declarations.CelCostFunction! cost) -> Great.Parts.Cel.Declarations.CelOverloadDecl!
+Great.Parts.Cel.Declarations.CelVariableDecl
+Great.Parts.Cel.Declarations.CelVariableDecl.CelVariableDecl(string! name, Great.Parts.Cel.Types.CelType! type) -> void
+Great.Parts.Cel.Declarations.CelVariableDecl.Name.get -> string!
+Great.Parts.Cel.Declarations.CelVariableDecl.Type.get -> Great.Parts.Cel.Types.CelType!
+Great.Parts.Cel.Diagnostics.CelError
+Great.Parts.Cel.Diagnostics.CelError.Code.get -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelError.Exception.get -> System.Exception?
+Great.Parts.Cel.Diagnostics.CelError.Location.get -> Great.Parts.Cel.Diagnostics.CelSourceLocation
+Great.Parts.Cel.Diagnostics.CelError.Message.get -> string!
+Great.Parts.Cel.Diagnostics.CelError.SourceLocation.get -> Great.Parts.Cel.Diagnostics.CelSourceLocation?
+Great.Parts.Cel.Diagnostics.CelError.Stage.get -> Great.Parts.Cel.Diagnostics.CelErrorStage
+Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ApplicationException = 3014 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ArgumentConversion = 3024 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.BindingTypeMismatch = 3011 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ContainerConflict = 4017 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ConversionRange = 3007 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.CostLimitExceeded = 3013 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.DivisionByZero = 3004 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.DuplicateExtension = 4018 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.DuplicateImplementation = 4014 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.DuplicateMapKey = 3010 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.DuplicateOverloadId = 4013 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.DuplicateType = 4001 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.DuplicateVariable = 4000 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.EvalInvalidComprehensionRange = 3026 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.EvalInvalidRegex = 3021 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.EvalNoMatchingOverload = 3000 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.EvalNoSuchField = 3001 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ExpectedTypeMismatch = 2003 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ExpressionTooLong = 1002 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ExtensionVersionConflict = 4003 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.FieldNotAccessible = 2007 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.FieldNotSet = 3018 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.FieldSelectionNotSupported = 3025 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.FieldTypeMismatch = 3019 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ImplementationResultMismatch = 3028 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ImplementationSignatureMismatch = 4011 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.IndexOutOfRange = 3003 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InsufficientStack = 9000 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InternalError = 9001 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidAny = 3020 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidArgument = 3008 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidComprehensionRange = 2005 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidConfiguration = 4009 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidFormatString = 2010 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidFunctionName = 4015 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidLiteral = 1001 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidMacroCall = 1006 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidRegex = 2009 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidTimeZone = 3023 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidVariableName = 4016 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.MissingExtensionDependency = 4005 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.MissingImplementation = 4007 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ModulusByZero = 3005 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.NestingTooDeep = 1003 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.NoMatchingOverload = 2001 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.NoSuchField = 2004 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.NoSuchKey = 3002 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.NotAType = 2006 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.OptionalHasNoValue = 3016 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.Overflow = 3006 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.OverlappingOverloads = 4002 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ReservedIdentifier = 1005 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.ResultConversion = 3015 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.StandardLibraryConflict = 4006 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.SyntaxError = 1000 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.SyntaxNotEnabled = 1007 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.TimeZoneDatabaseConflict = 4012 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.TimeZoneNotFound = 3022 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.TooManyErrors = 1004 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.TypeMismatch = 2002 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.TypeNotAccessible = 3012 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.TypeNotConstructible = 2008 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.TypeNotDeclared = 4008 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.Unbound = 3009 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.UndeclaredReference = 2000 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull = 3017 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.UnknownExtensionVersion = 4004 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.UnsupportedMapKeyType = 3027 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.UnusedImplementation = 4010 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorStage
+Great.Parts.Cel.Diagnostics.CelErrorStage.Build = 0 -> Great.Parts.Cel.Diagnostics.CelErrorStage
+Great.Parts.Cel.Diagnostics.CelErrorStage.Check = 2 -> Great.Parts.Cel.Diagnostics.CelErrorStage
+Great.Parts.Cel.Diagnostics.CelErrorStage.Evaluate = 3 -> Great.Parts.Cel.Diagnostics.CelErrorStage
+Great.Parts.Cel.Diagnostics.CelErrorStage.Parse = 1 -> Great.Parts.Cel.Diagnostics.CelErrorStage
+Great.Parts.Cel.Diagnostics.CelException
+Great.Parts.Cel.Diagnostics.CelException.Errors.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelError!>
+Great.Parts.Cel.Diagnostics.CelSourceLocation
+Great.Parts.Cel.Diagnostics.CelSourceLocation.CelSourceLocation() -> void
+Great.Parts.Cel.Diagnostics.CelSourceLocation.CelSourceLocation(string! sourceName, int offset, int line, int column) -> void
+Great.Parts.Cel.Diagnostics.CelSourceLocation.Column.get -> int
+Great.Parts.Cel.Diagnostics.CelSourceLocation.Equals(Great.Parts.Cel.Diagnostics.CelSourceLocation other) -> bool
+Great.Parts.Cel.Diagnostics.CelSourceLocation.Line.get -> int
+Great.Parts.Cel.Diagnostics.CelSourceLocation.Offset.get -> int
+Great.Parts.Cel.Diagnostics.CelSourceLocation.SourceName.get -> string?
+Great.Parts.Cel.Types.CelType
+Great.Parts.Cel.Types.CelType.Equals(Great.Parts.Cel.Types.CelType? other) -> bool
+Great.Parts.Cel.Types.CelType.Kind.get -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelType.Name.get -> string!
+Great.Parts.Cel.Types.CelType.Parameters.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Types.CelType!>
+Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Any = 10 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Bool = 2 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Bytes = 7 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Double = 5 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Duration = 9 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Dyn = 0 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Int = 3 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.List = 11 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Map = 12 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Null = 1 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Object = 13 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Optional = 17 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.String = 6 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Timestamp = 8 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Type = 15 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.TypeParameter = 16 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.UInt = 4 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Wrapper = 14 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Values.CelDuration
+Great.Parts.Cel.Values.CelDuration.CelDuration() -> void
+Great.Parts.Cel.Values.CelDuration.CelDuration(long totalNanoseconds) -> void
+Great.Parts.Cel.Values.CelDuration.CompareTo(Great.Parts.Cel.Values.CelDuration other) -> int
+Great.Parts.Cel.Values.CelDuration.Equals(Great.Parts.Cel.Values.CelDuration other) -> bool
+Great.Parts.Cel.Values.CelDuration.TotalNanoseconds.get -> long
+Great.Parts.Cel.Values.CelDuration.TryGetTimeSpan(out System.TimeSpan value) -> bool
+Great.Parts.Cel.Values.CelEnumType
+Great.Parts.Cel.Values.CelEnumType.CelEnumType(string! name, System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<string!, long>> constants) -> void
+Great.Parts.Cel.Values.CelEnumType.Constants.get -> System.Collections.Immutable.ImmutableArray<System.Collections.Generic.KeyValuePair<string!, long>>
+Great.Parts.Cel.Values.CelEnumType.Name.get -> string!
+Great.Parts.Cel.Values.CelIgnoreAttribute
+Great.Parts.Cel.Values.CelIgnoreAttribute.CelIgnoreAttribute() -> void
+Great.Parts.Cel.Values.CelList
+Great.Parts.Cel.Values.CelList.Count.get -> int
+Great.Parts.Cel.Values.CelList.GetEnumerator() -> System.Collections.Generic.IEnumerator<Great.Parts.Cel.Values.CelValue>!
+Great.Parts.Cel.Values.CelList.this[int index].get -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelMap
+Great.Parts.Cel.Values.CelMap.Count.get -> int
+Great.Parts.Cel.Values.CelMap.GetEnumerator() -> System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<Great.Parts.Cel.Values.CelValue, Great.Parts.Cel.Values.CelValue>>!
+Great.Parts.Cel.Values.CelMap.TryGetValue(Great.Parts.Cel.Values.CelValue key, out Great.Parts.Cel.Values.CelValue value) -> bool
+Great.Parts.Cel.Values.CelNameAttribute
+Great.Parts.Cel.Values.CelNameAttribute.CelNameAttribute(string! name) -> void
+Great.Parts.Cel.Values.CelNameAttribute.Name.get -> string!
+Great.Parts.Cel.Values.CelNamingPolicy
+Great.Parts.Cel.Values.CelNamingPolicy.AsIs = 1 -> Great.Parts.Cel.Values.CelNamingPolicy
+Great.Parts.Cel.Values.CelNamingPolicy.CamelCase = 0 -> Great.Parts.Cel.Values.CelNamingPolicy
+Great.Parts.Cel.Values.CelNamingPolicy.SnakeCaseLower = 2 -> Great.Parts.Cel.Values.CelNamingPolicy
+Great.Parts.Cel.Values.CelObjectAttribute
+Great.Parts.Cel.Values.CelObjectAttribute.CelObjectAttribute(System.Type! type) -> void
+Great.Parts.Cel.Values.CelObjectAttribute.IgnoreMembers.get -> string![]?
+Great.Parts.Cel.Values.CelObjectAttribute.IgnoreMembers.set -> void
+Great.Parts.Cel.Values.CelObjectAttribute.Name.get -> string?
+Great.Parts.Cel.Values.CelObjectAttribute.Name.set -> void
+Great.Parts.Cel.Values.CelObjectAttribute.Type.get -> System.Type!
+Great.Parts.Cel.Values.CelObjectField
+Great.Parts.Cel.Values.CelObjectField.CelObjectField(int number, string! name, Great.Parts.Cel.Types.CelType! type) -> void
+Great.Parts.Cel.Values.CelObjectField.Name.get -> string!
+Great.Parts.Cel.Values.CelObjectField.Number.get -> int
+Great.Parts.Cel.Values.CelObjectField.Type.get -> Great.Parts.Cel.Types.CelType!
+Great.Parts.Cel.Values.CelObjectType
+Great.Parts.Cel.Values.CelObjectType.CelObjectType(string! name, System.Type! clrType, System.ReadOnlySpan<Great.Parts.Cel.Values.CelObjectField!> fields) -> void
+Great.Parts.Cel.Values.CelObjectType.ClrType.get -> System.Type?
+Great.Parts.Cel.Values.CelObjectType.FieldError(int number, Great.Parts.Cel.Diagnostics.CelErrorCode code, string? detail) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.Fields.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelObjectField!>
+Great.Parts.Cel.Values.CelObjectType.FromDateTime(int number, System.DateTime value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.FromDynamic(int number, object? value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.FromEnum<TEnum>(int number, TEnum value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.FromTimeSpan(int number, System.TimeSpan value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.Name.get -> string!
+Great.Parts.Cel.Values.CelObjectType.TryGetField(string! name, out Great.Parts.Cel.Values.CelObjectField? field) -> bool
+Great.Parts.Cel.Values.CelObjectType.Type.get -> Great.Parts.Cel.Types.CelType!
+Great.Parts.Cel.Values.CelObjectTypeBuilder
+Great.Parts.Cel.Values.CelObjectTypeBuilder.AddField(string! name, Great.Parts.Cel.Types.CelType! type) -> Great.Parts.Cel.Values.CelObjectTypeBuilder!
+Great.Parts.Cel.Values.CelObjectTypeBuilder.Build() -> Great.Parts.Cel.Values.CelObjectType!
+Great.Parts.Cel.Values.CelObjectTypeBuilder<TCarrier>
+Great.Parts.Cel.Values.CelObjectTypeBuilder<TCarrier>.AddField(string! name, Great.Parts.Cel.Types.CelType! type, System.Func<TCarrier!, Great.Parts.Cel.Values.CelValue>! read, System.Func<TCarrier!, bool>? has = null) -> Great.Parts.Cel.Values.CelObjectTypeBuilder<TCarrier!>!
+Great.Parts.Cel.Values.CelObjectTypeBuilder<TCarrier>.Build() -> Great.Parts.Cel.Values.CelObjectType!
+Great.Parts.Cel.Values.CelObjectTypeBuilder<TCarrier>.CelObjectTypeBuilder(string! name) -> void
+Great.Parts.Cel.Values.CelOptional<T>
+Great.Parts.Cel.Values.CelOptional<T>.CelOptional() -> void
+Great.Parts.Cel.Values.CelOptional<T>.CelOptional(T value) -> void
+Great.Parts.Cel.Values.CelOptional<T>.Equals(Great.Parts.Cel.Values.CelOptional<T> other) -> bool
+Great.Parts.Cel.Values.CelOptional<T>.HasValue.get -> bool
+Great.Parts.Cel.Values.CelOptional<T>.Value.get -> T
+Great.Parts.Cel.Values.CelTimeZoneDatabase
+Great.Parts.Cel.Values.CelTimeZoneDatabase.Contains(string! zoneId) -> bool
+Great.Parts.Cel.Values.CelTimeZoneDatabase.Version.get -> string?
+Great.Parts.Cel.Values.CelTimeZoneDatabase.ZoneIds.get -> System.Collections.Immutable.ImmutableArray<string!>
+Great.Parts.Cel.Values.CelTimestamp
+Great.Parts.Cel.Values.CelTimestamp.CelTimestamp() -> void
+Great.Parts.Cel.Values.CelTimestamp.CelTimestamp(long seconds, int nanoseconds) -> void
+Great.Parts.Cel.Values.CelTimestamp.CompareTo(Great.Parts.Cel.Values.CelTimestamp other) -> int
+Great.Parts.Cel.Values.CelTimestamp.Equals(Great.Parts.Cel.Values.CelTimestamp other) -> bool
+Great.Parts.Cel.Values.CelTimestamp.Nanoseconds.get -> int
+Great.Parts.Cel.Values.CelTimestamp.Seconds.get -> long
+Great.Parts.Cel.Values.CelTimestamp.TryGetDateTimeOffset(out System.DateTimeOffset value) -> bool
+Great.Parts.Cel.Values.CelTypeContext
+Great.Parts.Cel.Values.CelTypeContext.CelTypeContext(string! sourceName, System.ReadOnlySpan<Great.Parts.Cel.Values.CelObjectType!> objectTypes, System.ReadOnlySpan<Great.Parts.Cel.Values.CelEnumType!> enumTypes) -> void
+Great.Parts.Cel.Values.CelTypeContextOptionsAttribute
+Great.Parts.Cel.Values.CelTypeContextOptionsAttribute.CelTypeContextOptionsAttribute() -> void
+Great.Parts.Cel.Values.CelTypeContextOptionsAttribute.IgnoreJsonAttributes.get -> bool
+Great.Parts.Cel.Values.CelTypeContextOptionsAttribute.IgnoreJsonAttributes.set -> void
+Great.Parts.Cel.Values.CelTypeContextOptionsAttribute.NamingPolicy.get -> Great.Parts.Cel.Values.CelNamingPolicy
+Great.Parts.Cel.Values.CelTypeContextOptionsAttribute.NamingPolicy.set -> void
+Great.Parts.Cel.Values.CelTypeProvider
+Great.Parts.Cel.Values.CelTypeProvider.CelTypeProvider(string! sourceName, System.ReadOnlySpan<Great.Parts.Cel.Values.CelObjectType!> objectTypes, System.ReadOnlySpan<Great.Parts.Cel.Values.CelEnumType!> enumTypes) -> void
+Great.Parts.Cel.Values.CelTypeProvider.EnumTypes.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelEnumType!>
+Great.Parts.Cel.Values.CelTypeProvider.ObjectTypes.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelObjectType!>
+Great.Parts.Cel.Values.CelTypeProvider.SourceName.get -> string!
+Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelValue.CelValue() -> void
+Great.Parts.Cel.Values.CelValue.Equals(Great.Parts.Cel.Values.CelValue other) -> bool
+Great.Parts.Cel.Values.CelValue.Kind.get -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValue.TryGetBoolean(out bool value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetBytes(out System.ReadOnlyMemory<byte> value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetDouble(out double value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetDuration(out Great.Parts.Cel.Values.CelDuration value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetError(out Great.Parts.Cel.Diagnostics.CelError? value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetInt64(out long value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetList(out Great.Parts.Cel.Values.CelList? value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetMap(out Great.Parts.Cel.Values.CelMap? value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetObject(out object? instance) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetOptional(out Great.Parts.Cel.Values.CelOptional<Great.Parts.Cel.Values.CelValue> value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetString(out string? value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetTimestamp(out Great.Parts.Cel.Values.CelTimestamp value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetType(out Great.Parts.Cel.Types.CelType? value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetUInt64(out ulong value) -> bool
+Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Bool = 1 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Bytes = 6 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Double = 4 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Duration = 10 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Error = 14 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Int = 2 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.List = 7 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Map = 8 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Null = 0 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Object = 13 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Optional = 12 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.String = 5 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Timestamp = 9 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Type = 11 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.UInt = 3 -> Great.Parts.Cel.Values.CelValueKind
+abstract Great.Parts.Cel.Values.CelObjectType.GetField(object! instance, int number) -> Great.Parts.Cel.Values.CelValue
+abstract Great.Parts.Cel.Values.CelObjectType.HasField(object! instance, int number) -> bool
+override Great.Parts.Cel.Diagnostics.CelSourceLocation.Equals(object? obj) -> bool
+override Great.Parts.Cel.Diagnostics.CelSourceLocation.GetHashCode() -> int
+override Great.Parts.Cel.Types.CelType.Equals(object? obj) -> bool
+override Great.Parts.Cel.Types.CelType.GetHashCode() -> int
+override Great.Parts.Cel.Types.CelType.ToString() -> string!
+override Great.Parts.Cel.Values.CelDuration.Equals(object? obj) -> bool
+override Great.Parts.Cel.Values.CelDuration.GetHashCode() -> int
+override Great.Parts.Cel.Values.CelDuration.ToString() -> string!
+override Great.Parts.Cel.Values.CelOptional<T>.Equals(object? obj) -> bool
+override Great.Parts.Cel.Values.CelOptional<T>.GetHashCode() -> int
+override Great.Parts.Cel.Values.CelTimestamp.Equals(object? obj) -> bool
+override Great.Parts.Cel.Values.CelTimestamp.GetHashCode() -> int
+override Great.Parts.Cel.Values.CelTimestamp.ToString() -> string!
+override Great.Parts.Cel.Values.CelValue.Equals(object? obj) -> bool
+override Great.Parts.Cel.Values.CelValue.GetHashCode() -> int
+static Great.Parts.Cel.CelExtensions.Bindings(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.Encoders(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.Lists(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.Math(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.Network(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.Optional(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.Protos(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.Sets(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.Strings(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelExtensions.TwoVarComprehensions(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.CelStandardLibrary.V1.get -> Great.Parts.Cel.CelStandardLibrary!
+static Great.Parts.Cel.Configuration.CelEnvironmentJson.Apply(Great.Parts.Cel.CelEnvironmentBuilder! builder, System.ReadOnlySpan<byte> utf8Json) -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelError!>
+static Great.Parts.Cel.Declarations.CelExtension.Create(string! name, uint version, System.ReadOnlySpan<Great.Parts.Cel.Declarations.CelFunctionDecl!> functions, System.Collections.Generic.IReadOnlyDictionary<string!, Great.Parts.Cel.Declarations.CelFunctionImplementation!>! implementations, params System.ReadOnlySpan<string!> dependencies) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.Declarations.CelOverloadDecl.Global(string! overloadId, System.ReadOnlySpan<Great.Parts.Cel.Types.CelType!> parameterTypes, Great.Parts.Cel.Types.CelType! resultType) -> Great.Parts.Cel.Declarations.CelOverloadDecl!
+static Great.Parts.Cel.Declarations.CelOverloadDecl.Receiver(string! overloadId, Great.Parts.Cel.Types.CelType! receiverType, System.ReadOnlySpan<Great.Parts.Cel.Types.CelType!> parameterTypes, Great.Parts.Cel.Types.CelType! resultType) -> Great.Parts.Cel.Declarations.CelOverloadDecl!
+static Great.Parts.Cel.Diagnostics.CelSourceLocation.operator !=(Great.Parts.Cel.Diagnostics.CelSourceLocation left, Great.Parts.Cel.Diagnostics.CelSourceLocation right) -> bool
+static Great.Parts.Cel.Diagnostics.CelSourceLocation.operator ==(Great.Parts.Cel.Diagnostics.CelSourceLocation left, Great.Parts.Cel.Diagnostics.CelSourceLocation right) -> bool
+static Great.Parts.Cel.Types.CelType.Any.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.Bool.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.Bytes.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.Double.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.Duration.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.Dyn.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.Int.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.ListOf(Great.Parts.Cel.Types.CelType! elementType) -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.MapOf(Great.Parts.Cel.Types.CelType! keyType, Great.Parts.Cel.Types.CelType! valueType) -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.Null.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.ObjectNamed(string! fullName) -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.OptionalOf(Great.Parts.Cel.Types.CelType! valueType) -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.String.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.Timestamp.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.TypeOf(Great.Parts.Cel.Types.CelType! type) -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.TypeParameter(string! name) -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.UInt.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.WrapperOf(Great.Parts.Cel.Types.CelType! primitiveType) -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Values.CelDuration.FromTimeSpan(System.TimeSpan value) -> Great.Parts.Cel.Values.CelDuration
+static Great.Parts.Cel.Values.CelDuration.operator !=(Great.Parts.Cel.Values.CelDuration left, Great.Parts.Cel.Values.CelDuration right) -> bool
+static Great.Parts.Cel.Values.CelDuration.operator <(Great.Parts.Cel.Values.CelDuration left, Great.Parts.Cel.Values.CelDuration right) -> bool
+static Great.Parts.Cel.Values.CelDuration.operator <=(Great.Parts.Cel.Values.CelDuration left, Great.Parts.Cel.Values.CelDuration right) -> bool
+static Great.Parts.Cel.Values.CelDuration.operator ==(Great.Parts.Cel.Values.CelDuration left, Great.Parts.Cel.Values.CelDuration right) -> bool
+static Great.Parts.Cel.Values.CelDuration.operator >(Great.Parts.Cel.Values.CelDuration left, Great.Parts.Cel.Values.CelDuration right) -> bool
+static Great.Parts.Cel.Values.CelDuration.operator >=(Great.Parts.Cel.Values.CelDuration left, Great.Parts.Cel.Values.CelDuration right) -> bool
+static Great.Parts.Cel.Values.CelList.Create(params System.ReadOnlySpan<Great.Parts.Cel.Values.CelValue> items) -> Great.Parts.Cel.Values.CelList!
+static Great.Parts.Cel.Values.CelList.CreateCopy<T>(System.Collections.Generic.IReadOnlyCollection<T>! source, System.Func<T, Great.Parts.Cel.Values.CelValue>! elementConverter) -> Great.Parts.Cel.Values.CelList!
+static Great.Parts.Cel.Values.CelList.CreateSorted<T>(System.Collections.Generic.IReadOnlyCollection<T>! source, System.Func<T, Great.Parts.Cel.Values.CelValue>! elementConverter) -> Great.Parts.Cel.Values.CelList!
+static Great.Parts.Cel.Values.CelList.CreateView<T>(System.Collections.Generic.IReadOnlyList<T>! source, System.Func<T, Great.Parts.Cel.Values.CelValue>! elementConverter) -> Great.Parts.Cel.Values.CelList!
+static Great.Parts.Cel.Values.CelMap.Create(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<Great.Parts.Cel.Values.CelValue, Great.Parts.Cel.Values.CelValue>>! entries) -> Great.Parts.Cel.Values.CelMap!
+static Great.Parts.Cel.Values.CelMap.CreateView<TKey, TValue>(System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>! source, System.Func<TValue, Great.Parts.Cel.Values.CelValue>! valueConverter, bool keepSourceOrder) -> Great.Parts.Cel.Values.CelMap!
+static Great.Parts.Cel.Values.CelObjectType.FromInstance(object! instance) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelObjectTypeBuilder.ForDictionary(string! name) -> Great.Parts.Cel.Values.CelObjectTypeBuilder!
+static Great.Parts.Cel.Values.CelOptional<T>.operator !=(Great.Parts.Cel.Values.CelOptional<T> left, Great.Parts.Cel.Values.CelOptional<T> right) -> bool
+static Great.Parts.Cel.Values.CelOptional<T>.operator ==(Great.Parts.Cel.Values.CelOptional<T> left, Great.Parts.Cel.Values.CelOptional<T> right) -> bool
+static Great.Parts.Cel.Values.CelTimeZoneDatabase.Create(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<string!, System.ReadOnlyMemory<byte>>>! zones, string? version = null) -> Great.Parts.Cel.Values.CelTimeZoneDatabase!
+static Great.Parts.Cel.Values.CelTimeZoneDatabase.Empty.get -> Great.Parts.Cel.Values.CelTimeZoneDatabase!
+static Great.Parts.Cel.Values.CelTimestamp.FromDateTimeOffset(System.DateTimeOffset value) -> Great.Parts.Cel.Values.CelTimestamp
+static Great.Parts.Cel.Values.CelTimestamp.operator !=(Great.Parts.Cel.Values.CelTimestamp left, Great.Parts.Cel.Values.CelTimestamp right) -> bool
+static Great.Parts.Cel.Values.CelTimestamp.operator <(Great.Parts.Cel.Values.CelTimestamp left, Great.Parts.Cel.Values.CelTimestamp right) -> bool
+static Great.Parts.Cel.Values.CelTimestamp.operator <=(Great.Parts.Cel.Values.CelTimestamp left, Great.Parts.Cel.Values.CelTimestamp right) -> bool
+static Great.Parts.Cel.Values.CelTimestamp.operator ==(Great.Parts.Cel.Values.CelTimestamp left, Great.Parts.Cel.Values.CelTimestamp right) -> bool
+static Great.Parts.Cel.Values.CelTimestamp.operator >(Great.Parts.Cel.Values.CelTimestamp left, Great.Parts.Cel.Values.CelTimestamp right) -> bool
+static Great.Parts.Cel.Values.CelTimestamp.operator >=(Great.Parts.Cel.Values.CelTimestamp left, Great.Parts.Cel.Values.CelTimestamp right) -> bool
+static Great.Parts.Cel.Values.CelTypeProvider.Create(string! sourceName, params System.ReadOnlySpan<Great.Parts.Cel.Values.CelObjectType!> objectTypes) -> Great.Parts.Cel.Values.CelTypeProvider!
+static Great.Parts.Cel.Values.CelValue.CelEquals(Great.Parts.Cel.Values.CelValue left, Great.Parts.Cel.Values.CelValue right) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromBoolean(bool value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromBytes(System.ReadOnlyMemory<byte> value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromDouble(double value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromDuration(Great.Parts.Cel.Values.CelDuration value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromInt64(long value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromList(Great.Parts.Cel.Values.CelList! value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromMap(Great.Parts.Cel.Values.CelMap! value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromObject(Great.Parts.Cel.Values.CelObjectType! type, object! instance) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromOptional(Great.Parts.Cel.Values.CelOptional<Great.Parts.Cel.Values.CelValue> value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromString(string! value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromTimestamp(Great.Parts.Cel.Values.CelTimestamp value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromType(Great.Parts.Cel.Types.CelType! value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromUInt64(ulong value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.Null.get -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.operator !=(Great.Parts.Cel.Values.CelValue left, Great.Parts.Cel.Values.CelValue right) -> bool
+static Great.Parts.Cel.Values.CelValue.operator ==(Great.Parts.Cel.Values.CelValue left, Great.Parts.Cel.Values.CelValue right) -> bool
+virtual Great.Parts.Cel.Declarations.CelCostFunction.Invoke(System.ReadOnlySpan<Great.Parts.Cel.Values.CelValue> arguments) -> ulong
+virtual Great.Parts.Cel.Declarations.CelFunctionImplementation.Invoke(System.ReadOnlySpan<Great.Parts.Cel.Values.CelValue> arguments) -> Great.Parts.Cel.Values.CelValue
+virtual Great.Parts.Cel.Values.CelObjectType.CelEquals(object! left, object! right) -> Great.Parts.Cel.Values.CelValue
+virtual Great.Parts.Cel.Values.CelObjectType.CreateInstance(System.ReadOnlySpan<int> fieldNumbers, System.ReadOnlySpan<Great.Parts.Cel.Values.CelValue> fieldValues) -> Great.Parts.Cel.Values.CelValue
+virtual Great.Parts.Cel.Values.CelObjectType.GetExcludedFieldReason(string! fieldName) -> string?
+virtual Great.Parts.Cel.Values.CelObjectType.IsConstructible.get -> bool

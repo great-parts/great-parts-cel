@@ -1,0 +1,53 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+
+# Unused private members, unread private members and unused parameters are build errors.
+dotnet_diagnostic.IDE0051.severity = error
+dotnet_diagnostic.IDE0052.severity = error
+dotnet_diagnostic.IDE0060.severity = error
+
+# Unnecessary suppressions and unnecessary using directives are build errors.
+dotnet_diagnostic.IDE0079.severity = error
+dotnet_diagnostic.IDE0005.severity = error
+
+# Public API snapshot: every difference between the public API of a target framework and the
+# PublicAPI files is a build error, and so is a malformed or ambiguous snapshot.
+dotnet_diagnostic.RS0016.severity = error
+dotnet_diagnostic.RS0017.severity = error
+dotnet_diagnostic.RS0024.severity = error
+dotnet_diagnostic.RS0025.severity = error
+dotnet_diagnostic.RS0026.severity = error
+dotnet_diagnostic.RS0027.severity = error
+dotnet_diagnostic.RS0036.severity = error
+dotnet_diagnostic.RS0037.severity = error
+dotnet_diagnostic.RS0041.severity = error
+
+# Code metrics: inheritance depth, cyclomatic complexity, maintainability and class coupling
+# above the thresholds are build errors.
+dotnet_diagnostic.CA1501.severity = error
+dotnet_diagnostic.CA1502.severity = error
+dotnet_diagnostic.CA1505.severity = error
+dotnet_diagnostic.CA1506.severity = error
+
+[src/Great.Parts.Cel/{Types/CelType.cs,Types/CelTypeKind.cs,Values/CelValueKind.cs}]
+# These members are named after the CEL types int, uint, double, string and decimal and after CEL
+# object types; the names are the terms of the CEL language, not .NET type names.
+dotnet_diagnostic.CA1720.severity = none
+
+[src/Great.Parts.Cel/**.cs]
+# Skeleton of the public API: method bodies, including equality members, hash codes and ToString,
+# throw NotImplementedException until the increments that implement them. Remove this section when
+# the bodies are implemented.
+dotnet_diagnostic.CA1065.severity = none
+
+[*.{csproj,props,targets,slnx,config,json,xml}]
+indent_style = space
+indent_size = 2

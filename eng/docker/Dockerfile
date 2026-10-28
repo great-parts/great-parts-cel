@@ -1,0 +1,13 @@
+# Image of the containers of eng/ (see docs/design/eng-test.md). The build context is this directory:
+# nothing of the working copy is copied into the image.
+
+# The .NET 10 runtime is taken from the .NET 10 SDK image: tests and tools of net10.0 run on it.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.401 AS runtime10
+
+# The tag is the SDK version of global.json (11.0.100-rc.2.26504.105 is the build behind the tag 11.0.100-rc.2);
+# it changes together with global.json. Floating tags are not used.
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2 AS sdk
+COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
+# Files of the working copy and of the git directory belong to another host user: git must not refuse them.
+RUN git config --system --add safe.directory /repo \
+ && git config --system --add safe.directory /git

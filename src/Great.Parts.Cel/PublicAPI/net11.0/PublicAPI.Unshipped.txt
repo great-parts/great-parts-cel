@@ -1,0 +1,10 @@
+#nullable enable
+Great.Parts.Cel.CelEnvironmentBuilder.EnableDecimalLiterals() -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.Types.CelTypeKind.Decimal = 18 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Values.CelObjectType.FromDecimal(int number, System.Numerics.Decimal128 value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelValue.TryGetDecimal(out System.Numerics.Decimal128 value) -> bool
+Great.Parts.Cel.Values.CelValueKind.Decimal = 15 -> Great.Parts.Cel.Values.CelValueKind
+static Great.Parts.Cel.CelExtensions.Decimal(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.Types.CelType.Decimal.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Values.CelObjectType.FromDecimal(decimal value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromDecimal(System.Numerics.Decimal128 value) -> Great.Parts.Cel.Values.CelValue

@@ -1,0 +1,21 @@
+# Second Compose file for a run from a linked git worktree (docs/design/eng-test.md, "Linked worktrees"):
+#   ENG_GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir)" \
+#     docker compose -f eng/compose.yaml -f eng/compose.worktree.yaml run --rm test
+# /repo/.git of a linked worktree is a file with a host path that the container cannot reach. The two read-only
+# mounts give git the common git directory at /git and the file artifacts/worktree/gitdir in place of /repo/.git;
+# the host file stays unchanged. A missing source stops the run instead of creating a host directory.
+services:
+  test:
+    volumes:
+      - type: bind
+        source: ${ENG_GIT_COMMON_DIR:?set ENG_GIT_COMMON_DIR to the common git directory of the repository}
+        target: /git
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../artifacts/worktree/gitdir
+        target: /repo/.git
+        read_only: true
+        bind:
+          create_host_path: false

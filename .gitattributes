@@ -1,0 +1,4 @@
+# Git normalizes the line endings of text files to LF in the repository. Without the text
+# attribute a checkout with CRLF line endings (Git for Windows, core.autocrlf=true) looks
+# modified to git inside a Linux container.
+* text=auto

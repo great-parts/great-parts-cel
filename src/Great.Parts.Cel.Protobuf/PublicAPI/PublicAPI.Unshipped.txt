@@ -1,0 +1,8 @@
+#nullable enable
+Great.Parts.Cel.Protobuf.CelProtobufTypes
+Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder
+Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder.AddFile(Google.Protobuf.Reflection.FileDescriptor! file) -> Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder!
+Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder.AddProtoExtension<TMessage, TValue>(Google.Protobuf.Extension<TMessage, TValue>! extension) -> Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder!
+Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder.AddProtoExtension<TMessage, TValue>(Google.Protobuf.RepeatedExtension<TMessage, TValue>! extension) -> Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder!
+Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder.Build() -> Great.Parts.Cel.Protobuf.CelProtobufTypes!
+Great.Parts.Cel.Protobuf.CelProtobufTypesBuilder.CelProtobufTypesBuilder(string! sourceName) -> void
