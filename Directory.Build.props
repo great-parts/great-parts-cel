@@ -23,6 +23,8 @@
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <!-- Copyright line of every package of the repository, written to the package metadata and the assemblies. -->
     <Copyright>Copyright 2026 The Great.Parts Authors</Copyright>
+    <!-- Version of a local build; release.yml passes the version of the tag with -p:Version. Both packages have one version. -->
+    <Version>0.0.0-dev</Version>
   </PropertyGroup>
 
   <!-- Thresholds of the code metrics rules (CA1502 and others). -->

@@ -1,0 +1,13 @@
+# Expected content of the Great.Parts.Cel.Protobuf package.
+# Each dependency group lists exactly Great.Parts.Cel and Google.Protobuf.
+
+dependencies net10.0: Great.Parts.Cel, Google.Protobuf
+dependencies net11.0: Great.Parts.Cel, Google.Protobuf
+
+license Apache-2.0
+
+file NOTICE
+file lib/net10.0/Great.Parts.Cel.Protobuf.dll
+file lib/net10.0/Great.Parts.Cel.Protobuf.xml
+file lib/net11.0/Great.Parts.Cel.Protobuf.dll
+file lib/net11.0/Great.Parts.Cel.Protobuf.xml

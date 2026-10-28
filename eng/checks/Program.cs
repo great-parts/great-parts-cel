@@ -13,6 +13,7 @@ namespace Great.Parts.Cel.Eng.Checks;
 internal static class Program
 {
     private const string RootOption = "--root";
+    private const string NoBuildOption = PackagesCommand.NoBuildOption;
 
     internal static int Main(string[] args) =>
         Run(args, CommandRegistry.All, Directory.GetCurrentDirectory(), Console.Out, Console.Error);
@@ -91,6 +92,11 @@ internal static class Program
                 }
 
                 options[RootOption] = args[++index];
+            }
+            else if (arg == NoBuildOption)
+            {
+                // A flag: the value is empty.
+                options[NoBuildOption] = string.Empty;
             }
             else if (arg.StartsWith("--", StringComparison.Ordinal))
             {

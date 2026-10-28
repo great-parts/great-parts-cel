@@ -1,0 +1,14 @@
+# Expected content of the Great.Parts.Cel package.
+# The package has no package dependencies; the source generator ships inside it.
+
+dependencies net10.0:
+dependencies net11.0:
+
+license Apache-2.0
+
+file NOTICE
+file lib/net10.0/Great.Parts.Cel.dll
+file lib/net10.0/Great.Parts.Cel.xml
+file lib/net11.0/Great.Parts.Cel.dll
+file lib/net11.0/Great.Parts.Cel.xml
+file analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll

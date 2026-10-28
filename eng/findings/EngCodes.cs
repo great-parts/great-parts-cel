@@ -12,6 +12,30 @@ public static class EngCodes
     /// <summary>The reason next to the turning off of a check or a rule only repeats the rule ID.</summary>
     public const string Eng102 = "ENG102";
 
+    /// <summary>A line of a package list <c>eng/packages/&lt;package&gt;.txt</c> does not parse.</summary>
+    public const string Eng200 = "ENG200";
+
+    /// <summary>A dependency group of a package has a dependency that the package list does not name.</summary>
+    public const string Eng201 = "ENG201";
+
+    /// <summary>A dependency group or a dependency of the package list is missing in the package.</summary>
+    public const string Eng202 = "ENG202";
+
+    /// <summary>A package has an entry that the package list does not name.</summary>
+    public const string Eng203 = "ENG203";
+
+    /// <summary>A file of the package list is missing in the package.</summary>
+    public const string Eng204 = "ENG204";
+
+    /// <summary>A package has no list <c>eng/packages/&lt;package&gt;.txt</c>.</summary>
+    public const string Eng205 = "ENG205";
+
+    /// <summary>A package list has no package.</summary>
+    public const string Eng206 = "ENG206";
+
+    /// <summary>The license expression of the package is missing or differs from the package list.</summary>
+    public const string Eng207 = "ENG207";
+
     /// <summary>The file <c>eng/ratchet.json</c> is not valid: it is not JSON, has an unknown or repeated key, keys out of order, or a value that is not allowed.</summary>
     public const string Eng600 = "ENG600";
 

@@ -21,6 +21,11 @@ dotnet run --project eng/checks -- <command> [<argument>] [<command> [<argument>
 
 A command that takes an argument is followed by it, for example `signoff <range>`. The token after such a command is its argument even when it looks like a command name; a missing argument is exit code 2. An option stands before a command or after the argument of a command, not between a command and its argument. An unknown command or option is exit code 2 too.
 
+| Option | Meaning |
+| :- | :- |
+| `--root <directory>` | the repository root, instead of the search from the working directory, see [Repository helpers](#repository-helpers) |
+| `--no-build` | `packages` packs the Release build that already exists instead of building it, see [eng-checks-artifacts.md](eng-checks-artifacts.md#packages); other commands ignore it |
+
 Commands run in the given order. Several commands in one run share their scans: `ratchet` uses the suppressions and the duplicate pairs that `suppressions` and `duplicates` found in the same run instead of scanning again. The container commands call it this way, see [eng-test.md](eng-test.md).
 
 | Command | Reads | Codes | Runs in | Described in |
@@ -41,7 +46,7 @@ Commands run in the given order. Several commands in one run share their scans: 
 | Path | Contents |
 | :- | :- |
 | `Program.cs` | parses the arguments, runs the commands, writes the findings, sets the exit code |
-| `CheckContext.cs`, `CheckInputException.cs` | the context of a run and the exception for an input that does not exist |
+| `CheckContext.cs`, `CheckInputException.cs` | the context of a run and the exception for an input that does not exist or cannot be read |
 | `Commands/` | the command interface, the registry of the commands and one class per command |
 | `Repository/` | repository root, file set, C# sources, symbol sets, positions, calls of `git` |
 | `Suppressions/` | the scanners of the forms of `suppressions`, the reason, the reader of `lychee.toml` |
@@ -95,7 +100,7 @@ Findings go to standard output. Within a command they are sorted by path (ordina
 | :-: | :- |
 | 0 | no finding with `error` |
 | 1 | at least one finding with `error` |
-| 2 | invalid invocation or an input that does not exist |
+| 2 | invalid invocation or an input that does not exist or cannot be read |
 
 Warnings do not change the exit code.
 

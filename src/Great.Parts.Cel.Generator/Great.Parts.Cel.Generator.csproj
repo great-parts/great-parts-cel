@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The source generator of the application data types. It is not a package of its own: the assembly ships inside the
+    package Great.Parts.Cel under analyzers/dotnet/cs/ and runs in the compiler of the application.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <!-- The compiler loads generators built for netstandard2.0, whose default language version is older than C# 14. -->
+    <LangVersion>14</LangVersion>
+    <RootNamespace>Great.Parts.Cel.Generator</RootNamespace>
+    <!-- The rules for generator authors: no file, environment or other banned APIs in a generator (RS1035-RS1037). -->
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- Build-time references only: neither becomes a dependency of the package. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Every diagnostic of the generator is listed in the release files; a diagnostic missing from them is a build error. -->
+  <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A sample application on the oldest SDK a user of the package can have (docs/design/eng-test.md, "min-sdk").
+    It inherits nothing from the repository root and is not part of the solution.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- A warning of the compiler about the generator, such as CS9057, is a build error. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- No SourceLink: the build reads no git directory, which a container of a linked worktree does not have. -->
+    <EnableSourceLink>false</EnableSourceLink>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Great.Parts.Cel" Version="0.0.0-dev" />
+  </ItemGroup>
+
+</Project>

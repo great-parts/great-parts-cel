@@ -35,4 +35,9 @@
     <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
+  <!-- The notice file is in the root of the package. -->
+  <ItemGroup>
+    <None Include="../../NOTICE" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
+
 </Project>

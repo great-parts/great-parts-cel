@@ -15,5 +15,42 @@ services:
       - nuget:/root/.nuget/packages
     entrypoint: [dotnet, run, --project, eng/run, --, test]
 
+  # Builds a sample application on the .NET SDK 10.0.100 from the packed Great.Parts.Cel of artifacts/packages; run it
+  # after the service test. It has its own packages folder under artifacts/min-sdk and does not use the volume nuget.
+  # "$$" is a literal "$" for Compose.
+  min-sdk:
+    build:
+      context: docker
+      target: sdk-min
+    working_dir: /repo/eng/min-sdk
+    volumes:
+      - ..:/repo
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -u -o pipefail
+        fail() { echo "min-sdk: failed: $$1"; exit 1; }
+        out=../../artifacts/min-sdk
+        packages=(../../artifacts/packages/Great.Parts.Cel.[0-9]*.nupkg)
+        [ -e "$${packages[0]}" ] || fail "no package in artifacts/packages; run the service test first"
+        rm -rf "$$out"
+        mkdir -p "$$out"
+        echo "== sdk version"
+        version=$$(dotnet --version) || fail "dotnet --version"
+        echo "$$version"
+        [ "$$version" = "10.0.100" ] || fail "sdk version $$version, expected 10.0.100"
+        echo "== build"
+        dotnet build -c Release --artifacts-path "$$out/build" -p:ReportAnalyzer=true \
+          "-flp:LogFile=$$out/build.log;Verbosity=diagnostic" 2>&1 | tee "$$out/console.log"
+        [ "$${PIPESTATUS[0]}" = "0" ] || fail "build"
+        grep -q "^ *0 Warning(s)" "$$out/console.log" || fail "build: warnings"
+        grep -q "^ *0 Error(s)" "$$out/console.log" || fail "build: errors"
+        echo "== evidence"
+        assets=$$(find "$$out/build" -name project.assets.json | head -n 1)
+        grep -n "analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll" "$$assets" || fail "evidence: generator not in project.assets.json"
+        grep -n "Great.Parts.Cel.Generator.CelTypeContextGenerator" "$$out/build.log" || fail "evidence: generator not in the analyzer report"
+        echo "min-sdk: passed"
+
 volumes:
   nuget:

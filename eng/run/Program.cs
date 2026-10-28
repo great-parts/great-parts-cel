@@ -31,6 +31,15 @@ internal static class Program
             return Fail(command, $"{Commands.Solution} is not in the working directory; run in the repository root");
         }
 
+        // An older package in artifacts/packages would be a package without a list for the check of the packages.
+        foreach (string directory in Commands.Written(command))
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+
         List<string> failed = [];
         foreach (Step step in steps)
         {

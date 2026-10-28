@@ -231,6 +231,62 @@ public sealed class ProgramTests
         Assert.Equal([1, 1], [first.Seen, second.Seen]);
     }
 
+    [Fact]
+    public void NoBuildOption_IsAFlagWithAnEmptyValueInTheOptionsOfTheContext()
+    {
+        using TempDirectory root = new();
+        StubCommand before = new("first");
+        StubCommand after = new("second");
+
+        Result result = Run(root.Path, [before, after], "--no-build", "first", "second", "--root", root.Path);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(string.Empty, result.Error);
+        Assert.Equal([string.Empty, string.Empty], [before.LastOptions["--no-build"], after.LastOptions["--no-build"]]);
+        Assert.Equal(root.Path, before.LastOptions["--root"]);
+    }
+
+    [Fact]
+    public void NoBuildOption_AfterACommandAndAfterTheArgumentOfACommand_IsAFlagToo()
+    {
+        using TempDirectory root = new();
+        StubCommand plain = new("plain");
+        ArgumentCommand withArgument = new("argued");
+
+        Result result = Run(root.Path, [plain, withArgument], "plain", "--no-build", "argued", "main", "--no-build", "--root", root.Path);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(string.Empty, result.Error);
+        Assert.True(plain.LastOptions.ContainsKey("--no-build"));
+        Assert.True(withArgument.LastOptions.ContainsKey("--no-build"));
+        Assert.Equal("main", withArgument.LastArgument);
+    }
+
+    [Fact]
+    public void WithoutNoBuildOption_TheContextHasNoSuchOption()
+    {
+        using TempDirectory root = new();
+        StubCommand command = new("first");
+
+        Result result = Run(root.Path, [command], "first", "--root", root.Path);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.False(command.LastOptions.ContainsKey("--no-build"));
+    }
+
+    [Fact]
+    public void NoBuildOptionDoesNotTakeTheNextTokenAsItsValue()
+    {
+        using TempDirectory root = new();
+        StubCommand command = new("first");
+
+        Result result = Run(root.Path, [command], "--no-build", "--root", root.Path, "first");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(1, command.Runs);
+        Assert.Equal(root.Path, command.LastRoot);
+    }
+
     private static Finding Error(string path, int line, int column) => new(path, line, column, FindingSeverity.Error, "ENG101", "m");
 
     private static string[] Lines(string output) => output.Split(Newline, StringSplitOptions.RemoveEmptyEntries);
@@ -253,11 +309,32 @@ public sealed class ProgramTests
 
         public string? LastRoot { get; private set; }
 
+        public IReadOnlyDictionary<string, string> LastOptions { get; private set; } = new Dictionary<string, string>();
+
         public IEnumerable<Finding> Run(CheckContext context)
         {
             Runs++;
             LastRoot = context.Root;
+            LastOptions = context.Options;
             return findings;
+        }
+    }
+
+    private sealed class ArgumentCommand(string name) : ICheckCommand
+    {
+        public string Name { get; } = name;
+
+        public string? ArgumentName => "<range>";
+
+        public string? LastArgument { get; private set; }
+
+        public IReadOnlyDictionary<string, string> LastOptions { get; private set; } = new Dictionary<string, string>();
+
+        public IEnumerable<Finding> Run(CheckContext context)
+        {
+            LastArgument = context.Arguments[Name];
+            LastOptions = context.Options;
+            return [];
         }
     }
 
