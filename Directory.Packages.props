@@ -6,7 +6,11 @@
   <ItemGroup>
     <!-- The lower bound in the package of Great.Parts.Cel.Protobuf; applications can use a later version. -->
     <PackageVersion Include="Google.Protobuf" Version="3.36.2" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0" />
+    <!-- The compiler version of the .NET SDK 10.0.100: the analyzer and the source generator load in that compiler and newer. -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" />
+    <PackageVersion Include="xunit.v3.aot" Version="4.0.2" />
   </ItemGroup>
 </Project>

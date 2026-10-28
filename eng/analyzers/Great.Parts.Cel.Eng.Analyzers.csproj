@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The architecture analyzer: rules ARCH001-ARCH008 on namespaces, the public API list and names
+    (docs/design/eng-analyzers.md). Directory.Build.props adds it to every other C# project of the repository.
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <!-- The compiler loads analyzers built for netstandard2.0, whose default language version is older than C# 14. -->
+    <LangVersion>14</LangVersion>
+    <RootNamespace>Great.Parts.Cel.Eng.Analyzers</RootNamespace>
+    <!-- The rules for analyzer authors: no file, environment or other banned APIs in an analyzer. -->
+    <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Every rule is listed in the release files; a rule missing from them is a build error. -->
+  <ItemGroup>
+    <AdditionalFiles Include="AnalyzerReleases.Shipped.md" />
+    <AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+  </ItemGroup>
+
+</Project>

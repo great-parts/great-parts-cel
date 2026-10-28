@@ -31,6 +31,22 @@
   </ItemGroup>
 
   <!--
+    The architecture analyzer (docs/design/eng-analyzers.md) runs in every C# project except its own. It is a build-time
+    reference only and never becomes a dependency of a package.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Great.Parts.Cel.Eng.Analyzers'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)eng/analyzers/Great.Parts.Cel.Eng.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- The layer table of the namespaces, read by the architecture analyzer in the projects under src/. -->
+  <ItemGroup Condition="$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)', '$(MSBuildProjectDirectory)').Replace('\', '/').StartsWith('src/'))">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)eng/layers.txt" />
+  </ItemGroup>
+
+  <!--
     An invalid line of CodeMetricsConfig.txt is CA1509 and a build error. The diagnostic is reported in that file,
     not in a source file, so .editorconfig does not set its severity and the rule stays silent without this property.
   -->

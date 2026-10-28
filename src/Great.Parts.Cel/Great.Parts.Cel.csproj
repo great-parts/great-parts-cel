@@ -17,6 +17,11 @@
     <AdditionalFiles Include="../../eng/BannedSymbols.txt" Link="BannedSymbols.txt" />
   </ItemGroup>
 
+  <!-- The API concept list: every public type of the package has a row there. -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../docs/api-concepts.md" Link="api-concepts.md" />
+  </ItemGroup>
+
   <!-- Public API snapshot shared by both target frameworks. -->
   <ItemGroup>
     <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />

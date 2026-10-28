@@ -38,6 +38,10 @@ internal static class Program
             if (!TryRun(step, out string? reason))
             {
                 failed.Add(reason is null ? step.CommandLine : $"{step.CommandLine} ({reason})");
+                if (step.StopsOnFailure)
+                {
+                    break;
+                }
             }
         }
 

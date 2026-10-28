@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/eng/">
+    <Project Path="eng/analyzers/Great.Parts.Cel.Eng.Analyzers.csproj" />
     <Project Path="eng/run/Great.Parts.Cel.Eng.Run.csproj" />
+    <Project Path="eng/tests/Great.Parts.Cel.Eng.Tests.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
