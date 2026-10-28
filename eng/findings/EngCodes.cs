@@ -69,6 +69,18 @@ public static class EngCodes
     /// <summary>A commit of the checked range has no <c>Signed-off-by</c> trailer.</summary>
     public const string Eng701 = "ENG701";
 
+    /// <summary>A skip list of a suite has no valid table or an invalid entry: a value outside its form, a repeated entry or overlapping scopes of one case, a verdict without a registry row, the wrong order.</summary>
+    public const string Eng800 = "ENG800";
+
+    /// <summary>A case of a suite failed, and no entry of the skip list of the suite applies to the cell of the run.</summary>
+    public const string Eng801 = "ENG801";
+
+    /// <summary>A case of a suite passed, and an entry of the skip list of the suite applies to the cell of the run: the entry has to be removed.</summary>
+    public const string Eng802 = "ENG802";
+
+    /// <summary>An entry of the skip list of a suite names a case that the suite does not have.</summary>
+    public const string Eng804 = "ENG804";
+
     /// <summary>A test ran under JIT but not under Native AOT: the report of the Native AOT run does not have it.</summary>
     public const string Eng810 = "ENG810";
 

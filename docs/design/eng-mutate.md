@@ -10,7 +10,7 @@
 | Setting | Value | Why |
 | :- | :- | :- |
 | project | `src/Great.Parts.Cel/Great.Parts.Cel.csproj` | the code under test |
-| test projects | `tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj`, `tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj` | the tests of the library; project files, not directories, see [Test projects and since](#test-projects-and-since) |
+| test projects | `tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj`, `tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj`, `tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj` | the tests of the library and the suite runner; project files, not directories, see [Test projects and since](#test-projects-and-since) |
 | mutate | not set | every file of the project; a narrow pattern is not always visible, see [mutation](#mutation) |
 | target framework | `net11.0` | its code is a superset: the `decimal` code compiles only for `net11.0` |
 | test runner | `mtp` | the test platform of the repository |

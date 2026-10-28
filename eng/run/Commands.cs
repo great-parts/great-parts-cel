@@ -37,9 +37,9 @@ internal static class Commands
 
     /// <summary>
     /// The test projects that <c>test-aot</c> runs under JIT and publishes under Native AOT, one place for the list. The projects
-    /// are in <c>tests/</c> and named as their directories; <c>Great.Parts.Cel.Conformance</c> joins with its increment.
+    /// are in <c>tests/</c> and named as their directories.
     /// </summary>
-    private static readonly string[] AotProjects = ["Great.Parts.Cel.Tests"];
+    private static readonly string[] AotProjects = ["Great.Parts.Cel.Tests", "Great.Parts.Cel.Conformance"];
 
     /// <summary>The target frameworks of the projects of <see cref="AotProjects"/>.</summary>
     private static readonly string[] AotTargets = ["net10.0", "net11.0"];

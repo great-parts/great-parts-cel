@@ -1,0 +1,30 @@
+# proto-file: ../../cel-spec/proto/cel/expr/conformance/test/simple.proto
+# proto-message: cel.expr.conformance.test.SimpleTestFile
+
+# The suite of the tests of the runner. A scripted evaluator gives each expression its value, so the
+# outcome does not depend on the library. Comments and strings hold the words test and section and
+# braces, which the scan of the positions skips: test { section {
+name: "synthetic"
+description: "The cases of the tests of the runner."
+section {
+  name: "failing"
+  description: "test { a wrong expectation }"
+  test {
+    name: "wrong_expectation"
+    expr: "1 + 1"
+    value: { int64_value: 3 }
+  }
+}
+section: {
+  name: "passing"
+  test {
+    name: "int"
+    expr: "1 + 1"
+    value: { int64_value: 2 }
+  }
+  # test {
+  test {
+    name: "no_matcher"
+    expr: '{"test": 1}["test"] == 1'
+  }
+}

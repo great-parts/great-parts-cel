@@ -46,10 +46,11 @@
     <AdditionalFiles Include="PublicAPI/net11.0/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
-  <!-- Internal members are visible to the unit tests and the property tests only (docs/design/tests.md). -->
+  <!-- Internal members are visible to the unit tests, the property tests and the suite runner only (docs/design/tests.md). -->
   <ItemGroup>
     <InternalsVisibleTo Include="Great.Parts.Cel.Tests" />
     <InternalsVisibleTo Include="Great.Parts.Cel.Properties" />
+    <InternalsVisibleTo Include="Great.Parts.Cel.Conformance" />
   </ItemGroup>
 
   <!-- The notice file is in the root of the package. -->

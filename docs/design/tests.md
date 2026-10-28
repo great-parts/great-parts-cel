@@ -78,6 +78,7 @@ Rules that keep the two sets equal:
 Project settings:
 
 - `PublishAot=true` and `RuntimeIdentifiers` with `linux-x64` and `win-x64` are in the project files of the two projects. Restore is then the same for JIT and Native AOT: the publish runs with `--no-restore` after a restore without a runtime identifier and changes no lock file, neither of the project nor of the projects it references.
+- `DynamicCodeSupport=true` is in the same project files for every build except the publish. With `PublishAot=true` the targets of the Native AOT compiler set `DynamicCodeSupport=false` for every build, and the SDK writes it into the runtime configuration: the JIT run would then run without dynamic code, as the published one, and the conformance runner would name its cell `native-aot` ([conformance.md](conformance.md#skip-lists-and-findings)). The publish keeps `false`.
 - `PublishDocumentationFile=false` is in the same project files, with its reason: the Native AOT publish of the SDK looks for the XML documentation file in the runtime output, where the build does not put it, and fails with `MSB3030`. A test executable needs no documentation file; `GenerateDocumentationFile` stays `true`.
 - `InvariantGlobalization=true` is given only on the `dotnet publish` command line. The JIT run keeps ICU, the published run uses the invariant mode, and the same expectations hold in both.
 

@@ -3,7 +3,8 @@
     "project": "src/Great.Parts.Cel/Great.Parts.Cel.csproj",
     "test-projects": [
       "tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj",
-      "tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj"
+      "tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj",
+      "tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj"
     ],
     "target-framework": "net11.0",
     "test-runner": "mtp",

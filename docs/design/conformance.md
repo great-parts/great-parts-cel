@@ -67,7 +67,9 @@ For each case the runner adds to the setup what the case declares — `UseContai
 | `disable_check` | internal `env.Parse(expr)`, then internal `env.EvaluateWithoutTypeCheck(parsed, bindings)`; the result type is `dyn`, as for an unchecked expression in cel-go |
 | `check_only` | internal `env.Parse(expr)`, then internal `env.Check(parsed)`; the result type is `CheckedExpression.ResultType`; nothing is planned or evaluated |
 
-See [facade.md](facade.md#internal-entry-points). A binding of the kind `value` is converted by `ValueConversion` and added with `CelBindings.Add(name, CelValue)`. A value converts from `cel.expr.Value` to `CelValue` and back for the kinds the library supports, through the public API only, since `eng/difftest` links the file; a type converts from `CelType` to `cel.expr.Type` in `TypeConversion`, a file that is not linked. Other kinds throw `NotImplementedException`.
+Until the library has these internal members, `LibraryEvaluator` does not call the library for a `disable_check` or `check_only` case: the case fails with the reason `internal entry point is not available yet`.
+
+See [facade.md](facade.md#internal-entry-points). A binding of the kind `value` is converted by `ValueConversion` and added with `CelBindings.Add(name, CelValue)`. A value converts from `cel.expr.Value` to `CelValue` and back for the kinds the library supports, through the public API only, since `eng/difftest` links the file; a type converts in `TypeConversion`, a file that is not linked: from `CelType` to `cel.expr.Type` for the result type, and from `cel.expr.Type` to `CelType` for the declarations of a case. Other kinds throw `NotImplementedException`.
 
 ## The rule
 
@@ -87,7 +89,7 @@ Source: `conformance/conformance_test.go` of cel-go v0.32.0, https://github.com/
 | `eval_error` | evaluation gives an error or an error value; the message is not compared | 278–284 | an error of the stage `Evaluate` |
 | other matchers | `any_eval_errors`, `unknown`, `any_unknowns` fail | 285–287 | the same |
 
-Values are compared as `cel.expr.Value` messages, as `diffValue` does with `cmp.Diff`, `protocmp.Transform()` and sorted map entries (lines 184–190): field by field, scalar fields with Go `==`, the entries of a map in any order. Types are compared as `cel.expr.Type` messages (`diffType`, lines 175–182). An exception from the library fails the case, and the reason names its type; a crash of the process is a defect, never a skip entry.
+Values are compared as `cel.expr.Value` messages, as `diffValue` does with `cmp.Diff`, `protocmp.Transform()` and sorted map entries (lines 184–190): field by field, scalar fields with Go `==`, the entries of a map in any order. Until the library has values of messages, an `Any` is compared by its `type_url` and the bytes of its `value`: the runner has no classes of the test messages. cel-go expands an `Any` whose type its registry knows and compares the messages, so the runner will expand it too, with the test messages compiled into C# classes like `simple.proto`. Types are compared as `cel.expr.Type` messages (`diffType`, lines 175–182). An exception from the library fails the case, and the reason names its type; a crash of the process is a defect, never a skip entry.
 
 ## Skip lists and findings
 

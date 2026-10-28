@@ -3,3 +3,7 @@ Copyright 2026 The Great.Parts Authors.
 The Great.Parts Authors are the contributors recorded in the Git history of this repository.
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The directory tests/cel-spec/ holds an unchanged copy of test data, protocol definitions and the language definition of the
+Common Expression Language specification (cel-spec), Copyright Google LLC, licensed under the Apache License, Version 2.0
+(see tests/cel-spec/LICENSE). The data are used by the tests only and are not part of the packages.

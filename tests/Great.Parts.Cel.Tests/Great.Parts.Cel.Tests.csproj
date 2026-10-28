@@ -11,6 +11,12 @@
     <IsPackable>false</IsPackable>
     <!-- Restore is the same for JIT and Native AOT, so publishing does not change the lock file. -->
     <PublishAot>true</PublishAot>
+    <!--
+      With PublishAot the Native AOT targets set DynamicCodeSupport=false for every build, and the SDK writes it into runtimeconfig.json:
+      the JIT run of the tests would be a run without dynamic code, as the published one, and would not test the library with it.
+      Only the publish keeps false; dotnet publish sets _IsPublishing.
+    -->
+    <DynamicCodeSupport Condition="'$(_IsPublishing)' != 'true'">true</DynamicCodeSupport>
     <RuntimeIdentifiers>linux-x64;win-x64</RuntimeIdentifiers>
     <!--
       The published test executable needs no XML documentation. Without this, publishing under Native AOT fails with

@@ -12,6 +12,7 @@
     <Project Path="src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj" />
     <Project Path="tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj" />
     <Project Path="tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj" />
   </Folder>
