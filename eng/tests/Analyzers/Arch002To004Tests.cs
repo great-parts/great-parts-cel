@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Great.Parts.Cel.Eng.Analyzers;
+using Great.Parts.Cel.Eng.Findings;
 using Great.Parts.Cel.Eng.Tests.Support;
 using Xunit;
 
@@ -43,7 +44,7 @@ public sealed class Arch002To004Tests
     [Fact]
     public async Task EveryTypeHasRowAndEveryRowHasType_NothingIsReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             Header + ProgramRow + ValueRow,
             new RepositoryFile("src/Great.Parts.Cel/CelProgram.cs", Program),
             new RepositoryFile("src/Great.Parts.Cel/Values/CelValue.cs", Value));
@@ -54,7 +55,7 @@ public sealed class Arch002To004Tests
     [Fact]
     public async Task PublicTypeWithoutRow_IsReportedAtItsDeclaration()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             Header + ProgramRow,
             new RepositoryFile("src/Great.Parts.Cel/CelProgram.cs", Program),
             new RepositoryFile("src/Great.Parts.Cel/CelPolicy.cs", """
@@ -81,7 +82,7 @@ public sealed class Arch002To004Tests
     [Fact]
     public async Task RowWithoutPublicType_IsReportedAtTheRow()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             Header + ProgramRow + "| `CelBindings` | `Great.Parts.Cel` | langdef \"Evaluation Environment\" | cel-spec term \"bindings\" |\n",
             new RepositoryFile("src/Great.Parts.Cel/CelProgram.cs", Program),
             new RepositoryFile("src/Great.Parts.Cel/CelBindings.cs", """
@@ -100,7 +101,7 @@ public sealed class Arch002To004Tests
     [Fact]
     public async Task RowOfNamespaceOfAnotherAssembly_IsNotCheckedHere()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             Header + ProgramRow + "| `CelProtobufTypes` | `Great.Parts.Cel.Protobuf` | protobuf message types | Not a cel-spec term |\n",
             new RepositoryFile("src/Great.Parts.Cel/CelProgram.cs", Program));
 
@@ -110,7 +111,7 @@ public sealed class Arch002To004Tests
     [Fact]
     public async Task RowWithEmptyConcept_IsReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             Header + ProgramRow + "| `CelValue` | `Great.Parts.Cel.Values` |  | Same as the term, with the `Cel` prefix |\n",
             new RepositoryFile("src/Great.Parts.Cel/CelProgram.cs", Program),
             new RepositoryFile("src/Great.Parts.Cel/Values/CelValue.cs", Value));
@@ -123,7 +124,7 @@ public sealed class Arch002To004Tests
     [Fact]
     public async Task NameDifferenceWithoutExplanation_IsReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             Header + "| `CelProgram<T>` | `Great.Parts.Cel` | `checked.proto` `CheckedExpr` |  |\n",
             new RepositoryFile("src/Great.Parts.Cel/CelProgram.cs", Program));
 
@@ -135,7 +136,7 @@ public sealed class Arch002To004Tests
     [Fact]
     public async Task RowWithoutFourCells_IsReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             Header + "| `CelProgram<T>` | `Great.Parts.Cel` | `checked.proto` `CheckedExpr` |\n",
             new RepositoryFile("src/Great.Parts.Cel/CelProgram.cs", Program));
 
@@ -147,7 +148,7 @@ public sealed class Arch002To004Tests
     [Fact]
     public async Task CompilationWithoutTheList_IsNotChecked()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await AnalyzerRunner.RunAsync(
+        IReadOnlyList<Finding> findings = await AnalyzerRunner.RunAsync(
             new ApiConceptListAnalyzer(),
             "Great.Parts.Cel.Tests",
             [new RepositoryFile("tests/Great.Parts.Cel.Tests/CelPolicyTests.cs", """
@@ -163,6 +164,6 @@ public sealed class Arch002To004Tests
         FindingAssert.None(findings);
     }
 
-    private static Task<IReadOnlyList<AnalyzerFinding>> RunAsync(string list, params RepositoryFile[] sources) =>
+    private static Task<IReadOnlyList<Finding>> RunAsync(string list, params RepositoryFile[] sources) =>
         AnalyzerRunner.RunAsync(new ApiConceptListAnalyzer(), "Great.Parts.Cel", sources, [new RepositoryFile(ListPath, list)], TestContext.Current.CancellationToken);
 }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Great.Parts.Cel.Eng.Analyzers;
+using Great.Parts.Cel.Eng.Findings;
 using Great.Parts.Cel.Eng.Tests.Support;
 using Xunit;
 
@@ -44,7 +45,7 @@ public sealed class Arch005Tests
     [Fact]
     public async Task ReferenceOutsideTheRowOfItsNamespace_IsReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             "Great.Parts.Cel",
             Layers,
             new RepositoryFile("src/Great.Parts.Cel/Evaluation/Planner.cs", Planner),
@@ -58,7 +59,7 @@ public sealed class Arch005Tests
     [Fact]
     public async Task ReferenceListedInTheRow_IsNotReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             "Great.Parts.Cel",
             Layers,
             new RepositoryFile("src/Great.Parts.Cel/Values/CelList.cs", """
@@ -86,7 +87,7 @@ public sealed class Arch005Tests
     [Fact]
     public async Task ReferenceToAHigherLayerInDocumentation_IsNotReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             "Great.Parts.Cel",
             Layers,
             new RepositoryFile("src/Great.Parts.Cel/Evaluation/Planner.cs", Planner),
@@ -110,7 +111,7 @@ public sealed class Arch005Tests
     [Fact]
     public async Task NamespaceWithoutRow_IsReportedAtItsDeclaration()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             "Great.Parts.Cel",
             Layers,
             new RepositoryFile("src/Great.Parts.Cel/Syntax/Parser.cs", """
@@ -129,7 +130,7 @@ public sealed class Arch005Tests
     [Fact]
     public async Task MalformedLineOfTheTable_IsReportedAtThatLine()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             "Great.Parts.Cel",
             Layers + "\nGreat.Parts.Cel.Syntax Great.Parts.Cel.Values\n",
             new RepositoryFile("src/Great.Parts.Cel/Evaluation/Planner.cs", Planner));
@@ -142,7 +143,7 @@ public sealed class Arch005Tests
     [Fact]
     public async Task AssemblyWithoutSection_IsNotChecked()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync(
+        IReadOnlyList<Finding> findings = await RunAsync(
             "Great.Parts.Cel.Generator",
             Layers,
             new RepositoryFile("src/Great.Parts.Cel.Generator/Evaluation/Planner.cs", Planner),
@@ -158,6 +159,6 @@ public sealed class Arch005Tests
         FindingAssert.None(findings);
     }
 
-    private static Task<IReadOnlyList<AnalyzerFinding>> RunAsync(string assemblyName, string layers, params RepositoryFile[] sources) =>
+    private static Task<IReadOnlyList<Finding>> RunAsync(string assemblyName, string layers, params RepositoryFile[] sources) =>
         AnalyzerRunner.RunAsync(new NamespaceGraphAnalyzer(), assemblyName, sources, [new RepositoryFile(LayersPath, layers)], TestContext.Current.CancellationToken);
 }

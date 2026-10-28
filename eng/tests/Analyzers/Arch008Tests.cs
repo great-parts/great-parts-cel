@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Great.Parts.Cel.Eng.Analyzers;
+using Great.Parts.Cel.Eng.Findings;
 using Great.Parts.Cel.Eng.Tests.Support;
 using Xunit;
 
@@ -21,7 +22,7 @@ public sealed class Arch008Tests
     [Fact]
     public async Task QualifiedNameStartingWithCel_IsReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync("""
+        IReadOnlyList<Finding> findings = await RunAsync("""
             namespace Conformance;
 
             internal static class Runner
@@ -41,7 +42,7 @@ public sealed class Arch008Tests
     [Fact]
     public async Task QualifiedNameWithGlobalOrUsingDirective_IsNotReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await RunAsync("""
+        IReadOnlyList<Finding> findings = await RunAsync("""
             using Cel.Expr;
 
             namespace Conformance;
@@ -57,7 +58,7 @@ public sealed class Arch008Tests
         FindingAssert.None(findings);
     }
 
-    private static Task<IReadOnlyList<AnalyzerFinding>> RunAsync(string runner) =>
+    private static Task<IReadOnlyList<Finding>> RunAsync(string runner) =>
         AnalyzerRunner.RunAsync(
             new QualifiedNameAnalyzer(),
             "Great.Parts.Cel.Conformance",

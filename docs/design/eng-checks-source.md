@@ -10,7 +10,7 @@ eng/checks suppressions duplicates ratchet
 
 The C# files of the file set, [generated files](#generated-code) excluded, are parsed with Roslyn syntax trees without a compilation, once per symbol set, so code under `#if` is read as the compiler reads it. `suppressions`, `duplicates`, `examples` and the code registry test read C# this way.
 
-- A symbol set is one target framework and one configuration. The targets are those that the project files and `.props` files of the file set name in `TargetFramework` and `TargetFrameworks`. The set holds the symbols the SDK defines for the target — for `net11.0` `NET`, `NETCOREAPP`, `NET11_0` and the `_OR_GREATER` symbols up to `NET11_0_OR_GREATER`; for `netstandard2.0` the `NETSTANDARD` ones — then `DEBUG` or `RELEASE`, `TRACE`, and the names that project files add in `DefineConstants`.
+- A symbol set is one target framework and one configuration. The targets are those that the project files and `.props` files of the file set name in `TargetFramework` and `TargetFrameworks`. The set holds the symbols the SDK defines for the target — for `net11.0` `NET`, `NETCOREAPP`, `NET11_0` and the `_OR_GREATER` symbols up to `NET11_0_OR_GREATER`; for `netstandard2.0` the `NETSTANDARD` ones — then the name of the configuration in upper case, `DEBUG` or `RELEASE`, as the SDK defines it for C# projects, then `TRACE`, and the names that project files add in `DefineConstants`.
 - A branch that no set makes active is never compiled and is not read.
 - The language version is the newest that Roslyn 5.0.0 knows, C# 14. Code for `net11.0` may use newer syntax, and its parse has errors. Parse errors do not stop a check and are not findings: the build reports real ones. Directives are found in the trivia of any token, tokens that the parser skips stay in the token sequence, and an attribute list next to unknown syntax is kept by Roslyn's error recovery, which a test checks ([eng-tests.md](eng-tests.md)).
 - A place found in several parses is one place.
@@ -41,9 +41,9 @@ Finds every place that turns a check or a rule off or lowers its level, checks t
 
 | Form | Files | Where the reason is | Key |
 | :- | :- | :- | :- |
-| `#pragma warning disable <ids>` | `*.cs` | comment in the same line | each rule ID |
+| `#pragma warning disable <ids>` | `*.cs` | comment in the same line | each rule ID; `pragma` when the directive lists no IDs |
 | `#nullable disable` | `*.cs` | comment in the same line | `nullable` |
-| `[SuppressMessage]`, `[UnconditionalSuppressMessage]` | `*.cs` | the `Justification` argument | the rule ID of the check ID argument |
+| `[SuppressMessage]`, `[UnconditionalSuppressMessage]` | `*.cs` | the `Justification` argument | the rule ID of the `CheckId` argument, see below |
 | `dotnet_diagnostic.<id>.severity` set to `none`, `silent` or `suggestion` | `.editorconfig`, `.globalconfig` | comment line directly above | the rule ID |
 | `dotnet_analyzer_diagnostic.category-<name>.severity` or `dotnet_analyzer_diagnostic.severity` set to one of these levels | `.editorconfig`, `.globalconfig` | comment line directly above | `AnalysisMode` |
 | `NoWarn`, `WarningsNotAsErrors` | `*.csproj`, `*.props`, `*.targets` | XML comment in the line above the element | each rule ID the element adds |
@@ -62,9 +62,13 @@ Finds every place that turns a check or a rule off or lowers its level, checks t
 
 How the forms are read:
 
+- Every place with a valid reason counts under exactly one key, so no place is left out of the ratchet and none counts twice. A form that names several rule IDs is one place per ID, all at the position of the form; a form without a rule ID is one place under the key of its row.
+- `#pragma warning disable` without IDs turns off every warning; its key is `pragma`.
+- The `CheckId` argument of `[SuppressMessage]` and `[UnconditionalSuppressMessage]`, positional or named: a string literal, also in parentheses, gives its part before `:` as the rule ID and the key. Any other expression, such as a constant, a concatenation, `null`, or a literal with nothing before `:`, gives its source text as the key, and that text is not a rule ID. An attribute without the argument does not compile; its place counts under the attribute name as written.
 - C# files are read as [C# sources](#c-sources): a form under `#if NET11_0_OR_GREATER` is found, and a form found in several symbol sets is one place. Directives and attributes are found in the trees, so text inside a string literal is not a suppression.
 - In an MSBuild property only the IDs the file adds count: `$(NoWarn)` is not an ID. A bare number is a compiler warning: `1591` is `CS1591`.
 - An MSBuild property of the table counts in any property group, with or without a condition. Its value is trimmed and compared ignoring case; in a row that names the allowed values ("other than …"), any other value, a `$(…)` reference included, is a form. A file that does not set the property has no form. A name with a category is, for example, `AnalysisModeSecurity`.
+- In `lychee.toml` an exclusion is every string of the arrays `exclude` and `exclude_path`, and every flag `exclude_all_private`, `exclude_private`, `exclude_link_local` and `exclude_loopback` set to `true`, under any table; the place is the string, or the key of the flag. Other settings, `include_mail` among them, are not forms.
 - In `.editorconfig` a comment line starts with `#` or `;`. `generated_code` counts in any section, also for an allowed directory, its value compared ignoring case; `false` is not a form.
 - A generated file is one place, at the comment with the marker, or at `(1,1)` when only the name is a sign. The marker tags — `<auto-generated…>`, `</auto-generated>`, `<autogenerated…>`, `</autogenerated>` — are not a reason. Its nullable context is part of the form and is not counted again.
 - `[GeneratedCode]` is an attribute named `GeneratedCode` or `GeneratedCodeAttribute` with any qualifier, found in the trees like `[SuppressMessage]`.
@@ -83,7 +87,7 @@ The count by key includes only places with a valid reason; a place without one i
 
 Finds repeated code after renaming.
 
-- Input: the [C# sources](#c-sources), tests included.
+- Input: the [C# sources](#c-sources), tests included. A repeat in a test is maintained like a repeat in the library: a change of the repeated code has to be made in both places. Tables of test cases and the repeated arrange-and-assert form of tests therefore count, and the initial baseline is the actual number of pairs, tests included. Tests are not rewritten into helpers only to lower that number; a change that removes a pair lowers the baseline with it.
 - Tokens: the tokens of the active code of one symbol set, without trivia, so comments, white space, preprocessor directives and inactive branches do not count. Every identifier becomes the identifier kind, every literal becomes its literal kind; keywords and punctuation stay as they are. Sequences do not cross file boundaries.
 - Window: 100 tokens, a constant of the command.
 - Search: a rolling hash over every window of 100 tokens; windows with equal hashes are compared token by token. Overlapping and adjacent matching windows join into one longest run. Each pair of equal runs is one pair; two runs in the same file count when they do not overlap.
@@ -102,7 +106,9 @@ The scan keeps the pairs with their places for the ratchet.
 
 Compares the actual numbers with the baseline `eng/ratchet.json`, so a number grows only by a change of the baseline in the same change set, and a baseline that is too high is lowered.
 
-Reading the file. The reader works on the bytes with `Utf8JsonReader` and keeps the line and column of every key. `ENG600` at the place of the problem when the file is not JSON, has an unknown key, a repeated key, keys out of ordinal order, a value that is not a non-negative integer, or a `suppressions` entry with 0.
+Reading the file. The reader works on the bytes with `Utf8JsonReader` and keeps the line and column of every key. `ENG600` at the place of the problem when the file is not JSON, has an unknown key, a repeated key, keys out of ordinal order, a value that is not a non-negative integer, or a `suppressions` entry with 0. A missing top-level key is not a problem: a missing `codeMetrics` or `suppressions` is an empty object, a missing `duplicates` is 0, and a finding at a missing key is at the opening brace of the file.
+
+A missing `eng/ratchet.json` or `CodeMetricsConfig.txt` is an input that does not exist: exit code 2 with a message to standard error ([eng-checks.md](eng-checks.md#finding-and-output)), not a finding. This holds for every command that reads the file, so `duplicates` without `eng/ratchet.json` is exit code 2 too.
 
 | Baseline | Actual | Actual above | Actual below |
 | :- | :- | :- | :- |

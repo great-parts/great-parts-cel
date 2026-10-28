@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Great.Parts.Cel.Eng.Analyzers;
+using Great.Parts.Cel.Eng.Findings;
 using Great.Parts.Cel.Eng.Tests.Support;
 using Xunit;
 
@@ -24,7 +25,7 @@ public sealed class Arch006Tests
     [Fact]
     public async Task PublicTypeWithReservedName_IsReported()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await AnalyzerRunner.RunAsync(
+        IReadOnlyList<Finding> findings = await AnalyzerRunner.RunAsync(
             new PublicNameAnalyzer(),
             "Great.Parts.Cel",
             [new RepositoryFile("src/Great.Parts.Cel/Values/Policy.cs", Types)],
@@ -39,7 +40,7 @@ public sealed class Arch006Tests
     [Fact]
     public async Task CompilationWithoutTheList_IsNotChecked()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await AnalyzerRunner.RunAsync(
+        IReadOnlyList<Finding> findings = await AnalyzerRunner.RunAsync(
             new PublicNameAnalyzer(),
             "Great.Parts.Cel.Tests",
             [new RepositoryFile("tests/Great.Parts.Cel.Tests/Policy.cs", Types)],

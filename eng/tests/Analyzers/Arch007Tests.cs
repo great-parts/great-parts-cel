@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Great.Parts.Cel.Eng.Analyzers;
+using Great.Parts.Cel.Eng.Findings;
 using Great.Parts.Cel.Eng.Tests.Support;
 using Xunit;
 
@@ -12,7 +13,7 @@ public sealed class Arch007Tests
     [Fact]
     public async Task PublicMemberMarkedRequiresCode_IsReportedForEachAttribute()
     {
-        IReadOnlyList<AnalyzerFinding> findings = await AnalyzerRunner.RunAsync(
+        IReadOnlyList<Finding> findings = await AnalyzerRunner.RunAsync(
             new PublicNameAnalyzer(),
             "Great.Parts.Cel",
             [new RepositoryFile("src/Great.Parts.Cel/CelEnvironment.cs", """

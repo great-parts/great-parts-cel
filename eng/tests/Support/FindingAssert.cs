@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Great.Parts.Cel.Eng.Findings;
 using Xunit;
 
 namespace Great.Parts.Cel.Eng.Tests.Support;
@@ -14,21 +15,21 @@ internal static class FindingAssert
     /// </summary>
     /// <param name="actual">The findings of the check.</param>
     /// <param name="expected">The expected errors.</param>
-    internal static void Exactly(IReadOnlyList<AnalyzerFinding> actual, params AnalyzerFinding[] expected)
+    internal static void Exactly(IReadOnlyList<Finding> actual, params Finding[] expected)
     {
-        foreach (AnalyzerFinding finding in actual)
+        foreach (Finding finding in actual)
         {
-            Assert.Matches(AnalyzerFinding.Pattern, finding.Format());
+            Assert.Matches(Finding.Pattern, finding.ToString());
         }
 
         Assert.Equal(
-            expected.Select(finding => finding.Format()).Order(StringComparer.Ordinal),
-            actual.Select(finding => finding.Format()).Order(StringComparer.Ordinal));
+            expected.Select(finding => finding.ToString()).Order(StringComparer.Ordinal),
+            actual.Select(finding => finding.ToString()).Order(StringComparer.Ordinal));
     }
 
     /// <summary>Asserts that the check found nothing.</summary>
     /// <param name="actual">The findings of the check.</param>
-    internal static void None(IReadOnlyList<AnalyzerFinding> actual) => Exactly(actual);
+    internal static void None(IReadOnlyList<Finding> actual) => Exactly(actual);
 
     /// <summary>An expected error finding.</summary>
     /// <param name="code">The diagnostic ID.</param>
@@ -36,5 +37,6 @@ internal static class FindingAssert
     /// <param name="line">The line, starting with one.</param>
     /// <param name="column">The column, starting with one.</param>
     /// <param name="message">The message.</param>
-    internal static AnalyzerFinding Error(string code, string path, int line, int column, string message) => new(path, line, column, "error", code, message);
+    internal static Finding Error(string code, string path, int line, int column, string message) =>
+        new(path, line, column, FindingSeverity.Error, code, message);
 }

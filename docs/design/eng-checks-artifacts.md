@@ -37,9 +37,9 @@ Checks that every commit of a range has a `Signed-off-by` trailer.
 eng/checks signoff <range>
 ```
 
-- `<range>` is a revision range of `git rev-list`, for example `<before>..<after>` of a push, or the range of the commits of a pull request.
+- `<range>` is a revision range of `git rev-list`, for example `<before>..<after>` of a push, or the range of the commits of a pull request. It is the argument of the command, see [Invocation](eng-checks.md#invocation). A range that `git rev-list` does not accept is exit code 2.
 - Every commit of the range counts: merges and commits of bots too. There are no exceptions.
-- The trailers are read with `git interpret-trailers --parse` from the full message of the commit.
+- The trailers are read with `git interpret-trailers --parse --no-divider` from the full message of the commit, so a line `---` in the body does not end the message.
 - A commit without the trailer is `ENG701`. There is no file, so the place is the commit:
 
 ```text

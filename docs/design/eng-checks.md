@@ -16,8 +16,10 @@
 ## Invocation
 
 ```text
-dotnet run --project eng/checks -- <command> [<command> ...] [<option> ...]
+dotnet run --project eng/checks -- <command> [<argument>] [<command> [<argument>] ...] [<option> ...]
 ```
+
+A command that takes an argument is followed by it, for example `signoff <range>`. The token after such a command is its argument even when it looks like a command name; a missing argument is exit code 2. An option stands before a command or after the argument of a command, not between a command and its argument. An unknown command or option is exit code 2 too.
 
 Commands run in the given order. Several commands in one run share their scans: `ratchet` uses the suppressions and the duplicate pairs that `suppressions` and `duplicates` found in the same run instead of scanning again. The container commands call it this way, see [eng-test.md](eng-test.md).
 
@@ -39,9 +41,16 @@ Commands run in the given order. Several commands in one run share their scans: 
 | Path | Contents |
 | :- | :- |
 | `Program.cs` | parses the arguments, runs the commands, writes the findings, sets the exit code |
-| `Commands/` | one class per command |
-| `Repository/` | repository root, file set, C# sources, positions, calls of `git` |
-| `Formats/` | readers of the input formats: `eng/ratchet.json`, package lists, lychee, xUnit and mutation reports |
+| `CheckContext.cs`, `CheckInputException.cs` | the context of a run and the exception for an input that does not exist |
+| `Commands/` | the command interface, the registry of the commands and one class per command |
+| `Repository/` | repository root, file set, C# sources, symbol sets, positions, calls of `git` |
+| `Suppressions/` | the scanners of the forms of `suppressions`, the reason, the reader of `lychee.toml` |
+| `Duplicates/` | tokens, the search and the joining of pairs of `duplicates` |
+| `Ratchet/` | the reader of `eng/ratchet.json`, the comparison, the lines added against `main` |
+
+A command added later puts the types that only it uses, the readers of its input formats included, into a directory of its own named after it.
+
+The directories are not namespaces: every type of `eng/checks` is in the one namespace `Great.Parts.Cel.Eng.Checks`. The cycle rule `ARCH001` of the architecture analyzer applies to every C# project, `eng/checks` included ([eng-analyzers.md](eng-analyzers.md)), and namespaces per directory would make cycles: `Program` uses the registry of the commands, and the commands use `CheckContext` next to `Program`.
 
 Every command implements one interface:
 
@@ -49,11 +58,12 @@ Every command implements one interface:
 internal interface ICheckCommand
 {
     string Name { get; }
+    string? ArgumentName => null;
     IEnumerable<Finding> Run(CheckContext context);
 }
 ```
 
-`CheckContext` holds the repository root, the options of the run and the scans that several commands share; a scan is computed on first use.
+`ArgumentName` is the name of the one argument that follows the command, such as `<range>`, or `null` when the command takes none; the messages of a missing argument use it. `CheckContext` holds the repository root, the options of the run, the arguments of the commands by command name and the scans that several commands share; a scan is computed on first use. A command reports an input that does not exist or cannot be read — a file, a revision range — by throwing `CheckInputException`: `Program` writes its message to standard error and returns exit code 2.
 
 ## Finding and output
 

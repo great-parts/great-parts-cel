@@ -10,12 +10,14 @@ internal static class Commands
 
     /// <summary>
     /// <c>eng/test</c>: the build of both target frameworks of every project of the solution, then every test project of the
-    /// solution under JIT. A failed build stops the command.
+    /// solution under JIT, then the source checks of <c>eng/checks</c>. A failed build stops the command; the tests and the checks
+    /// both run even when one of them fails, so a single run shows all failures.
     /// </summary>
     private static readonly Step[] Test =
     [
         new("dotnet", ["build", Solution, "-c", "Release"], StopsOnFailure: true),
         new("dotnet", ["test", "--solution", Solution, "-c", "Release", "--no-build"]),
+        new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "suppressions", "duplicates", "ratchet"]),
     ];
 
     /// <summary>Returns the steps of a command, or <see langword="null"/> when the command is unknown.</summary>

@@ -26,6 +26,8 @@
   <!-- The rules of the architecture analyzer, run in memory as a library. -->
   <ItemGroup>
     <ProjectReference Include="../analyzers/Great.Parts.Cel.Eng.Analyzers.csproj" />
+    <!-- The commands and Program of eng/checks run in the test process; Finding and EngCodes come through it. -->
+    <ProjectReference Include="../checks/Great.Parts.Cel.Eng.Checks.csproj" />
   </ItemGroup>
 
 </Project>

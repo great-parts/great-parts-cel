@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Great.Parts.Cel.Eng.Findings;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -37,7 +39,7 @@ internal static class AnalyzerRunner
     /// <param name="sources">The C# sources. They must compile without errors.</param>
     /// <param name="additionalFiles">The additional files, such as <c>eng/layers.txt</c>.</param>
     /// <param name="cancellationToken">Cancels the analysis.</param>
-    internal static async Task<IReadOnlyList<AnalyzerFinding>> RunAsync(
+    internal static async Task<IReadOnlyList<Finding>> RunAsync(
         DiagnosticAnalyzer analyzer,
         string assemblyName,
         IEnumerable<RepositoryFile> sources,
@@ -50,7 +52,20 @@ internal static class AnalyzerRunner
             .WithAnalyzers([analyzer], options)
             .GetAnalyzerDiagnosticsAsync(cancellationToken)
             .ConfigureAwait(false);
-        return [.. diagnostics.Select(AnalyzerFinding.From)];
+        return [.. diagnostics.Select(ToFinding)];
+    }
+
+    // The path of the location, the line and column of its start plus one; the line form is Finding.ToString().
+    private static Finding ToFinding(Diagnostic diagnostic)
+    {
+        FileLinePositionSpan span = diagnostic.Location.GetLineSpan();
+        return new Finding(
+            span.Path,
+            span.StartLinePosition.Line + 1,
+            span.StartLinePosition.Character + 1,
+            diagnostic.Severity == DiagnosticSeverity.Error ? FindingSeverity.Error : FindingSeverity.Warning,
+            diagnostic.Id,
+            diagnostic.GetMessage(CultureInfo.InvariantCulture));
     }
 
     private static CSharpCompilation Compile(string assemblyName, IEnumerable<RepositoryFile> sources, CancellationToken cancellationToken)
@@ -65,7 +80,7 @@ internal static class AnalyzerRunner
         // A violating example must be valid C#: the analyzer runs on code that the compiler accepts.
         Assert.Empty(compilation.GetDiagnostics(cancellationToken)
             .Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error)
-            .Select(diagnostic => AnalyzerFinding.From(diagnostic).Format()));
+            .Select(diagnostic => ToFinding(diagnostic).ToString()));
         return compilation;
     }
 

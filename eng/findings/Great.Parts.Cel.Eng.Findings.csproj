@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The codes and the finding of the repository's own checks (docs/design/eng-checks.md, "One source of the ENG codes").
+    The project has no packages: eng/checks, the suite runner and eng/difftest reference it, so each type exists in one assembly.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Great.Parts.Cel.Eng.Findings</RootNamespace>
+    <!-- The trimming and Native AOT analyzers check this project in every build: the runner is published under Native AOT. -->
+    <IsAotCompatible>true</IsAotCompatible>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+</Project>

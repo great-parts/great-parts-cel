@@ -130,6 +130,16 @@
       "great.parts.cel.eng.analyzers": {
         "type": "Project"
       },
+      "great.parts.cel.eng.checks": {
+        "type": "Project",
+        "dependencies": {
+          "Great.Parts.Cel.Eng.Findings": "[1.0.0, )",
+          "Microsoft.CodeAnalysis.CSharp": "[5.0.0, )"
+        }
+      },
+      "great.parts.cel.eng.findings": {
+        "type": "Project"
+      },
       "Microsoft.CodeAnalysis.Analyzers": {
         "type": "CentralTransitive",
         "requested": "[3.11.0, )",
