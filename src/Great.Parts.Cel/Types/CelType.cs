@@ -25,13 +25,15 @@ public sealed class CelType : IEquatable<CelType>
 {
     internal CelType(CelTypeKind kind, string name, ImmutableArray<CelType> parameters)
     {
-        throw new NotImplementedException();
+        Kind = kind;
+        Name = name;
+        Parameters = parameters;
     }
 
     /// <summary>
     /// <c>dyn</c>: the type is known only at evaluation, and type checking accepts any value for it.
     /// </summary>
-    public static CelType Dyn => throw new NotImplementedException();
+    public static CelType Dyn { get; } = new(CelTypeKind.Dyn, "dyn", []);
 
     /// <summary>
     /// <c>null_type</c>: the type whose only value is <c>null</c>.
@@ -41,33 +43,33 @@ public sealed class CelType : IEquatable<CelType>
     /// <summary>
     /// <c>bool</c>; on .NET, <see cref="bool"/>.
     /// </summary>
-    public static CelType Bool => throw new NotImplementedException();
+    public static CelType Bool { get; } = new(CelTypeKind.Bool, "bool", []);
 
     /// <summary>
     /// <c>int</c>, a signed 64-bit integer; on .NET, <see cref="long"/>.
     /// </summary>
-    public static CelType Int => throw new NotImplementedException();
+    public static CelType Int { get; } = new(CelTypeKind.Int, "int", []);
 
     /// <summary>
     /// <c>uint</c>, an unsigned 64-bit integer; on .NET, <see cref="ulong"/>.
     /// </summary>
-    public static CelType UInt => throw new NotImplementedException();
+    public static CelType UInt { get; } = new(CelTypeKind.UInt, "uint", []);
 
     /// <summary>
     /// <c>double</c>, an IEEE 754 binary64 number; on .NET, <see cref="double"/>.
     /// </summary>
-    public static CelType Double => throw new NotImplementedException();
+    public static CelType Double { get; } = new(CelTypeKind.Double, "double", []);
 
     /// <summary>
     /// <c>string</c>, a sequence of Unicode code points; on .NET, <see cref="string"/>. Functions on strings
     /// count code points, not UTF-16 code units.
     /// </summary>
-    public static CelType String => throw new NotImplementedException();
+    public static CelType String { get; } = new(CelTypeKind.String, "string", []);
 
     /// <summary>
     /// <c>bytes</c>; on .NET, <see cref="ReadOnlyMemory{T}"/> of <see cref="byte"/>.
     /// </summary>
-    public static CelType Bytes => throw new NotImplementedException();
+    public static CelType Bytes { get; } = new(CelTypeKind.Bytes, "bytes", []);
 
     /// <summary>
     /// <c>google.protobuf.Timestamp</c>: a point in time from 0001-01-01T00:00:00Z to
@@ -117,7 +119,7 @@ public sealed class CelType : IEquatable<CelType>
     /// .NET 11; a <see langword="switch"/> over the kind needs a default branch.
     /// </para>
     /// </remarks>
-    public CelTypeKind Kind => throw new NotImplementedException();
+    public CelTypeKind Kind { get; }
 
     /// <summary>
     /// The name CEL uses for the type: <c>int</c>, <c>list</c>, <c>map</c>, <c>optional_type</c>,
@@ -125,14 +127,14 @@ public sealed class CelType : IEquatable<CelType>
     /// <c>google.protobuf.Int64Value</c>, the full name of an object type, or the name of a type parameter.
     /// The name does not include the parameters; <see cref="ToString"/> does.
     /// </summary>
-    public string Name => throw new NotImplementedException();
+    public string Name { get; }
 
     /// <summary>
     /// The type parameters, in the order CEL writes them: the element type of a list; the key and value
     /// types of a map; the value type of an optional; the wrapped primitive type of a wrapper; the
     /// described type of <c>type(T)</c>. Empty for other kinds.
     /// </summary>
-    public ImmutableArray<CelType> Parameters => throw new NotImplementedException();
+    public ImmutableArray<CelType> Parameters { get; }
 
     /// <summary>
     /// Creates <c>list(E)</c>.
@@ -233,29 +235,25 @@ public sealed class CelType : IEquatable<CelType>
     /// </summary>
     /// <param name="other">The type to compare with.</param>
     /// <returns><see langword="true"/> when the types are equal.</returns>
-    public bool Equals(CelType? other)
-    {
-        throw new NotImplementedException();
-    }
+    public bool Equals(CelType? other) =>
+        other is not null
+        && Kind == other.Kind
+        && string.Equals(Name, other.Name, StringComparison.Ordinal)
+        && Parameters.AsSpan().SequenceEqual(other.Parameters.AsSpan());
 
     /// <summary>
     /// Compares this type with an object, as <see cref="Equals(CelType)"/> does when the object is a <see cref="CelType"/>.
     /// </summary>
     /// <param name="obj">The object to compare with.</param>
     /// <returns><see langword="true"/> when <paramref name="obj"/> is an equal type.</returns>
-    public override bool Equals(object? obj)
-    {
-        throw new NotImplementedException();
-    }
+    public override bool Equals(object? obj) => Equals(obj as CelType);
 
     /// <summary>
     /// Returns a hash code consistent with <see cref="Equals(CelType)"/>.
     /// </summary>
     /// <returns>The hash code.</returns>
-    public override int GetHashCode()
-    {
-        throw new NotImplementedException();
-    }
+    public override int GetHashCode() =>
+        HashCode.Combine(Kind, Name.GetHashCode(StringComparison.Ordinal), Parameters.Length);
 
     /// <summary>
     /// Formats the type in CEL notation with its parameters, as error messages show it, for example

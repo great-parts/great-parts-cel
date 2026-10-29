@@ -25,6 +25,11 @@ namespace Great.Parts.Cel.Diagnostics;
 /// </remarks>
 public readonly struct CelSourceLocation : IEquatable<CelSourceLocation>
 {
+    private readonly string? _sourceName;
+    private readonly int _offset;
+    private readonly int _line;
+    private readonly int _column;
+
     /// <summary>
     /// Creates a position in a named source document, such as the file that contains an expression: for
     /// example, the position at which an expression starts in its document, given in the compilation
@@ -41,28 +46,43 @@ public readonly struct CelSourceLocation : IEquatable<CelSourceLocation>
     /// </exception>
     public CelSourceLocation(string sourceName, int offset, int line, int column)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(sourceName);
+        ArgumentOutOfRangeException.ThrowIfNegative(offset);
+        ArgumentOutOfRangeException.ThrowIfLessThan(line, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(column, 1);
+        _sourceName = sourceName;
+        _offset = offset;
+        _line = line;
+        _column = column;
+    }
+
+    // A position in the expression text, without a source name; the library computes it from a line table.
+    internal CelSourceLocation(int offset, int line, int column)
+    {
+        _offset = offset;
+        _line = line;
+        _column = column;
     }
 
     /// <summary>
     /// The name of the source document the position belongs to, or <see langword="null"/> for a position in the expression text.
     /// </summary>
-    public string? SourceName => throw new NotImplementedException();
+    public string? SourceName => _sourceName;
 
     /// <summary>
     /// The offset from the start of the text in UTF-16 code units, starting at 0.
     /// </summary>
-    public int Offset => throw new NotImplementedException();
+    public int Offset => _offset;
 
     /// <summary>
     /// The line number, starting at 1; 0 when the instance means "no position".
     /// </summary>
-    public int Line => throw new NotImplementedException();
+    public int Line => _line;
 
     /// <summary>
     /// The column number in UTF-16 code units from the start of the line, starting at 1; 0 when the instance means "no position".
     /// </summary>
-    public int Column => throw new NotImplementedException();
+    public int Column => _column;
 
     /// <summary>
     /// Compares two positions: they are equal when the source names are equal by ordinal comparison
@@ -70,29 +90,25 @@ public readonly struct CelSourceLocation : IEquatable<CelSourceLocation>
     /// </summary>
     /// <param name="other">The position to compare with.</param>
     /// <returns><see langword="true"/> when the positions are equal.</returns>
-    public bool Equals(CelSourceLocation other)
-    {
-        throw new NotImplementedException();
-    }
+    public bool Equals(CelSourceLocation other) =>
+        string.Equals(_sourceName, other._sourceName, StringComparison.Ordinal)
+        && _offset == other._offset
+        && _line == other._line
+        && _column == other._column;
 
     /// <summary>
     /// Compares this position with an object, as <see cref="Equals(CelSourceLocation)"/> does when the object is a <see cref="CelSourceLocation"/>.
     /// </summary>
     /// <param name="obj">The object to compare with.</param>
     /// <returns><see langword="true"/> when <paramref name="obj"/> is an equal position.</returns>
-    public override bool Equals(object? obj)
-    {
-        throw new NotImplementedException();
-    }
+    public override bool Equals(object? obj) => obj is CelSourceLocation other && Equals(other);
 
     /// <summary>
     /// Returns a hash code consistent with <see cref="Equals(CelSourceLocation)"/>.
     /// </summary>
     /// <returns>The hash code.</returns>
-    public override int GetHashCode()
-    {
-        throw new NotImplementedException();
-    }
+    public override int GetHashCode() =>
+        HashCode.Combine(_sourceName?.GetHashCode(StringComparison.Ordinal) ?? 0, _offset, _line, _column);
 
     /// <summary>
     /// Tells whether two positions are equal, as <see cref="Equals(CelSourceLocation)"/> does.
@@ -100,10 +116,7 @@ public readonly struct CelSourceLocation : IEquatable<CelSourceLocation>
     /// <param name="left">The first position.</param>
     /// <param name="right">The second position.</param>
     /// <returns><see langword="true"/> when the positions are equal.</returns>
-    public static bool operator ==(CelSourceLocation left, CelSourceLocation right)
-    {
-        throw new NotImplementedException();
-    }
+    public static bool operator ==(CelSourceLocation left, CelSourceLocation right) => left.Equals(right);
 
     /// <summary>
     /// Tells whether two positions differ, as the negation of <see cref="Equals(CelSourceLocation)"/>.
@@ -111,8 +124,5 @@ public readonly struct CelSourceLocation : IEquatable<CelSourceLocation>
     /// <param name="left">The first position.</param>
     /// <param name="right">The second position.</param>
     /// <returns><see langword="true"/> when the positions differ.</returns>
-    public static bool operator !=(CelSourceLocation left, CelSourceLocation right)
-    {
-        throw new NotImplementedException();
-    }
+    public static bool operator !=(CelSourceLocation left, CelSourceLocation right) => !left.Equals(right);
 }

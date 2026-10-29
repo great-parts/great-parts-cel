@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Text;
 
 namespace Great.Parts.Cel.Diagnostics;
 
@@ -32,13 +34,32 @@ namespace Great.Parts.Cel.Diagnostics;
 public sealed class CelException : Exception
 {
     internal CelException(ImmutableArray<CelError> errors)
+        : base(FormatMessage(errors))
     {
-        throw new NotImplementedException();
+        Errors = errors;
     }
 
     /// <summary>
     /// The errors of the unsuccessful result, in the order of the result: all compilation errors, or
     /// the one evaluation error, or all build errors. The array is never empty.
     /// </summary>
-    public ImmutableArray<CelError> Errors => throw new NotImplementedException();
+    public ImmutableArray<CelError> Errors { get; }
+
+    private static string FormatMessage(ImmutableArray<CelError> errors)
+    {
+        StringBuilder text = new("The result is not successful:");
+        foreach (CelError error in errors)
+        {
+            CelSourceLocation location = error.Location;
+            text.Append('\n').Append(error.Code.ToString());
+            if (location.Line > 0)
+            {
+                text.Append(CultureInfo.InvariantCulture, $" at line {location.Line}, column {location.Column}");
+            }
+
+            text.Append(": ").Append(error.Message);
+        }
+
+        return text.ToString();
+    }
 }

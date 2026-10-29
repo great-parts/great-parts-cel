@@ -29,26 +29,36 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelBuildResult
 {
-    private CelBuildResult()
+    private readonly CelEnvironment? _environment;
+
+    internal CelBuildResult(CelEnvironment environment)
     {
+        _environment = environment;
+        Errors = [];
+    }
+
+    internal CelBuildResult(ImmutableArray<CelError> errors)
+    {
+        Errors = errors;
     }
 
     /// <summary>
     /// Whether the environment was built: <see langword="true"/> when there are no errors.
     /// </summary>
     [MemberNotNullWhen(true, nameof(Environment))]
-    public bool IsSuccess => throw new NotImplementedException();
+    public bool IsSuccess => _environment is not null;
 
     /// <summary>
     /// The built environment. Read it only when <see cref="IsSuccess"/> is <see langword="true"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException"><see cref="IsSuccess"/> is <see langword="false"/>.</exception>
-    public CelEnvironment? Environment => throw new NotImplementedException();
+    public CelEnvironment? Environment =>
+        _environment ?? throw new InvalidOperationException("The environment was not built: the result has build errors.");
 
     /// <summary>
     /// All build errors found; empty when <see cref="IsSuccess"/> is <see langword="true"/>.
     /// </summary>
-    public ImmutableArray<CelError> Errors => throw new NotImplementedException();
+    public ImmutableArray<CelError> Errors { get; }
 
     /// <summary>
     /// Returns the built environment, for code in which a build error is a programming mistake.
@@ -61,8 +71,5 @@ public sealed class CelBuildResult
         "Design",
         "CA1024:Use properties where appropriate",
         Justification = "The method throws for an unsuccessful result; a property getter must not throw, and the name tells the caller that it can.")]
-    public CelEnvironment GetEnvironmentOrThrow()
-    {
-        throw new NotImplementedException();
-    }
+    public CelEnvironment GetEnvironmentOrThrow() => _environment ?? throw new CelException(Errors);
 }

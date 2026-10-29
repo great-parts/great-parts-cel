@@ -34,7 +34,7 @@ public sealed class CelStandardLibrary
     /// Version 1: the standard definitions of the CEL language definition, including the functions on
     /// <c>timestamp</c> and <c>duration</c>.
     /// </summary>
-    public static CelStandardLibrary V1 => throw new NotImplementedException();
+    public static CelStandardLibrary V1 { get; } = new();
 
     /// <summary>
     /// The version number, which build errors show, for example "standard library v1".

@@ -33,13 +33,15 @@ Literal tokens become constants of type `CelValue`. The conversion never uses th
 | integer | `long`, decimal or hexadecimal, with its sign | the value is outside the range of `long` |
 | unsigned integer | `ulong` | the value is outside the range of `ulong` |
 | floating | `double`, correctly rounded | the value overflows to infinity, as in cel-go |
-| string | escape sequences are interpreted, except in a raw string | an unknown escape; an escape that gives a surrogate or a code point above U+10FFFF |
+| string | escape sequences are interpreted, except in a raw string | an unknown escape; an escape that gives a surrogate or a code point above U+10FFFF; a lone surrogate in the text, raw strings included |
 | bytes | the UTF-8 encoding of the text; `\x` and octal escapes are single bytes | as for strings; `\u` and `\U`, as in cel-go |
 | `true`, `false`, `null` | `bool`, `null` | — |
 
 Escape sequences: `\\`, `\?`, `\"`, `\'`, `` \` ``, `\a`, `\b`, `\f`, `\n`, `\r`, `\t`, `\v`; `\x` or `\X` with two hexadecimal digits; `\u` with four; `\U` with eight; three octal digits from `000` to `377`. In a string, the numeric escapes denote code points.
 
-Where an operand is expected, a minus followed by an integer or floating literal belongs to the literal, as in the literal grammar of the language definition and in cel-go. So `-9223372036854775808` is the smallest `int`, and `[-1]` is a list of one constant. A minus before any other operand, an unsigned literal included, is a call of `-_`.
+The text of an expression is a .NET string, so it can hold a lone surrogate, which is not a code point. In a string or bytes literal, raw or not, a lone surrogate is `InvalidLiteral`, the same as an escape that gives a surrogate; outside literals it is a character outside the lexis, `SyntaxError`; in a comment it is ignored. cel-go reads UTF-8 text and has no such character: it replaces bytes that are not UTF-8 with U+FFFD before lexing.
+
+Where an operand is expected, a single minus followed by an integer or floating literal belongs to the literal, as in the literal grammar of the language definition and in cel-go. So `-9223372036854775808` is the smallest `int`, and `[-1]` is a list of one constant. A minus before any other operand, an unsigned literal included, is a call of `-_`. A minus that is part of a run of minuses never belongs to a literal (see "Parser").
 
 ## Parser
 
@@ -47,7 +49,7 @@ The parser is a recursive descent over the tokens with one token of lookahead.
 
 - Binary operators are parsed by one loop over a table of precedence levels, from `||` (lowest) through `+` to `/` (highest) in the walking skeleton; operators of one level associate to the left. The complete grammar adds its levels to the same table.
 - A chain of `||` becomes a balanced tree of `_||_` calls, the shape the complete parser gives to `&&` and `||` chains.
-- A unary `-` applies to one primary; a run of unary operators comes with the complete grammar.
+- A unary `-`, or a run of them, applies to one primary and is folded as in cel-go: an even run adds no node and gives the primary itself; an odd run is one call of `-_` at the offset of its first minus. Whitespace between the minuses does not matter. So `--x` is `x`, `---x` is `-_(x)`, `--1` is the constant `1`, `---1` is `-_(1)`, `--9223372036854775808` is `InvalidLiteral`, and `-(-1)` is `-_` of the constant `-1`. Folding drops negations: with `x` the smallest `int`, `--x` is a value, while `-(-x)` is `Overflow`. `!` and its runs come with the complete grammar; in cel-go a run never mixes `-` and `!`.
 - A primary is a literal; an identifier; an identifier followed by `(`, which is a call of a global function; an expression in parentheses, which adds no node; a list `[a, b]`; or a map `{k: v}`. Lists and maps allow a trailing comma.
 - Parsing stops at the first `SyntaxError`; recovery comes with the complete grammar. An invalid literal is reported as `InvalidLiteral` and parsing goes on.
 

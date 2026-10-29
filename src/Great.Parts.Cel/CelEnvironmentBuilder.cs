@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
@@ -34,6 +36,8 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelEnvironmentBuilder
 {
+    private readonly List<CelVariableDecl> _variables = [];
+
     /// <summary>
     /// Creates a builder for an environment with the given version of the standard library.
     /// </summary>
@@ -45,7 +49,7 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentNullException"><paramref name="standardLibrary"/> is <see langword="null"/>.</exception>
     public CelEnvironmentBuilder(CelStandardLibrary standardLibrary)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(standardLibrary);
     }
 
     /// <summary>
@@ -115,7 +119,8 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
     public CelEnvironmentBuilder AddVariable(string name, CelType type)
     {
-        throw new NotImplementedException();
+        _variables.Add(new CelVariableDecl(name, type));
+        return this;
     }
 
     /// <summary>
@@ -656,8 +661,8 @@ public sealed class CelEnvironmentBuilder
     /// Building does not change the builder.
     /// </remarks>
     /// <returns>The environment or the build errors.</returns>
-    public CelBuildResult Build()
-    {
-        throw new NotImplementedException();
-    }
+    public CelBuildResult Build() => new(new CelEnvironment(VariableDeclarations));
+
+    // The declarations of variables collected so far, in the order of the calls.
+    internal ImmutableArray<CelVariableDecl> VariableDeclarations => [.. _variables];
 }

@@ -34,7 +34,12 @@ public sealed class CelError
         CelSourceLocation? sourceLocation,
         Exception? exception)
     {
-        throw new NotImplementedException();
+        Code = code;
+        Stage = stage;
+        Message = message;
+        Location = location;
+        SourceLocation = sourceLocation;
+        Exception = exception;
     }
 
     /// <summary>
@@ -45,7 +50,7 @@ public sealed class CelError
     /// meaning is a breaking change and happens only in a major version; new codes can appear in a
     /// minor version, so a <see langword="switch"/> over codes needs a default branch.
     /// </remarks>
-    public CelErrorCode Code => throw new NotImplementedException();
+    public CelErrorCode Code { get; }
 
     /// <summary>
     /// The stage at which the error was found.
@@ -54,7 +59,7 @@ public sealed class CelError
     /// For codes 9000–9999, which occur at any stage, this is the only indication of the stage.
     /// For a one-step evaluation it tells whether compilation or evaluation failed.
     /// </remarks>
-    public CelErrorStage Stage => throw new NotImplementedException();
+    public CelErrorStage Stage { get; }
 
     /// <summary>
     /// A description of the error in English, with the names and values involved: the variable, field,
@@ -73,7 +78,7 @@ public sealed class CelError
     /// <see cref="Location"/> and <see cref="SourceLocation"/>.
     /// </para>
     /// </remarks>
-    public string Message => throw new NotImplementedException();
+    public string Message { get; }
 
     /// <summary>
     /// The position of the error in the expression text.
@@ -92,7 +97,7 @@ public sealed class CelError
     /// <see cref="SourceLocation"/>.
     /// </para>
     /// </remarks>
-    public CelSourceLocation Location => throw new NotImplementedException();
+    public CelSourceLocation Location { get; }
 
     /// <summary>
     /// The position of the error in the source document, or <see langword="null"/> when the error has
@@ -111,7 +116,7 @@ public sealed class CelError
     /// description.
     /// </para>
     /// </remarks>
-    public CelSourceLocation? SourceLocation => throw new NotImplementedException();
+    public CelSourceLocation? SourceLocation { get; }
 
     /// <summary>
     /// The exception that caused the error, or <see langword="null"/>.
@@ -128,5 +133,5 @@ public sealed class CelError
     /// <see cref="OutOfMemoryException"/> are never turned into errors: they propagate to the caller.
     /// </para>
     /// </remarks>
-    public Exception? Exception => throw new NotImplementedException();
+    public Exception? Exception { get; }
 }

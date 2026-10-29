@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Immutable;
+using System.Globalization;
+using System.Linq;
+using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 
 namespace Great.Parts.Cel.Configuration;
@@ -52,6 +55,9 @@ namespace Great.Parts.Cel.Configuration;
 /// </remarks>
 public static class CelEnvironmentJson
 {
+    // The UTF-8 encoding of U+FEFF.
+    private static ReadOnlySpan<byte> ByteOrderMark => [0xEF, 0xBB, 0xBF];
+
     /// <summary>
     /// Reads an environment description in JSON and applies it to the builder, or reports why it cannot be
     /// read.
@@ -69,6 +75,37 @@ public static class CelEnvironmentJson
     /// <exception cref="ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>
     public static ImmutableArray<CelError> Apply(CelEnvironmentBuilder builder, ReadOnlySpan<byte> utf8Json)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(builder);
+        ReadOnlySpan<byte> json = utf8Json.StartsWith(ByteOrderMark) ? utf8Json[ByteOrderMark.Length..] : utf8Json;
+        EnvironmentDescription description = EnvironmentReader.Read(json);
+        if (!description.Errors.IsEmpty)
+        {
+            return Errors(json, description);
+        }
+
+        foreach (CelVariableDecl variable in description.Variables)
+        {
+            builder.AddVariable(variable.Name, variable.Type);
+        }
+
+        return [];
     }
+
+    private static ImmutableArray<CelError> Errors(ReadOnlySpan<byte> json, EnvironmentDescription description)
+    {
+        string sourceName = description.Name is null ? "environment JSON" : $"environment JSON '{description.Name}'";
+        int[] byteIndexes = [.. description.Errors.Select(error => error.ByteIndex)];
+        ImmutableArray<CelSourceLocation> locations = JsonPositions.Locate(json, byteIndexes, sourceName);
+        return [.. description.Errors.Zip(locations, Error)];
+    }
+
+    private static CelError Error(JsonError error, CelSourceLocation location) => new(
+        CelErrorCode.InvalidConfiguration,
+        CelErrorStage.Build,
+        string.Create(
+            CultureInfo.InvariantCulture,
+            $"invalid environment description at line {location.Line}, column {location.Column}: {error.Detail}"),
+        default,
+        location,
+        null);
 }

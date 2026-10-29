@@ -1,5 +1,7 @@
 using System;
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 #if NET11_0_OR_GREATER
 using System.Numerics;
 #endif
@@ -37,6 +39,22 @@ namespace Great.Parts.Cel.Values;
 /// </remarks>
 public readonly partial struct CelValue : IEquatable<CelValue>
 {
+    // The layout with an explicit kind, 32 bytes: a reference, 16 bytes of payload and the kind. Numbers and bool
+    // live in _p0; a string is _ref; bytes are the array or the memory manager in _ref, the offset in _p0 and the
+    // length in _p1. default(CelValue) is null.
+    private readonly object? _ref;
+    private readonly ulong _p0;
+    private readonly ulong _p1;
+    private readonly CelValueKind _kind;
+
+    private CelValue(CelValueKind kind, object? reference, ulong p0, ulong p1)
+    {
+        _kind = kind;
+        _ref = reference;
+        _p0 = p0;
+        _p1 = p1;
+    }
+
     /// <summary>
     /// The CEL type the value has at evaluation, and so the <c>TryGet…</c> method that reads it: for
     /// example, <see cref="CelValueKind.Int"/> is read with <see cref="TryGetInt64(out long)"/>;
@@ -61,12 +79,12 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// .NET 11; a <see langword="switch"/> over the kind needs a default branch.
     /// </para>
     /// </remarks>
-    public CelValueKind Kind => throw new NotImplementedException();
+    public CelValueKind Kind => _kind;
 
     /// <summary>
     /// The CEL <c>null</c>, the same as <c>default(CelValue)</c>.
     /// </summary>
-    public static CelValue Null => throw new NotImplementedException();
+    public static CelValue Null => default;
 
     /// <summary>
     /// Creates a <c>bool</c> value.
@@ -75,7 +93,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>The CEL value; no memory is allocated.</returns>
     public static CelValue FromBoolean(bool value)
     {
-        throw new NotImplementedException();
+        return new CelValue(CelValueKind.Bool, null, value ? 1UL : 0UL, 0);
     }
 
     /// <summary>
@@ -85,7 +103,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>The CEL value; no memory is allocated.</returns>
     public static CelValue FromInt64(long value)
     {
-        throw new NotImplementedException();
+        return new CelValue(CelValueKind.Int, null, unchecked((ulong)value), 0);
     }
 
     /// <summary>
@@ -95,7 +113,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>The CEL value; no memory is allocated.</returns>
     public static CelValue FromUInt64(ulong value)
     {
-        throw new NotImplementedException();
+        return new CelValue(CelValueKind.UInt, null, value, 0);
     }
 
     /// <summary>
@@ -105,7 +123,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>The CEL value; no memory is allocated.</returns>
     public static CelValue FromDouble(double value)
     {
-        throw new NotImplementedException();
+        return new CelValue(CelValueKind.Double, null, BitConverter.DoubleToUInt64Bits(value), 0);
     }
 
     /// <summary>
@@ -118,7 +136,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>; use <see cref="Null"/> for <c>null</c>.</exception>
     public static CelValue FromString(string value)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(value);
+        return new CelValue(CelValueKind.String, value, 0, 0);
     }
 
     /// <summary>
@@ -129,7 +148,14 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>The CEL value.</returns>
     public static CelValue FromBytes(ReadOnlyMemory<byte> value)
     {
-        throw new NotImplementedException();
+        if (MemoryMarshal.TryGetMemoryManager(value, out MemoryManager<byte>? manager, out int start, out int length))
+        {
+            return new CelValue(CelValueKind.Bytes, manager, (ulong)start, (ulong)length);
+        }
+
+        // Otherwise the memory is over an array, or empty.
+        _ = MemoryMarshal.TryGetArray(value, out ArraySegment<byte> segment);
+        return new CelValue(CelValueKind.Bytes, segment.Array, (ulong)segment.Offset, (ulong)segment.Count);
     }
 
     /// <summary>
@@ -221,7 +247,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Bool"/>.</returns>
     public bool TryGetBoolean(out bool value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Bool && _p0 != 0;
+        return _kind == CelValueKind.Bool;
     }
 
     /// <summary>
@@ -231,7 +258,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Int"/>.</returns>
     public bool TryGetInt64(out long value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Int ? unchecked((long)_p0) : 0;
+        return _kind == CelValueKind.Int;
     }
 
     /// <summary>
@@ -241,7 +269,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.UInt"/>.</returns>
     public bool TryGetUInt64(out ulong value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.UInt ? _p0 : 0;
+        return _kind == CelValueKind.UInt;
     }
 
     /// <summary>
@@ -251,7 +280,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Double"/>.</returns>
     public bool TryGetDouble(out double value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Double ? BitConverter.UInt64BitsToDouble(_p0) : 0;
+        return _kind == CelValueKind.Double;
     }
 
     /// <summary>
@@ -261,7 +291,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.String"/>.</returns>
     public bool TryGetString([NotNullWhen(true)] out string? value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.String ? (string?)_ref : null;
+        return value is not null;
     }
 
     /// <summary>
@@ -271,7 +302,16 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Bytes"/>.</returns>
     public bool TryGetBytes(out ReadOnlyMemory<byte> value)
     {
-        throw new NotImplementedException();
+        if (_kind != CelValueKind.Bytes)
+        {
+            value = default;
+            return false;
+        }
+
+        value = _ref is MemoryManager<byte> manager
+            ? manager.Memory.Slice((int)_p0, (int)_p1)
+            : new ReadOnlyMemory<byte>((byte[]?)_ref, (int)_p0, (int)_p1);
+        return true;
     }
 
     /// <summary>

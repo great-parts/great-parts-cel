@@ -44,16 +44,19 @@ public sealed class CelVariableDecl
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
     public CelVariableDecl(string name, CelType type)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(type);
+        Name = name;
+        Type = type;
     }
 
     /// <summary>
     /// The name of the variable.
     /// </summary>
-    public string Name => throw new NotImplementedException();
+    public string Name { get; }
 
     /// <summary>
     /// The declared CEL type of the variable.
     /// </summary>
-    public CelType Type => throw new NotImplementedException();
+    public CelType Type { get; }
 }

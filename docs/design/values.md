@@ -17,7 +17,7 @@ The rule files follow the naming and the content rules of [core](core.md): rule 
 
 ## Layout of `CelValue`
 
-`CelValue` is a `readonly struct` of a reference and 16 bytes of payload. Numbers, `bool`, `null` and, later, timestamps, durations and decimals live in the payload without allocation; strings, bytes, lists, maps, types and errors are references to immutable objects. The layout is not part of the public contract, and there are two variants of it. A measurement before the end-to-end path decides between them; without a gain from the tag the end-to-end path takes the explicit kind.
+`CelValue` is a `readonly struct` of a reference and 16 bytes of payload. Numbers, `bool`, `null` and, later, timestamps, durations and decimals live in the payload without allocation; strings, bytes, lists, maps, types and errors are references to immutable objects. The layout is not part of the public contract, and there are two variants of it. A measurement decides between them before the first code that creates values, the parser of literals; without a gain from the tag the library takes the explicit kind.
 
 | | Kind tag, 24 bytes | Explicit kind, 32 bytes |
 | :- | :- | :- |

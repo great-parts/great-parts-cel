@@ -1,6 +1,10 @@
 using System;
+using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
+using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel;
@@ -27,8 +31,9 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelEnvironment
 {
-    private CelEnvironment()
+    internal CelEnvironment(ImmutableArray<CelVariableDecl> variableDeclarations)
     {
+        VariableDeclarations = variableDeclarations;
     }
 
     /// <summary>
@@ -125,5 +130,24 @@ public sealed class CelEnvironment
     public CelEnvironmentBuilder ToBuilder()
     {
         throw new NotImplementedException();
+    }
+
+    internal ImmutableArray<CelVariableDecl> VariableDeclarations { get; }
+
+    /// <summary>
+    /// Parses an expression: the parse step of <see cref="Compile{T}"/>, with the syntax of this environment. The
+    /// parsed expression does not refer to the environment.
+    /// </summary>
+    /// <param name="expression">The text of the expression.</param>
+    /// <returns>The parsed expression, or the errors of the stage <see cref="CelErrorStage.Parse"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    [SuppressMessage(
+        "Performance",
+        "CA1822:Mark members as static",
+        Justification = "An instance member of the environment by design (docs/design/facade.md, \"Internal entry points\"): parsing uses the syntax of the environment. The minimal environment has no syntax settings yet; they arrive with the complete grammar (macros, the length and depth limits, docs/design/syntax.md), and this suppression is removed with them.")]
+    internal ParseResult Parse(string expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        return Parser.Parse(expression);
     }
 }
