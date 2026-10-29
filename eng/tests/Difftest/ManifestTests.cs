@@ -1,0 +1,99 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using Great.Parts.Cel.Eng.Difftest;
+using Great.Parts.Cel.Eng.Difftest.Profile;
+using Great.Parts.Cel.Eng.Tests.Support;
+using Xunit;
+
+namespace Great.Parts.Cel.Eng.Tests.Difftest;
+
+// Step 1 of a run of eng/difftest and its options (docs/design/eng-difftest.md, "A run", "Invocation"). Every test writes its
+// manifest into a temporary repository.
+public sealed class ManifestTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 4, 23, 30, 0, TimeSpan.FromHours(-5));
+
+    [Theory]
+    [InlineData("greatPartsCel", """{ "maxDepth": 10 }""")]
+    [InlineData("validators", """[ { "name": "cel.validator.comprehension_nesting_limit" } ]""")]
+    public static void ManifestWithAMemberThatTheOracleReadsDifferently_IsRefusedWithExitCode2(string member, string value)
+    {
+        using TempDirectory root = new();
+        root.Write(ProfileTables.ManifestPath, $$"""{ "name": "difftest", "{{member}}": {{value}}, "variables": [] }""");
+        using StringWriter error = new();
+
+        int exitCode = Program.Run([], root.Path, Now, error);
+
+        Assert.Equal(2, exitCode);
+        Assert.Equal(
+            $"eng/difftest: the run manifest {ProfileTables.ManifestPath} has '{member}', which the oracle reads differently; a run manifest has neither 'greatPartsCel' nor 'validators'" + Environment.NewLine,
+            error.ToString());
+    }
+
+    [Theory]
+    [InlineData(null, "does not exist")]
+    [InlineData("[]", "is not a JSON object")]
+    [InlineData("{ \"name\": ", "is not valid JSON")]
+    public static void MissingOrMalformedManifest_IsRefusedWithExitCode2(string? text, string problem)
+    {
+        using TempDirectory root = new();
+        if (text is not null)
+        {
+            root.Write(ProfileTables.ManifestPath, text);
+        }
+
+        using StringWriter error = new();
+
+        int exitCode = Program.Run([], root.Path, Now, error);
+
+        Assert.Equal(2, exitCode);
+        Assert.StartsWith($"eng/difftest: the run manifest {ProfileTables.ManifestPath} {problem}", error.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ManifestOfTheRepository_IsAcceptedAndDeclaresTheVariablesOfTheProfile()
+    {
+        string root = RepositoryRoot.Find();
+        using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, ProfileTables.ManifestPath)));
+
+        Assert.True(RunManifest.TryRead(root, out string problem), problem);
+        Assert.Equal(
+            ProfileTables.Variables.Select(variable => variable.Name + ": " + variable.Type.Name()),
+            manifest.RootElement.GetProperty("variables").EnumerateArray()
+                .Select(variable => variable.GetProperty("name").GetString() + ": " + variable.GetProperty("type_name").GetString()));
+    }
+
+    [Fact]
+    public void Options_AreParsedAndTheSeedDefaultsToTheDateInUtc()
+    {
+        Assert.True(Program.TryParse(["--seed", "7", "--budget", "2h", "--case", "1207", "--numbers-only"], Now, out RunOptions? options, out _));
+        Assert.Equal(new RunOptions(7, TimeSpan.FromHours(2), 1207, NumbersOnly: true), options);
+
+        Assert.True(Program.TryParse([], Now, out RunOptions? defaults, out _));
+        Assert.Equal(new RunOptions(20261105, Program.DefaultBudget, null, NumbersOnly: false), defaults);
+    }
+
+    [Theory]
+    [InlineData("--bogus")]
+    [InlineData("--seed")]
+    [InlineData("--seed -1")]
+    [InlineData("--case x")]
+    [InlineData("--budget 5")]
+    [InlineData("--budget 0m")]
+    [InlineData("--budget 5d")]
+    public static void InvalidCommandLine_ExitCodeIs2BeforeTheManifestIsRead(string commandLine)
+    {
+        ArgumentNullException.ThrowIfNull(commandLine);
+        string[] args = commandLine.Split(' ');
+        using TempDirectory root = new();
+        using StringWriter error = new();
+
+        int exitCode = Program.Run(args, root.Path, Now, error);
+
+        Assert.Equal(2, exitCode);
+        Assert.StartsWith("eng/difftest: ", error.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("manifest", error.ToString(), StringComparison.Ordinal);
+    }
+}

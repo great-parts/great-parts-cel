@@ -1,0 +1,3 @@
+# Written by eng/difftest: the cases of new divergence signatures of the last run. Committed without cases.
+name: "pending"
+description: "New divergence signatures of the last run of eng/difftest"

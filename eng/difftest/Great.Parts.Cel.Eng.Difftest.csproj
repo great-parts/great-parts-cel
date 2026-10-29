@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The differential run against cel-go (docs/design/eng-difftest.md): generates random cases of the profile, evaluates each
+    with the library and with the oracle, and reports divergences of new signatures. JIT only, not packed.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Great.Parts.Cel.Eng.Difftest</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CsCheck" />
+    <PackageReference Include="Google.Protobuf" />
+    <!-- Build-time tool only: it compiles value.proto; it is not a dependency. -->
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The library through its public API only. -->
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <ProjectReference Include="../findings/Great.Parts.Cel.Eng.Findings.csproj" />
+  </ItemGroup>
+
+  <!--
+    Shared with the suite runner (docs/design/conformance.md, "Layout"): internal types compiled into both assemblies, one file
+    in the repository.
+  -->
+  <ItemGroup>
+    <Compile Include="../../tests/Great.Parts.Cel.Conformance/Runner/MarkdownTable.cs" Link="Runner/MarkdownTable.cs" />
+    <Compile Include="../../tests/Great.Parts.Cel.Conformance/Runner/ValueConversion.cs" Link="Runner/ValueConversion.cs" />
+  </ItemGroup>
+
+  <!-- cel.expr.Value, the form of values in bindings and in the protocol of the oracle; namespace Cel.Expr. No gRPC services. -->
+  <PropertyGroup>
+    <CelProtoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', '..', 'tests', 'cel-spec', 'proto'))</CelProtoRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Protobuf Include="$(CelProtoRoot)cel/expr/value.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
+  </ItemGroup>
+
+  <!-- The tests of eng/tests run the generator, the manifest check and Program in their own process. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Great.Parts.Cel.Eng.Tests" />
+  </ItemGroup>
+
+</Project>

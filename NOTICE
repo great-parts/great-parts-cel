@@ -7,3 +7,9 @@ This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 The directory tests/cel-spec/ holds an unchanged copy of test data, protocol definitions and the language definition of the
 Common Expression Language specification (cel-spec), Copyright Google LLC, licensed under the Apache License, Version 2.0
 (see tests/cel-spec/LICENSE). The data are used by the tests only and are not part of the packages.
+
+The functions bindingValue, newConformanceEnvironments, runConformance and conformanceCase in eng/oracle/conformance.go
+are adapted from the functions exprValueToRefValue, init, TestConformance and conformanceTest in
+conformance/conformance_test.go of cel-go v0.32.0 (https://github.com/cel-expr/cel-go), Copyright Google LLC, licensed
+under the Apache License, Version 2.0 (see LICENSE). The directory eng/oracle/ is the reference side of the differential
+run and is not part of the packages.

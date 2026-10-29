@@ -2,6 +2,7 @@
   <Folder Name="/eng/">
     <Project Path="eng/analyzers/Great.Parts.Cel.Eng.Analyzers.csproj" />
     <Project Path="eng/checks/Great.Parts.Cel.Eng.Checks.csproj" />
+    <Project Path="eng/difftest/Great.Parts.Cel.Eng.Difftest.csproj" />
     <Project Path="eng/findings/Great.Parts.Cel.Eng.Findings.csproj" />
     <Project Path="eng/run/Great.Parts.Cel.Eng.Run.csproj" />
     <Project Path="eng/tests/Great.Parts.Cel.Eng.Tests.csproj" />

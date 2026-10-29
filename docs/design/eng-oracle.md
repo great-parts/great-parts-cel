@@ -46,6 +46,8 @@ networkFactory(element) -> (option, handled):
 
 `version` is `Extension.VersionNumber()` of the manifest entry. The manifest of the walking skeleton has no extension sets.
 
+A manifest that cel-go cannot read, or from which it builds no environment — an unknown extension set, an invalid declaration — is refused with exit code 2 as well, with the message of cel-go.
+
 **Flags.** The three options after `FromConfig` are the environment flags of the cel-go conformance runner: `stdOpts`, lines 82–98 of https://github.com/cel-expr/cel-go/blob/v0.32.0/conformance/conformance_test.go, read on 2026-10-28. The rest of `stdOpts` is content and comes from the manifest or stays out of the run. The regex validator is not a runner flag: the library rejects a constant pattern that fails to compile at compile time, and the validator gives cel-go the same class of outcome. A change of the cel-go version compares this list with `stdOpts` of the new version.
 
 ## Time zones
@@ -77,12 +79,13 @@ In the handshake, `go` is the Go that built the oracle, `runtime.Version()`.
 
 - Values travel as `cel.expr.Value` in the JSON mapping of protobuf. A binding becomes a value with `cel.ProtoAsValue`, a result a message with `cel.ValueAsProto`, as in the conformance runner.
 - The `case` answer is a case of the regression corpus: `name`, `description`, `expr`, `type_env` with the manifest variables that the expression reads, `bindings`, and the outcome of cel-go as the expectation — `value` or `eval_error` with the message.
+- The text of the `case` answer is the output of `prototext`, which is not stable on purpose: its spaces change across builds of the oracle (https://pkg.go.dev/google.golang.org/protobuf/encoding/prototext, read on 2026-10-29). `eng/difftest` copies it unchanged and never compares it byte for byte; only the empty form of `pending.textproto` is exact ([eng-difftest.md](eng-difftest.md#known-signatures-and-the-corpus)).
 - A malformed request, or a result without a `cel.expr.Value` form, ends the process with exit code 1 and a message on standard error.
 - Time zone offsets add the request `offset` (zone, instant → offset in seconds) once the library has time zones.
 
 ## One-time run of test files
 
-`conformance <file>...` runs cel-spec test files by the rule in [conformance.md](conformance.md#the-rule), with `stdOpts` of the cel-go runner except the test-only `block` macros and with the sets the files need, and prints `PASS` or `FAIL`, the case name and the reason per case. It checks the files that the cel-go runner does not run:
+`conformance <file>...` runs cel-spec test files by the rule in [conformance.md](conformance.md#the-rule), with `stdOpts` of the cel-go runner except the test-only `block` macros and with the extension sets that the files of the run need, in one environment for all files, as the cel-go runner has, and prints `PASS` or `FAIL`, the case name and the reason per case. Exit code: 0 when every case passes, 1 when a case fails, 2 for an invalid invocation, a file that is not a `SimpleTestFile` or a missing `ZONEINFO` file. It checks the files that the cel-go runner does not run:
 
 ```text
 docker compose -f eng/compose.yaml run --rm oracle conformance tests/cel-spec/tests/simple/testdata/<file>.textproto
@@ -95,7 +98,7 @@ The service `oracle` of `eng/compose.yaml` runs the image `golang` of Docker Hub
 | Item | Value |
 | :- | :- |
 | Image | `golang:1.27.3`; the tag equals the `go` line of `go.mod` |
-| Entry point | `go run ./launch` in `/repo/eng/oracle`; the arguments of `docker compose run` follow it |
+| Entry point | `go run ./launch` in `/repo/eng/oracle`; the arguments of `docker compose run` follow it. When the launcher exits with a code other than 0, `go run` prints `exit status <code>` and exits with 1, so the exit code of the container only tells success from failure; the code of the launcher and of the oracle is in that line |
 | Mounts | the working copy at `/repo`; the named volumes `gomod` at `/go/pkg/mod` and `gobuild` at `/root/.cache/go-build`; an empty `tmpfs` over `/usr/share/zoneinfo`. The git mounts of `eng/compose.worktree.yaml` are not added: the oracle does not read git |
 | Variables | `GOTOOLCHAIN=local`, which the image sets too; `ZONEINFO=/usr/local/go/lib/time/zoneinfo.zip`; `GOFLAGS=-mod=readonly -buildvcs=false` — no version stamp, so the build does not read git |
 | Modules | from the Go module proxy, checked against the checksum database |

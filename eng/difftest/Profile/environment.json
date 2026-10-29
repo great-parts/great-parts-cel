@@ -1,0 +1,16 @@
+{
+  "name": "difftest",
+  "description": "Run manifest of eng/difftest: the variables of the profile of the walking skeleton",
+  "variables": [
+    { "name": "i1", "type_name": "int" },
+    { "name": "i2", "type_name": "int" },
+    { "name": "u1", "type_name": "uint" },
+    { "name": "d1", "type_name": "double" },
+    { "name": "b1", "type_name": "bool" },
+    { "name": "b2", "type_name": "bool" },
+    { "name": "s1", "type_name": "string" },
+    { "name": "y1", "type_name": "bytes" },
+    { "name": "x1", "type_name": "dyn" },
+    { "name": "x2", "type_name": "dyn" }
+  ]
+}

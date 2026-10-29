@@ -28,6 +28,8 @@
     <ProjectReference Include="../analyzers/Great.Parts.Cel.Eng.Analyzers.csproj" />
     <!-- The commands and Program of eng/checks run in the test process; Finding and EngCodes come through it. -->
     <ProjectReference Include="../checks/Great.Parts.Cel.Eng.Checks.csproj" />
+    <!-- The generator, the manifest check and Program of eng/difftest run in the test process. -->
+    <ProjectReference Include="../difftest/Great.Parts.Cel.Eng.Difftest.csproj" />
   </ItemGroup>
 
 </Project>

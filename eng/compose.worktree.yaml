@@ -33,3 +33,17 @@ services:
         read_only: true
         bind:
           create_host_path: false
+  difftest:
+    volumes:
+      - type: bind
+        source: ${ENG_GIT_COMMON_DIR:?set ENG_GIT_COMMON_DIR to the common git directory of the repository}
+        target: /git
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../artifacts/worktree/gitdir
+        target: /repo/.git
+        read_only: true
+        bind:
+          create_host_path: false

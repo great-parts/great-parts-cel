@@ -76,5 +76,42 @@ services:
         grep -n "Great.Parts.Cel.Generator.CelTypeContextGenerator" "$$out/build.log" || fail "evidence: generator not in the analyzer report"
         echo "min-sdk: passed"
 
+  # eng/difftest: the differential run against cel-go (docs/design/eng-difftest.md). Compose starts the service oracle first;
+  # the options of the run follow the service name, for example --seed 20261104 --budget 2h. Exit code 0, 1 or 2.
+  difftest:
+    build:
+      context: docker
+      target: sdk
+    working_dir: /repo
+    volumes:
+      - ..:/repo
+      - nuget:/root/.nuget/packages
+    depends_on:
+      - oracle
+    entrypoint: [dotnet, run, --project, eng/run, --, difftest]
+
+  # The oracle of the differential run: cel-go in the official golang image, Go only here (docs/design/eng-oracle.md).
+  # Without arguments the launcher serves one session of eng/difftest on port 7070 of the project network and ends
+  # itself; with arguments it runs the oracle with them, for example:
+  #   docker compose -f eng/compose.yaml run --rm -T oracle serve --env eng/difftest/Profile/environment.json
+  # The image tag equals the go line of eng/oracle/go.mod. Time zones come only from zoneinfo.zip of that Go: the
+  # system zone directory is hidden under an empty tmpfs. No version stamp, so the build does not read git.
+  oracle:
+    image: golang:1.27.3
+    working_dir: /repo/eng/oracle
+    volumes:
+      - ..:/repo
+      - gomod:/go/pkg/mod
+      - gobuild:/root/.cache/go-build
+    tmpfs:
+      - /usr/share/zoneinfo
+    environment:
+      GOTOOLCHAIN: local
+      ZONEINFO: /usr/local/go/lib/time/zoneinfo.zip
+      GOFLAGS: -mod=readonly -buildvcs=false
+    entrypoint: [go, run, ./launch]
+
 volumes:
   nuget:
+  gomod:
+  gobuild:

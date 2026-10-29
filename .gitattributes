@@ -2,3 +2,9 @@
 # attribute a checkout with CRLF line endings (Git for Windows, core.autocrlf=true) looks
 # modified to git inside a Linux container.
 * text=auto
+# Go sources keep LF in every checkout: gofmt in the oracle container lists a file with CRLF
+# line endings as unformatted (docs/design/eng-oracle.md, "Launcher").
+*.go text eol=lf
+# The empty form of pending.textproto keeps LF in every checkout: a test compares the form that eng/difftest writes with
+# this file byte for byte, and the form has LF line ends (docs/design/eng-difftest.md, "Known signatures and the corpus").
+tests/Great.Parts.Cel.Conformance/Regression/pending.textproto text eol=lf

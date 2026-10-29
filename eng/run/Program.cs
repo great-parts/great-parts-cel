@@ -8,7 +8,8 @@ namespace Great.Parts.Cel.Eng.Run;
 
 /// <summary>
 /// Runs a command of <c>eng/</c>: the steps run as child processes in the repository root and their output
-/// passes through unchanged. The exit code is 0 when every step returned 0, otherwise 1.
+/// passes through unchanged. The exit code is 0 when every step returned 0, otherwise 1; a step that passes its exit code on, as
+/// the run of <c>eng/difftest</c>, gives the exit code of the command when it ran.
 /// </summary>
 internal static class Program
 {
@@ -54,11 +55,27 @@ internal static class Program
             }
         }
 
+        List<string> failed = RunSteps(steps, out int? passedOn);
+        int result = failed.Count == 0 ? Pass(command) : Fail(command, string.Join("; ", failed));
+        return passedOn ?? result;
+    }
+
+    // Runs the steps up to the first failed step that stops the command; returns the failed steps with their reasons, and the
+    // exit code of the step that passes its exit code on, when it ran.
+    private static List<string> RunSteps(IReadOnlyList<Step> steps, out int? passedOn)
+    {
         List<string> failed = [];
+        passedOn = null;
         foreach (Step step in steps)
         {
             Console.Out.WriteLine($"== {step.CommandLine}");
-            if (!TryRun(step, out string? reason))
+            bool succeeded = TryRun(step, out int? exitCode, out string? reason);
+            if (step.PassesExitCode && exitCode is not null)
+            {
+                passedOn = exitCode;
+            }
+
+            if (!succeeded)
             {
                 failed.Add(reason is null ? step.CommandLine : $"{step.CommandLine} ({reason})");
                 if (step.StopsOnFailure)
@@ -68,10 +85,10 @@ internal static class Program
             }
         }
 
-        return failed.Count == 0 ? Pass(command) : Fail(command, string.Join("; ", failed));
+        return failed;
     }
 
-    private static bool TryRun(Step step, out string? reason)
+    private static bool TryRun(Step step, out int? exitCode, out string? reason)
     {
         ProcessStartInfo start = new(step.FileName) { UseShellExecute = false };
         foreach (string argument in step.Arguments)
@@ -79,6 +96,7 @@ internal static class Program
             start.ArgumentList.Add(argument);
         }
 
+        exitCode = null;
         try
         {
             using Process? process = Process.Start(start);
@@ -89,6 +107,7 @@ internal static class Program
             }
 
             process.WaitForExit();
+            exitCode = process.ExitCode;
             reason = process.ExitCode == 0 ? null : $"exit code {process.ExitCode}";
             return process.ExitCode == 0;
         }

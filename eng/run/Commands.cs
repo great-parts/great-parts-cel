@@ -9,7 +9,7 @@ internal static class Commands
     internal const string Solution = "Great.Parts.Cel.slnx";
 
     /// <summary>The names of the commands, as the messages of <see cref="Program"/> list them.</summary>
-    internal const string Known = "test, test-aot, mutate";
+    internal const string Known = "test, test-aot, mutate, difftest";
 
     /// <summary>
     /// <c>eng/test</c>: the build of both target frameworks of every project of the solution, then every test project of the
@@ -72,12 +72,13 @@ internal static class Commands
 
     /// <summary>Returns the steps of a command, or <see langword="null"/> when the command is unknown.</summary>
     /// <param name="name">The command name.</param>
-    /// <param name="arguments">The arguments after the command name; only <c>mutate</c> uses them, for its configuration.</param>
+    /// <param name="arguments">The arguments after the command name: the configuration of <c>mutate</c>, the options of <c>difftest</c>.</param>
     internal static IReadOnlyList<Step>? Find(string name, IReadOnlyList<string> arguments) => name switch
     {
         "test" => Test,
         "test-aot" => TestAot,
         "mutate" => MutateSteps(arguments),
+        "difftest" => DifftestSteps(arguments),
         _ => null,
     };
 
@@ -96,6 +97,16 @@ internal static class Commands
             new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--", "mutation", "--report", MutateReport, "--config", configuration]),
         ];
     }
+
+    /// <summary>
+    /// <c>difftest</c>: the build of <c>eng/difftest</c>, then its run with the arguments of the command (docs/design/eng-difftest.md).
+    /// A failed build stops the command; after it the command returns the exit code of <c>eng/difftest</c> unchanged: 0, 1 or 2.
+    /// </summary>
+    private static Step[] DifftestSteps(IReadOnlyList<string> arguments) =>
+    [
+        new("dotnet", ["build", "eng/difftest", "-c", "Release"], StopsOnFailure: true),
+        new("dotnet", ["run", "--project", "eng/difftest", "-c", "Release", "--no-build", "--", .. arguments], PassesExitCode: true),
+    ];
 
     private static IEnumerable<Step> BuildTestAot()
     {

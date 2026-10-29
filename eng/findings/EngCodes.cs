@@ -86,4 +86,16 @@ public static class EngCodes
 
     /// <summary>A test ran under Native AOT but not under JIT: the report of the JIT run does not have it.</summary>
     public const string Eng811 = "ENG811";
+
+    /// <summary>A new signature of a divergence from cel-go.</summary>
+    public const string Eng820 = "ENG820";
+
+    /// <summary>
+    /// The Go of the oracle, named by its handshake, differs from the <c>go</c> line of <c>eng/oracle/go.mod</c>; the run stops
+    /// before the first case.
+    /// </summary>
+    public const string Eng821 = "ENG821";
+
+    /// <summary>A time zone offset differs from Go.</summary>
+    public const string Eng822 = "ENG822";
 }

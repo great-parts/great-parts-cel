@@ -127,18 +127,42 @@
           "xunit.v3.runner.common.aot": "[4.0.2]"
         }
       },
+      "great.parts.cel": {
+        "type": "Project"
+      },
       "great.parts.cel.eng.analyzers": {
         "type": "Project"
       },
       "great.parts.cel.eng.checks": {
         "type": "Project",
         "dependencies": {
-          "Great.Parts.Cel.Eng.Findings": "[1.0.0, )",
+          "Great.Parts.Cel.Eng.Findings": "[0.0.0-dev, )",
           "Microsoft.CodeAnalysis.CSharp": "[5.0.0, )"
+        }
+      },
+      "great.parts.cel.eng.difftest": {
+        "type": "Project",
+        "dependencies": {
+          "CsCheck": "[4.9.1, )",
+          "Google.Protobuf": "[3.36.2, )",
+          "Great.Parts.Cel": "[0.0.0-dev, )",
+          "Great.Parts.Cel.Eng.Findings": "[0.0.0-dev, )"
         }
       },
       "great.parts.cel.eng.findings": {
         "type": "Project"
+      },
+      "CsCheck": {
+        "type": "CentralTransitive",
+        "requested": "[4.9.1, )",
+        "resolved": "4.9.1",
+        "contentHash": "rEmuFiG19sF8U4Ef/S79cu9HW4pUGraoCTkmYs0z7SvsGqGAVO3wCjxQPS0KQvPa1g2/w1wBbnAP6cDZKBFEcA=="
+      },
+      "Google.Protobuf": {
+        "type": "CentralTransitive",
+        "requested": "[3.36.2, )",
+        "resolved": "3.36.2",
+        "contentHash": "Ci1q1iJg74qAE5riTA2FbMS0wPbpruPQI/JQ9DrAsRo2VsSxgt1e/pmxGxgrci+pXJEgrSYg2vPl8rrStZkclQ=="
       },
       "Microsoft.CodeAnalysis.Analyzers": {
         "type": "CentralTransitive",
