@@ -10,8 +10,9 @@ namespace Great.Parts.Cel.Eng.Checks;
 /// <summary>
 /// Reads the JSON report of Stryker.NET and the configuration file of the run (<c>docs/design/eng-mutate.md</c>, "mutation"). A survived
 /// mutant is <c>ENG501</c>, a mutant without coverage is <c>ENG502</c>, a score below <c>break</c> is <c>ENG503</c>, and a changed file
-/// that the run did not mutate is <c>ENG504</c>. The changed files are read from git, and only when the configuration enables
-/// <c>since</c>: they are the files changed against the commit of <c>--since</c>, or against <c>main</c> without it.
+/// that the run did not mutate is <c>ENG504</c>. The changed files are read from git, and only when <c>since</c> is enabled — by the
+/// configuration or by <c>--since</c>, which enables it in Stryker.NET too: they are the files changed against the commit of
+/// <c>--since</c>, or against <c>main</c> without it.
 /// </summary>
 internal sealed class MutationCommand : ICheckCommand
 {
@@ -37,7 +38,11 @@ internal sealed class MutationCommand : ICheckCommand
         string reportPath = Required(context, ReportOption);
         string configPath = Required(context, ConfigOption);
         MutationConfig config = MutationConfig.Read(configPath);
-        MutationReport report = ReadReport(reportPath, config);
+
+        // The tool enables since for --since:<commit> of the command line whatever the configuration says, so the check does too.
+        context.Options.TryGetValue(SinceOption, out string? since);
+        bool sinceEnabled = config.SinceEnabled || since is not null;
+        MutationReport report = ReadReport(reportPath, sinceEnabled);
         MutationPaths paths = new(context.Root, report.ProjectRoot, config.Project is { } project ? MutationPaths.DirectoryOf(project) : null);
 
         List<ReportedFile> files = [.. report.Files];
@@ -76,9 +81,8 @@ internal sealed class MutationCommand : ICheckCommand
                 string.Create(CultureInfo.InvariantCulture, $"mutation score {Math.Floor(score * 100m) / 100m:0.##} % is below the threshold {config.Break:0.##} % ({detected} of {counted} mutants detected)")));
         }
 
-        if (config.SinceEnabled)
+        if (sinceEnabled)
         {
-            context.Options.TryGetValue(SinceOption, out string? since);
             findings.AddRange(NotMutated(context.Root, config, files, paths, since ?? MainBranch));
         }
 
@@ -91,8 +95,8 @@ internal sealed class MutationCommand : ICheckCommand
             : throw new CheckInputException($"the command mutation needs the option {option}");
 
     // A run with since can end without a report when the tool fails: the report then has no mutants, and every changed file is a finding.
-    private static MutationReport ReadReport(string path, MutationConfig config) =>
-        config.SinceEnabled && !File.Exists(path) ? MutationReport.Empty : MutationReport.Read(path);
+    private static MutationReport ReadReport(string path, bool sinceEnabled) =>
+        sinceEnabled && !File.Exists(path) ? MutationReport.Empty : MutationReport.Read(path);
 
     private static bool IsDetected(string status) => status is "Killed" or "Timeout";
 
@@ -103,7 +107,7 @@ internal sealed class MutationCommand : ICheckCommand
     {
         if (config.Project is not { } project)
         {
-            throw new CheckInputException("the configuration enables since but names no project, so the changed files of the project are not known");
+            throw new CheckInputException("since is enabled but the configuration names no project, so the changed files of the project are not known");
         }
 
         string directory = MutationPaths.DirectoryOf(project);

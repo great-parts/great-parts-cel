@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text.Json;
 
 namespace Great.Parts.Cel.Eng.Run;
 
@@ -16,6 +18,9 @@ internal sealed record MutateOptions(string Configuration, string? Since)
 
     /// <summary>The configuration of <c>mutate</c> when the command gets none.</summary>
     internal const string DefaultConfiguration = "stryker-config.json";
+
+    // The key under which the settings of a configuration file stand; without it they are at the top of the file.
+    private const string Section = "stryker-config";
 
     /// <summary>Reads the arguments after the command name: at most one configuration file and at most one <c>--since &lt;commit&gt;</c>, in any order.</summary>
     /// <param name="arguments">The arguments after the command name.</param>
@@ -51,6 +56,44 @@ internal sealed record MutateOptions(string Configuration, string? Since)
         }
 
         return new MutateOptions(configuration ?? DefaultConfiguration, since);
+    }
+
+    /// <summary>
+    /// Whether the run counts the changes from a commit: <c>--since</c> is given, or the configuration file enables <c>since</c> — an
+    /// object <c>since</c> under the key <c>stryker-config</c> or at the top of the file, unless its <c>enabled</c> is <see langword="false"/>,
+    /// as Stryker.NET reads it. Only such a run reads git through Stryker.NET. A file that cannot be read, is not JSON or has settings
+    /// of another form counts as one that enables <c>since</c>: the run is not known to do without it.
+    /// </summary>
+    /// <param name="workingDirectory">The directory that the path of the configuration is relative to; the current directory when <see langword="null"/>.</param>
+    internal bool UsesSince(string? workingDirectory = null)
+    {
+        if (Since is not null)
+        {
+            return true;
+        }
+
+        try
+        {
+            string text = File.ReadAllText(Path.Combine(workingDirectory ?? string.Empty, Configuration));
+            using JsonDocument document = JsonDocument.Parse(text, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            JsonElement root = document.RootElement;
+            JsonElement settings = root.ValueKind == JsonValueKind.Object && root.TryGetProperty(Section, out JsonElement section) ? section : root;
+            if (settings.ValueKind != JsonValueKind.Object)
+            {
+                return true;
+            }
+
+            if (!settings.TryGetProperty("since", out JsonElement since))
+            {
+                return false;
+            }
+
+            return since.ValueKind != JsonValueKind.Object || !since.TryGetProperty("enabled", out JsonElement enabled) || enabled.ValueKind != JsonValueKind.False;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return true;
+        }
     }
 
     /// <summary>

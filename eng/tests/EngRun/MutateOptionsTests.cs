@@ -4,6 +4,8 @@ using Great.Parts.Cel.Eng.Checks;
 using Great.Parts.Cel.Eng.Run;
 using Great.Parts.Cel.Eng.Tests.Support;
 using Xunit;
+using RunProgram = Great.Parts.Cel.Eng.Run.Program;
+using TestRoot = Great.Parts.Cel.Eng.Tests.Support.RepositoryRoot;
 
 namespace Great.Parts.Cel.Eng.Tests.EngRun;
 
@@ -67,6 +69,57 @@ public sealed class MutateOptionsTests
     public void ResolveSince_NoCommit_IsNull()
     {
         Assert.Null(new MutateOptions("stryker-config.json", null).ResolveSince());
+    }
+
+    // ---- since and linked worktrees ----
+
+    [Theory]
+    [InlineData("{ \"stryker-config\": { \"since\": { \"enabled\": true, \"target\": \"main\" } } }", true)]
+    [InlineData("{ \"stryker-config\": { \"since\": { \"target\": \"main\" } } }", true)]
+    [InlineData("{ \"since\": { } }", true)]
+    [InlineData("{ \"stryker-config\": { \"since\": { \"enabled\": false } } }", false)]
+    [InlineData("{ \"since\": { \"enabled\": false, }, // the control set\n }", false)]
+    [InlineData("{ \"stryker-config\": { \"project\": \"a.csproj\" } }", false)]
+    [InlineData("{ \"stryker-config\": { \"since\": true } }", true)]
+    [InlineData("{ \"stryker-config\": [] }", true)]
+    [InlineData("not json", true)]
+    public static void UsesSince_ConfigurationFile_AsStrykerReadsIt(string text, bool expected)
+    {
+        using TempDirectory root = new();
+        root.Write("c.json", text);
+
+        Assert.Equal(expected, new MutateOptions("c.json", null).UsesSince(root.Path));
+    }
+
+    [Fact]
+    public static void UsesSince_CommitGivenOrNoConfigurationFile_IsTrue()
+    {
+        using TempDirectory root = new();
+        root.Write("c.json", "{ \"since\": { \"enabled\": false } }");
+
+        Assert.True(new MutateOptions("c.json", "abc123").UsesSince(root.Path));
+        Assert.True(new MutateOptions("missing.json", null).UsesSince(root.Path));
+    }
+
+    [Fact]
+    public void UsesSince_ConfigurationsOfTheRepository_TheMainRunUsesItAndTheControlSetDoesNot()
+    {
+        string root = TestRoot.Find();
+
+        Assert.True(new MutateOptions("stryker-config.json", null).UsesSince(root));
+        Assert.False(new MutateOptions("eng/stryker-control.json", null).UsesSince(root));
+    }
+
+    [Fact]
+    public void LinkedWorktree_OnlyARunWithSinceIsRefused()
+    {
+        string root = TestRoot.Find();
+        const string Refused = "linked worktree: a run with since needs the main worktree";
+
+        Assert.Null(RunProgram.LinkedWorktreeProblem(new MutateOptions("eng/stryker-control.json", null), linkedWorktree: true, root));
+        Assert.Equal(Refused, RunProgram.LinkedWorktreeProblem(new MutateOptions("eng/stryker-control.json", "main"), linkedWorktree: true, root));
+        Assert.Equal(Refused, RunProgram.LinkedWorktreeProblem(new MutateOptions("stryker-config.json", null), linkedWorktree: true, root));
+        Assert.Null(RunProgram.LinkedWorktreeProblem(new MutateOptions("stryker-config.json", "main"), linkedWorktree: false, root));
     }
 
     [Fact]

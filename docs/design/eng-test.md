@@ -40,7 +40,7 @@ The service `min-sdk` is the second exception: building `eng/run` needs the SDK 
 | `sdk` | `mcr.microsoft.com/dotnet/sdk` with the SDK version of `global.json` | the .NET 10 runtime, copied from the `mcr.microsoft.com/dotnet/sdk` 10.0 image; `/repo` and `/git` registered as safe directories of `git` |
 | `sdk-aot` | the `-aot` variant of the same SDK version: it adds the native toolchain that Native AOT needs; the service `test` runs on it | the same as `sdk` |
 | `docs` | the `sdk` stage | the `lychee` program, copied from `lycheeverse/lychee` 0.24.2 |
-| `sdk-min` | `mcr.microsoft.com/dotnet/sdk:10.0.100`, the first .NET 10 SDK | nothing |
+| `sdk-min` | `mcr.microsoft.com/dotnet/sdk:10.0.100`, the first .NET 10 SDK | `/repo` and `/git` registered as safe directories of `git` |
 
 - Tags are exact versions; floating tags such as `latest` are not used. The SDK tag of `sdk` changes together with `global.json`, the tag of `sdk-min` together with `eng/min-sdk/global.json`.
 - The .NET 10 runtime runs the tests and examples for `net10.0` and the mutation tool.
@@ -48,7 +48,7 @@ The service `min-sdk` is the second exception: building `eng/run` needs the SDK 
 
 ## Linked worktrees
 
-In every service that runs `eng/run`, `/repo` must be a git repository with the local `main` and the history down to the merge base, and the host repository must stay unchanged. Two readers need it: `git` for the new places of the ratchet ([eng-checks-source.md](eng-checks-source.md)) and the SourceLink lookup of every build, which warns without it. `eng/mutate` does not run in a linked worktree ([eng-mutate.md](eng-mutate.md#linked-worktrees)).
+In every service that runs `eng/run`, `/repo` must be a git repository with the local `main` and the history down to the merge base, and the host repository must stay unchanged. Three readers need it: `git` for the new places of the ratchet ([eng-checks-source.md](eng-checks-source.md)), the SourceLink lookup of every build, which warns without it, and `eng/run` for the commit and the state of the tree in its last line. `eng/mutate` runs in a linked worktree only without `since`, such as the control set ([eng-mutate.md](eng-mutate.md#linked-worktrees)).
 
 In a linked worktree (`git worktree add`) `.git` is a file whose line `gitdir: <path>` holds an absolute host path, which does not exist in the container. A run from a linked worktree adds the second Compose file `eng/compose.worktree.yaml` with its variable set for one command:
 
@@ -57,7 +57,7 @@ ENG_GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir)" \
   docker compose -f eng/compose.yaml -f eng/compose.worktree.yaml run --rm test
 ```
 
-It adds two read-only bind mounts to every service that runs `eng/run` — not to `oracle`, which does not read git ([eng-oracle.md](eng-oracle.md#container)), and not to `min-sdk`, which builds without SourceLink and reads no git: the common git directory `${ENG_GIT_COMMON_DIR}` at `/git`, and the worktree's file `artifacts/worktree/gitdir` over `/repo/.git`. A mount over a file leaves the host file unchanged. Both have `create_host_path: false`: a missing source stops the run instead of creating a host directory.
+It adds two read-only bind mounts to every service that runs `eng/run` — `test`, `mutate`, `difftest` and `min-sdk`, not `oracle`, which does not read git ([eng-oracle.md](eng-oracle.md#container)): the common git directory `${ENG_GIT_COMMON_DIR}` at `/git`, and the worktree's file `artifacts/worktree/gitdir` over `/repo/.git`. A mount over a file leaves the host file unchanged. Both have `create_host_path: false`: a missing source stops the run instead of creating a host directory.
 
 The file holds the line `gitdir: /git/worktrees/<name>`, with `<name>` from the host's `.git` file. Whoever creates the worktree writes it once, right after `git worktree add`; `artifacts/` is ignored by git, and the file goes away with the worktree. In Git Bash, in the worktree root:
 
@@ -142,9 +142,9 @@ The command `min-sdk` of `eng/run` has four steps. They are C# in `eng/run/MinSd
 3. `dotnet build -c Release --artifacts-path <artifacts/min-sdk>/build -p:ReportAnalyzer=true -flp:"LogFile=<artifacts/min-sdk>/build.log;Verbosity=diagnostic"` in `eng/min-sdk`. The console keeps the default verbosity, so the compiler lines appear in the output, and a copy of it goes to `artifacts/min-sdk/console.log`; the build passes when its exit code is 0 and the copy has the lines `0 Warning(s)` and `0 Error(s)`. The log file gets the analyzer report.
 4. Find the evidence that the generator loaded and print the lines found with their numbers: the `project.assets.json` of the restore names `analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll` as an analyzer of the package, and the generator part of the analyzer report in `build.log` names `Great.Parts.Cel.Generator.CelTypeContextGenerator`.
 
-Each child process of steps 2 and 3 has the limit of 20 s ([Time limits](#time-limits)); a process that runs out of time is killed and fails its step. A failed step 1, 2 or 3 stops the command, as the next steps need its result. The run passes when every step succeeds: SDK 10.0.100, a build with no warning and no error, both pieces of evidence found. `CS9057` and `CS8032` (an analyzer that cannot be created) are warnings, so `TreatWarningsAsErrors` makes either of them a failed build. The last line is the summary of `eng/run` ([eng/run](#engrun)): `min-sdk: passed` or `min-sdk: failed: <steps>`, the duration and the exit code 0 or 1; the container has no git directory of a linked worktree, so `head` and `tree` may be `unknown`. The generator has no pipeline yet, so the run shows that it loads, not that it produces code.
+Each child process of steps 2 and 3 has the limit of 20 s ([Time limits](#time-limits)); a process that runs out of time is killed and fails its step. A failed step 1, 2 or 3 stops the command, as the next steps need its result. The run passes when every step succeeds: SDK 10.0.100, a build with no warning and no error, both pieces of evidence found. `CS9057` and `CS8032` (an analyzer that cannot be created) are warnings, so `TreatWarningsAsErrors` makes either of them a failed build. The last line is the summary of `eng/run` ([eng/run](#engrun)): `min-sdk: passed` or `min-sdk: failed: <steps>`, the duration and the exit code 0 or 1. The sample application builds without SourceLink and reads no git; only `eng/run` reads it, for `head` and `tree`, so in a linked worktree the service needs the second Compose file as `test` does. The generator has no pipeline yet, so the run shows that it loads, not that it produces code.
 
-Order of a run, from the repository root; a linked worktree needs the second Compose file only for `test`:
+Order of a run, from the repository root; from a linked worktree both commands add the second Compose file ([Linked worktrees](#linked-worktrees)):
 
 ```text
 docker compose -f eng/compose.yaml run --rm test

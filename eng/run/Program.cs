@@ -61,18 +61,29 @@ internal static class Program
             return null;
         }
 
+        MutateOptions options;
         try
         {
-            MutateOptions.Parse(args[1..]);
+            options = MutateOptions.Parse(args[1..]);
         }
         catch (InvalidOperationException exception)
         {
             return exception.Message;
         }
 
-        // In a linked worktree .git is a file with a host path: Stryker.NET could not match the changed files (docs/design/eng-mutate.md).
-        return File.Exists(".git") ? "linked worktree" : null;
+        return LinkedWorktreeProblem(options, File.Exists(".git"));
     }
+
+    /// <summary>
+    /// Why <c>mutate</c> cannot run in this working copy, or <see langword="null"/> when it can. In a linked worktree <c>.git</c> is a file
+    /// with a host path, so Stryker.NET could not match the changed files of <c>since</c> (<c>docs/design/eng-mutate.md</c>, "Linked
+    /// worktrees"); a run without <c>since</c>, such as the control set, reads no git through the tool and runs there.
+    /// </summary>
+    /// <param name="options">The arguments of the command.</param>
+    /// <param name="linkedWorktree">Whether <c>.git</c> of the working copy is a file.</param>
+    /// <param name="workingDirectory">The directory that the path of the configuration is relative to; the current directory when <see langword="null"/>.</param>
+    internal static string? LinkedWorktreeProblem(MutateOptions options, bool linkedWorktree, string? workingDirectory = null) =>
+        linkedWorktree && options.UsesSince(workingDirectory) ? "linked worktree: a run with since needs the main worktree" : null;
 
     // Runs the stages and writes the summary line to `summary`; the output of the steps goes to the console as they write it.
     internal static int Run(string command, IReadOnlyList<Stage> stages, TextWriter summary)

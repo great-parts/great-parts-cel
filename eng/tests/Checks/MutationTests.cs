@@ -392,6 +392,21 @@ public sealed class MutationTests
         AssertErrors(result, Error(EngCodes.Eng504, "src/Elsewhere.cs", 1, 1, "changed file was not mutated: it is not in the mutation report"));
     }
 
+    // Stryker.NET enables since for an object "since" without "enabled", so the check reads the changed files too.
+    [Fact]
+    public void Eng504_SinceObjectWithoutEnabled_EnablesSinceAsInTheTool()
+    {
+        using TempDirectory root = new();
+        Repository(root, Arithmetic, Other);
+        Change(root, Other);
+        string config = MainConfig.Replace("\"enabled\": true,", string.Empty, StringComparison.Ordinal);
+
+        Result result = Check(root, Report((Arithmetic, Source(), [Killed])), config, ConfigFile);
+
+        Assert.DoesNotContain("enabled", config, StringComparison.Ordinal);
+        AssertErrors(result, Error(EngCodes.Eng504, Other, 1, 1, "changed file was not mutated: it is not in the mutation report"));
+    }
+
     [Fact]
     public void Eng504_WithoutSince_ThereAreNoChangedFilesAndGitIsNotUsed()
     {
@@ -599,6 +614,37 @@ public sealed class MutationTests
     }
 
     // ---- --since: the commit from which the changes are counted ----
+
+    // `--since:<commit>` enables since in Stryker.NET whatever the configuration says, so the changed files are checked too.
+    [Fact]
+    public void SinceOption_ConfigurationWithoutSince_ChecksTheChangedFilesAsTheToolMutatesThem()
+    {
+        using TempDirectory root = new();
+        Repository(root, Arithmetic, Other);
+        string baseCommit = Git.Run(root.Path, "rev-parse", "HEAD").Output.Trim();
+        Change(root, Other);
+        root.Write(ReportFile, Report((Arithmetic, Source(), [Killed])));
+        root.Write(ConfigFile, NoSince);
+
+        Result result = Run(root, "mutation", "--report", ReportFile, "--config", ConfigFile, "--since", baseCommit);
+
+        AssertErrors(result, Error(EngCodes.Eng504, Other, 1, 1, "changed file was not mutated: it is not in the mutation report"));
+    }
+
+    // Without the report, --since counts as since: every changed file is a finding, not a missing input.
+    [Fact]
+    public void SinceOption_ConfigurationWithoutSinceAndNoReport_EveryChangedFileIsAFinding()
+    {
+        using TempDirectory root = new();
+        Repository(root, Arithmetic);
+        string baseCommit = Git.Run(root.Path, "rev-parse", "HEAD").Output.Trim();
+        Change(root, Arithmetic);
+        root.Write(ConfigFile, NoSince);
+
+        Result result = Run(root, "mutation", "--report", ReportFile, "--config", ConfigFile, "--since", baseCommit);
+
+        AssertErrors(result, Error(EngCodes.Eng504, Arithmetic, 1, 1, "changed file was not mutated: it is not in the mutation report"));
+    }
 
     [Fact]
     public void SinceOption_CommitInsteadOfMain_ListsTheFilesChangedAgainstIt()

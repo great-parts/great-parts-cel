@@ -27,7 +27,10 @@ internal sealed class MutationConfig
     /// <summary>The project file under test, relative to the repository root, or <see langword="null"/> when the file names none.</summary>
     internal string? Project { get; }
 
-    /// <summary>Whether <c>since</c> is enabled: only the files changed against <c>main</c> are mutated.</summary>
+    /// <summary>
+    /// Whether <c>since</c> is enabled: only the files changed against <c>main</c> are mutated. As Stryker.NET reads the file, an object
+    /// <c>since</c> enables it unless its <c>enabled</c> is <see langword="false"/>.
+    /// </summary>
     internal bool SinceEnabled { get; }
 
     /// <summary>The threshold <c>break</c> of the thresholds, or <see langword="null"/> when the file sets none.</summary>
@@ -89,6 +92,8 @@ internal sealed class MutationConfig
                     nameStart = Encoding.UTF8.GetCharCount(bytes, 0, (int)reader.TokenStartIndex);
                     break;
                 case JsonTokenType.StartObject or JsonTokenType.StartArray:
+                    // The object comes before its "enabled", which can turn it off again.
+                    sinceEnabled |= OpensSince(reader.TokenType, containers, name);
                     containers.Add(name);
                     name = null;
                     break;
@@ -117,6 +122,10 @@ internal sealed class MutationConfig
 
         return new MutationConfig(project, sinceEnabled, breakThreshold, breakPlace);
     }
+
+    // Whether the token opens the object "since", which enables since as Stryker.NET reads the file.
+    private static bool OpensSince(JsonTokenType token, List<string?> containers, string? name) =>
+        token == JsonTokenType.StartObject && Setting(containers, name) == "since";
 
     // The names of the properties that lead to a value, without the section name, joined with a slash; empty for a value that is
     // not in a property, such as an element of an array.

@@ -22,3 +22,7 @@ RUN git config --system --add safe.directory /repo  && git config --system --add
 # The first .NET 10 SDK, the oldest that a user of the net10.0 package can have; it changes together with eng/min-sdk/global.json.
 # The service min-sdk builds a sample application on it (docs/design/eng-test.md, "min-sdk").
 FROM mcr.microsoft.com/dotnet/sdk:10.0.100 AS sdk-min
+# Files of the working copy and of the git directory belong to another host user: git must not refuse them. Only eng/run reads
+# git here, for the commit and the state of the tree in its last line.
+RUN git config --system --add safe.directory /repo \
+ && git config --system --add safe.directory /git

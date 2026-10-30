@@ -3,33 +3,29 @@
 #     docker compose -f eng/compose.yaml -f eng/compose.worktree.yaml run --rm test
 # /repo/.git of a linked worktree is a file with a host path that the container cannot reach. The two read-only
 # mounts give git the common git directory at /git and the file artifacts/worktree/gitdir in place of /repo/.git;
-# the host file stays unchanged. A missing source stops the run instead of creating a host directory.
+# the host file stays unchanged. A missing source stops the run instead of creating a host directory. Every service
+# that runs eng/run gets them: test, mutate, difftest and min-sdk.
+x-git: &git
+  - type: bind
+    source: ${ENG_GIT_COMMON_DIR:?set ENG_GIT_COMMON_DIR to the common git directory of the repository}
+    target: /git
+    read_only: true
+    bind:
+      create_host_path: false
+  - type: bind
+    source: ../artifacts/worktree/gitdir
+    target: /repo/.git
+    read_only: true
+    bind:
+      create_host_path: false
+
 services:
   test:
-    volumes:
-      - type: bind
-        source: ${ENG_GIT_COMMON_DIR:?set ENG_GIT_COMMON_DIR to the common git directory of the repository}
-        target: /git
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ../artifacts/worktree/gitdir
-        target: /repo/.git
-        read_only: true
-        bind:
-          create_host_path: false
+    volumes: *git
+  # In a linked worktree mutate runs only without since, such as the control set (docs/design/eng-mutate.md, "Linked worktrees").
+  mutate:
+    volumes: *git
   difftest:
-    volumes:
-      - type: bind
-        source: ${ENG_GIT_COMMON_DIR:?set ENG_GIT_COMMON_DIR to the common git directory of the repository}
-        target: /git
-        read_only: true
-        bind:
-          create_host_path: false
-      - type: bind
-        source: ../artifacts/worktree/gitdir
-        target: /repo/.git
-        read_only: true
-        bind:
-          create_host_path: false
+    volumes: *git
+  min-sdk:
+    volumes: *git

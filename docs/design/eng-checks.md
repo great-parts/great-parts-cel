@@ -30,7 +30,7 @@ A command that takes an argument is followed by it, for example `signoff <range>
 | `--where <text>` | `test-count`: the text for messages, used as it is and not parsed, for example `linux-x64, net11.0`; other commands ignore it |
 | `--report <file>` | `mutation`: the JSON report of Stryker.NET; other commands ignore it |
 | `--config <file>` | `mutation`: the Stryker.NET configuration file of the run; other commands ignore it |
-| `--since <commit>` | `mutation`: the commit against which the changed files are listed, when the configuration enables `since`; without it `main`. `eng/mutate` gives the full SHA of its own `--since`; other commands ignore it |
+| `--since <commit>` | `mutation`: the commit against which the changed files are listed; without it `main`. It enables `since` as it does in Stryker.NET, also when the configuration disables it ([eng-mutate.md](eng-mutate.md#mutation)). `eng/mutate` gives the full SHA of its own `--since`; other commands ignore it |
 
 A relative path of a report or a configuration file is taken from the working directory. `test-count` without any of its three options, or `mutation` without `--report` or without `--config`, is exit code 2.
 

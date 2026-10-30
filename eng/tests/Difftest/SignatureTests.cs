@@ -471,7 +471,17 @@ public sealed class SignatureTests
     internal static ulong CallReadingI1(ulong seed) => Enumerable.Range(0, 1000).Select(n => (ulong)n)
         .First(n => CaseGenerator.Case(seed, n) is { Expression: Call } generated && ReadsI1(generated.Text, generated.Bindings));
 
-    private static IEnumerable<Expr> Nodes(Expr node) => Minimizer.Children(node).SelectMany(Nodes).Prepend(node);
+    // The nodes of a case by a walk of its own, not by Minimizer.Children: the set that bounds the descent must not come from the
+    // function that the descent uses.
+    private static IEnumerable<Expr> Nodes(Expr node) => Children(node).SelectMany(Nodes).Prepend(node);
+
+    private static IEnumerable<Expr> Children(Expr expr) => expr switch
+    {
+        Call call => call.Args,
+        ListLiteral list => list.Elements,
+        MapLiteral map => map.Entries.SelectMany(entry => new[] { entry.Key, entry.Value }),
+        _ => [],
+    };
 
     // A fixed case.
     private static GeneratedCase Case(Expr root, params (string Name, Value Value)[] bindings) =>

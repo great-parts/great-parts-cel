@@ -22,8 +22,8 @@ public sealed class TimeoutsTests
 
         string[] limits = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane).Select(step => $"{Kind(step)}={step.Timeout?.TotalSeconds}")];
 
-        // Stage 1: the build. Stage 2: the lane of the JIT run — three modules and the checks — and four publish and run lanes.
-        // Stage 3: the test count of each published target.
+        // Stage 1: the build. Stage 2: the lane of the JIT run — three modules and the checks — and two lanes that publish and run,
+        // one for each target of the published project. Stage 3: the test count of each published target.
         string[] expected =
         [
             "build=67",
@@ -38,15 +38,18 @@ public sealed class TimeoutsTests
     }
 
     [Fact]
-    public void MutateSteps_EveryStepHasALimitAndOnlyTheRunOfTheToolExtendsIt()
+    public void MutateSteps_EveryStepHasTheLimitOfItsKindAndOnlyTheRunOfTheToolExtendsIt()
     {
         List<Stage> stages = Commands.MutateStages(new MutateOptions("stryker-config.json", null), null);
 
         Step[] steps = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
 
-        Assert.All(steps, step => Assert.NotNull(step.Timeout));
+        // The restore of the tool and the preparation of the tool: 3 minutes; the build of eng/checks: 67 s; the reading of the
+        // report by eng/checks mutation: 12 s. Literals, not the constants of Timeouts, so a changed constant fails the test.
+        Assert.Equal(
+            ["tool=180", "build=67", "stryker=180", "run=12"],
+            steps.Select(step => $"{step.Arguments[0]}={step.Timeout?.TotalSeconds}"));
         Assert.Equal(["stryker"], steps.Where(step => step.Extend is not null).Select(step => step.Arguments[0]));
-        Assert.Equal(Timeouts.MutatePreparation, steps.Single(step => step.Extend is not null).Timeout);
     }
 
     [Fact]
