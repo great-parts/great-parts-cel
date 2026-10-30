@@ -18,22 +18,16 @@ namespace Great.Parts.Cel.Eng.Tests.Difftest;
 
 // Outcomes, signatures, minimization and pending.textproto of eng/difftest (docs/design/eng-difftest.md, "Outcomes and
 // signatures", "Known signatures and the corpus", "Findings and output"), with fake sides that give fixed outcomes per
-// expression text. A fixed case carries the seed of a generated case and a binding of the variable Fixed, which the profile
-// does not have: its minimization regenerates other cases, which do not bind Fixed and on which both fake sides agree.
+// expression text.
 public sealed class SignatureTests
 {
     private const ulong RunSeed = 20261104;
     private const ulong CaseNumber = 1207;
 
-    private static readonly MinimizationLimit FewIterations = MinimizationLimit.Count(50);
-
     // The outcome of both fake sides for an expression that a test does not name.
     private static readonly SideOutcome Agreed = SideOutcome.Of(Int(0));
 
     private static readonly Expr I1 = new Ident("i1");
-
-    // The variable that only fixed cases bind.
-    private const string Fixed = "fixed";
 
     // ---- ENG820 and the kinds ----
 
@@ -84,7 +78,7 @@ public sealed class SignatureTests
             (b2, SideOutcome.Of(Bool(false)), SideOutcome.Of(Bool(false))));
         DivergenceSearch search = new(librarySide, oracleSide, new FakeRecorder(), KnownSignatures.Of());
 
-        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2)), ("b1", Bool(true)), ("b2", Bool(false))), FewIterations);
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2)), ("b1", Bool(true)), ("b2", Bool(false))));
         IReadOnlyList<Finding> findings = PendingFile.Findings(search.NewSignatures, PendingFile.Build(search.NewSignatures));
 
         Assert.Equal(kind, divergence?.Kind.Name());
@@ -154,7 +148,7 @@ public sealed class SignatureTests
                 : Sides([(root, we, go), .. children]);
             DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
 
-            Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("s1", Str("a")), ("x1", Str("b"))), FewIterations);
+            Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("s1", Str("a")), ("x1", Str("b"))));
 
             Assert.Equal(signature, divergence?.Signature);
         }
@@ -169,7 +163,7 @@ public sealed class SignatureTests
             (I1, SideOutcome.Of(Int(2)), SideOutcome.Of(Int(2))));
         DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
 
-        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2))), FewIterations);
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2))));
 
         Assert.Equal("parse() we-error", divergence?.Signature);
     }
@@ -186,7 +180,7 @@ public sealed class SignatureTests
         FakeRecorder recorder = new();
         DivergenceSearch search = new(library, oracle, recorder, KnownSignatures.Of("add_int64(int, int) value-mismatch"));
 
-        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2))), FewIterations);
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2))));
         PendingText pending = PendingFile.Build(search.NewSignatures);
 
         Assert.Equal("add_int64(int, int) value-mismatch", divergence?.Signature);
@@ -265,9 +259,9 @@ public sealed class SignatureTests
         FakeRecorder recorder = new();
         DivergenceSearch search = new(library, oracle, recorder, KnownSignatures.Of());
 
-        _ = search.Check(RunSeed, 3, Case(first, ("i1", Int(2))), FewIterations);
-        _ = search.Check(RunSeed, 8, Case(second, ("i1", Int(2))), FewIterations);
-        _ = search.Check(RunSeed, 9, Case(third, ("i1", Int(2))), FewIterations);
+        _ = search.Check(RunSeed, 3, Case(first, ("i1", Int(2))));
+        _ = search.Check(RunSeed, 8, Case(second, ("i1", Int(2))));
+        _ = search.Check(RunSeed, 9, Case(third, ("i1", Int(2))));
         PendingText pending = PendingFile.Build(search.NewSignatures);
 
         Assert.Equal(["20261104-3", "20261104-8"], recorder.Names);
@@ -308,23 +302,40 @@ public sealed class SignatureTests
     [Fact]
     public void Minimization_ShrinksAGeneratedCaseToARootWithoutDivergentChildren()
     {
-        // The library diverges on every case that reads the bound variable i1, so the smallest divergent case is i1 itself.
-        static bool ReadsI1(string text, IReadOnlyDictionary<string, Value> bindings) =>
-            bindings.ContainsKey("i1") && text.Contains("i1", StringComparison.Ordinal);
-        ulong number = Enumerable.Range(0, 1000).Select(n => (ulong)n)
-            .First(n => CaseGenerator.Case(RunSeed, n) is { Expression: Call } generated && ReadsI1(generated.Text, generated.Bindings));
-        GeneratedCase original = CaseGenerator.Case(RunSeed, number);
+        // The library diverges on every case that reads the bound variable i1, so the descent ends at i1 itself.
+        GeneratedCase original = CaseGenerator.Case(RunSeed, CallReadingI1(RunSeed));
         FakeSide library = new((text, bindings) => SideOutcome.Of(Int(ReadsI1(text, bindings) ? 2 : 1)));
         FakeSide oracle = new((_, _) => SideOutcome.Of(Int(1)));
         DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
 
-        Divergence? divergence = search.Check(RunSeed, number, original, MinimizationLimit.Count(200));
+        Divergence? divergence = search.Check(RunSeed, CallReadingI1(RunSeed), original);
 
         Assert.NotNull(divergence);
         Assert.Equal("i1", ((Ident)divergence.Case.Expression).Name);
         Assert.Equal(Value.KindOneofCase.Int64Value, divergence.Case.Bindings["i1"].KindCase);
         Assert.Equal("ident(int) value-mismatch", divergence.Signature);
         Assert.True(divergence.Case.Text.Length < original.Text.Length);
+    }
+
+    // The descent asks only for nodes of the divergent case, with its bindings: it generates no other case.
+    [Fact]
+    public void Minimization_AsksOnlyForNodesOfTheCaseWithItsBindings()
+    {
+        GeneratedCase original = CaseGenerator.Case(RunSeed, CallReadingI1(RunSeed));
+        HashSet<Expr> nodes = new(Nodes(original.Expression), ReferenceEqualityComparer.Instance);
+        List<GeneratedCase> asked = [];
+
+        GeneratedCase minimized = Minimizer.Minimize(original, candidate =>
+        {
+            asked.Add(candidate);
+            return ReadsI1(candidate.Text, candidate.Bindings);
+        });
+
+        Assert.Equal("i1", minimized.Text);
+        Assert.NotEmpty(asked);
+        Assert.All(asked, candidate => Assert.True(nodes.Contains(candidate.Expression), candidate.Text));
+        Assert.All(asked, candidate => Assert.Same(original.Bindings, candidate.Bindings));
+        Assert.True(asked.Count < nodes.Count);
     }
 
     [Fact]
@@ -338,36 +349,46 @@ public sealed class SignatureTests
             (I1, SideOutcome.Of(Int(2)), SideOutcome.Of(Int(2))));
         DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
 
-        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2))), FewIterations);
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2))));
 
         Assert.Equal(sum, divergence?.Case.Expression);
         Assert.Equal("add_int64(int, int) we-error", divergence?.Signature);
     }
 
     [Fact]
-    public void Minimization_KeepsTheCaseWhenNoSmallerCaseDiverges()
+    public void Minimization_TakesTheFirstDivergentChild()
+    {
+        Expr first = new Call(ProfileTables.Add, [I1, I1]);
+        Expr second = new Call(ProfileTables.Negate, [I1]);
+        Expr root = new Call(ProfileTables.Add, [first, second]);
+        GeneratedCase divergent = Case(root, ("i1", Int(2)));
+
+        GeneratedCase minimized = Minimizer.Minimize(divergent, generated => generated.Expression is Call);
+
+        Assert.Same(first, minimized.Expression);
+    }
+
+    [Fact]
+    public void Minimization_KeepsTheCaseWhenNoChildDiverges()
     {
         Expr root = new Call(ProfileTables.Add, [I1, I1]);
         GeneratedCase divergent = Case(root, ("i1", Int(2)));
 
-        GeneratedCase minimized = Minimizer.Minimize(divergent, generated => generated.Text == "i1 + i1", FewIterations);
+        GeneratedCase minimized = Minimizer.Minimize(divergent, generated => generated.Text == "i1 + i1");
 
         Assert.Same(divergent, minimized);
     }
 
-    // A side that fails during minimization, such as an oracle that closed the connection, ends it with that first exception;
-    // the side is not asked again, neither by CsCheck nor for the children of the root.
+    // A side that fails during minimization, such as an oracle that closed the connection, ends it with its exception; the
+    // side is not asked again.
     [Fact]
-    public void Minimization_ThrowsTheFirstFailureOfASideAndAsksItNoMore()
+    public void Minimization_ThrowsTheFailureOfASideAndAsksItNoMore()
     {
-        GeneratedCase divergent = Case(new Call(ProfileTables.Add, [I1, I1]), ("i1", Int(2)));
+        GeneratedCase divergent = Case(new Call(ProfileTables.Add, [new Call(ProfileTables.Add, [I1, I1]), I1]), ("i1", Int(2)));
         IOException failure = new("the oracle closed the connection");
         int calls = 0;
 
-        IOException thrown = Assert.Throws<IOException>(() => Minimizer.Minimize(
-            divergent,
-            _ => ++calls == 2 ? throw failure : true,
-            FewIterations));
+        IOException thrown = Assert.Throws<IOException>(() => Minimizer.Minimize(divergent, _ => ++calls == 2 ? throw failure : true));
 
         Assert.Same(failure, thrown);
         Assert.Equal(2, calls);
@@ -435,23 +456,36 @@ public sealed class SignatureTests
     private static IReadOnlyList<Finding> Run(FakeSide library, FakeSide oracle, KnownSignatures known, GeneratedCase generated)
     {
         DivergenceSearch search = new(library, oracle, new FakeRecorder(), known);
-        _ = search.Check(RunSeed, CaseNumber, generated, FewIterations);
+        _ = search.Check(RunSeed, CaseNumber, generated);
         return PendingFile.Findings(search.NewSignatures, PendingFile.Build(search.NewSignatures));
     }
 
-    // A fixed case with the seed of a generated case, for minimization.
-    private static GeneratedCase Case(Expr root, params (string Name, Value Value)[] bindings) =>
-        new(CaseGenerator.Case(1, 0).Seed, root, bindings.Append((Name: Fixed, Value: Bool(true))).ToDictionary(binding => binding.Name, binding => binding.Value));
+    /// <summary>Whether a case reads the bound variable i1: the fake library of a test diverges on such cases.</summary>
+    /// <param name="text">The expression.</param>
+    /// <param name="bindings">The bindings.</param>
+    internal static bool ReadsI1(string text, IReadOnlyDictionary<string, Value> bindings) =>
+        bindings.ContainsKey("i1") && text.Contains("i1", StringComparison.Ordinal);
 
-    // Fake sides that give the outcomes of the named expressions in fixed cases, and agree on every other case.
+    /// <summary>The number of the first generated case of a seed whose root is a call and which reads the bound variable i1.</summary>
+    /// <param name="seed">The seed of the run.</param>
+    internal static ulong CallReadingI1(ulong seed) => Enumerable.Range(0, 1000).Select(n => (ulong)n)
+        .First(n => CaseGenerator.Case(seed, n) is { Expression: Call } generated && ReadsI1(generated.Text, generated.Bindings));
+
+    private static IEnumerable<Expr> Nodes(Expr node) => Minimizer.Children(node).SelectMany(Nodes).Prepend(node);
+
+    // A fixed case.
+    private static GeneratedCase Case(Expr root, params (string Name, Value Value)[] bindings) =>
+        new(root, bindings.ToDictionary(binding => binding.Name, binding => binding.Value));
+
+    // Fake sides that give the outcomes of the named expressions, and agree on every other expression.
     private static (FakeSide Library, FakeSide Oracle) Sides(params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] outcomes)
     {
         Dictionary<string, (SideOutcome Library, SideOutcome Oracle)> table = outcomes.ToDictionary(
             outcome => ExprPrinter.Print(outcome.Node),
             outcome => (outcome.Library, outcome.Oracle));
         return (
-            new FakeSide((text, bindings) => bindings.ContainsKey(Fixed) && table.TryGetValue(text, out (SideOutcome Library, SideOutcome Oracle) pair) ? pair.Library : Agreed),
-            new FakeSide((text, bindings) => bindings.ContainsKey(Fixed) && table.TryGetValue(text, out (SideOutcome Library, SideOutcome Oracle) pair) ? pair.Oracle : Agreed));
+            new FakeSide((text, _) => table.TryGetValue(text, out (SideOutcome Library, SideOutcome Oracle) pair) ? pair.Library : Agreed),
+            new FakeSide((text, _) => table.TryGetValue(text, out (SideOutcome Library, SideOutcome Oracle) pair) ? pair.Oracle : Agreed));
     }
 
     private static FakeSide Zones(params (string Zone, double Hours)[] offsets) => new(

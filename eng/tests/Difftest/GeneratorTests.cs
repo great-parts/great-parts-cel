@@ -5,7 +5,6 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json;
 using Cel.Expr;
-using CsCheck;
 using Great.Parts.Cel.Eng.Difftest.Profile;
 using Xunit;
 
@@ -184,12 +183,9 @@ public sealed class GeneratorTests
         _ = CaseGenerator.Case(20261104, 3);
         _ = CaseGenerator.Case(7, 17);
         GeneratedCase again = CaseGenerator.Case(20261104, 17);
-        GeneratedCase fromSeed = CaseGenerator.Instance.Generate(PCG.Parse(first.Seed), null, out _);
 
         Assert.Equal(first.Text, again.Text);
         Assert.Equal(first.Bindings, again.Bindings);
-        Assert.Equal(first.Text, fromSeed.Text);
-        Assert.Equal(first.Bindings, fromSeed.Bindings);
         Assert.True(Enumerable.Range(0, 20).Select(n => CaseGenerator.Case(20261104, (ulong)n).Text).Distinct().Count() > 10);
         Assert.NotEqual(
             Enumerable.Range(0, 20).Select(n => CaseGenerator.Case(20261104, (ulong)n).Text),

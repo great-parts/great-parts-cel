@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -20,7 +21,8 @@ namespace Great.Parts.Cel.Eng.Tests.Difftest;
 
 // The session with the oracle and steps 2 to 5 of a run of eng/difftest (docs/design/eng-difftest.md, "A run", "Findings and
 // output", "Tests"), with a fake oracle on a loopback socket that plays the launcher: it reads the first line and sends given
-// lines, then answers requests or closes the connection. The library side is a fake that gives one value for every case.
+// lines, then answers requests or closes the connection. The library side is a fake that gives one value for every case,
+// unless a test names another.
 public sealed class OracleConnectionTests
 {
     private const string Handshake = """{"oracle":"cel.dev/cel-go v0.32.0","go":"go1.27.3"}""";
@@ -322,6 +324,22 @@ public sealed class OracleConnectionTests
         Assert.Equal($"eng/difftest: case 3 of seed 7: the minimized case '{text}' does not diverge again: a side is not deterministic\n", error);
     }
 
+    // A run of the same seed and --case asks the oracle the same requests and gives the same minimized case and signature.
+    [Fact]
+    public void SameSeedAndCase_GiveTheSameMinimizedCaseAndSignature()
+    {
+        string number = SignatureTests.CallReadingI1(7).ToString(CultureInfo.InvariantCulture);
+
+        (int exitCode, string output, string pending, List<string> requests) = RunWithLibraryThatDivergesOnI1(number);
+        (int exitCodeAgain, string outputAgain, string pendingAgain, List<string> requestsAgain) = RunWithLibraryThatDivergesOnI1(number);
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("new divergence signature 'ident(int) value-mismatch' (S1)", output, StringComparison.Ordinal);
+        Assert.Contains($"name: \"7-{number}\"\nexpr: \"i1\"", pending, StringComparison.Ordinal);
+        Assert.Equal((exitCode, output, pending), (exitCodeAgain, outputAgain, pendingAgain));
+        Assert.Equal(requests, requestsAgain);
+    }
+
     [Fact]
     public void ExceptionOfTheLibraryInStep2_IsExitCode2NamingItsTypeBeforeTheOracle()
     {
@@ -377,13 +395,27 @@ public sealed class OracleConnectionTests
         return (exitCode, output.ToString().ReplaceLineEndings("\n"), error.ToString().ReplaceLineEndings("\n"));
     }
 
+    // A case of seed 7 with a library side that diverges from the fake oracle on every case that reads the bound variable i1;
+    // the fake oracle writes the case of a new signature as its name and expression.
+    private static (int ExitCode, string Output, string Pending, List<string> Requests) RunWithLibraryThatDivergesOnI1(string number)
+    {
+        using FakeOracle fake = new([Handshake], answer: request => request.GetProperty("op").GetString() == "case"
+            ? $$"""{"id":ID,"textproto":{{JsonSerializer.Serialize($"name: \"{request.GetProperty("name").GetString()}\"\nexpr: \"{request.GetProperty("expr").GetString()}\"")}}}"""
+            : """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
+        using TempDirectory root = Repository();
+        (int exitCode, string output, string error) = Run(root, fake.Port, Limit, new LibraryThatDivergesOnI1(), ["--case", number]);
+        fake.Join();
+        Assert.Empty(error);
+        return (exitCode, output, File.ReadAllText(Path.Combine(root.Path, PendingFile.Path)), fake.Requests);
+    }
+
     // Case 3 of seed 7 with a library side that diverges from the fake oracle on its first evaluation only, so the minimized
-    // case agrees when it is run again; the budget of 1 s keeps minimization at 1 s.
+    // case agrees when it is run again.
     private static (int ExitCode, string Output, string Error) RunWithFlakyLibrary(params string[] args)
     {
         using FakeOracle fake = new([Handshake], answer: _ => """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
         using TempDirectory root = Repository();
-        (int ExitCode, string Output, string Error) result = Run(root, fake.Port, Limit, new FlakyLibrary(), ["--case", "3", "--budget", "1s", .. args]);
+        (int ExitCode, string Output, string Error) result = Run(root, fake.Port, Limit, new FlakyLibrary(), ["--case", "3", .. args]);
         fake.Join();
         return result;
     }
@@ -410,6 +442,15 @@ public sealed class OracleConnectionTests
     private sealed class AgreeingLibrary : ICaseSide
     {
         public SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings) => SideOutcome.Of(Int(41));
+
+        public TimeSpan ZoneOffset(string zone, DateTimeOffset instant) => throw new NotSupportedException();
+    }
+
+    // Gives int 42 for a case that reads the bound variable i1 and int 41, as the fake oracle does, for every other case.
+    private sealed class LibraryThatDivergesOnI1 : ICaseSide
+    {
+        public SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings) =>
+            SideOutcome.Of(Int(SignatureTests.ReadsI1(expression, bindings) ? 42 : 41));
 
         public TimeSpan ZoneOffset(string zone, DateTimeOffset instant) => throw new NotSupportedException();
     }

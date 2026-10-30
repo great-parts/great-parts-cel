@@ -55,17 +55,16 @@ internal sealed class DivergenceSearch
     /// <param name="seed">The seed of the run.</param>
     /// <param name="number">The number of the case.</param>
     /// <param name="generated">The case.</param>
-    /// <param name="limit">How long minimization searches.</param>
     /// <returns>The divergence of the minimized case, or <see langword="null"/> when the outcomes agree.</returns>
     /// <exception cref="SideFailureException">The minimized case agrees when it is run again: a side is not deterministic.</exception>
-    internal Divergence? Check(ulong seed, ulong number, GeneratedCase generated, MinimizationLimit limit)
+    internal Divergence? Check(ulong seed, ulong number, GeneratedCase generated)
     {
         if (Outcomes(generated).Kind is null)
         {
             return null;
         }
 
-        GeneratedCase minimized = Minimizer.Minimize(generated, candidate => Outcomes(candidate).Kind is not null, limit);
+        GeneratedCase minimized = Minimizer.Minimize(generated, candidate => Outcomes(candidate).Kind is not null);
         (SideOutcome libraryOutcome, SideOutcome oracleOutcome, DivergenceKind? kind) = Outcomes(minimized);
         if (kind is not { } divergenceKind)
         {

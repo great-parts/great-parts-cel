@@ -1,6 +1,6 @@
 # eng/difftest
 
-`eng/difftest` is the differential run against cel-go. It generates random cases, evaluates each with the library and with the oracle ([eng-oracle.md](eng-oracle.md)), shrinks every divergence to the smallest subexpression that still diverges, and reports divergences whose signature is not known yet. A change of the core is checked with it ([core.md](core.md)); the nightly run uses it with a longer budget.
+`eng/difftest` is the differential run against cel-go. It generates random cases, evaluates each with the library and with the oracle ([eng-oracle.md](eng-oracle.md)), shrinks every divergence to a subexpression that still diverges while its children agree, and reports divergences whose signature is not known yet. A change of the core is checked with it ([core.md](core.md)); the nightly run uses it with a longer budget.
 
 ## Project
 
@@ -33,7 +33,7 @@ docker compose -f eng/compose.yaml run --rm difftest [--seed <n>] [--budget <tim
 | :- | :- | :- |
 | `--seed` | the date in UTC as `yyyyMMdd` | the seed of the run; case `n` depends on the seed and `n` alone |
 | `--budget` | `5m` | the time of the whole run, minimization included; the long run before a release gives `2h` |
-| `--case` | none | run only case `n` of the seed, to reproduce it |
+| `--case` | none | run only case `n` of the seed, to reproduce it: the same seed and `n` give the same minimized case and the same signature ([Outcomes and signatures](#outcomes-and-signatures)) |
 | `--numbers-only` | off | print only the journal line and write no file; for the nightly workflow, whose log is public, so no output names a case ([Findings and output](#findings-and-output)) |
 
 | Item | Value |
@@ -123,7 +123,7 @@ Two errors of one class, or equal values, agree; error messages are not compared
 
 Types are the CEL type names that `type()` gives, without parameters: `int`, `uint`, `double`, `bool`, `string`, `bytes`, `null_type`, `list`, `map`; an argument that is an error on both sides is `error`. A node without types keeps its parentheses: `parse() we-error`, `list() value-mismatch`.
 
-**Minimization.** CsCheck runs `Sample` from the seed of the divergent case with the predicate "the outcomes agree" and at most 20 seconds, and returns the smallest divergent case in its size order. Then, while a child of the root still diverges with the same bindings, the child becomes the case. The arguments of the final root agree, so their types are defined.
+**Minimization.** A deterministic descent: while a child of the root still diverges with the same bindings, the first such child becomes the case. The children of a call are its arguments, of a list literal its elements, of a map literal the key and the value of each entry, in the order of the source. Minimization evaluates only nodes of the divergent case, with its bindings: it generates no other case and has no time limit, so the same seed and case number give the same minimized case and the same signature. Each node but the root is evaluated at most once, so a case of 40 nodes takes at most 39 evaluations on each side; a run ends the case it started within the budget together with its minimization. The arguments of the final root agree, so their types are defined. The whole tree is not reduced further.
 
 ## Known signatures and the corpus
 
@@ -168,9 +168,9 @@ With `--numbers-only` standard output has the journal line alone: no `log` line 
 
 `eng/tests/Difftest/` ([eng-tests.md](eng-tests.md)) uses fake sides with given outcomes, without Go or a working library:
 
-- `SignatureTests`: another value from the oracle gives `ENG820` with the signature in the form above, another zone offset `ENG822` at the path the test gives; one case per kind; a known signature and agreeing outcomes give nothing;
+- `SignatureTests`: another value from the oracle gives `ENG820` with the signature in the form above, another zone offset `ENG822` at the path the test gives; one case per kind; a known signature and agreeing outcomes give nothing; minimization takes the first divergent child, keeps a case whose children agree, evaluates only nodes of the case with its bindings, and passes on the failure of a side;
 - `GeneratorTests`: for fixed seeds, no `dyn` operand of `-_`, no repeated or wrong-typed map key, the limits hold; the forms of the profile occur, among them a negative `double` literal, `[,]`, `{,}`, a map with a trailing comma and a bound `double` that is NaN, ±infinity or -0.0, while no `double` literal is other than finite;
 - `ManifestTests`: a manifest with `greatPartsCel` or `validators` is refused;
-- `OracleConnectionTests`, with a fake oracle on a loopback socket: `log` lines pass unchanged; `failed`, a closed connection and no listener give exit code 2, and the message on no listener names the `logs` command; another Go in the handshake gives `ENG821`; an answer that does not come within the limit, which the test sets, gives exit code 2; with `--numbers-only` standard output has the journal line alone, and a message of exit code 2 quotes no line of the oracle.
+- `OracleConnectionTests`, with a fake oracle on a loopback socket: `log` lines pass unchanged; `failed`, a closed connection and no listener give exit code 2, and the message on no listener names the `logs` command; another Go in the handshake gives `ENG821`; an answer that does not come within the limit, which the test sets, gives exit code 2; with `--numbers-only` standard output has the journal line alone, and a message of exit code 2 quotes no line of the oracle; two runs of the same seed and `--case` send the same requests and give the same minimized case and signature.
 
 Each finding line matches `Finding.Pattern`.

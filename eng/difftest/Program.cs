@@ -188,10 +188,7 @@ internal static class Program
         ulong cases = 0;
         for (ulong number = options.Case ?? 0; options.Case is not null ? cases == 0 : spent.Elapsed < options.Budget; number++)
         {
-            // Minimization takes whole seconds, at most its default and not beyond the rest of the budget.
-            double rest = Math.Floor((options.Budget - spent.Elapsed).TotalSeconds);
-            int seconds = (int)Math.Clamp(rest, 0, MinimizationLimit.Default.Seconds);
-            search.Check(options.Seed, number, CaseGenerator.Case(options.Seed, number), MinimizationLimit.Time(seconds));
+            search.Check(options.Seed, number, CaseGenerator.Case(options.Seed, number));
             cases++;
         }
 
