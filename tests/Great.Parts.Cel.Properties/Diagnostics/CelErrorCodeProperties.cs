@@ -1,5 +1,4 @@
 using System;
-using CsCheck;
 using Great.Parts.Cel.Diagnostics;
 using Xunit;
 
@@ -10,13 +9,12 @@ public sealed class CelErrorCodeProperties
     [Fact]
     public void EveryCode_IsInTheRangeOfAStage()
     {
-        Gen.OneOfConst(Enum.GetValues<CelErrorCode>()).Sample(
+        Assert.All(
+            Enum.GetValues<CelErrorCode>(),
             code =>
             {
                 int number = (int)code;
-                Assert.True(number is >= 1000 and < 5000 or >= 9000 and < 10000);
-            },
-            seed: PropertySettings.Seed,
-            iter: PropertySettings.Iterations);
+                Assert.True(number is >= 1000 and < 5000 or >= 9000 and < 10000, $"{code} = {number}");
+            });
     }
 }

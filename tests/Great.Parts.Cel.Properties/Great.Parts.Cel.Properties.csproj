@@ -1,9 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!--
-    Property tests of the library (docs/design/tests.md). They run under JIT only. The seed of every property is
-    PropertySettings.Seed.
-  -->
+  <!-- Property tests of the library (docs/design/tests.md). They run under JIT only. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFrameworks>net10.0;net11.0</TargetFrameworks>

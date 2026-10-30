@@ -57,12 +57,13 @@ public void <Situation>_<Expectation>()
 
 ## Property tests and the seed
 
-Properties use `Gen<T>.Sample` of CsCheck 4.9.1.
+The verdict of a property is deterministic: the same code gives the same verdict on every machine and in every run, so the contribution of the properties to the mutation score repeats.
 
-- Every property passes the same seed: the constant `PropertySettings.Seed` in `tests/Great.Parts.Cel.Properties/PropertySettings.cs`, a CsCheck seed string. Every property also sets the number of iterations and sets no time limit, so a run checks the same cases on every machine and the mutation score repeats.
-- A change of the seed is a change of that file.
-- CsCheck also reads the environment variables `CsCheck_*`; they are default values for the parameters that a property does not pass. `CsCheck_Time` and `CsCheck_Threads` therefore apply to every property, as none passes them, while the seed and the number of iterations that every property passes explicitly win over their variables. The containers get none of these variables from the host.
-- A failure message of CsCheck contains the seed and the smallest failing case. The case is reproduced with that seed and becomes a unit test with fixed input.
+- A property with a small domain checks the whole domain, without a generator. `CelErrorCodeProperties` checks every member of `CelErrorCode`.
+- A property with a larger domain builds case `i` from the pair of the seed and `i`, with a loop of its own over `Gen<T>.Generate` of CsCheck 4.9.1. The seed and the number of cases are set in the code; the loop reads no environment variable `CsCheck_*` and has no time limit. The loop is written together with the first property that needs it.
+- `Gen<T>.Sample` does not give the verdict: a seed passed to `Sample` fixes only its first iteration, and the other iterations are generated from a seed taken from the clock and the thread. A property calls `Sample` only after its loop has found a failing case, to minimize that case. The smallest case goes into the failure message and does not change the verdict.
+- A failing case is reproduced from the seed and its number and becomes a unit test with fixed input.
+- Properties do no random search of their own; for the core, `eng/difftest` does it, with a seed taken from the date ([eng-difftest.md](eng-difftest.md)).
 
 ## Same tests under JIT and Native AOT
 
