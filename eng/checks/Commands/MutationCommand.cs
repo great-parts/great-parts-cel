@@ -11,7 +11,7 @@ namespace Great.Parts.Cel.Eng.Checks;
 /// Reads the JSON report of Stryker.NET and the configuration file of the run (<c>docs/design/eng-mutate.md</c>, "mutation"). A survived
 /// mutant is <c>ENG501</c>, a mutant without coverage is <c>ENG502</c>, a score below <c>break</c> is <c>ENG503</c>, and a changed file
 /// that the run did not mutate is <c>ENG504</c>. The changed files are read from git, and only when the configuration enables
-/// <c>since</c>.
+/// <c>since</c>: they are the files changed against the commit of <c>--since</c>, or against <c>main</c> without it.
 /// </summary>
 internal sealed class MutationCommand : ICheckCommand
 {
@@ -20,6 +20,9 @@ internal sealed class MutationCommand : ICheckCommand
 
     /// <summary>The option of the command line: the Stryker.NET configuration file of the run.</summary>
     internal const string ConfigOption = "--config";
+
+    /// <summary>The option of the command line, optional: the commit against which the changed files are listed, the target of <c>since</c> of the run.</summary>
+    internal const string SinceOption = "--since";
 
     private const string MainBranch = "main";
     private const string SinceFilter = "Removed by since filter";
@@ -75,7 +78,8 @@ internal sealed class MutationCommand : ICheckCommand
 
         if (config.SinceEnabled)
         {
-            findings.AddRange(NotMutated(context.Root, config, files, paths));
+            context.Options.TryGetValue(SinceOption, out string? since);
+            findings.AddRange(NotMutated(context.Root, config, files, paths, since ?? MainBranch));
         }
 
         return findings;
@@ -95,7 +99,7 @@ internal sealed class MutationCommand : ICheckCommand
     private static bool IsNotDetected(string status) => status is "Survived" or "NoCoverage";
 
     // The changed C# files of the project under test that the run did not mutate.
-    private static IEnumerable<Finding> NotMutated(string root, MutationConfig config, List<ReportedFile> files, MutationPaths paths)
+    private static IEnumerable<Finding> NotMutated(string root, MutationConfig config, List<ReportedFile> files, MutationPaths paths, string since)
     {
         if (config.Project is not { } project)
         {
@@ -104,7 +108,7 @@ internal sealed class MutationCommand : ICheckCommand
 
         string directory = MutationPaths.DirectoryOf(project);
         Dictionary<string, ReportedFile> byPath = files.ToDictionary(file => paths.Relative(file.Path), StringComparer.Ordinal);
-        foreach (string changed in ChangedFiles(root))
+        foreach (string changed in ChangedFiles(root, since))
         {
             bool inProject = directory.Length == 0 || changed.StartsWith(directory + "/", StringComparison.Ordinal);
             if (!inProject || !changed.EndsWith(".cs", StringComparison.Ordinal) || !File.Exists(Path.Combine(root, changed)))
@@ -132,13 +136,19 @@ internal sealed class MutationCommand : ICheckCommand
         return filters.Length == 0 ? null : $"none of its mutants was counted ({string.Join(", ", filters)})";
     }
 
-    private static string[] ChangedFiles(string root)
+    private static string[] ChangedFiles(string root, string since)
     {
-        GitResult diff = Git.Run(root, "-c", "core.quotepath=off", "diff", "--name-only", "--no-renames", MainBranch, "--");
+        // A value that starts with a dash would be an option of git.
+        if (since.StartsWith('-'))
+        {
+            throw new CheckInputException($"the value of {SinceOption} is not a commit: {since}");
+        }
+
+        GitResult diff = Git.Run(root, "-c", "core.quotepath=off", "diff", "--name-only", "--no-renames", since, "--");
         if (!diff.Succeeded)
         {
             string reason = diff.Error.Trim().Split('\n')[0].TrimEnd();
-            throw new CheckInputException($"the files changed against {MainBranch} cannot be listed by git diff: {reason}");
+            throw new CheckInputException($"the files changed against {since} cannot be listed by git diff: {reason}");
         }
 
         return diff.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

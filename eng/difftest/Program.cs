@@ -298,7 +298,7 @@ internal static class Program
 
         if (option == BudgetOption)
         {
-            return TryBudget(value, out budget);
+            return BudgetText.TryParse(value, out budget);
         }
 
         if (!ulong.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out ulong number))
@@ -316,33 +316,6 @@ internal static class Program
         }
 
         return true;
-    }
-
-    // A positive whole number of seconds, minutes or hours: 30s, 5m, 2h.
-    private static bool TryBudget(string value, out TimeSpan budget)
-    {
-        budget = TimeSpan.Zero;
-        if (value.Length < 2
-            || !int.TryParse(value.AsSpan(0, value.Length - 1), NumberStyles.None, CultureInfo.InvariantCulture, out int amount)
-            || amount <= 0)
-        {
-            return false;
-        }
-
-        switch (value[^1])
-        {
-            case 's':
-                budget = TimeSpan.FromSeconds(amount);
-                return true;
-            case 'm':
-                budget = TimeSpan.FromMinutes(amount);
-                return true;
-            case 'h':
-                budget = TimeSpan.FromHours(amount);
-                return true;
-            default:
-                return false;
-        }
     }
 
     private static int Failed(TextWriter error, string problem)

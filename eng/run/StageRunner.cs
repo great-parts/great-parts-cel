@@ -9,7 +9,7 @@ namespace Great.Parts.Cel.Eng.Run;
 
 /// <summary>What the steps of a stage reported.</summary>
 /// <param name="Failed">The failed steps with their reasons, in the order of the lanes.</param>
-/// <param name="PassedOn">The exit code of the step that passes its exit code on, when it ran.</param>
+/// <param name="PassedOn">The exit code of the step that passes its exit code on, when it ran to its end.</param>
 internal sealed record StageResult(IReadOnlyList<string> Failed, int? PassedOn);
 
 /// <summary>Runs the stages of a command: the lanes of a stage at the same time, the steps of a lane one after another.</summary>
@@ -51,18 +51,18 @@ internal static class StageRunner
         foreach (Step step in steps)
         {
             output.WriteLine($"== {step.CommandLine}");
-            bool succeeded = Execute(step, live ? null : output, out int? exitCode, out string? reason);
-            if (step.PassesExitCode && exitCode is not null)
+            ProcessResult result = Execute(step, live ? null : output);
+            if (step.PassesExitCode && result.ExitCode is not null)
             {
-                passedOn = exitCode;
+                passedOn = result.ExitCode;
             }
 
-            if (succeeded)
+            if (result.Succeeded)
             {
                 continue;
             }
 
-            failed.Add(reason is null ? step.CommandLine : $"{step.CommandLine} ({reason})");
+            failed.Add(Describe(step, result));
             if (step.StopsOnFailure)
             {
                 break;
@@ -72,19 +72,27 @@ internal static class StageRunner
         return new StageResult(failed, passedOn);
     }
 
-    // A step in this process writes to the console itself; it belongs to a stage of one lane.
-    private static bool Execute(Step step, TextWriter? sink, out int? exitCode, out string? reason)
+    // A step that ran out of time is named with its limit; any other failed step with its reason, when it has one.
+    private static string Describe(Step step, ProcessResult result)
+    {
+        if (Timeouts.IsReason(result.Reason))
+        {
+            return $"{result.Reason} in step {step.CommandLine}";
+        }
+
+        return result.Reason is null ? step.CommandLine : $"{step.CommandLine} ({result.Reason})";
+    }
+
+    // A step in this process writes to the console itself; it belongs to a stage of one lane. The output of a program that gives a new
+    // limit by a line of it passes through this process, so the lines can be read.
+    private static ProcessResult Execute(Step step, TextWriter? sink)
     {
         if (step.Action is not null)
         {
-            reason = step.Action();
-            exitCode = reason is null ? 0 : 1;
-            return reason is null;
+            string? reason = step.Action();
+            return new ProcessResult(reason is null ? 0 : 1, reason, string.Empty);
         }
 
-        ProcessResult result = Processes.Run(step.FileName, step.Arguments, sink: sink);
-        exitCode = result.ExitCode;
-        reason = result.Reason;
-        return result.Succeeded;
+        return Processes.Run(step.FileName, step.Arguments, sink: sink ?? (step.Extend is null ? null : Console.Out), timeout: step.Timeout, extend: step.Extend);
     }
 }

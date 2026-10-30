@@ -18,9 +18,6 @@ internal static class Commands
     /// <summary>The checks of <c>eng/checks</c> that <c>test</c> runs; <c>eng/checks</c> is built once, with the solution, and run without a build.</summary>
     private static readonly string[] Checks = ["suppressions", "duplicates", "ratchet", "packages", "--no-build"];
 
-    /// <summary>The configuration of <c>mutate</c> when the command gets no argument.</summary>
-    private const string DefaultMutateConfiguration = "stryker-config.json";
-
     /// <summary>The report of Stryker.NET that <c>mutate</c> reads, under the output directory of the run.</summary>
     private const string MutateReport = "artifacts/mutate/reports/mutation-report.json";
 
@@ -55,12 +52,12 @@ internal static class Commands
 
     /// <summary>Returns the stages of a command, or <see langword="null"/> when the command is unknown.</summary>
     /// <param name="name">The command name.</param>
-    /// <param name="arguments">The arguments after the command name: the configuration of <c>mutate</c>, the options of <c>difftest</c>.</param>
-    /// <exception cref="System.InvalidOperationException">The command reads the solution, and the solution has no test project.</exception>
+    /// <param name="arguments">The arguments after the command name: the configuration and the commit of <c>mutate</c>, the options of <c>difftest</c>.</param>
+    /// <exception cref="System.InvalidOperationException">The command reads the solution, and the solution has no test project; or the arguments of <c>mutate</c> are not valid.</exception>
     internal static IReadOnlyList<Stage>? Find(string name, IReadOnlyList<string> arguments) => name switch
     {
         "test" => TestStages(TestProjects.Find(Solution)),
-        "mutate" => MutateStages(arguments),
+        "mutate" => MutateStages(MutateOptions.Parse(arguments)),
         "difftest" => DifftestStages(arguments),
         "min-sdk" => [.. MinSdk.Steps.Select(Stage.Of)],
         _ => null,
@@ -80,9 +77,9 @@ internal static class Commands
     /// Then the comparison of the tests of every published run with the JIT run of the same project and target. No step stops the
     /// others, so one run shows every failure.
     /// </summary>
-    private static List<Stage> TestStages(IReadOnlyList<TestProject> projects) =>
+    internal static List<Stage> TestStages(IReadOnlyList<TestProject> projects) =>
     [
-        Stage.Of(new("dotnet", ["build", Solution, "-c", "Release"], StopsOnFailure: true)),
+        Stage.Of(new("dotnet", ["build", Solution, "-c", "Release"], Timeouts.Build, StopsOnFailure: true)),
         new Stage([JitLane(projects), .. projects.Where(project => project.PublishAot).SelectMany(AotLanes)]),
         new Stage([.. projects.Where(project => project.PublishAot).SelectMany(CountLanes)]),
     ];
@@ -92,8 +89,8 @@ internal static class Commands
     private static Step[] JitLane(IReadOnlyList<TestProject> projects) =>
     [
         .. projects.SelectMany(project => project.Targets.Select(target =>
-            new Step("dotnet", [$"{project.Directory}/bin/Release/{target}/{project.Name}.dll", "-noColor", "-result-xml", Report("jit", project, target)]))),
-        new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", .. Checks]),
+            new Step("dotnet", [$"{project.Directory}/bin/Release/{target}/{project.Name}.dll", "-noColor", "-result-xml", Report("jit", project, target)], Timeouts.Jit))),
+        new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", .. Checks], Timeouts.Jit),
     ];
 
     // The restore of the build already covers the runtime identifier of the publish; the publish reuses it with --no-restore, so no
@@ -106,8 +103,9 @@ internal static class Commands
                 "publish", project.Directory, "-f", target, "-r", AotRuntime, "-c", "Release", "--no-restore",
                 "-p:InvariantGlobalization=true", "-p:BuildProjectReferences=false", "-o", $"{Published(project, target)}/",
             ],
+            Timeouts.Publish,
             StopsOnFailure: true),
-        new($"{Published(project, target)}/{project.Name}", ["-noColor", "-result-xml", Report("aot", project, target)]),
+        new($"{Published(project, target)}/{project.Name}", ["-noColor", "-result-xml", Report("aot", project, target)], Timeouts.AotRun),
     });
 
     private static IEnumerable<Step[]> CountLanes(TestProject project) => project.Targets.Select(target => new Step[]
@@ -117,7 +115,8 @@ internal static class Commands
             [
                 "run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "test-count",
                 "--jit", Report("jit", project, target), "--aot", Report("aot", project, target), "--where", $"{AotRuntime}, {target}",
-            ]),
+            ],
+            Timeouts.Check),
     });
 
     private static string Report(string mode, TestProject project, string target) => $"artifacts/test-results/{mode}/{project.Name}/{target}/report.xml";
@@ -126,19 +125,27 @@ internal static class Commands
 
     /// <summary>
     /// <c>mutate</c>: the restore of the local tool Stryker.NET, the build of <c>eng/checks</c>, then the run of the tool with the
-    /// configuration given as the argument, or with <c>stryker-config.json</c>. The report goes to <c>artifacts/mutate/</c>. The last step
-    /// reads the report with the same configuration and prints the findings; it runs even when the run of the tool failed, so the
-    /// surviving mutants are visible.
+    /// configuration given as the argument, or with <c>stryker-config.json</c>, and with the changes counted from the commit of
+    /// <c>--since</c>, or from the target of the configuration. The report goes to <c>artifacts/mutate/</c>. The last step reads the report
+    /// with the same configuration and the same commit and prints the findings; it runs even when the run of the tool failed, so the
+    /// surviving mutants are visible. The run of the tool has the time of its preparation first; when it says how many mutants it will
+    /// test, the time for the mutants replaces it (<see cref="Timeouts"/>).
     /// </summary>
-    private static List<Stage> MutateStages(IReadOnlyList<string> arguments)
+    private static List<Stage> MutateStages(MutateOptions options) => MutateStages(options, options.ResolveSince());
+
+    /// <summary>The stages of <c>mutate</c> for the options and the full SHA of the commit that the changes are counted from.</summary>
+    /// <param name="options">The configuration file and the commit as they were given.</param>
+    /// <param name="since">The full SHA of the commit of <c>--since</c>, or <see langword="null"/> when none was given.</param>
+    internal static List<Stage> MutateStages(MutateOptions options, string? since)
     {
-        string configuration = arguments.Count > 0 ? arguments[0] : DefaultMutateConfiguration;
+        string[] sinceOfTool = since is null ? [] : [$"{MutateOptions.SinceOption}:{since}"];
+        string[] sinceOfCheck = since is null ? [] : [MutateOptions.SinceOption, since];
         return
         [
-            Stage.Of(new("dotnet", ["tool", "restore"], StopsOnFailure: true)),
-            Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], StopsOnFailure: true)),
-            Stage.Of(new("dotnet", ["stryker", "--config-file", configuration, "--output", "artifacts/mutate"])),
-            Stage.Of(new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "mutation", "--report", MutateReport, "--config", configuration])),
+            Stage.Of(new("dotnet", ["tool", "restore"], Timeouts.MutatePreparation, StopsOnFailure: true)),
+            Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], Timeouts.Build, StopsOnFailure: true)),
+            Stage.Of(new("dotnet", ["stryker", "--config-file", options.Configuration, "--output", "artifacts/mutate", .. sinceOfTool], Timeouts.MutatePreparation, Extend: Timeouts.MutateChecking)),
+            Stage.Of(new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "mutation", "--report", MutateReport, "--config", options.Configuration, .. sinceOfCheck], Timeouts.Check)),
         ];
     }
 
@@ -148,7 +155,7 @@ internal static class Commands
     /// </summary>
     private static List<Stage> DifftestStages(IReadOnlyList<string> arguments) =>
     [
-        Stage.Of(new("dotnet", ["build", "eng/difftest", "-c", "Release"], StopsOnFailure: true)),
-        Stage.Of(new("dotnet", ["run", "--project", "eng/difftest", "-c", "Release", "--no-build", "--", .. arguments], PassesExitCode: true)),
+        Stage.Of(new("dotnet", ["build", "eng/difftest", "-c", "Release"], Timeouts.Build, StopsOnFailure: true)),
+        Stage.Of(new("dotnet", ["run", "--project", "eng/difftest", "-c", "Release", "--no-build", "--", .. arguments], Timeouts.Difftest(arguments), PassesExitCode: true)),
     ];
 }

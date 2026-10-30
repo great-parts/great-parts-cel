@@ -24,6 +24,7 @@ internal static class Program
         [TestCountCommand.WhereOption] = "a text",
         [MutationCommand.ReportOption] = "a report",
         [MutationCommand.ConfigOption] = "a configuration file",
+        [MutationCommand.SinceOption] = "a commit",
     };
 
     internal static int Main(string[] args) =>

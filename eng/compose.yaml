@@ -17,8 +17,9 @@ services:
       - nuget:/root/.nuget/packages
     entrypoint: [dotnet, run, --project, eng/run, --, test]
 
-  # eng/mutate: mutation testing of the changed code (docs/design/eng-mutate.md). The configuration file is the argument after the
-  # service name; without one it is stryker-config.json. It has no second Compose file: in a linked worktree the command stops.
+  # eng/mutate: mutation testing of the changed code (docs/design/eng-mutate.md). The arguments after the service name are a
+  # configuration file (without one: stryker-config.json) and --since <commit>, the commit from which the changes are counted
+  # (without it: the target of the configuration, main). It has no second Compose file: in a linked worktree the command stops.
   mutate:
     build:
       context: docker

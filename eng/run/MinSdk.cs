@@ -45,9 +45,14 @@ internal static class MinSdk
 
     private static string? CheckSdk()
     {
-        ProcessResult result = Processes.Run("dotnet", ["--version"], Project, capture: true);
+        ProcessResult result = Processes.Run("dotnet", ["--version"], Project, capture: true, timeout: Timeouts.MinSdk);
         string version = result.Output.Trim();
         Console.Out.WriteLine(version);
+        if (result.TimeoutSeconds is { } seconds)
+        {
+            return Timeouts.Reason(seconds);
+        }
+
         if (!result.Succeeded)
         {
             return "dotnet --version";
@@ -74,8 +79,14 @@ internal static class MinSdk
                 $"-flp:LogFile={Path.Combine(output, "build.log")};Verbosity=diagnostic",
             ],
             Project,
-            Console.Out);
+            Console.Out,
+            timeout: Timeouts.MinSdk);
         File.WriteAllText(Path.Combine(output, "console.log"), result.Output);
+        if (result.TimeoutSeconds is { } seconds)
+        {
+            return Timeouts.Reason(seconds);
+        }
+
         if (!result.Succeeded)
         {
             return "build";

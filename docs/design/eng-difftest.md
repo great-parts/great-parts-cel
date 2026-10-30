@@ -15,6 +15,7 @@
 | Path | Contents |
 | :- | :- |
 | `Program.cs` | the options, the run, the findings, the journal line, the exit code |
+| `BudgetText.cs` | the form of the time of `--budget`; it is also compiled into `eng/run`, which gives the run a time limit from the budget, so both read it alike |
 | `Profile/` | `environment.json` — the run manifest; the profile tables; the case generator and the printer of expressions |
 | `Sides/` | `ICaseSide` with `LibrarySide` and `OracleConnection`; `ICaseRecorder`, the request `case` of the oracle, which `OracleConnection` implements; the outcome classes |
 | `Compare/` | kinds and severities, the equality of `cel.expr.Value`, signatures, minimization, the comparison of zone offsets, values and outcomes as text for messages |
@@ -40,6 +41,7 @@ docker compose -f eng/compose.yaml run --rm difftest [--seed <n>] [--budget <tim
 | Image stage | `sdk`, without Go ([eng-test.md](eng-test.md)) |
 | Depends on | the service `oracle` from the image `golang`: Compose starts it first, and it ends itself after the session ([eng-oracle.md](eng-oracle.md#container)) |
 | Command | `eng/run difftest` builds `eng/difftest`, runs it with the options and returns its exit code unchanged; the nightly workflow runs the same command |
+| Time limit | `eng/run` limits the run to the budget × 1.2 + 36 s, counted from the start of the program, so the wait for the oracle (up to a minute) is inside it. A run that is not over by then is killed with its process tree, and the command ends with `difftest: failed: timeout after <N> s in step <step>` and exit code 1, not 2 ([eng-test.md](eng-test.md#time-limits)). The value of `--budget` is read by `eng/run` as by the program; an invalid value gives the limit of the default budget, and the program ends at once with exit code 2 |
 | Linked worktree | the second Compose file, as for `eng/test` ([eng-test.md](eng-test.md#linked-worktrees)) |
 
 ## A run

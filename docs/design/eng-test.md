@@ -9,7 +9,7 @@ Each command is a service of the Compose file `eng/compose.yaml` and runs with o
 ```text
 docker compose -f eng/compose.yaml run --rm test
 docker compose -f eng/compose.yaml run --rm docs
-docker compose -f eng/compose.yaml run --rm mutate
+docker compose -f eng/compose.yaml run --rm mutate [<configuration>] [--since <commit>]
 docker compose -f eng/compose.yaml run --rm min-sdk
 ```
 
@@ -76,21 +76,41 @@ The file `commondir` of the worktree directory holds `../..`, so the readers fin
 
 A command is a list of stages. A stage is lanes that run at the same time, and a lane is steps that run one after another; a stage ends when all its lanes have ended. Only `test` has a stage of several lanes.
 
+- Every step has a time limit. A step that is still running when its limit is over is killed with its whole process tree and fails; see [Time limits](#time-limits).
 - Before a step it writes a header line `== <step>`. The output of a stage of one lane passes through as the steps write it. The output of every lane of a stage of several lanes is written as a whole when the lane ends, so lines of different processes are not mixed.
 - A step stops the rest of its lane when it fails and is marked so, because the next steps need its result; a stage stops the command when it has a failed step and is marked so. A step that is not marked does not stop the others, so one run shows all failures.
 - Each command, and the launcher of the oracle, first deletes the directories under `artifacts/` that it writes, so every report there comes from the current run.
-- The last line of every command is its summary, in this form: `<command>: passed` or `<command>: failed: <steps or a reason>`; `head <40 characters of the SHA of HEAD>`; `tree clean`, `tree dirty` or `tree unknown`; the duration in seconds; `exit <code>`; for `test` also the counters. The lines do not match the finding pattern. `tree` is `clean` when `git status --porcelain` listed nothing before the first step and after the last one, `unknown` when git cannot answer. A reviewer does not repeat a run whose summary names the same SHA of `HEAD` and a clean tree.
-- The exit code is 0 when every step returned 0, otherwise 1. After a successful build, `difftest` returns the exit code of `eng/difftest` unchanged: 0, 1 or 2 ([eng-difftest.md](eng-difftest.md#findings-and-output)).
+- The last line of every command is its summary, in this form: `<command>: passed` or `<command>: failed: <steps or a reason>`, where a step that ran out of time is named `timeout after <N> s in step <step>`; `head <40 characters of the SHA of HEAD>`; `tree clean`, `tree dirty` or `tree unknown`; the duration in seconds; `exit <code>`; for `test` also the counters. The lines do not match the finding pattern. `tree` is `clean` when `git status --porcelain` listed nothing before the first step and after the last one, `unknown` when git cannot answer. A reviewer does not repeat a run whose summary names the same SHA of `HEAD` and a clean tree.
+- The exit code is 0 when every step returned 0, otherwise 1, a step that ran out of time included. After a successful build, `difftest` returns the exit code of `eng/difftest` unchanged: 0, 1 or 2 ([eng-difftest.md](eng-difftest.md#findings-and-output)).
 - `eng/checks` is built once, with the solution or by the first step of `mutate`; every later call of it is `dotnet run --project eng/checks -c Release --no-build`.
+
+## Time limits
+
+`eng/run` limits the time of every step, so a hung process does not hold the run for ever. A step that is still running when its limit is over is killed together with the processes it started, and fails with the reason `timeout after <N> s in step <step>`; `<N>` is its limit in seconds. The command ends with exit code 1, also `difftest`, which otherwise returns the exit code of `eng/difftest`. The last line is, for example, `test: failed: timeout after 67 s in step dotnet build Great.Parts.Cel.slnx -c Release; head …; tree clean; 70.3 s; exit 1`. Whether a failed step stops the rest is decided as for any failed step ([eng/run](#engrun)).
+
+A limit is the time of a cold run, measured on 2026-10-30 in a new working copy, plus 20 %. The limits are constants of `eng/run/Timeouts.cs`; when runs fail by timeout regularly, a limit is raised there.
+
+| Step | Limit | Cold run |
+| :- | :- | :- |
+| `dotnet build`: the solution in `test`, `eng/checks` in `mutate`, `eng/difftest` in `difftest` | 67 s | 56 s for the solution |
+| `test`: one test module under JIT; the checks of `eng/checks` of the same lane | 72 s each | about 60 s for the lane |
+| `test`: the Native AOT publish of one project and target | 120 s | about 100 s |
+| `test`: the run of one published executable | 120 s | about 100 s |
+| `test-count` of `test`; the reading of the report by `mutate` | 12 s | about 10 s |
+| `min-sdk`: each child process — `dotnet --version`, the build of the sample application | 20 s | 16 s for the command |
+| `difftest`: the run of `eng/difftest` | its budget × 1.2 + 36 s, see [eng-difftest.md](eng-difftest.md#invocation) | |
+| `mutate`: the restore of the tool; the run of Stryker.NET until it prints the number of mutants | 3 min | 118 s |
+| `mutate`: the run of Stryker.NET after that line | 0.3 s × the number of mutants + 30 s, see [eng-mutate.md](eng-mutate.md#time-limits) | 0.25 s per mutant |
+
+The build of `eng/checks` and of `eng/difftest`, the reading of the mutation report and the restore of the tool were not measured on their own: each has the limit of the step of the same kind in the table.
 
 ## test
 
-1. Write the `CsCheck_*` environment variables, if any are set: they change every property test of the run, see [tests.md](tests.md). In the container none are expected.
-2. Stage 1, the build: `dotnet build Great.Parts.Cel.slnx -c Release`, once, for every project of the solution and both targets, `eng/checks` included. A failed build stops the command; the compiler lines name the places.
-3. Stage 2, at the same time:
+1. Stage 1, the build: `dotnet build Great.Parts.Cel.slnx -c Release`, once, for every project of the solution and both targets, `eng/checks` included. A failed build stops the command; the compiler lines name the places.
+2. Stage 2, at the same time:
    - The lane of the JIT run and the checks. Every test project of the solution, for each target of the project, runs under JIT once: `dotnet <project directory>/bin/Release/<target>/<project>.dll -noColor -result-xml artifacts/test-results/jit/<project>/<target>/report.xml`. These are the unit tests, the property tests, the suite runner with the cel-spec suite and the regression corpus, and the tests of `eng/`. The report is also the reference of the test count below; there is no second JIT run. The test projects are found in the solution: a project with a package reference to `xunit.v3.*`; the projects that set `PublishAot` are the ones that stage 2 also publishes. Then `dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages --no-build`.
    - For every target of every published project, one lane: the publish for linux-x64 under Native AOT, `dotnet publish <project> -f <target> -r linux-x64 -c Release --no-restore -p:InvariantGlobalization=true -p:BuildProjectReferences=false -o artifacts/aot/<project>/<target>/`, then the run of the executable `artifacts/aot/<project>/<target>/<project> -noColor -result-xml artifacts/test-results/aot/<project>/<target>/report.xml`. The publishes run at the same time with each other, with the JIT run and with the checks. A failed publish skips the run of its executable.
-4. Stage 3, the comparison: for every published project and target, `dotnet run --project eng/checks -c Release --no-build -- test-count --jit <JIT report> --aot <AOT report> --where "linux-x64, <target>"`.
+3. Stage 3, the comparison: for every published project and target, `dotnet run --project eng/checks -c Release --no-build -- test-count --jit <JIT report> --aot <AOT report> --where "linux-x64, <target>"`.
 
 No step stops the others, so one run shows all failures; only a failed build stops the command.
 
@@ -122,7 +142,7 @@ The command `min-sdk` of `eng/run` has four steps. They are C# in `eng/run/MinSd
 3. `dotnet build -c Release --artifacts-path <artifacts/min-sdk>/build -p:ReportAnalyzer=true -flp:"LogFile=<artifacts/min-sdk>/build.log;Verbosity=diagnostic"` in `eng/min-sdk`. The console keeps the default verbosity, so the compiler lines appear in the output, and a copy of it goes to `artifacts/min-sdk/console.log`; the build passes when its exit code is 0 and the copy has the lines `0 Warning(s)` and `0 Error(s)`. The log file gets the analyzer report.
 4. Find the evidence that the generator loaded and print the lines found with their numbers: the `project.assets.json` of the restore names `analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll` as an analyzer of the package, and the generator part of the analyzer report in `build.log` names `Great.Parts.Cel.Generator.CelTypeContextGenerator`.
 
-A failed step 1, 2 or 3 stops the command, as the next steps need its result. The run passes when every step succeeds: SDK 10.0.100, a build with no warning and no error, both pieces of evidence found. `CS9057` and `CS8032` (an analyzer that cannot be created) are warnings, so `TreatWarningsAsErrors` makes either of them a failed build. The last line is the summary of `eng/run` ([eng/run](#engrun)): `min-sdk: passed` or `min-sdk: failed: <steps>`, the duration and the exit code 0 or 1; the container has no git directory of a linked worktree, so `head` and `tree` may be `unknown`. The generator has no pipeline yet, so the run shows that it loads, not that it produces code.
+Each child process of steps 2 and 3 has the limit of 20 s ([Time limits](#time-limits)); a process that runs out of time is killed and fails its step. A failed step 1, 2 or 3 stops the command, as the next steps need its result. The run passes when every step succeeds: SDK 10.0.100, a build with no warning and no error, both pieces of evidence found. `CS9057` and `CS8032` (an analyzer that cannot be created) are warnings, so `TreatWarningsAsErrors` makes either of them a failed build. The last line is the summary of `eng/run` ([eng/run](#engrun)): `min-sdk: passed` or `min-sdk: failed: <steps>`, the duration and the exit code 0 or 1; the container has no git directory of a linked worktree, so `head` and `tree` may be `unknown`. The generator has no pipeline yet, so the run shows that it loads, not that it produces code.
 
 Order of a run, from the repository root; a linked worktree needs the second Compose file only for `test`:
 

@@ -598,6 +598,56 @@ public sealed class MutationTests
         Assert.Contains("work/config.json(11,7): error ENG503", output.ToString(), StringComparison.Ordinal);
     }
 
+    // ---- --since: the commit from which the changes are counted ----
+
+    [Fact]
+    public void SinceOption_CommitInsteadOfMain_ListsTheFilesChangedAgainstIt()
+    {
+        using TempDirectory root = new();
+        Repository(root, Arithmetic, Other);
+        string baseCommit = Git.Run(root.Path, "rev-parse", "HEAD").Output.Trim();
+        Change(root, Other);
+        Assert.True(Git.Run(root.Path, "add", "--all").Succeeded);
+        Assert.True(Git.Run(root.Path, "-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "change").Succeeded);
+        string report = Report((Arithmetic, Source(), [Killed]));
+
+        Result againstMain = Check(root, report, MainConfig, ConfigFile);
+        Result againstBase = Run(root, "mutation", "--report", ReportFile, "--config", ConfigFile, "--since", baseCommit);
+
+        Assert.Equal((0, string.Empty), (againstMain.ExitCode, againstMain.Error));
+        Assert.Empty(againstMain.Lines);
+        AssertErrors(againstBase, Error(EngCodes.Eng504, Other, 1, 1, "changed file was not mutated: it is not in the mutation report"));
+    }
+
+    [Theory]
+    [InlineData("no-such-commit", "cannot be listed by git diff")]
+    [InlineData("--output=x", "is not a commit")]
+    public static void SinceOption_ValueThatIsNotACommit_IsExitCodeTwo(string value, string message)
+    {
+        using TempDirectory root = new();
+        Repository(root, Arithmetic);
+        Check(root, Report((Arithmetic, Source(), [Killed])), MainConfig, ConfigFile);
+
+        Result result = Run(root, "mutation", "--report", ReportFile, "--config", ConfigFile, "--since", value);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.Contains(message, result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SinceOption_WithoutAValue_IsExitCodeTwo()
+    {
+        using TempDirectory root = new();
+
+        using StringWriter output = new();
+        using StringWriter error = new();
+
+        int exitCode = Program.Run(["mutation", "--root", root.Path, "--since"], [new MutationCommand()], root.Path, output, error);
+
+        Assert.Equal(2, exitCode);
+        Assert.Contains("the option --since needs a commit", error.ToString(), StringComparison.Ordinal);
+    }
+
     // ---- helpers ----
 
     private static MutantSpec Killed => new("Killed");

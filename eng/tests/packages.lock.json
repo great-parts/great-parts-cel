@@ -152,6 +152,9 @@
       "great.parts.cel.eng.findings": {
         "type": "Project"
       },
+      "great.parts.cel.eng.run": {
+        "type": "Project"
+      },
       "CsCheck": {
         "type": "CentralTransitive",
         "requested": "[4.9.1, )",

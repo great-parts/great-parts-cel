@@ -11,4 +11,14 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- The form of the budget of eng/difftest: one file in the repository, so the limit of the run is read as the program reads it. -->
+  <ItemGroup>
+    <Compile Include="../difftest/BudgetText.cs" Link="BudgetText.cs" />
+  </ItemGroup>
+
+  <!-- The tests of eng/tests run the steps and the time limits in their own process. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Great.Parts.Cel.Eng.Tests" />
+  </ItemGroup>
+
 </Project>

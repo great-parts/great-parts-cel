@@ -9,7 +9,7 @@
 | Project | `eng/tests/Great.Parts.Cel.Eng.Tests.csproj`, part of the solution |
 | Target, mode | `net10.0`, JIT only |
 | Packages | `xunit.v3.aot` 4.0.2 like every test project, `Microsoft.CodeAnalysis.CSharp` 5.0.0 |
-| References | `eng/checks` — the commands run in the test process; `eng/analyzers` as a library — the rules run in memory; `eng/findings` comes through `eng/checks` and through `eng/difftest`, one assembly for both |
+| References | `eng/checks` — the commands run in the test process; `eng/analyzers` as a library — the rules run in memory; `eng/run` — its steps, time limits and arguments run in the test process; `eng/findings` comes through `eng/checks` and through `eng/difftest`, one assembly for both |
 
 It runs in `eng/test` and in the JIT cells of CI, never under Native AOT.
 
@@ -20,6 +20,7 @@ It runs in `eng/test` and in the JIT cells of CI, never under Native AOT.
 | `Analyzers/` | one class per rule or group of rules: `Arch001Tests`, `Arch002To004Tests`, `Arch005Tests`, `Arch006Tests`, `Arch007Tests`, `Arch008Tests` |
 | `Checks/` | one class per command: `SuppressionsTests`, `DuplicatesTests`, `RatchetTests`, `PackagesTests`, `SignoffTests`, `TestCountTests`, `MutationTests`, `ExamplesTests`, `LinksTests`, `ErrorCodesPageTests` |
 | `Difftest/` | tests of `eng/difftest`, described with it |
+| `EngRun/` | tests of `eng/run`: `StepTimeoutTests` — a step that runs out of time is killed with the processes it started and is named in the summary line, the exit code is 1; `TimeoutsTests` — the limit of every step of the commands, the limit of `difftest` from its budget, the limit of `mutate` from the number of mutants; `MutateOptionsTests` — the arguments of `mutate` and the full SHA of `--since` |
 | `CodeRegistryTests.cs` | the code registry test |
 | `Support/` | the temporary repository, the in-memory compilation and the finding assertions |
 
@@ -56,7 +57,7 @@ Reading C# sources has its own cases in `SuppressionsTests` and `DuplicatesTests
 - `ExamplesTests` build and run generated example programs, so they take longer than the others.
 - `ErrorCodesPageTests` compare pages with member lists given by the test; one test reads the members from the built library.
 
-`SignoffTests` and `ExamplesTests` need `git` and the .NET SDK; both are in the container image and on the CI runners.
+`SignoffTests` and `ExamplesTests` need `git` and the .NET SDK; both are in the container image and on the CI runners. `StepTimeoutTests` run `sh` and `sleep` as steps with a limit of one or two seconds, and look for the children of a killed step in `/proc`; they need Linux, the platform of every container of `eng/`.
 
 ## Rules shared with all tests
 

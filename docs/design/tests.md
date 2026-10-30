@@ -61,7 +61,7 @@ Properties use `Gen<T>.Sample` of CsCheck 4.9.1.
 
 - Every property passes the same seed: the constant `PropertySettings.Seed` in `tests/Great.Parts.Cel.Properties/PropertySettings.cs`, a CsCheck seed string. Every property also sets the number of iterations and sets no time limit, so a run checks the same cases on every machine and the mutation score repeats.
 - A change of the seed is a change of that file.
-- CsCheck also reads the environment variables `CsCheck_*`, which override the parameters of every property in the process. `eng/test` prints any that are set, and the containers pass none from the host.
+- CsCheck also reads the environment variables `CsCheck_*`; they are default values for the parameters that a property does not pass. `CsCheck_Time` and `CsCheck_Threads` therefore apply to every property, as none passes them, while the seed and the number of iterations that every property passes explicitly win over their variables. The containers get none of these variables from the host.
 - A failure message of CsCheck contains the seed and the smallest failing case. The case is reproduced with that seed and becomes a unit test with fixed input.
 
 ## Same tests under JIT and Native AOT

@@ -17,7 +17,7 @@
 | coverage analysis | `perTest` | each mutant runs only the tests that cover it |
 | reporters | `json`, `progress` | the report for `eng/checks mutation`; progress in the output |
 | mutation level | `Standard` | |
-| since | enabled, target `main` | only the files changed against `main` are mutated |
+| since | enabled, target `main` | only the files changed against the target are mutated; the command can give another commit as the target ([Steps](#steps)) |
 | thresholds | `high` 80, `low` 80, `break` 80 | a score below 80 % makes the exit code of the tool non-zero |
 
 The paths of `project` and `test projects`, of `--config-file` and of `--output` are taken from the working directory, the repository root in the container; the patterns of `mutate` are taken from the directory of the project under test.
@@ -26,18 +26,35 @@ The property tests use a fixed seed ([tests.md](tests.md)), so two runs on the s
 
 ## Steps
 
+```text
+docker compose -f eng/compose.yaml run --rm mutate [<configuration>] [--since <commit>]
+```
+
+The command takes at most one configuration file and at most one `--since <commit>`, in any order. Without arguments it uses `stryker-config.json`, and the changes are counted from the target of its `since`, the branch `main`.
+
+`--since <commit>` is the commit from which the changes are counted: the files changed against it are mutated, whatever the target of the configuration says. It is meant for the commit of the previous run, so that each run covers the changes made since. The command resolves the value to a full SHA (`git rev-parse --verify <commit>^{commit}`, so a short SHA and a branch name work) and passes that SHA on: to the tool as `--since:<SHA>` and to the check of step 4 as `--since <SHA>`. Stryker.NET takes a full SHA or a reference but not a short SHA, and the tool and the check must count the changes from the same commit. A value that is not a commit of the repository stops the command with `mutate: failed: --since '<value>' is not a commit of this repository` before any step.
+
 1. `dotnet tool restore`.
 2. `dotnet build eng/checks -c Release`: `eng/checks` is built once here and run without a build in step 4. A failed build stops the command.
-3. `dotnet stryker --config-file <configuration> --output artifacts/mutate`. The configuration is `stryker-config.json` unless the command gets another path as its argument.
-4. `eng/checks mutation --report artifacts/mutate/reports/mutation-report.json --config <configuration>`, as `dotnet run --project eng/checks -c Release --no-build`.
+3. `dotnet stryker --config-file <configuration> --output artifacts/mutate`, with `--since:<SHA>` when the command got `--since`. The configuration is `stryker-config.json` unless the command gets another path as its argument.
+4. `eng/checks mutation --report artifacts/mutate/reports/mutation-report.json --config <configuration>`, with `--since <SHA>` when the command got `--since`, as `dotnet run --project eng/checks -c Release --no-build`.
 
-Before step 1 the command checks `/repo/.git`: when it is a file, the working copy is a linked worktree, and the command prints `mutate: failed: linked worktree` and returns 1 without running a step ([Linked worktrees](#linked-worktrees)).
+Before step 1 the command checks its arguments and then `/repo/.git`: when it is a file, the working copy is a linked worktree, and the command prints `mutate: failed: linked worktree` and returns 1 without running a step ([Linked worktrees](#linked-worktrees)). The value of `--since` is resolved after that check.
 
 Step 4 runs even when step 3 returns a non-zero exit code, so the surviving mutants are printed as findings. The exit code is 0 when every step returned 0, otherwise 1. Output: the progress of the tool and the finding lines on standard output; the report in `artifacts/mutate/`.
 
-- `since` compares the working copy with the local branch `main`, so the working copy needs that branch and the history down to the merge base. It takes untracked files as changed too, such as the `.vs/` directory of an IDE; they select mutants only when they are C# files of the project under test.
+- `since` compares the working copy with the commit of `--since`, or without it with the target of the configuration, the local branch `main`; the working copy needs that commit or branch and the history down to the merge base. It takes untracked files as changed too, such as the `.vs/` directory of an IDE; they select mutants only when they are C# files of the project under test.
 - A mutant that cannot change behavior (an equivalent mutant) is marked in the code with a Stryker.NET comment that gives the reason; the mark is visible in the change.
 - A suspicious surviving mutant is checked again with coverage analysis `off`, as the tool's documentation advises.
+
+## Time limits
+
+Every step has a time limit ([eng-test.md](eng-test.md#time-limits)). The step that runs Stryker.NET has two. The tool writes nothing about its progress while it tests the mutants, so a limit that counts from the last output is not possible; but it prints the number of mutants before it starts to test them:
+
+- the preparation — the build, the discovery of the tests and the run that captures coverage — has 3 minutes from the start of the step; the restore of the tool in step 1 has the same limit;
+- the line `<N> total mutants will be tested` replaces that limit with the time until the line plus 0.3 s for each mutant and 30 s for the end of the tool, which writes its report after the last mutant. A run of 812 mutants that took 118 s to prepare and 205 s to test is allowed 3 min and then 274 s; a run of 16 mutants that needed 5 s after the line is allowed 35 s.
+
+A step that runs out of time is killed with its process tree, and the command ends with `mutate: failed: timeout after <N> s in step <step>`, exit code 1. Step 4 still runs, as after any failure of the tool, and reads the report that the tool had written, if there is one.
 
 ## Control set
 
@@ -83,7 +100,7 @@ A command of [eng/checks](eng-checks.md). It reads the JSON report in the mutati
 A mutant that a filter of the tool leaves out is `Ignored`, and its `statusReason` is `Removed by <filter>`: `Removed by since filter` in a file that `since` did not select, `Removed by mutate filter` at a place outside the `mutate` patterns. Other reasons come from other filters or from a Stryker.NET comment in the code. A mutant whose code does not compile is `CompileError` with `Mutant caused compile errors`.
 
 - Score: detected mutants divided by detected and not detected mutants. A report without counted mutants has no score and no `ENG503`.
-- Changed files are checked only when the configuration enables `since`. They are the `.cs` files under the directory of the project under test that `git diff --name-only --no-renames main` lists, deleted files excluded. A changed file is `ENG504` at `(1,1)` of the file when it is missing from the report, or when it has mutants, none of them counted, and at least one of them has the reason `Removed by since filter` or `Removed by mutate filter`: a wrong `since` target or a narrow `mutate` pattern would otherwise pass without a score. A changed file without any mutant, such as a file of declarations only, is no finding; nor is a file whose mutants are not counted for other reasons, such as a comment that marks them equivalent or code that does not compile.
+- Changed files are checked only when the configuration enables `since`. They are the `.cs` files under the directory of the project under test that `git diff --name-only --no-renames <commit>` lists, deleted files excluded; `<commit>` is the value of the option `--since`, or `main` without it. A changed file is `ENG504` at `(1,1)` of the file when it is missing from the report, or when it has mutants, none of them counted, and at least one of them has the reason `Removed by since filter` or `Removed by mutate filter`: a wrong `since` target or a narrow `mutate` pattern would otherwise pass without a score. A changed file without any mutant, such as a file of declarations only, is no finding; nor is a file whose mutants are not counted for other reasons, such as a comment that marks them equivalent or code that does not compile.
 - Without `since` — the control set, the nightly run — there are no changed files and no `ENG504`: such a run mutates what its configuration names, whatever the change.
 - Stryker.NET 5.0.0 mostly writes a file that the `mutate` patterns leave out wholly without any mutant, so `ENG504` sees such a file only when the tool keeps some of its mutants with the reason above. This is why the main configuration sets no `mutate`.
 - A change without a changed `.cs` file of the project under test has no score and no finding, exit code 0. Stryker.NET 5.0.0 still writes a report then: the mutants of the unchanged files are `Removed by since filter` or `CompileError`.

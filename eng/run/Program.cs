@@ -12,7 +12,8 @@ namespace Great.Parts.Cel.Eng.Run;
 /// in this process; the lanes of a stage run at the same time. The output of the steps passes through unchanged. The last line of the
 /// command is the summary of the run: the result, the commit and whether the working tree is clean, the duration, the exit code and
 /// the counters of the command. The exit code is 0 when every step returned 0, otherwise 1; a step that passes its exit code on, as
-/// the run of <c>eng/difftest</c>, gives the exit code of the command when it ran.
+/// the run of <c>eng/difftest</c>, gives the exit code of the command when it ran. A step that is still running when its time limit is
+/// over is killed with its process tree and counts as failed (<see cref="Timeouts"/>).
 /// </summary>
 internal static class Program
 {
@@ -50,7 +51,7 @@ internal static class Program
             return Fail(command, exception.Message);
         }
 
-        return stages is null ? Fail(command, $"unknown command; known commands: {Commands.Known}") : Run(command, stages);
+        return stages is null ? Fail(command, $"unknown command; known commands: {Commands.Known}") : Run(command, stages, Console.Out);
     }
 
     private static string? CheckArguments(string command, string[] args)
@@ -60,16 +61,21 @@ internal static class Program
             return null;
         }
 
-        if (args.Length > 2)
+        try
         {
-            return "at most one argument, the configuration file";
+            MutateOptions.Parse(args[1..]);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return exception.Message;
         }
 
         // In a linked worktree .git is a file with a host path: Stryker.NET could not match the changed files (docs/design/eng-mutate.md).
         return File.Exists(".git") ? "linked worktree" : null;
     }
 
-    private static int Run(string command, IReadOnlyList<Stage> stages)
+    // Runs the stages and writes the summary line to `summary`; the output of the steps goes to the console as they write it.
+    internal static int Run(string command, IReadOnlyList<Stage> stages, TextWriter summary)
     {
         Stopwatch clock = Stopwatch.StartNew();
         RepositoryState start = RepositoryState.Read();
@@ -99,7 +105,7 @@ internal static class Program
             parts.Add(counters);
         }
 
-        Console.Out.WriteLine(string.Join("; ", parts));
+        summary.WriteLine(string.Join("; ", parts));
         return exitCode;
     }
 
