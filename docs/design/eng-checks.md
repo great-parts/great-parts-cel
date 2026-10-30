@@ -44,7 +44,7 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `packages` | result of `dotnet pack`, `eng/packages/*.txt` | `ENG200`–`ENG207` | the same | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `signoff` | commits of a range | `ENG701` | CI: push to `main`, pull request of an outside contributor | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `test-count` | two test reports | `ENG810`, `ENG811` | `eng/test` for Native AOT; CI, Native AOT cells | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
-| `mutation` | mutation report, its configuration file, changed files from git when `since` is enabled | `ENG501`–`ENG504` | `eng/mutate`; nightly mutation run | [eng-mutate.md](eng-mutate.md) |
+| `mutation` | mutation report, its configuration file, changed files from git when `since` is enabled | `ENG501`–`ENG504` | `eng/mutate` | [eng-mutate.md](eng-mutate.md) |
 | `examples` | `README.md`, `docs/**/*.md`, `<code>` of XML documentation | `ENG301`, `ENG302`; compiler errors | `eng/docs`; CI, one Linux cell | [eng-docs.md](eng-docs.md) |
 | `links` | lychee report | `ENG401`–`ENG404`, `ENG409` | the same; external links only in CI | [eng-docs.md](eng-docs.md) |
 | `error-codes` | built library and its XML documentation, error codes page | `ENG303` | the same | [eng-docs.md](eng-docs.md) |

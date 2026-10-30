@@ -22,7 +22,7 @@
 
 The paths of `project` and `test projects`, of `--config-file` and of `--output` are taken from the working directory, the repository root in the container; the patterns of `mutate` are taken from the directory of the project under test.
 
-The property tests use a fixed seed ([tests.md](tests.md)), so two runs on the same code give the same score.
+The verdict of a property test is deterministic ([tests.md](tests.md#property-tests-and-the-seed)), so two runs on the same code give the same score.
 
 ## Steps
 
@@ -101,7 +101,7 @@ A mutant that a filter of the tool leaves out is `Ignored`, and its `statusReaso
 
 - Score: detected mutants divided by detected and not detected mutants. A report without counted mutants has no score and no `ENG503`.
 - Changed files are checked only when the configuration enables `since`. They are the `.cs` files under the directory of the project under test that `git diff --name-only --no-renames <commit>` lists, deleted files excluded; `<commit>` is the value of the option `--since`, or `main` without it. A changed file is `ENG504` at `(1,1)` of the file when it is missing from the report, or when it has mutants, none of them counted, and at least one of them has the reason `Removed by since filter` or `Removed by mutate filter`: a wrong `since` target or a narrow `mutate` pattern would otherwise pass without a score. A changed file without any mutant, such as a file of declarations only, is no finding; nor is a file whose mutants are not counted for other reasons, such as a comment that marks them equivalent or code that does not compile.
-- Without `since` — the control set, the nightly run — there are no changed files and no `ENG504`: such a run mutates what its configuration names, whatever the change.
+- Without `since` — the control set — there are no changed files and no `ENG504`: such a run mutates what its configuration names, whatever the change.
 - Stryker.NET 5.0.0 mostly writes a file that the `mutate` patterns leave out wholly without any mutant, so `ENG504` sees such a file only when the tool keeps some of its mutants with the reason above. This is why the main configuration sets no `mutate`.
 - A change without a changed `.cs` file of the project under test has no score and no finding, exit code 0. Stryker.NET 5.0.0 still writes a report then: the mutants of the unchanged files are `Removed by since filter` or `CompileError`.
 - A missing report, when `since` is enabled, counts as a report without mutants: no score, and every changed file is `ENG504`. Without `since` it is an input that does not exist, exit code 2 ([eng-checks.md](eng-checks.md#finding-and-output)). A failed step 2 fails `eng/mutate` either way.
@@ -114,5 +114,3 @@ src/Great.Parts.Cel/Library/IntArithmetic.cs(57,24): error ENG501: survived muta
 ```
 
 - The report gives absolute paths of the container, such as `/repo/src/Great.Parts.Cel/Library/IntArithmetic.cs`; they become relative to the repository root.
-
-The nightly full mutation run reads its reports with the same command.
