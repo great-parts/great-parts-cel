@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    The steps of the commands of eng/ that run in the container (test, and later test-aot, docs, mutate
-    and difftest). The project has no packages and no check logic: it runs steps as child processes.
+    The commands of eng/ that run in the container (test, mutate, difftest and min-sdk). The project has no packages and no
+    check logic: it runs steps as child processes, in parallel lanes where a command allows it; only min-sdk has steps in C#.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>

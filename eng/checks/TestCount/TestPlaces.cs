@@ -62,8 +62,7 @@ internal sealed class TestPlaces
         }
 
         string root = _root.Replace('\\', '/').TrimEnd('/') + "/";
-        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        return normalized.StartsWith(root, comparison) ? normalized[root.Length..] : normalized;
+        return normalized.StartsWith(root, StringComparison.Ordinal) ? normalized[root.Length..] : normalized;
     }
 
     // The first character of the line that is not white space; 1 when the file or the line cannot be read, or the line is empty.

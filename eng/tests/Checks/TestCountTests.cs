@@ -485,11 +485,11 @@ public sealed class TestCountTests
         string aot = Edit(AotReport, document => Test(document, "number: 12").Remove());
         (string jit, string aotPath) = Write(root, JitReport, aot, "/repo/");
 
-        Result result = Run(root, ["test-count", "--jit", jit, "--aot", aotPath, "--where", "win-x64,\nnet10.0"]);
+        Result result = Run(root, ["test-count", "--jit", jit, "--aot", aotPath, "--where", "linux-x64,\nnet10.0"]);
 
         string line = Assert.Single(result.Lines);
         Assert.Matches(Finding.Pattern, line);
-        Assert.EndsWith("(win-x64, net10.0)", line, StringComparison.Ordinal);
+        Assert.EndsWith("(linux-x64, net10.0)", line, StringComparison.Ordinal);
     }
 
     [Fact]

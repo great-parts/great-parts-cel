@@ -27,12 +27,13 @@ The property tests use a fixed seed ([tests.md](tests.md)), so two runs on the s
 ## Steps
 
 1. `dotnet tool restore`.
-2. `dotnet stryker --config-file <configuration> --output artifacts/mutate`. The configuration is `stryker-config.json` unless the command gets another path as its argument.
-3. `eng/checks mutation --report artifacts/mutate/reports/mutation-report.json --config <configuration>`.
+2. `dotnet build eng/checks -c Release`: `eng/checks` is built once here and run without a build in step 4. A failed build stops the command.
+3. `dotnet stryker --config-file <configuration> --output artifacts/mutate`. The configuration is `stryker-config.json` unless the command gets another path as its argument.
+4. `eng/checks mutation --report artifacts/mutate/reports/mutation-report.json --config <configuration>`, as `dotnet run --project eng/checks -c Release --no-build`.
 
 Before step 1 the command checks `/repo/.git`: when it is a file, the working copy is a linked worktree, and the command prints `mutate: failed: linked worktree` and returns 1 without running a step ([Linked worktrees](#linked-worktrees)).
 
-Step 3 runs even when step 2 returns a non-zero exit code, so the surviving mutants are printed as findings. The exit code is 0 when both steps returned 0, otherwise 1. Output: the progress of the tool and the finding lines on standard output; the report in `artifacts/mutate/`.
+Step 4 runs even when step 3 returns a non-zero exit code, so the surviving mutants are printed as findings. The exit code is 0 when every step returned 0, otherwise 1. Output: the progress of the tool and the finding lines on standard output; the report in `artifacts/mutate/`.
 
 - `since` compares the working copy with the local branch `main`, so the working copy needs that branch and the history down to the merge base. It takes untracked files as changed too, such as the `.vs/` directory of an IDE; they select mutants only when they are C# files of the project under test.
 - A mutant that cannot change behavior (an equivalent mutant) is marked in the code with a Stryker.NET comment that gives the reason; the mark is visible in the change.

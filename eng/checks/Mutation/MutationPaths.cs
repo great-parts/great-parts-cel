@@ -38,10 +38,9 @@ internal sealed class MutationPaths
     internal string Relative(string path)
     {
         string normalized = path.Replace('\\', '/');
-        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         foreach (string prefix in _prefixes)
         {
-            if (normalized.StartsWith(prefix, comparison))
+            if (normalized.StartsWith(prefix, StringComparison.Ordinal))
             {
                 return normalized[prefix.Length..];
             }

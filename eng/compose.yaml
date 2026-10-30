@@ -4,11 +4,13 @@
 name: great-parts-cel-eng
 
 services:
-  # eng/test: build, tests and checks. Arguments after the service name go to the command of eng/run.
+  # eng/test: the full check in one command: build, all tests under JIT, the checks, and the tests under Native AOT on linux-x64 with
+  # the test count (docs/design/eng-test.md). It runs on the image stage with the native toolchain. Arguments after the service name
+  # go to the command of eng/run.
   test:
     build:
       context: docker
-      target: sdk
+      target: sdk-aot
     working_dir: /repo
     volumes:
       - ..:/repo
@@ -27,54 +29,18 @@ services:
       - nuget:/root/.nuget/packages
     entrypoint: [dotnet, run, --project, eng/run, --, mutate]
 
-  # eng/test for Native AOT: tests under JIT and Native AOT on linux-x64 for both targets, and the test count. It runs on the
-  # image stage with the native toolchain and is not part of the service test; it takes minutes.
-  test-aot:
-    build:
-      context: docker
-      target: sdk-aot
-    working_dir: /repo
-    volumes:
-      - ..:/repo
-      - nuget:/root/.nuget/packages
-    entrypoint: [dotnet, run, --project, eng/run, --, test-aot]
-
-  # Builds a sample application on the .NET SDK 10.0.100 from the packed Great.Parts.Cel of artifacts/packages; run it
-  # after the service test. It has its own packages folder under artifacts/min-sdk and does not use the volume nuget.
-  # "$$" is a literal "$" for Compose.
+  # Builds a sample application on the .NET SDK 10.0.100 from the packed Great.Parts.Cel of artifacts/packages; run it after the
+  # service test. The image has no SDK 11, which building eng/run needs, so the service runs the eng/run that the service test
+  # compiled. It has its own packages folder under artifacts/min-sdk and does not use the volume nuget
+  # (docs/design/eng-test.md, "min-sdk").
   min-sdk:
     build:
       context: docker
       target: sdk-min
-    working_dir: /repo/eng/min-sdk
+    working_dir: /repo
     volumes:
       - ..:/repo
-    entrypoint:
-      - bash
-      - -c
-      - |
-        set -u -o pipefail
-        fail() { echo "min-sdk: failed: $$1"; exit 1; }
-        out=../../artifacts/min-sdk
-        packages=(../../artifacts/packages/Great.Parts.Cel.[0-9]*.nupkg)
-        [ -e "$${packages[0]}" ] || fail "no package in artifacts/packages; run the service test first"
-        rm -rf "$$out"
-        mkdir -p "$$out"
-        echo "== sdk version"
-        version=$$(dotnet --version) || fail "dotnet --version"
-        echo "$$version"
-        [ "$$version" = "10.0.100" ] || fail "sdk version $$version, expected 10.0.100"
-        echo "== build"
-        dotnet build -c Release --artifacts-path "$$out/build" -p:ReportAnalyzer=true \
-          "-flp:LogFile=$$out/build.log;Verbosity=diagnostic" 2>&1 | tee "$$out/console.log"
-        [ "$${PIPESTATUS[0]}" = "0" ] || fail "build"
-        grep -q "^ *0 Warning(s)" "$$out/console.log" || fail "build: warnings"
-        grep -q "^ *0 Error(s)" "$$out/console.log" || fail "build: errors"
-        echo "== evidence"
-        assets=$$(find "$$out/build" -name project.assets.json | head -n 1)
-        grep -n "analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll" "$$assets" || fail "evidence: generator not in project.assets.json"
-        grep -n "Great.Parts.Cel.Generator.CelTypeContextGenerator" "$$out/build.log" || fail "evidence: generator not in the analyzer report"
-        echo "min-sdk: passed"
+    entrypoint: [dotnet, eng/run/bin/Release/net10.0/Great.Parts.Cel.Eng.Run.dll, min-sdk]
 
   # eng/difftest: the differential run against cel-go (docs/design/eng-difftest.md). Compose starts the service oracle first;
   # the options of the run follow the service name, for example --seed 20261104 --budget 2h. Exit code 0, 1 or 2.

@@ -13,7 +13,7 @@ internal static class CelSpecSuite
     private const string CommitPath = "tests/cel-spec/COMMIT";
     private const string SkipListPath = "tests/Great.Parts.Cel.Conformance/CelSpec/skips.md";
 
-    /// <summary>The full SHA of the pinned cel-spec commit, without the line end, which a checkout on Windows may turn into CRLF.</summary>
+    /// <summary>The full SHA of the pinned cel-spec commit, without the line end, which a checkout with line end conversion may turn into CRLF.</summary>
     internal static string Commit { get; } = EmbeddedData.ReadText(CommitPath).Trim();
 
     /// <summary>The source of the suite in its summary line: <c>cel-spec</c> and the short SHA of the commit.</summary>

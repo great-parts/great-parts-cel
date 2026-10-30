@@ -1,6 +1,6 @@
 # eng/test and the containers of eng/
 
-`eng/test` is the blocking check of a change: it builds the solution, runs every test under JIT and runs the source and package checks. It runs in a Linux container with the .NET 11 SDK and the .NET 10 runtime, without Go. The same container setup serves `eng/docs` ([eng-docs.md](eng-docs.md)) and `eng/mutate` ([eng-mutate.md](eng-mutate.md)); other components add their services to the same Compose file and their commands to the same project.
+`eng/test` is the one full check of a change: it builds the solution, runs every test under JIT, runs the source and package checks, and runs the tests of the two projects that are published under Native AOT on linux-x64, comparing their test count with the JIT run. There is no separate command for Native AOT. It runs in a Linux container with the .NET 11 SDK, the .NET 10 runtime and the native toolchain, without Go; it is run once, on the final `head` of a task. The same container setup serves `eng/docs` ([eng-docs.md](eng-docs.md)) and `eng/mutate` ([eng-mutate.md](eng-mutate.md)); other components add their services to the same Compose file and their commands to the same project.
 
 ## Commands
 
@@ -8,7 +8,6 @@ Each command is a service of the Compose file `eng/compose.yaml` and runs with o
 
 ```text
 docker compose -f eng/compose.yaml run --rm test
-docker compose -f eng/compose.yaml run --rm test-aot
 docker compose -f eng/compose.yaml run --rm docs
 docker compose -f eng/compose.yaml run --rm mutate
 docker compose -f eng/compose.yaml run --rm min-sdk
@@ -16,8 +15,7 @@ docker compose -f eng/compose.yaml run --rm min-sdk
 
 | Service | Name in the documentation | Image stage | What it does |
 | :- | :- | :- | :- |
-| `test` | `eng/test` | `sdk` | build, all tests under JIT, source and package checks |
-| `test-aot` | `eng/test` for Native AOT | `sdk-aot` | tests under JIT and Native AOT on linux-x64, test count |
+| `test` | `eng/test` | `sdk-aot` | build, all tests under JIT, source and package checks, tests under Native AOT on linux-x64, test count |
 | `docs` | `eng/docs` | `docs` | examples, error codes page, offline links |
 | `mutate` | `eng/mutate` | `sdk` | mutation testing of the changed code |
 | `min-sdk` | `min-sdk` | `sdk-min` | builds a sample application on the .NET SDK 10.0.100 from the packed `Great.Parts.Cel`, see [min-sdk](#min-sdk) |
@@ -31,7 +29,7 @@ Every service:
 
 The service `oracle` of the differential run is the exception: it runs the image `golang` without .NET, with its own entry point and volumes, and the service `difftest` depends on it ([eng-oracle.md](eng-oracle.md#container)).
 
-The service `min-sdk` is the second exception: `eng/run` builds with the SDK of the root `global.json`, which its image does not have. Its entry point is a shell command written in the service, its working directory is `/repo/eng/min-sdk`, and it does not use the volume `nuget` ([min-sdk](#min-sdk)).
+The service `min-sdk` is the second exception: building `eng/run` needs the SDK of the root `global.json`, which its image does not have. Its entry point runs the `eng/run` that the service `test` compiled, `dotnet eng/run/bin/Release/net10.0/Great.Parts.Cel.Eng.Run.dll min-sdk`, and it does not use the volume `nuget` ([min-sdk](#min-sdk)).
 
 ## Image
 
@@ -40,7 +38,7 @@ The service `min-sdk` is the second exception: `eng/run` builds with the SDK of 
 | Stage | Base image | Added |
 | :- | :- | :- |
 | `sdk` | `mcr.microsoft.com/dotnet/sdk` with the SDK version of `global.json` | the .NET 10 runtime, copied from the `mcr.microsoft.com/dotnet/sdk` 10.0 image; `/repo` and `/git` registered as safe directories of `git` |
-| `sdk-aot` | the `-aot` variant of the same SDK version: it adds the native toolchain that Native AOT needs | the same as `sdk` |
+| `sdk-aot` | the `-aot` variant of the same SDK version: it adds the native toolchain that Native AOT needs; the service `test` runs on it | the same as `sdk` |
 | `docs` | the `sdk` stage | the `lychee` program, copied from `lycheeverse/lychee` 0.24.2 |
 | `sdk-min` | `mcr.microsoft.com/dotnet/sdk:10.0.100`, the first .NET 10 SDK | nothing |
 
@@ -74,31 +72,31 @@ The file `commondir` of the worktree directory holds `../..`, so the readers fin
 
 ## eng/run
 
-`eng/run/` is a console project (`net10.0`, no packages, `IsPackable=false`, part of the solution) with the commands `test`, `test-aot`, `docs`, `mutate` and `difftest` ([eng-difftest.md](eng-difftest.md)). It contains no check logic: it runs steps as child processes in the repository root and passes their output through unchanged.
+`eng/run/` is a console project (`net10.0`, no packages, `IsPackable=false`, part of the solution) with the commands `test`, `docs`, `mutate`, `difftest` ([eng-difftest.md](eng-difftest.md)) and `min-sdk`. It contains no check logic: it runs steps as child processes in the repository root and passes their output through unchanged. The one exception is the steps of `min-sdk`, which are C# in this process because they read the output of the build ([min-sdk](#min-sdk)).
 
-- Before a step it writes a header line `== <step>`; at the end — `<command>: passed` or `<command>: failed: <steps or a reason>`. They do not match the finding pattern.
+A command is a list of stages. A stage is lanes that run at the same time, and a lane is steps that run one after another; a stage ends when all its lanes have ended. Only `test` has a stage of several lanes.
+
+- Before a step it writes a header line `== <step>`. The output of a stage of one lane passes through as the steps write it. The output of every lane of a stage of several lanes is written as a whole when the lane ends, so lines of different processes are not mixed.
+- A step stops the rest of its lane when it fails and is marked so, because the next steps need its result; a stage stops the command when it has a failed step and is marked so. A step that is not marked does not stop the others, so one run shows all failures.
 - Each command, and the launcher of the oracle, first deletes the directories under `artifacts/` that it writes, so every report there comes from the current run.
+- The last line of every command is its summary, in this form: `<command>: passed` or `<command>: failed: <steps or a reason>`; `head <40 characters of the SHA of HEAD>`; `tree clean`, `tree dirty` or `tree unknown`; the duration in seconds; `exit <code>`; for `test` also the counters. The lines do not match the finding pattern. `tree` is `clean` when `git status --porcelain` listed nothing before the first step and after the last one, `unknown` when git cannot answer. A reviewer does not repeat a run whose summary names the same SHA of `HEAD` and a clean tree.
 - The exit code is 0 when every step returned 0, otherwise 1. After a successful build, `difftest` returns the exit code of `eng/difftest` unchanged: 0, 1 or 2 ([eng-difftest.md](eng-difftest.md#findings-and-output)).
+- `eng/checks` is built once, with the solution or by the first step of `mutate`; every later call of it is `dotnet run --project eng/checks -c Release --no-build`.
 
 ## test
 
 1. Write the `CsCheck_*` environment variables, if any are set: they change every property test of the run, see [tests.md](tests.md). In the container none are expected.
-2. `dotnet build Great.Parts.Cel.slnx -c Release`. A failed build stops the command; the compiler lines name the places.
-3. `dotnet test --solution Great.Parts.Cel.slnx -c Release --no-build`. The test platform is the one that `global.json` selects. It runs every test project of the solution under JIT, for each target of the project: unit tests, property tests, the suite runner with the cel-spec suite and the regression corpus, and the tests of `eng/`.
-4. `dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages --no-build`.
+2. Stage 1, the build: `dotnet build Great.Parts.Cel.slnx -c Release`, once, for every project of the solution and both targets, `eng/checks` included. A failed build stops the command; the compiler lines name the places.
+3. Stage 2, at the same time:
+   - The lane of the JIT run and the checks. Every test project of the solution, for each target of the project, runs under JIT once: `dotnet <project directory>/bin/Release/<target>/<project>.dll -noColor -result-xml artifacts/test-results/jit/<project>/<target>/report.xml`. These are the unit tests, the property tests, the suite runner with the cel-spec suite and the regression corpus, and the tests of `eng/`. The report is also the reference of the test count below; there is no second JIT run. The test projects are found in the solution: a project with a package reference to `xunit.v3.*`; the projects that set `PublishAot` are the ones that stage 2 also publishes. Then `dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages --no-build`.
+   - For every target of every published project, one lane: the publish for linux-x64 under Native AOT, `dotnet publish <project> -f <target> -r linux-x64 -c Release --no-restore -p:InvariantGlobalization=true -p:BuildProjectReferences=false -o artifacts/aot/<project>/<target>/`, then the run of the executable `artifacts/aot/<project>/<target>/<project> -noColor -result-xml artifacts/test-results/aot/<project>/<target>/report.xml`. The publishes run at the same time with each other, with the JIT run and with the checks. A failed publish skips the run of its executable.
+4. Stage 3, the comparison: for every published project and target, `dotnet run --project eng/checks -c Release --no-build -- test-count --jit <JIT report> --aot <AOT report> --where "linux-x64, <target>"`.
 
-Steps 3 and 4 both run even when one fails, so a single run shows all failures.
+No step stops the others, so one run shows all failures; only a failed build stops the command.
 
-## test-aot
+The publish has no restore of its own: it reuses the restore of the build with `--no-restore`, and it does not build the referenced projects again: the build of stage 1 made them for both targets (`BuildProjectReferences=false`). Trimming and AOT warnings of the publish fail it, as every warning does, and name the file and the line without a column, with the absolute path as the build saw it: `<path>(<line>): Trim analysis error IL2xxx: …` or `… AOT analysis error IL3xxx: …`. The file and the line come from the PDB of the library next to its assembly; without it the line starts with `ILC :`. A restore with `-r` would add targets for the runtime identifier to the lock files of the referenced projects, and a locked restore in CI would then fail; see [tests.md](tests.md). Why `InvariantGlobalization` is set only on the publish command line is explained there too. CI runs the same publish and comparison in its Native AOT cells on linux-x64.
 
-For each target `net10.0` and `net11.0` and each of the projects `Great.Parts.Cel.Tests` and `Great.Parts.Cel.Conformance`:
-
-1. Build the project for the target, `dotnet build <project> -f <target> -c Release`, and run the built module under JIT: `dotnet <project directory>/bin/Release/<target>/<project>.dll -result-xml artifacts/test-results/jit/<project>/<target>/report.xml`.
-2. Publish for linux-x64 under Native AOT with the restore of step 1: `dotnet publish <project> -f <target> -r linux-x64 -c Release --no-restore -p:InvariantGlobalization=true -o artifacts/aot/<project>/<target>/`. Trimming and AOT warnings of the publish fail it, as every warning does, and name the file and the line without a column, with the absolute path as the build saw it: `<path>(<line>): Trim analysis error IL2xxx: …` or `… AOT analysis error IL3xxx: …`. The file and the line come from the PDB of the library next to its assembly; without it the line starts with `ILC :`. A restore with `-r` would add targets for the runtime identifier to the lock files of the referenced projects, and a locked restore in CI would then fail; see [tests.md](tests.md).
-3. Run the published executable `artifacts/aot/<project>/<target>/<project>` with `-result-xml artifacts/test-results/aot/<project>/<target>/report.xml`.
-4. `eng/checks test-count` on the two reports, with `linux-x64` and the target as the label.
-
-All four steps run for every pair, so one run shows every failing pair. The command takes minutes and is not part of `test`; CI runs the same publish and comparison in its Native AOT cells on linux-x64 and win-x64. Why `InvariantGlobalization` is set only on the publish command line is explained in [tests.md](tests.md).
+The counters of the last line are the sums of the reports under `artifacts/test-results/`: passed, failed and skipped of the JIT runs and of the Native AOT runs, with the number of reports. Measured on 2026-10-30 in one container, with an incremental build: from 115 to 153 seconds in all, depending on how much the build recompiles; the slowest part is the four publishes, which run at the same time.
 
 ## min-sdk
 
@@ -117,15 +115,14 @@ Shows that the source generator in the package `Great.Parts.Cel`, built against 
 
 Every local build packs version `0.0.0-dev`, and NuGet does not look at the source again for a version that its packages folder already has. So the application does not use the volume `nuget`: it has its own packages folder under `artifacts/min-sdk/`, and the command deletes that directory first. Every run then takes the package that the last `test` packed.
 
-The entry point runs, in `/repo/eng/min-sdk`:
+The command `min-sdk` of `eng/run` has four steps. They are C# in `eng/run/MinSdk.cs`, not a shell script, because the logic reads the output of the build. The image has only the SDK 10.0.100, which cannot build `eng/run` for the root `global.json`, so the service runs the `eng/run` that the service `test` compiled (`eng/run/bin/Release/net10.0/Great.Parts.Cel.Eng.Run.dll`, a `net10.0` program that the .NET 10 runtime of the image runs). The working directory of the container is `/repo`; the child processes of the steps run in `eng/min-sdk`, where its `global.json` selects the SDK. Before the first step `eng/run` deletes `artifacts/min-sdk/`. The steps:
 
-1. Stop with `min-sdk: failed: no package in artifacts/packages; run the service test first` when `../../artifacts/packages` has no `Great.Parts.Cel.*.nupkg`.
-2. Delete `../../artifacts/min-sdk/`.
-3. `dotnet --version`; any version other than `10.0.100` fails the run.
-4. `dotnet build -c Release --artifacts-path ../../artifacts/min-sdk/build -p:ReportAnalyzer=true -flp:"LogFile=../../artifacts/min-sdk/build.log;Verbosity=diagnostic"`. The console keeps the default verbosity, so the compiler lines appear in the output, and a copy of it goes to `../../artifacts/min-sdk/console.log`; the build passes when its exit code is 0 and the copy has the lines `0 Warning(s)` and `0 Error(s)`. The log file gets the analyzer report.
-5. Find the evidence that the generator loaded and print the lines found: the `project.assets.json` of the restore names `analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll` as an analyzer of the package, and the generator part of the analyzer report in `build.log` names `Great.Parts.Cel.Generator.CelTypeContextGenerator`.
+1. Stop with `min-sdk: failed: min-sdk: packages (no package in artifacts/packages; run the service test first)` when `artifacts/packages` has no `Great.Parts.Cel.<version>.nupkg`.
+2. `dotnet --version` in `eng/min-sdk`; any version other than `10.0.100` fails the run.
+3. `dotnet build -c Release --artifacts-path <artifacts/min-sdk>/build -p:ReportAnalyzer=true -flp:"LogFile=<artifacts/min-sdk>/build.log;Verbosity=diagnostic"` in `eng/min-sdk`. The console keeps the default verbosity, so the compiler lines appear in the output, and a copy of it goes to `artifacts/min-sdk/console.log`; the build passes when its exit code is 0 and the copy has the lines `0 Warning(s)` and `0 Error(s)`. The log file gets the analyzer report.
+4. Find the evidence that the generator loaded and print the lines found with their numbers: the `project.assets.json` of the restore names `analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll` as an analyzer of the package, and the generator part of the analyzer report in `build.log` names `Great.Parts.Cel.Generator.CelTypeContextGenerator`.
 
-The run passes when every step succeeds: SDK 10.0.100, a build with no warning and no error, both pieces of evidence found. `CS9057` and `CS8032` (an analyzer that cannot be created) are warnings, so `TreatWarningsAsErrors` makes either of them a failed build. The last line is `min-sdk: passed` or `min-sdk: failed: <step>`, and the exit code is 0 or 1. The generator has no pipeline yet, so the run shows that it loads, not that it produces code.
+A failed step 1, 2 or 3 stops the command, as the next steps need its result. The run passes when every step succeeds: SDK 10.0.100, a build with no warning and no error, both pieces of evidence found. `CS9057` and `CS8032` (an analyzer that cannot be created) are warnings, so `TreatWarningsAsErrors` makes either of them a failed build. The last line is the summary of `eng/run` ([eng/run](#engrun)): `min-sdk: passed` or `min-sdk: failed: <steps>`, the duration and the exit code 0 or 1; the container has no git directory of a linked worktree, so `head` and `tree` may be `unknown`. The generator has no pipeline yet, so the run shows that it loads, not that it produces code.
 
 Order of a run, from the repository root; a linked worktree needs the second Compose file only for `test`:
 
@@ -144,8 +141,8 @@ The service is not part of `test` and CI does not run it. It is run when the gen
 
 | Directory | Written by |
 | :- | :- |
-| `artifacts/test-results/` | test runs with a report |
-| `artifacts/aot/` | Native AOT publish |
+| `artifacts/test-results/` | the reports of the JIT runs and of the Native AOT runs of `test` |
+| `artifacts/aot/` | the Native AOT publish of `test` |
 | `artifacts/packages/` | `eng/checks packages` |
 | `artifacts/docs/` | `eng/docs` |
 | `artifacts/mutate/` | `eng/mutate` |

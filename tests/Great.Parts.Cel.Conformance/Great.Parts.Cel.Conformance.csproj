@@ -18,7 +18,7 @@
       Only the publish keeps false; dotnet publish sets _IsPublishing.
     -->
     <DynamicCodeSupport Condition="'$(_IsPublishing)' != 'true'">true</DynamicCodeSupport>
-    <RuntimeIdentifiers>linux-x64;win-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
     <!--
       The published test executable needs no XML documentation. Without this, publishing under Native AOT fails with
       MSB3030: the build output is not copied to bin/ and the publish step looks for the documentation file there.
@@ -51,7 +51,7 @@
   -->
   <PropertyGroup>
     <CelRepoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', '..'))</CelRepoRoot>
-    <!-- Without a trailing separator: a trailing backslash would escape the closing quote of a command line on Windows. -->
+    <!-- Without a trailing separator: a trailing backslash would escape the closing quote of a command line. -->
     <CelProtoDir>$(CelRepoRoot)tests/cel-spec/proto</CelProtoDir>
     <CelProtoRoot>$([MSBuild]::NormalizeDirectory('$(CelRepoRoot)', 'tests', 'cel-spec', 'proto'))</CelProtoRoot>
   </PropertyGroup>

@@ -238,7 +238,7 @@ public sealed class RepositoryTests
         Assert.Contains("NET462_OR_GREATER", framework);
         Assert.DoesNotContain("NET48_OR_GREATER", framework);
         Assert.Empty(SdkSymbols.For("monikerthatdoesnotexist"));
-        Assert.Contains("NET10_0", SdkSymbols.For("net10.0-windows"));
+        Assert.Contains("NET10_0", SdkSymbols.For("net10.0-android"));
     }
 
     [Fact]

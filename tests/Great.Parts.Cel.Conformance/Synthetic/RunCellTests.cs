@@ -12,11 +12,11 @@ namespace Great.Parts.Cel.Conformance.Synthetic;
 public sealed class RunCellTests
 {
     private const string AllCells =
-        "jit linux-x64 net10.0, jit linux-x64 net11.0, jit macos net10.0, jit macos net11.0, jit windows-x64 net10.0, jit windows-x64 net11.0, "
-        + "native-aot linux-x64 net10.0, native-aot linux-x64 net11.0, native-aot windows-x64 net10.0, native-aot windows-x64 net11.0";
+        "jit linux-x64 net10.0, jit linux-x64 net11.0, jit macos net10.0, jit macos net11.0, "
+        + "native-aot linux-x64 net10.0, native-aot linux-x64 net11.0";
 
     [Fact]
-    public void Matrix_IsJitOnThreeSystemsAndNativeAotOnLinuxAndWindows_ForBothTargets()
+    public void Matrix_IsJitOnLinuxAndMacosAndNativeAotOnLinux_ForBothTargets()
     {
         Assert.Equal(AllCells, Describe(RunCell.Matrix));
     }
@@ -24,8 +24,6 @@ public sealed class RunCellTests
     [Theory]
     [InlineData(true, "LINUX", Architecture.X64, "net10.0", "jit linux-x64 net10.0")]
     [InlineData(false, "LINUX", Architecture.X64, "net11.0", "native-aot linux-x64 net11.0")]
-    [InlineData(true, "WINDOWS", Architecture.X64, "net11.0", "jit windows-x64 net11.0")]
-    [InlineData(false, "WINDOWS", Architecture.X64, "net10.0", "native-aot windows-x64 net10.0")]
     [InlineData(true, "OSX", Architecture.Arm64, "net10.0", "jit macos net10.0")]
     [InlineData(true, "OSX", Architecture.X64, "net11.0", "jit macos net11.0")]
     public static void Of_IsTheModeTheSystemAndTheTarget(bool isDynamicCodeSupported, string platform, Architecture architecture, string target, string cell)
@@ -35,7 +33,6 @@ public sealed class RunCellTests
 
     [Theory]
     [InlineData("LINUX", Architecture.Arm64)]
-    [InlineData("WINDOWS", Architecture.Arm64)]
     [InlineData("FREEBSD", Architecture.X64)]
     public static void Of_SystemOutsideTheMatrix_Throws(string platform, Architecture architecture)
     {
@@ -54,13 +51,13 @@ public sealed class RunCellTests
 
     [Theory]
     [InlineData("* * *", AllCells)]
-    [InlineData("jit * *", "jit linux-x64 net10.0, jit linux-x64 net11.0, jit macos net10.0, jit macos net11.0, jit windows-x64 net10.0, jit windows-x64 net11.0")]
-    [InlineData("native-aot * *", "native-aot linux-x64 net10.0, native-aot linux-x64 net11.0, native-aot windows-x64 net10.0, native-aot windows-x64 net11.0")]
+    [InlineData("jit * *", "jit linux-x64 net10.0, jit linux-x64 net11.0, jit macos net10.0, jit macos net11.0")]
+    [InlineData("native-aot * *", "native-aot linux-x64 net10.0, native-aot linux-x64 net11.0")]
     [InlineData("* macos *", "jit macos net10.0, jit macos net11.0")]
-    [InlineData("native-aot linux-x64,windows-x64 *", "native-aot linux-x64 net10.0, native-aot linux-x64 net11.0, native-aot windows-x64 net10.0, native-aot windows-x64 net11.0")]
+    [InlineData("native-aot linux-x64,macos *", "native-aot linux-x64 net10.0, native-aot linux-x64 net11.0")]
     [InlineData("jit,native-aot macos,linux-x64 net11.0", "jit linux-x64 net11.0, jit macos net11.0, native-aot linux-x64 net11.0")]
-    [InlineData("* * net10.0", "jit linux-x64 net10.0, jit macos net10.0, jit windows-x64 net10.0, native-aot linux-x64 net10.0, native-aot windows-x64 net10.0")]
-    [InlineData("jit windows-x64 net10.0", "jit windows-x64 net10.0")]
+    [InlineData("* * net10.0", "jit linux-x64 net10.0, jit macos net10.0, native-aot linux-x64 net10.0")]
+    [InlineData("jit macos net10.0", "jit macos net10.0")]
     public static void Scope_IsEveryCombinationOfItsPartsThatTheMatrixHas(string scope, string cells)
     {
         ArgumentNullException.ThrowIfNull(scope);

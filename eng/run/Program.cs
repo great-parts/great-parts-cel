@@ -1,14 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Xml;
 
 namespace Great.Parts.Cel.Eng.Run;
 
 /// <summary>
-/// Runs a command of <c>eng/</c>: the steps run as child processes in the repository root and their output
-/// passes through unchanged. The exit code is 0 when every step returned 0, otherwise 1; a step that passes its exit code on, as
+/// Runs a command of <c>eng/</c> in the repository root: the steps of its stages run as child processes or, for <c>min-sdk</c>, as C#
+/// in this process; the lanes of a stage run at the same time. The output of the steps passes through unchanged. The last line of the
+/// command is the summary of the run: the result, the commit and whether the working tree is clean, the duration, the exit code and
+/// the counters of the command. The exit code is 0 when every step returned 0, otherwise 1; a step that passes its exit code on, as
 /// the run of <c>eng/difftest</c>, gives the exit code of the command when it ran.
 /// </summary>
 internal static class Program
@@ -21,8 +24,7 @@ internal static class Program
         }
 
         string command = args[0];
-        IReadOnlyList<Step>? steps = Commands.Find(command, args[1..]);
-        if (steps is null)
+        if (!Commands.IsKnown(command))
         {
             return Fail(command, $"unknown command; known commands: {Commands.Known}");
         }
@@ -32,21 +34,47 @@ internal static class Program
             return Fail(command, $"{Commands.Solution} is not in the working directory; run in the repository root");
         }
 
-        if (command == "mutate")
+        string? problem = CheckArguments(command, args);
+        if (problem is not null)
         {
-            if (args.Length > 2)
-            {
-                return Fail(command, "at most one argument, the configuration file");
-            }
-
-            // In a linked worktree .git is a file with a host path: Stryker.NET could not match the changed files (docs/design/eng-mutate.md).
-            if (File.Exists(".git"))
-            {
-                return Fail(command, "linked worktree");
-            }
+            return Fail(command, problem);
         }
 
-        // An older package in artifacts/packages would be a package without a list for the check of the packages.
+        IReadOnlyList<Stage>? stages;
+        try
+        {
+            stages = Commands.Find(command, args[1..]);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or IOException or XmlException)
+        {
+            return Fail(command, exception.Message);
+        }
+
+        return stages is null ? Fail(command, $"unknown command; known commands: {Commands.Known}") : Run(command, stages);
+    }
+
+    private static string? CheckArguments(string command, string[] args)
+    {
+        if (command != "mutate")
+        {
+            return null;
+        }
+
+        if (args.Length > 2)
+        {
+            return "at most one argument, the configuration file";
+        }
+
+        // In a linked worktree .git is a file with a host path: Stryker.NET could not match the changed files (docs/design/eng-mutate.md).
+        return File.Exists(".git") ? "linked worktree" : null;
+    }
+
+    private static int Run(string command, IReadOnlyList<Stage> stages)
+    {
+        Stopwatch clock = Stopwatch.StartNew();
+        RepositoryState start = RepositoryState.Read();
+
+        // An older package or report would be a package or report that this run did not make.
         foreach (string directory in Commands.Written(command))
         {
             if (Directory.Exists(directory))
@@ -55,73 +83,44 @@ internal static class Program
             }
         }
 
-        List<string> failed = RunSteps(steps, out int? passedOn);
-        int result = failed.Count == 0 ? Pass(command) : Fail(command, string.Join("; ", failed));
-        return passedOn ?? result;
+        List<string> failed = RunStages(stages, out int? passedOn);
+        int exitCode = passedOn ?? (failed.Count == 0 ? 0 : 1);
+        string result = failed.Count == 0 ? "passed" : $"failed: {string.Join("; ", failed)}";
+        string seconds = clock.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+        List<string> parts =
+        [
+            $"{command}: {result}",
+            RepositoryState.Describe(start, RepositoryState.Read()),
+            $"{seconds} s",
+            $"exit {exitCode.ToString(CultureInfo.InvariantCulture)}",
+        ];
+        if (Commands.Counters(command) is { } counters)
+        {
+            parts.Add(counters);
+        }
+
+        Console.Out.WriteLine(string.Join("; ", parts));
+        return exitCode;
     }
 
-    // Runs the steps up to the first failed step that stops the command; returns the failed steps with their reasons, and the
-    // exit code of the step that passes its exit code on, when it ran.
-    private static List<string> RunSteps(IReadOnlyList<Step> steps, out int? passedOn)
+    // Runs the stages up to the first stage that stops the command; returns the failed steps with their reasons, and the exit code of
+    // the step that passes its exit code on, when it ran.
+    private static List<string> RunStages(IReadOnlyList<Stage> stages, out int? passedOn)
     {
         List<string> failed = [];
         passedOn = null;
-        foreach (Step step in steps)
+        foreach (Stage stage in stages)
         {
-            Console.Out.WriteLine($"== {step.CommandLine}");
-            bool succeeded = TryRun(step, out int? exitCode, out string? reason);
-            if (step.PassesExitCode && exitCode is not null)
+            StageResult result = StageRunner.Run(stage);
+            failed.AddRange(result.Failed);
+            passedOn = result.PassedOn ?? passedOn;
+            if (stage.StopsOnFailure && result.Failed.Count > 0)
             {
-                passedOn = exitCode;
-            }
-
-            if (!succeeded)
-            {
-                failed.Add(reason is null ? step.CommandLine : $"{step.CommandLine} ({reason})");
-                if (step.StopsOnFailure)
-                {
-                    break;
-                }
+                break;
             }
         }
 
         return failed;
-    }
-
-    private static bool TryRun(Step step, out int? exitCode, out string? reason)
-    {
-        ProcessStartInfo start = new(step.FileName) { UseShellExecute = false };
-        foreach (string argument in step.Arguments)
-        {
-            start.ArgumentList.Add(argument);
-        }
-
-        exitCode = null;
-        try
-        {
-            using Process? process = Process.Start(start);
-            if (process is null)
-            {
-                reason = "the process did not start";
-                return false;
-            }
-
-            process.WaitForExit();
-            exitCode = process.ExitCode;
-            reason = process.ExitCode == 0 ? null : $"exit code {process.ExitCode}";
-            return process.ExitCode == 0;
-        }
-        catch (Win32Exception exception)
-        {
-            reason = exception.Message;
-            return false;
-        }
-    }
-
-    private static int Pass(string command)
-    {
-        Console.Out.WriteLine($"{command}: passed");
-        return 0;
     }
 
     private static int Fail(string command, string reason)

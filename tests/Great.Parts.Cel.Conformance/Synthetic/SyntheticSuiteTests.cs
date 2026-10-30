@@ -89,7 +89,7 @@ public sealed class SyntheticSuiteTests
             ListPath,
             6,
             1,
-            "entry 'synthetic/passing/int': the scope has the unknown value 'linux'; a part is linux-x64, windows-x64, macos, a list of them or *");
+            "entry 'synthetic/passing/int': the scope has the unknown value 'linux'; a part is linux-x64, macos, a list of them or *");
     }
 
     [Fact]
@@ -128,10 +128,10 @@ public sealed class SyntheticSuiteTests
     [Fact]
     public void Summary_IsPassedOutOfAllCasesWithTheSourceTheDateAndTheCell()
     {
-        SuiteResult result = Run(new RunCell("native-aot", "windows-x64", "net10.0"), Failing);
+        SuiteResult result = Run(new RunCell("native-aot", "linux-x64", "net10.0"), Failing);
 
         Assert.Equal((2, 3), (result.Passed, result.Total));
-        Assert.Equal("cel-spec 8bef98f: 2/3 passed, 2027-01-05 (native-aot, windows-x64, net10.0)", result.Summary("cel-spec 8bef98f", new DateOnly(2027, 1, 5)));
+        Assert.Equal("cel-spec 8bef98f: 2/3 passed, 2027-01-05 (native-aot, linux-x64, net10.0)", result.Summary("cel-spec 8bef98f", new DateOnly(2027, 1, 5)));
     }
 
     private static SuiteResult Run(RunCell cell, params string[] entries)

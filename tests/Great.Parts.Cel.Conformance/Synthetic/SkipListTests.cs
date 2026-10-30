@@ -51,7 +51,7 @@ public sealed class SkipListTests
 
         Assert.Empty(list.Findings);
         Assert.Equal(2592, list.Entries.Count);
-        Assert.All(list.Entries, entry => Assert.Equal(10, entry.Scope.Count));
+        Assert.All(list.Entries, entry => Assert.Equal(6, entry.Scope.Count));
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class SkipListTests
     {
         string text = CelSpecTop + "\n" + string.Join(
             "\n",
-            $"| basic/a/a | jit,native-aot windows-x64 net11.0 | Fails \\| twice. | {Langdef}macros | https://github.com/great-parts/great-parts-cel/issues/7 |",
+            $"| basic/a/a | jit,native-aot macos net11.0 | Fails \\| twice. | {Langdef}macros | https://github.com/great-parts/great-parts-cel/issues/7 |",
             "| basic/a/a | native-aot linux-x64 * | Fails. | Minimal case: expression 1 + 1, no variables, the result 2. | https://github.com/great-parts/great-parts-cel/issues/12 |",
             "| string_ext/format/dyntype NaN/infinity support | * macos * | Fails on macOS. | | |",
             "");
@@ -82,7 +82,7 @@ public sealed class SkipListTests
         Assert.Empty(list.Findings);
         Assert.Equal(
             [
-                "7 basic/a/a: jit windows-x64 net11.0, native-aot windows-x64 net11.0",
+                "7 basic/a/a: jit macos net11.0",
                 "8 basic/a/a: native-aot linux-x64 net10.0, native-aot linux-x64 net11.0",
                 "9 string_ext/format/dyntype NaN/infinity support: jit macos net10.0, jit macos net11.0",
             ],
@@ -182,8 +182,8 @@ public sealed class SkipListTests
         | zeta/b/c | | Reason. | | | => entry 'zeta/b/c': the scope '' is not three parts separated by a space: the mode, the operating system and the target
         | zeta/b/c | aot * * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value 'aot'; a part is jit, native-aot, a list of them or *
         | zeta/b/c | jit,* * * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value '*'; a part is jit, native-aot, a list of them or *
-        | zeta/b/c | * linux-x64,linux * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value 'linux'; a part is linux-x64, windows-x64, macos, a list of them or *
-        | zeta/b/c | * windows-x64, * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value ''; a part is linux-x64, windows-x64, macos, a list of them or *
+        | zeta/b/c | * linux-x64,linux * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value 'linux'; a part is linux-x64, macos, a list of them or *
+        | zeta/b/c | * macos, * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value ''; a part is linux-x64, macos, a list of them or *
         | zeta/b/c | * * net9.0 | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value 'net9.0'; a part is net10.0, net11.0, a list of them or *
         | zeta/b/c | native-aot macos * | Reason. | | | => entry 'zeta/b/c': the scope 'native-aot macos *' has no cell of the matrix
         | zeta/b/c | * * * | | | | => entry 'zeta/b/c': the reason is empty

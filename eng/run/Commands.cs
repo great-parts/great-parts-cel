@@ -1,27 +1,22 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace Great.Parts.Cel.Eng.Run;
 
-/// <summary>The commands of <c>eng/</c> and their steps.</summary>
+/// <summary>The commands of <c>eng/</c> and their stages.</summary>
 internal static class Commands
 {
     /// <summary>The solution of the repository; also the marker of the repository root.</summary>
     internal const string Solution = "Great.Parts.Cel.slnx";
 
     /// <summary>The names of the commands, as the messages of <see cref="Program"/> list them.</summary>
-    internal const string Known = "test, test-aot, mutate, difftest";
+    internal const string Known = "test, mutate, difftest, min-sdk";
 
-    /// <summary>
-    /// <c>eng/test</c>: the build of both target frameworks of every project of the solution, then every test project of the
-    /// solution under JIT, then the source and package checks of <c>eng/checks</c>. A failed build stops the command; the tests and
-    /// the checks both run even when one of them fails, so a single run shows all failures.
-    /// </summary>
-    private static readonly Step[] Test =
-    [
-        new("dotnet", ["build", Solution, "-c", "Release"], StopsOnFailure: true),
-        new("dotnet", ["test", "--solution", Solution, "-c", "Release", "--no-build"]),
-        new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "suppressions", "duplicates", "ratchet", "packages", "--no-build"]),
-    ];
+    /// <summary>The runtime identifier of the Native AOT publish, also the label of its test count.</summary>
+    private const string AotRuntime = "linux-x64";
+
+    /// <summary>The checks of <c>eng/checks</c> that <c>test</c> runs; <c>eng/checks</c> is built once, with the solution, and run without a build.</summary>
+    private static readonly string[] Checks = ["suppressions", "duplicates", "ratchet", "packages", "--no-build"];
 
     /// <summary>The configuration of <c>mutate</c> when the command gets no argument.</summary>
     private const string DefaultMutateConfiguration = "stryker-config.json";
@@ -32,30 +27,18 @@ internal static class Commands
     /// <summary>The directories of <c>mutate</c> under <c>artifacts/</c>, deleted before a run so every report comes from it.</summary>
     private static readonly string[] MutateWritten = ["artifacts/mutate"];
 
-    /// <summary>The directories of <c>eng/test</c> under <c>artifacts/</c>, deleted before a run so every package comes from the current build.</summary>
-    private static readonly string[] TestWritten = ["artifacts/packages"];
-
     /// <summary>
-    /// The test projects that <c>test-aot</c> runs under JIT and publishes under Native AOT, one place for the list. The projects
-    /// are in <c>tests/</c> and named as their directories.
+    /// The directories of <c>test</c> under <c>artifacts/</c>, deleted before a run so every package, report and executable comes from the
+    /// current build.
     /// </summary>
-    private static readonly string[] AotProjects = ["Great.Parts.Cel.Tests", "Great.Parts.Cel.Conformance"];
+    private static readonly string[] TestWritten = ["artifacts/packages", "artifacts/test-results", "artifacts/aot"];
 
-    /// <summary>The target frameworks of the projects of <see cref="AotProjects"/>.</summary>
-    private static readonly string[] AotTargets = ["net10.0", "net11.0"];
+    /// <summary>The directories of <c>min-sdk</c> under <c>artifacts/</c>, deleted before a run.</summary>
+    private static readonly string[] MinSdkWritten = [MinSdk.Output];
 
-    /// <summary>The runtime identifier of the Native AOT publish, also the label of its test count.</summary>
-    private const string AotRuntime = "linux-x64";
-
-    /// <summary>The directories of <c>test-aot</c> under <c>artifacts/</c>, deleted before a run so every report and file comes from it.</summary>
-    private static readonly string[] AotWritten = ["artifacts/test-results", "artifacts/aot"];
-
-    /// <summary>
-    /// <c>test-aot</c>: for every target and every project the build and the JIT run of the test module, the Native AOT publish, the
-    /// run of the published executable, and the comparison of the two reports. None of the steps stops the command, so one run shows
-    /// every failing pair and step.
-    /// </summary>
-    private static readonly Step[] TestAot = [.. BuildTestAot()];
+    /// <summary>Whether the name is that of a command.</summary>
+    /// <param name="name">The command name.</param>
+    internal static bool IsKnown(string name) => name is "test" or "mutate" or "difftest" or "min-sdk";
 
     /// <summary>
     /// Returns the directories under <c>artifacts/</c> that a command writes, relative to the repository root, or an empty list when
@@ -65,36 +48,97 @@ internal static class Commands
     internal static IReadOnlyList<string> Written(string name) => name switch
     {
         "test" => TestWritten,
-        "test-aot" => AotWritten,
         "mutate" => MutateWritten,
+        "min-sdk" => MinSdkWritten,
         _ => [],
     };
 
-    /// <summary>Returns the steps of a command, or <see langword="null"/> when the command is unknown.</summary>
+    /// <summary>Returns the stages of a command, or <see langword="null"/> when the command is unknown.</summary>
     /// <param name="name">The command name.</param>
     /// <param name="arguments">The arguments after the command name: the configuration of <c>mutate</c>, the options of <c>difftest</c>.</param>
-    internal static IReadOnlyList<Step>? Find(string name, IReadOnlyList<string> arguments) => name switch
+    /// <exception cref="System.InvalidOperationException">The command reads the solution, and the solution has no test project.</exception>
+    internal static IReadOnlyList<Stage>? Find(string name, IReadOnlyList<string> arguments) => name switch
     {
-        "test" => Test,
-        "test-aot" => TestAot,
-        "mutate" => MutateSteps(arguments),
-        "difftest" => DifftestSteps(arguments),
+        "test" => TestStages(TestProjects.Find(Solution)),
+        "mutate" => MutateStages(arguments),
+        "difftest" => DifftestStages(arguments),
+        "min-sdk" => [.. MinSdk.Steps.Select(Stage.Of)],
         _ => null,
     };
 
     /// <summary>
-    /// <c>mutate</c>: the restore of the local tool Stryker.NET, then its run with the configuration given as the argument, or with
-    /// <c>stryker-config.json</c>. The report goes to <c>artifacts/mutate/</c>. The third step reads the report with the same configuration
-    /// and prints the findings; it runs even when the run of the tool failed, so the surviving mutants are visible.
+    /// The counters that the last line of a command shows besides its result, or <see langword="null"/> for a command that has none.
     /// </summary>
-    private static Step[] MutateSteps(IReadOnlyList<string> arguments)
+    /// <param name="name">The command name.</param>
+    internal static string? Counters(string name) => name == "test" ? TestCounters.Summary() : null;
+
+    /// <summary>
+    /// <c>test</c> (<c>eng/test</c>), the one full check, in three stages. First the build of every project of the solution for both
+    /// target frameworks, once: a failed build stops the command. Then at the same time the lanes of the second stage: all test modules
+    /// under JIT with a report each, followed by the checks of <c>eng/checks</c>; and for every target of every project that is published
+    /// under Native AOT one lane that publishes it and runs the executable. The publishes do not build the referenced projects again.
+    /// Then the comparison of the tests of every published run with the JIT run of the same project and target. No step stops the
+    /// others, so one run shows every failure.
+    /// </summary>
+    private static List<Stage> TestStages(IReadOnlyList<TestProject> projects) =>
+    [
+        Stage.Of(new("dotnet", ["build", Solution, "-c", "Release"], StopsOnFailure: true)),
+        new Stage([JitLane(projects), .. projects.Where(project => project.PublishAot).SelectMany(AotLanes)]),
+        new Stage([.. projects.Where(project => project.PublishAot).SelectMany(CountLanes)]),
+    ];
+
+    // The module of every test project and target runs once under JIT, with its report; the report of the two projects that are also
+    // published is the reference of their test count. Then the checks.
+    private static Step[] JitLane(IReadOnlyList<TestProject> projects) =>
+    [
+        .. projects.SelectMany(project => project.Targets.Select(target =>
+            new Step("dotnet", [$"{project.Directory}/bin/Release/{target}/{project.Name}.dll", "-noColor", "-result-xml", Report("jit", project, target)]))),
+        new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", .. Checks]),
+    ];
+
+    // The restore of the build already covers the runtime identifier of the publish; the publish reuses it with --no-restore, so no
+    // lock file changes.
+    private static IEnumerable<Step[]> AotLanes(TestProject project) => project.Targets.Select(target => new Step[]
+    {
+        new(
+            "dotnet",
+            [
+                "publish", project.Directory, "-f", target, "-r", AotRuntime, "-c", "Release", "--no-restore",
+                "-p:InvariantGlobalization=true", "-p:BuildProjectReferences=false", "-o", $"{Published(project, target)}/",
+            ],
+            StopsOnFailure: true),
+        new($"{Published(project, target)}/{project.Name}", ["-noColor", "-result-xml", Report("aot", project, target)]),
+    });
+
+    private static IEnumerable<Step[]> CountLanes(TestProject project) => project.Targets.Select(target => new Step[]
+    {
+        new(
+            "dotnet",
+            [
+                "run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "test-count",
+                "--jit", Report("jit", project, target), "--aot", Report("aot", project, target), "--where", $"{AotRuntime}, {target}",
+            ]),
+    });
+
+    private static string Report(string mode, TestProject project, string target) => $"artifacts/test-results/{mode}/{project.Name}/{target}/report.xml";
+
+    private static string Published(TestProject project, string target) => $"artifacts/aot/{project.Name}/{target}";
+
+    /// <summary>
+    /// <c>mutate</c>: the restore of the local tool Stryker.NET, the build of <c>eng/checks</c>, then the run of the tool with the
+    /// configuration given as the argument, or with <c>stryker-config.json</c>. The report goes to <c>artifacts/mutate/</c>. The last step
+    /// reads the report with the same configuration and prints the findings; it runs even when the run of the tool failed, so the
+    /// surviving mutants are visible.
+    /// </summary>
+    private static List<Stage> MutateStages(IReadOnlyList<string> arguments)
     {
         string configuration = arguments.Count > 0 ? arguments[0] : DefaultMutateConfiguration;
         return
         [
-            new("dotnet", ["tool", "restore"], StopsOnFailure: true),
-            new("dotnet", ["stryker", "--config-file", configuration, "--output", "artifacts/mutate"]),
-            new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--", "mutation", "--report", MutateReport, "--config", configuration]),
+            Stage.Of(new("dotnet", ["tool", "restore"], StopsOnFailure: true)),
+            Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], StopsOnFailure: true)),
+            Stage.Of(new("dotnet", ["stryker", "--config-file", configuration, "--output", "artifacts/mutate"])),
+            Stage.Of(new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "mutation", "--report", MutateReport, "--config", configuration])),
         ];
     }
 
@@ -102,30 +146,9 @@ internal static class Commands
     /// <c>difftest</c>: the build of <c>eng/difftest</c>, then its run with the arguments of the command (docs/design/eng-difftest.md).
     /// A failed build stops the command; after it the command returns the exit code of <c>eng/difftest</c> unchanged: 0, 1 or 2.
     /// </summary>
-    private static Step[] DifftestSteps(IReadOnlyList<string> arguments) =>
+    private static List<Stage> DifftestStages(IReadOnlyList<string> arguments) =>
     [
-        new("dotnet", ["build", "eng/difftest", "-c", "Release"], StopsOnFailure: true),
-        new("dotnet", ["run", "--project", "eng/difftest", "-c", "Release", "--no-build", "--", .. arguments], PassesExitCode: true),
+        Stage.Of(new("dotnet", ["build", "eng/difftest", "-c", "Release"], StopsOnFailure: true)),
+        Stage.Of(new("dotnet", ["run", "--project", "eng/difftest", "-c", "Release", "--no-build", "--", .. arguments], PassesExitCode: true)),
     ];
-
-    private static IEnumerable<Step> BuildTestAot()
-    {
-        foreach (string target in AotTargets)
-        {
-            foreach (string project in AotProjects)
-            {
-                string directory = $"tests/{project}";
-                string jitReport = $"artifacts/test-results/jit/{project}/{target}/report.xml";
-                string aotReport = $"artifacts/test-results/aot/{project}/{target}/report.xml";
-                string published = $"artifacts/aot/{project}/{target}";
-
-                // The restore of the build has no runtime identifier; the publish reuses it with --no-restore, so no lock file changes.
-                yield return new("dotnet", ["build", directory, "-f", target, "-c", "Release"]);
-                yield return new("dotnet", [$"{directory}/bin/Release/{target}/{project}.dll", "-result-xml", jitReport]);
-                yield return new("dotnet", ["publish", directory, "-f", target, "-r", AotRuntime, "-c", "Release", "--no-restore", "-p:InvariantGlobalization=true", "-o", $"{published}/"]);
-                yield return new($"{published}/{project}", ["-result-xml", aotReport]);
-                yield return new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--", "test-count", "--jit", jitReport, "--aot", aotReport, "--where", $"{AotRuntime}, {target}"]);
-            }
-        }
-    }
 }

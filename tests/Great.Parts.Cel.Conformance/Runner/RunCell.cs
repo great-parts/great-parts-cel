@@ -11,15 +11,15 @@ namespace Great.Parts.Cel.Conformance.Runner;
 /// scope contains the cell of the run.
 /// </summary>
 /// <param name="Mode"><c>jit</c> or <c>native-aot</c>.</param>
-/// <param name="OperatingSystem"><c>linux-x64</c>, <c>windows-x64</c> or <c>macos</c>.</param>
+/// <param name="OperatingSystem"><c>linux-x64</c> or <c>macos</c>.</param>
 /// <param name="Target"><c>net10.0</c> or <c>net11.0</c>.</param>
 internal readonly record struct RunCell(string Mode, string OperatingSystem, string Target)
 {
     private static readonly string[] Modes = ["jit", "native-aot"];
-    private static readonly string[] OperatingSystems = ["linux-x64", "windows-x64", "macos"];
+    private static readonly string[] OperatingSystems = ["linux-x64", "macos"];
     private static readonly string[] Targets = ["net10.0", "net11.0"];
 
-    /// <summary>The cells of the matrix: JIT on the three operating systems, Native AOT on <c>linux-x64</c> and <c>windows-x64</c>; both targets.</summary>
+    /// <summary>The cells of the matrix: JIT on <c>linux-x64</c> and <c>macos</c>, Native AOT on <c>linux-x64</c>; both targets.</summary>
     internal static IReadOnlyList<RunCell> Matrix { get; } = [.. Combine(Modes, OperatingSystems, Targets).Where(cell => cell.Mode == "jit" || cell.OperatingSystem != "macos")];
 
     /// <summary>The cell of this run: the mode from <see cref="RuntimeFeature.IsDynamicCodeSupported"/>, the operating system of the process and the target of the build.</summary>
@@ -42,9 +42,8 @@ internal readonly record struct RunCell(string Mode, string OperatingSystem, str
     {
         string operatingSystem =
             platform == OSPlatform.Linux && architecture == Architecture.X64 ? "linux-x64"
-            : platform == OSPlatform.Windows && architecture == Architecture.X64 ? "windows-x64"
             : platform == OSPlatform.OSX ? "macos"
-            : throw new PlatformNotSupportedException($"The suites run on linux-x64, windows-x64 and macos, not on {platform} {architecture}.");
+            : throw new PlatformNotSupportedException($"The suites run on linux-x64 and macos, not on {platform} {architecture}.");
         return new RunCell(isDynamicCodeSupported ? "jit" : "native-aot", operatingSystem, target);
     }
 
@@ -90,7 +89,6 @@ internal readonly record struct RunCell(string Mode, string OperatingSystem, str
 
     private static OSPlatform CurrentPlatform() =>
         System.OperatingSystem.IsLinux() ? OSPlatform.Linux
-        : System.OperatingSystem.IsWindows() ? OSPlatform.Windows
         : System.OperatingSystem.IsMacOS() ? OSPlatform.OSX
         : OSPlatform.Create(RuntimeInformation.OSDescription);
 

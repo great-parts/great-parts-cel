@@ -13,7 +13,7 @@ RUN git config --system --add safe.directory /repo \
  && git config --system --add safe.directory /git
 
 # The -aot variant of the same SDK image adds the native toolchain that Native AOT publishing needs; the rest is as in sdk.
-# The service test-aot runs on it (docs/design/eng-test.md). The tag changes together with global.json.
+# The service test runs on it (docs/design/eng-test.md). The tag changes together with global.json.
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2-aot AS sdk-aot
 COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
 # Files of the working copy and of the git directory belong to another host user: git must not refuse them.

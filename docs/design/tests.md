@@ -14,7 +14,7 @@ The tests of the library: `tests/Great.Parts.Cel.Tests` and `tests/Great.Parts.C
 Common settings:
 
 - `dotnet test` runs on the test platform that `global.json` selects; every project uses the same version of `xunit.v3.aot`, under JIT as well.
-- Tests run in two ways: the `test` command of `eng/test` runs them with `dotnet test` on Microsoft Testing Platform; the `test-aot` command runs the xUnit.net runner inside the test module — `dotnet <module>.dll` under JIT and the published executable under Native AOT — each with `-result-xml`, so that `test-count` compares two reports of the same kind ([eng-test.md](eng-test.md)).
+- Tests run in two ways: the command `eng/test` runs the xUnit.net runner inside every test module — `dotnet <module>.dll` under JIT once, and for the two published projects also the executable under Native AOT — each with `-result-xml`, so that `test-count` compares two reports of the same kind ([eng-test.md](eng-test.md)); a narrow run in the container, `dotnet test` on Microsoft Testing Platform, is a tool of the developer and is not part of the check.
 - The library grants `InternalsVisibleTo` to `Great.Parts.Cel.Tests`, `Great.Parts.Cel.Properties` and `Great.Parts.Cel.Conformance` only.
 - Test projects set `IsPackable=false` and turn off, each with a reason, `CS1591` — tests have no XML documentation — and `CA1707` — test method names are `<Situation>_<Expectation>`.
 - `ImplicitUsings` is off, as in the library: every `using` is written out, and `IDE0005` rejects the unused ones.
@@ -66,7 +66,7 @@ Properties use `Gen<T>.Sample` of CsCheck 4.9.1.
 
 ## Same tests under JIT and Native AOT
 
-`Great.Parts.Cel.Tests` and `Great.Parts.Cel.Conformance` are published under Native AOT and run as executables: in `eng/test` for Native AOT on linux-x64 ([eng-test.md](eng-test.md)) and in CI on linux-x64 and win-x64, for both targets. `eng/checks test-count` compares the tests of each published run with the JIT run of the same commit, operating system and target ([eng-checks-artifacts.md](eng-checks-artifacts.md)). The other test projects run only under JIT.
+`Great.Parts.Cel.Tests` and `Great.Parts.Cel.Conformance` are published under Native AOT and run as executables: in `eng/test` and in CI, on linux-x64, for both targets ([eng-test.md](eng-test.md)). `eng/checks test-count` compares the tests of each published run with the JIT run of the same commit, operating system and target ([eng-checks-artifacts.md](eng-checks-artifacts.md)). The other test projects run only under JIT.
 
 Rules that keep the two sets equal:
 
@@ -77,7 +77,7 @@ Rules that keep the two sets equal:
 
 Project settings:
 
-- `PublishAot=true` and `RuntimeIdentifiers` with `linux-x64` and `win-x64` are in the project files of the two projects. Restore is then the same for JIT and Native AOT: the publish runs with `--no-restore` after a restore without a runtime identifier and changes no lock file, neither of the project nor of the projects it references.
+- `PublishAot=true` and `RuntimeIdentifiers` with `linux-x64` are in the project files of the two projects. Restore is then the same for JIT and Native AOT: the publish runs with `--no-restore` after a restore without a runtime identifier and changes no lock file, neither of the project nor of the projects it references.
 - `DynamicCodeSupport=true` is in the same project files for every build except the publish. With `PublishAot=true` the targets of the Native AOT compiler set `DynamicCodeSupport=false` for every build, and the SDK writes it into the runtime configuration: the JIT run would then run without dynamic code, as the published one, and the conformance runner would name its cell `native-aot` ([conformance.md](conformance.md#skip-lists-and-findings)). The publish keeps `false`.
 - `PublishDocumentationFile=false` is in the same project files, with its reason: the Native AOT publish of the SDK looks for the XML documentation file in the runtime output, where the build does not put it, and fails with `MSB3030`. A test executable needs no documentation file; `GenerateDocumentationFile` stays `true`.
 - `InvariantGlobalization=true` is given only on the `dotnet publish` command line. The JIT run keeps ICU, the published run uses the invariant mode, and the same expectations hold in both.

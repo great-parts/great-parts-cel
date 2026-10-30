@@ -93,7 +93,7 @@ Values are compared as `cel.expr.Value` messages, as `diffValue` does with `cmp.
 
 ## Skip lists and findings
 
-The cell of a run is the mode (`jit` when `RuntimeFeature.IsDynamicCodeSupported`, else `native-aot`), the operating system (`linux-x64`, `windows-x64`, `macos`) and the target, fixed at compile time. A skip entry applies when its scope contains the cell.
+The cell of a run is the mode (`jit` when `RuntimeFeature.IsDynamicCodeSupported`, else `native-aot`), the operating system (`linux-x64`, `macos`) and the target, fixed at compile time. The cells of the matrix are JIT on `linux-x64` and `macos` and Native AOT on `linux-x64`, for both targets. A skip entry applies when its scope contains the cell.
 
 | Code | When | Place |
 | :- | :- | :- |
@@ -126,4 +126,4 @@ regression corpus: 0/0 passed, 2026-11-20 (jit, linux-x64, net11.0)
 
 ## Native AOT
 
-The project is published under Native AOT and runs as an executable ([tests.md](tests.md#same-tests-under-jit-and-native-aot), [eng-test.md](eng-test.md#test-aot)). The runner uses no reflection: generated messages, embedded resources and the API of the library.
+The project is published under Native AOT and runs as an executable ([tests.md](tests.md#same-tests-under-jit-and-native-aot), [eng-test.md](eng-test.md#test)). The runner uses no reflection: generated messages, embedded resources and the API of the library.

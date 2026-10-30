@@ -15,7 +15,7 @@ internal static class SdkSymbols
         ["2.0", "3.5", "4.0", "4.5", "4.5.1", "4.5.2", "4.6", "4.6.1", "4.6.2", "4.7", "4.7.1", "4.7.2", "4.8", "4.8.1"];
 
     /// <summary>Returns the symbols for a target framework moniker such as <c>net11.0</c> or <c>netstandard2.0</c>.</summary>
-    /// <param name="targetFramework">The moniker. A platform suffix, as in <c>net10.0-windows</c>, is ignored.</param>
+    /// <param name="targetFramework">The moniker. A platform suffix, as in <c>net10.0-android</c>, is ignored.</param>
     /// <returns>The symbols; none for a moniker of an unknown form.</returns>
     internal static IReadOnlyList<string> For(string targetFramework)
     {
