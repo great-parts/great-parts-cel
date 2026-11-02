@@ -7,8 +7,6 @@ using Xunit;
 
 namespace Great.Parts.Cel.Eng.Tests.Analyzers;
 
-[Trait("Requirement", "system-S-3")]
-[Trait("Requirement", "+R-16")]
 public sealed class Arch005Tests
 {
     private const string LayersPath = "eng/layers.txt";

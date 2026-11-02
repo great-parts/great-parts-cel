@@ -61,7 +61,7 @@ Reading C# sources has its own cases in `SuppressionsTests` and `DuplicatesTests
 
 ## Rules shared with all tests
 
-Test projects follow [tests.md](tests.md): the requirement trait, the test framework, the seed of property tests. The tests here carry a requirement trait when they check a requirement of the library directly, for example the composition of the packages.
+Test projects follow [tests.md](tests.md): the requirement trait, the test framework, the seed of property tests. The tests here carry a requirement trait when they check a requirement of the library directly.
 
 ## Control set of mutation testing
 

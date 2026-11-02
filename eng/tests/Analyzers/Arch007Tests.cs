@@ -7,7 +7,6 @@ using Xunit;
 
 namespace Great.Parts.Cel.Eng.Tests.Analyzers;
 
-[Trait("Requirement", "S-1")]
 public sealed class Arch007Tests
 {
     [Fact]

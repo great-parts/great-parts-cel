@@ -7,7 +7,6 @@ using Xunit;
 
 namespace Great.Parts.Cel.Eng.Tests.Analyzers;
 
-[Trait("Requirement", "+R-16")]
 public sealed class Arch006Tests
 {
     private const string Types = """

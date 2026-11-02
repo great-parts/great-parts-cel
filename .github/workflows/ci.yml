@@ -1,0 +1,186 @@
+# Build and tests on GitHub: JIT on Linux and macOS, Native AOT on linux-x64, both for net10.0 and net11.0, plus the Signed-off-by check.
+# The cells run the same commands as the container checks of eng/ (docs/design/eng-test.md), without containers: the runners have no
+# SDK 11, so actions/setup-dotnet installs the SDK of global.json and the SDK 10.0.x whose runtime the net10.0 tests need.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  # JIT cells. Restore is locked in every cell: Directory.Build.props sets RestoreLockedMode when GITHUB_ACTIONS is true, and the
+  # explicit restore step names it. The cel-spec runner and the regression corpus are tests of tests/Great.Parts.Cel.Conformance, so
+  # they run in every cell; with -showLiveOutput the summary line of each suite is in the log of the cell.
+  jit:
+    name: JIT ${{ matrix.os }} ${{ matrix.tfm }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        tfm: [net10.0, net11.0]
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The ratchet reads the history down to the merge base with main.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: dotnet restore Great.Parts.Cel.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build Great.Parts.Cel.slnx -c Release --no-restore
+
+      - name: Tests (JIT)
+        env:
+          TARGET: ${{ matrix.tfm }}
+        run: |
+          set -u
+          status=0
+          for project in tests/*/*.csproj; do
+            directory=$(dirname "$project")
+            name=$(basename "$project" .csproj)
+            echo "== $name $TARGET"
+            dotnet "$directory/bin/Release/$TARGET/$name.dll" -noColor -showLiveOutput \
+              -result-xml "artifacts/test-results/jit/$name/$TARGET/report.xml" || status=1
+          done
+          exit $status
+
+      # The tests of eng/ need Linux (StepTimeoutTests) and run once, in the cell JIT Linux net11.0, with the repository checks.
+      - name: Tests of eng/ (JIT)
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
+        run: >
+          dotnet eng/tests/bin/Release/net10.0/Great.Parts.Cel.Eng.Tests.dll -noColor
+          -result-xml artifacts/test-results/jit/Great.Parts.Cel.Eng.Tests/net10.0/report.xml
+
+      # The ratchet compares with the local main. A push to main has it; a pull request starts from a detached merge commit.
+      - name: Local main for the ratchet
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
+        run: git rev-parse --verify --quiet refs/heads/main > /dev/null || git branch main origin/main
+
+      # Suppressions, duplicates, the ratchet and the content of the packages.
+      - name: Repository checks
+        if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
+        run: dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages --no-build
+
+  # Native AOT cells, linux-x64. A cell builds the solution, runs the two published test projects under JIT for its target (the
+  # reference of the test count), publishes them as eng/test does, runs the executables and compares the tests of both runs
+  # (ENG810, ENG811). A publish with a trimming or AOT warning fails, so 0 IL2xxx and IL3xxx is part of the cell. The cel-spec runner
+  # and the regression corpus are in tests/Great.Parts.Cel.Conformance, one of the published projects.
+  aot:
+    name: AOT linux-x64 ${{ matrix.tfm }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        tfm: [net10.0, net11.0]
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: dotnet restore Great.Parts.Cel.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build Great.Parts.Cel.slnx -c Release --no-restore
+
+      - name: Tests (JIT, published projects)
+        env:
+          TARGET: ${{ matrix.tfm }}
+        run: |
+          set -u
+          status=0
+          for project in $(grep -l '<PublishAot>true</PublishAot>' tests/*/*.csproj); do
+            directory=$(dirname "$project")
+            name=$(basename "$project" .csproj)
+            echo "== $name $TARGET"
+            dotnet "$directory/bin/Release/$TARGET/$name.dll" -noColor -showLiveOutput \
+              -result-xml "artifacts/test-results/jit/$name/$TARGET/report.xml" || status=1
+          done
+          exit $status
+
+      - name: Publish, run and compare the test count (Native AOT)
+        env:
+          TARGET: ${{ matrix.tfm }}
+        run: |
+          set -u
+          status=0
+          for project in $(grep -l '<PublishAot>true</PublishAot>' tests/*/*.csproj); do
+            directory=$(dirname "$project")
+            name=$(basename "$project" .csproj)
+            published="artifacts/aot/$name/$TARGET"
+            echo "== publish $name $TARGET"
+            dotnet publish "$directory" -f "$TARGET" -r linux-x64 -c Release --no-restore \
+              -p:InvariantGlobalization=true -p:BuildProjectReferences=false -o "$published/" || { status=1; continue; }
+            echo "== run $name $TARGET"
+            "$published/$name" -noColor -showLiveOutput \
+              -result-xml "artifacts/test-results/aot/$name/$TARGET/report.xml" || status=1
+            echo "== test-count $name $TARGET"
+            dotnet run --project eng/checks -c Release --no-build -- test-count \
+              --jit "artifacts/test-results/jit/$name/$TARGET/report.xml" \
+              --aot "artifacts/test-results/aot/$name/$TARGET/report.xml" \
+              --where "linux-x64, $TARGET" || status=1
+          done
+          exit $status
+
+  # Signed-off-by of every commit that reaches main (push: before..after, merges and bots included) and of every commit of a pull
+  # request except those of Dependabot. A new branch or the first push has before = 0000..., then all commits of after are checked.
+  signoff:
+    name: Signed-off-by
+    if: ${{ github.event_name == 'push' || github.event.pull_request.user.login != 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The range needs the commits of both ends.
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Check Signed-off-by
+        env:
+          EVENT: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          PULL_BASE: ${{ github.event.pull_request.base.sha }}
+          PULL_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -eu
+          if [ "$EVENT" = "pull_request" ]; then
+            range="$PULL_BASE..$PULL_HEAD"
+          elif [ "$PUSH_BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            range="$PUSH_AFTER"
+          else
+            range="$PUSH_BEFORE..$PUSH_AFTER"
+          fi
+          echo "range: $range"
+          dotnet run --project eng/checks -c Release -- signoff "$range"

@@ -7,7 +7,6 @@ using Xunit;
 
 namespace Great.Parts.Cel.Eng.Tests.Analyzers;
 
-[Trait("Requirement", "system-S-3")]
 public sealed class Arch001Tests
 {
     private const string First = """

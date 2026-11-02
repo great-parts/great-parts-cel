@@ -7,7 +7,6 @@ using Xunit;
 
 namespace Great.Parts.Cel.Eng.Tests.Analyzers;
 
-[Trait("Requirement", "+R-12")]
 public sealed class Arch002To004Tests
 {
     private const string ListPath = "docs/api-concepts.md";
