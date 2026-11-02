@@ -26,11 +26,11 @@ public sealed class TimeoutsTests
         // one for each target of the published project. Stage 3: the test count of each published target.
         string[] expected =
         [
-            "build=67",
-            .. Enumerable.Repeat("jit=72", 4),
-            "publish=120",
+            "build=81",
+            .. Enumerable.Repeat("jit=93", 4),
+            "publish=201",
             "aot run=120",
-            "publish=120",
+            "publish=201",
             "aot run=120",
             .. Enumerable.Repeat("test-count=12", 2),
         ];
@@ -44,10 +44,10 @@ public sealed class TimeoutsTests
 
         Step[] steps = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
 
-        // The restore of the tool and the preparation of the tool: 3 minutes; the build of eng/checks: 67 s; the reading of the
+        // The restore of the tool and the preparation of the tool: 3 minutes; the build of eng/checks: 81 s; the reading of the
         // report by eng/checks mutation: 12 s. Literals, not the constants of Timeouts, so a changed constant fails the test.
         Assert.Equal(
-            ["tool=180", "build=67", "stryker=180", "run=12"],
+            ["tool=180", "build=81", "stryker=180", "run=12"],
             steps.Select(step => $"{step.Arguments[0]}={step.Timeout?.TotalSeconds}"));
         Assert.Equal(["stryker"], steps.Where(step => step.Extend is not null).Select(step => step.Arguments[0]));
     }

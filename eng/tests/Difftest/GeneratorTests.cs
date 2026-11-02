@@ -62,6 +62,8 @@ public sealed class GeneratorTests
         string | "\\" | Apostrophe | - | Literal | !
         string | "'" | TripleApostrophe | - | Literal | !
         string | "\n" | QuotationMark | r | Literal | !
+        string | "\r" | TripleQuotationMark | r | Literal | !
+        string | "\r" | TripleApostrophe | - | Literal | !
         string | "Ā" | Apostrophe | - | Octal | !
         string | "😀" | Apostrophe | - | UnicodeShort | !
         string | "a" | Apostrophe | - | Character | !
@@ -75,6 +77,8 @@ public sealed class GeneratorTests
         bytes | ff | b | Apostrophe | - | Literal | !
         bytes | 61 | b | Apostrophe | - | UnicodeShort | !
         bytes | c3 | b | Apostrophe | r | Literal | !
+        bytes | 0d | b | TripleApostrophe | R | Literal | !
+        bytes | 0d | B | TripleQuotationMark | - | Character | B"""\r"""
         """";
 
     // ---- The generator ----
@@ -174,6 +178,33 @@ public sealed class GeneratorTests
         Assert.Contains(bound, double.IsNegativeInfinity);
         Assert.Contains(bound, value => value == 0 && double.IsNegative(value));
         Assert.Contains(doubles, binding => binding.Key is "x1" or "x2" && !double.IsFinite(binding.Value.DoubleValue));
+    }
+
+    // cel-go turns a carriage return in the source of a literal into a line feed, while the library keeps it: the values of
+    // literals hold carriage returns, their text only escapes them.
+    [Fact]
+    public void StringAndBytesLiterals_HoldCarriageReturnsButNeverPrintOneAsItself()
+    {
+        List<Expr> literals = [.. AllNodes().Where(node => node is StringLiteral or BytesLiteral)];
+
+        Assert.Contains(literals, literal => literal is StringLiteral { Value: var text } && text.Contains('\r', StringComparison.Ordinal));
+        Assert.Contains(literals, literal => literal is BytesLiteral { Value: var bytes } && bytes.Contains((byte)'\r'));
+        Assert.All(literals, literal => Assert.DoesNotContain('\r', ExprPrinter.Print(literal)));
+    }
+
+    [Fact]
+    public void CarriageReturn_CannotBeLiteralInAnyQuotes()
+    {
+        Quote[] quotes = Enum.GetValues<Quote>();
+
+        Assert.Equal(4, quotes.Length);
+        foreach (Quote quote in quotes)
+        {
+            Assert.False(TextUnits.CanBeLiteral('\r', quote, raw: false), quote.ToString());
+            Assert.False(TextUnits.CanBeLiteral('\r', quote, raw: true), quote.ToString());
+            Assert.DoesNotContain(Escape.Literal, TextUnits.StringForms('\r', quote, raw: false));
+            Assert.DoesNotContain(Escape.Literal, TextUnits.BytesForms([(byte)'\r'], 0, quote, raw: false));
+        }
     }
 
     [Fact]

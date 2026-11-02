@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using System.Linq;
 using Great.Parts.Cel.Types;
@@ -95,5 +96,70 @@ public sealed class CelTypeTests
         Assert.False(CelType.Int.Equals(null));
         Assert.False(CelType.Int.Equals((object?)null));
         Assert.False(CelType.Int.Equals("int"));
+    }
+
+    [Fact]
+    public void Null_IsASharedInstanceOfNullType()
+    {
+        Assert.Same(CelType.Null, CelType.Null);
+        Assert.Equal((CelTypeKind.Null, "null_type"), (CelType.Null.Kind, CelType.Null.Name));
+        Assert.Empty(CelType.Null.Parameters);
+    }
+
+    [Fact]
+    public void ListOf_HasTheElementTypeAsItsParameter()
+    {
+        CelType list = CelType.ListOf(CelType.String);
+
+        Assert.Equal((CelTypeKind.List, "list"), (list.Kind, list.Name));
+        Assert.Equal([CelType.String], list.Parameters);
+    }
+
+    [Fact]
+    public void MapOf_HasTheKeyAndValueTypesAsItsParametersInThisOrder()
+    {
+        CelType map = CelType.MapOf(CelType.Int, CelType.Bool);
+
+        Assert.Equal((CelTypeKind.Map, "map"), (map.Kind, map.Name));
+        Assert.Equal([CelType.Int, CelType.Bool], map.Parameters);
+    }
+
+    [Fact]
+    public void ListOfAndMapOf_OfEqualParameters_AreEqual()
+    {
+        Assert.Equal(CelType.ListOf(CelType.ListOf(CelType.Int)), CelType.ListOf(CelType.ListOf(CelType.Int)));
+        Assert.Equal(CelType.MapOf(CelType.String, CelType.Dyn), CelType.MapOf(CelType.String, CelType.Dyn));
+        Assert.NotEqual(CelType.MapOf(CelType.String, CelType.Int), CelType.MapOf(CelType.Int, CelType.String));
+    }
+
+    [Fact]
+    public void ListOf_NullElementType_Throws()
+    {
+        Assert.Equal("elementType", Assert.Throws<ArgumentNullException>(() => CelType.ListOf(null!)).ParamName);
+    }
+
+    [Fact]
+    public void MapOf_NullKeyOrValueType_Throws()
+    {
+        Assert.Equal("keyType", Assert.Throws<ArgumentNullException>(() => CelType.MapOf(null!, CelType.Int)).ParamName);
+        Assert.Equal("valueType", Assert.Throws<ArgumentNullException>(() => CelType.MapOf(CelType.Int, null!)).ParamName);
+    }
+
+    [Fact]
+    public void ToString_WritesTheTypeInCelNotationWithItsParameters()
+    {
+        CelType[] types =
+        [
+            CelType.Int,
+            CelType.Null,
+            CelType.Dyn,
+            CelType.ListOf(CelType.Int),
+            CelType.MapOf(CelType.String, CelType.Dyn),
+            CelType.ListOf(CelType.MapOf(CelType.UInt, CelType.ListOf(CelType.Bytes))),
+        ];
+
+        Assert.Equal(
+            ["int", "null_type", "dyn", "list(int)", "map(string, dyn)", "list(map(uint, list(bytes)))"],
+            types.Select(type => type.ToString()));
     }
 }

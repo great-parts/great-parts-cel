@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 namespace Great.Parts.Cel.Values;
 
@@ -56,7 +57,12 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     /// For a view over a JSON object that repeats a name, this counts every property, repeats included;
     /// <c>size</c> in an expression gives an error for such an object instead.
     /// </remarks>
-    public int Count => throw new NotImplementedException();
+    public int Count => CountCore;
+
+    /// <summary>
+    /// The number of entries, for <see cref="Count"/>.
+    /// </summary>
+    private protected abstract int CountCore { get; }
 
     /// <summary>
     /// Creates a map of <paramref name="entries"/>; enumeration keeps their order.
@@ -72,7 +78,27 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     /// </exception>
     public static CelMap Create(IEnumerable<KeyValuePair<CelValue, CelValue>> entries)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(entries);
+        KeyValuePair<CelValue, CelValue>[] copy = [.. entries];
+        foreach (KeyValuePair<CelValue, CelValue> entry in copy)
+        {
+            if (entry.Value.Kind == CelValueKind.Error)
+            {
+                throw new ArgumentException("An error value is not a value of a CEL map.", nameof(entries));
+            }
+        }
+
+        EntryTableMap? map = EntryTableMap.TryCreate(copy, out EntryTableMap.Refusal refusal, out int index);
+        if (map is not null)
+        {
+            return map;
+        }
+
+        throw new ArgumentException(
+            refusal == EntryTableMap.Refusal.KeyKind
+                ? string.Create(CultureInfo.InvariantCulture, $"The key of the entry {index} is of the kind {copy[index].Key.Kind}, which cannot be a key of a CEL map.")
+                : string.Create(CultureInfo.InvariantCulture, $"The key of the entry {index} is equal by CEL equality to the key of an earlier entry."),
+            nameof(entries));
     }
 
     /// <summary>
@@ -86,7 +112,7 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     /// <returns><see langword="true"/> when the map has the key.</returns>
     public bool TryGetValue(CelValue key, out CelValue value)
     {
-        throw new NotImplementedException();
+        return TryGetValueCore(key, out value);
     }
 
     /// <summary>
@@ -96,11 +122,25 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     /// <returns>The enumerator.</returns>
     public IEnumerator<KeyValuePair<CelValue, CelValue>> GetEnumerator()
     {
-        throw new NotImplementedException();
+        return GetEnumeratorCore();
     }
 
     IEnumerator IEnumerable.GetEnumerator()
     {
-        throw new NotImplementedException();
+        return GetEnumeratorCore();
     }
+
+    /// <summary>
+    /// Looks up a key, for <see cref="TryGetValue"/>.
+    /// </summary>
+    /// <param name="key">The key, of any kind.</param>
+    /// <param name="value">The value when the method returns <see langword="true"/>; otherwise <c>null</c>.</param>
+    /// <returns><see langword="true"/> when the map has the key.</returns>
+    private protected abstract bool TryGetValueCore(CelValue key, out CelValue value);
+
+    /// <summary>
+    /// Enumerates the entries, for <see cref="GetEnumerator"/>.
+    /// </summary>
+    /// <returns>The enumerator.</returns>
+    private protected abstract IEnumerator<KeyValuePair<CelValue, CelValue>> GetEnumeratorCore();
 }

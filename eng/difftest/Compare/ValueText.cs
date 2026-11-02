@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using Cel.Expr;
+using Great.Parts.Cel.Eng.Difftest.Numbers;
 using Great.Parts.Cel.Eng.Difftest.Sides;
 
 namespace Great.Parts.Cel.Eng.Difftest.Compare;
@@ -102,7 +103,7 @@ internal static class ValueText
             return value > 0 ? "+Infinity" : "-Infinity";
         }
 
-        string text = value.ToString("R", CultureInfo.InvariantCulture);
+        string text = DoubleRoundTrip.Format(value);
         return text.AsSpan().ContainsAny('.', 'E') ? text : text + ".0";
     }
 

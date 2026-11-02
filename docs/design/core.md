@@ -11,7 +11,7 @@ The core is the code that decides the value or the error of an expression by the
 - the standard library and the extension sets with the implementations of their functions, including `matches`, `decimal` and the time functions — `Great.Parts.Cel.Library` and its sub-namespaces;
 - the value rules that evaluation relies on: assignability of types in `Great.Parts.Cel.Types`; CEL equality, ordering, hashing of map keys and conversions of values in `Great.Parts.Cel.Values`.
 
-Not core: the parser and the macros (`Great.Parts.Cel.Syntax`), the public facade, declarations, diagnostics, the environment description in JSON (`Great.Parts.Cel.Configuration`), the value model in `Types` and `Values` outside the rule files, the source generator, the type providers, the `Great.Parts.Cel.Protobuf` package, `eng/` and the tests.
+Not core: the parser and the macros (`Great.Parts.Cel.Syntax`), the public facade, declarations, diagnostics, the environment description in JSON (`Great.Parts.Cel.Configuration`), the value model in `Types` and `Values` outside the rule files, the text of error messages, including the names of types in it (`Values/ValueTypeNames.cs`), the source generator, the type providers, the `Great.Parts.Cel.Protobuf` package, `eng/` and the tests.
 
 A defect in the core gives a wrong value instead of a visible error. Core changes are therefore also checked against the reference implementation with `eng/difftest`.
 

@@ -96,6 +96,54 @@ public sealed class OracleConnectionTests
                 fields.GetProperty("description").GetString()));
     }
 
+    // The formatter of Google.Protobuf writes 2^-25 with "r", which on .NET 10 gives the text of the neighbouring double.
+    [Fact]
+    public void DoubleBindings_ReachTheOracleAsTheSameBits()
+    {
+        using FakeOracle fake = new([Handshake], answer: _ => """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
+        Dictionary<string, Value> bindings = new()
+        {
+            ["d1"] = Double(BitConverter.Int64BitsToDouble(0x3E60000000000000)),
+            ["d2"] = Double(-0.0),
+            ["x1"] = Double(double.NaN),
+            ["x2"] = Double(double.PositiveInfinity),
+            ["d3"] = Double(double.NegativeInfinity),
+        };
+        using (OracleConnection connection = OracleConnection.Open(Loopback, fake.Port, Limit, Limit, ProfileTables.ManifestPath, _ => { }))
+        {
+            _ = connection.Evaluate("d1", bindings);
+        }
+
+        fake.Join();
+        using JsonDocument request = JsonDocument.Parse(fake.Requests[0]);
+        JsonElement sent = request.RootElement.GetProperty("bindings");
+        Assert.Equal("""{"doubleValue":2.9802322387695312E-08}""", sent.GetProperty("d1").GetRawText());
+        Assert.Equal("""{"doubleValue":-0}""", sent.GetProperty("d2").GetRawText());
+        Assert.Equal("""{"doubleValue":"NaN"}""", sent.GetProperty("x1").GetRawText());
+        Assert.Equal("""{"doubleValue":"Infinity"}""", sent.GetProperty("x2").GetRawText());
+        Assert.Equal("""{"doubleValue":"-Infinity"}""", sent.GetProperty("d3").GetRawText());
+        Assert.All(bindings, binding => Assert.Equal(
+            BitConverter.DoubleToInt64Bits(binding.Value.DoubleValue),
+            BitConverter.DoubleToInt64Bits(Google.Protobuf.JsonParser.Default.Parse<Value>(sent.GetProperty(binding.Key).GetRawText()).DoubleValue)));
+    }
+
+    // A binding whose text reads back to another value fails the side, which is exit code 2 of a run; only the quoted message
+    // has the text.
+    [Fact]
+    public void BindingThatDoesNotReadBack_FailsTheSideQuotingTheTextOnlyInTheQuotedMessage()
+    {
+        Value bound = Double(BitConverter.Int64BitsToDouble(0x3E60000000000000));
+        string lossy = """{"doubleValue":2.980232238769531E-08}""";
+        Value list = new() { ListValue = new ListValue { Values = { Int(1), Double(1.5) } } };
+
+        SideFailureException exception = Assert.Throws<SideFailureException>(() => OracleConnection.CheckReadsBack("d1", bound, lossy));
+
+        Assert.Equal("the binding of d1 does not read back to the bound value", exception.Message);
+        Assert.Equal("the binding of d1 does not read back to the bound value: " + lossy, exception.QuotedMessage);
+        OracleConnection.CheckReadsBack("d1", bound, """{"doubleValue":2.9802322387695312E-08}""");
+        Assert.Equal(list, Google.Protobuf.JsonParser.Default.Parse<Value>(OracleConnection.BindingJson("l1", list)));
+    }
+
     [Fact]
     public void ClosedConnectionInTheSession_ThrowsIOException()
     {
@@ -364,6 +412,8 @@ public sealed class OracleConnectionTests
     private static string Failed(string step) => JsonSerializer.Serialize(new Dictionary<string, string> { ["failed"] = step });
 
     private static Value Int(long value) => new() { Int64Value = value };
+
+    private static Value Double(double value) => new() { DoubleValue = value };
 
     // A repository with what a run reads: the run manifest, go.mod of the oracle and the tables of the known signatures.
     private static TempDirectory Repository()

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using System.Text;
 
 namespace Great.Parts.Cel.Types;
 
@@ -38,7 +39,7 @@ public sealed class CelType : IEquatable<CelType>
     /// <summary>
     /// <c>null_type</c>: the type whose only value is <c>null</c>.
     /// </summary>
-    public static CelType Null => throw new NotImplementedException();
+    public static CelType Null { get; } = new(CelTypeKind.Null, "null_type", []);
 
     /// <summary>
     /// <c>bool</c>; on .NET, <see cref="bool"/>.
@@ -144,7 +145,8 @@ public sealed class CelType : IEquatable<CelType>
     /// <exception cref="ArgumentNullException"><paramref name="elementType"/> is <see langword="null"/>.</exception>
     public static CelType ListOf(CelType elementType)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(elementType);
+        return new CelType(CelTypeKind.List, "list", [elementType]);
     }
 
     /// <summary>
@@ -157,7 +159,9 @@ public sealed class CelType : IEquatable<CelType>
     /// <exception cref="ArgumentNullException"><paramref name="keyType"/> or <paramref name="valueType"/> is <see langword="null"/>.</exception>
     public static CelType MapOf(CelType keyType, CelType valueType)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(keyType);
+        ArgumentNullException.ThrowIfNull(valueType);
+        return new CelType(CelTypeKind.Map, "map", [keyType, valueType]);
     }
 
     /// <summary>
@@ -262,6 +266,22 @@ public sealed class CelType : IEquatable<CelType>
     /// <returns>The type in CEL notation.</returns>
     public override string ToString()
     {
-        throw new NotImplementedException();
+        if (Parameters.IsEmpty)
+        {
+            return Name;
+        }
+
+        var text = new StringBuilder(Name).Append('(');
+        for (int i = 0; i < Parameters.Length; i++)
+        {
+            if (i > 0)
+            {
+                text.Append(", ");
+            }
+
+            text.Append(Parameters[i].ToString());
+        }
+
+        return text.Append(')').ToString();
     }
 }

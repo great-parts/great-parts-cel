@@ -71,7 +71,7 @@ The profile is what the generator produces. Variables of the manifest:
 | `int` literal | decimal or hexadecimal; a negative value as `-` and its magnitude, including `-9223372036854775808` |
 | `uint` literal | decimal or hexadecimal with `u` or `U` |
 | `double` literal | the shortest decimal that reads back to the same finite value, with or without an exponent, also with a leading `.`; a negative value as `-` and its magnitude |
-| `string` literal | single, double and triple quotes; the raw prefix `r` or `R`; the escapes `` \a \b \f \n \r \t \v \\ \' \" \` \? ``, `\x`, octal, and `\u` and `\U` for Unicode scalar values; any Unicode scalar value |
+| `string` literal | single, double and triple quotes; the raw prefix `r` or `R`; the escapes `` \a \b \f \n \r \t \v \\ \' \" \` \? ``, `\x`, octal, and `\u` and `\U` for Unicode scalar values; any Unicode scalar value. A carriage return (U+000D) is never printed as itself, only as an escape, so a literal that holds one is never raw: cel-go turns a carriage return, and a carriage return with a line feed, in the source of a literal into a line feed, while the library keeps the text as the language definition gives it |
 | `bytes` literal | the prefix `b` or `B` on the string forms; `\x` and octal escapes give single bytes; no `\u` and `\U` |
 | `bool`, `null_type` literals | `true`, `false`, `null` |
 | identifier | a variable of the manifest |

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using Great.Parts.Cel.Eng.Difftest.Numbers;
 
 namespace Great.Parts.Cel.Eng.Difftest.Profile;
 
@@ -51,8 +52,8 @@ internal static class ExprPrinter
     /// <param name="value">A finite value that is not negative.</param>
     internal static (string Digits, int Exponent) ShortestDecimal(double value)
     {
-        // "R" gives the shortest round-trip text: "1.5E-05", "123.456", "1E+20", "0".
-        string text = value.ToString("R", CultureInfo.InvariantCulture);
+        // The shortest text that reads back to the same bits: "1.5E-05", "123.456", "1E+20", "0".
+        string text = DoubleRoundTrip.Format(value);
         int exponentIndex = text.IndexOf('E', StringComparison.Ordinal);
         int exponent = exponentIndex < 0 ? 0 : int.Parse(text.AsSpan(exponentIndex + 1), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture);
         string mantissa = exponentIndex < 0 ? text : text[..exponentIndex];

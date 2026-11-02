@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
 
@@ -27,13 +29,19 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelBindings
 {
+    private readonly Dictionary<string, CelValue> _values = new(StringComparer.Ordinal);
+
     /// <summary>
     /// Creates empty bindings.
     /// </summary>
     public CelBindings()
     {
-        throw new NotImplementedException();
     }
+
+    /// <summary>
+    /// The bound values by name, as evaluation reads them.
+    /// </summary>
+    internal IReadOnlyDictionary<string, CelValue> Values => _values;
 
     /// <summary>
     /// Binds a name to a value, converted by the static type <typeparamref name="T"/> through the input rows
@@ -66,6 +74,22 @@ public sealed class CelBindings
     /// </exception>
     public CelBindings Add<T>(string name, T value)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        CelValue converted;
+        if (typeof(T) == typeof(CelValue))
+        {
+            converted = Unsafe.As<T, CelValue>(ref value);
+        }
+        else if (!ConversionRules.TryFromClr(value, out converted))
+        {
+            throw new NotImplementedException();
+        }
+
+        if (!_values.TryAdd(name, converted))
+        {
+            throw new ArgumentException($"The name '{name}' is already bound.", nameof(name));
+        }
+
+        return this;
     }
 }

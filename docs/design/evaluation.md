@@ -52,9 +52,9 @@ An error inside evaluation is a value of the kind `Error` with a `CelError` of t
 
 | Code | Where |
 | :- | :- |
-| `EvalNoMatchingOverload` (3000) | no overload fits the kinds of the values; a chain of `\|\|` with an operand that is not a `bool`, when no operand is `true`: `{function}` is `_\|\|_`, `{argumentTypes}` the types of all operands of the chain in order |
+| `EvalNoMatchingOverload` (3000) | no overload fits the kinds of the values; a chain of `\|\|` with an operand that is not a `bool`, when no operand is `true`: `{function}` is `_\|\|_`, `{argumentTypes}` the types of all operands of the chain in order; an operand that is an error value is named `error`, the name of the error type in cel-go |
 | `Unbound` (3009) | a variable without a value in the bindings, at its identifier: `no value is bound to variable '{name}'` |
-| `DuplicateMapKey` (3010) | a map literal with two keys equal by CEL equality, such as `1` and `1u`, at the literal |
+| `DuplicateMapKey` (3010) | a map literal with two keys equal by CEL equality, such as `1` and `1u`, at the literal; the key is written as a CEL literal, as the unparser of cel-go writes it: an `int` in decimal, a `uint` in decimal with the suffix `u`, `true` or `false`, a string in double quotes with `\\`, `\"`, `\n`, `\r`, `\t` and `\u00HH` for the other control characters; the key named is the later of the two; the same form serves the key of `NoSuchKey` (3002) and a repeated name of a `JsonElement` object |
 | `UnsupportedMapKeyType` (3027) | a key of a map literal that is not an `int`, `uint`, `bool` or `string`, at the key; checked before `DuplicateMapKey` |
 
 The errors of the standard library functions are in [library](library.md).

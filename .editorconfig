@@ -42,10 +42,11 @@ dotnet_diagnostic.CA1506.severity = error
 # object types; the names are the terms of the CEL language, not .NET type names.
 dotnet_diagnostic.CA1720.severity = none
 
-[src/Great.Parts.Cel/**.cs]
-# Skeleton of the public API: method bodies, including equality members, hash codes and ToString,
-# throw NotImplementedException until the increments that implement them. Remove this section when
-# the bodies are implemented.
+[src/Great.Parts.Cel/{CelCompileOptions.cs,CelEvalOptions.cs,CelStandardLibrary.cs,Declarations/CelExtension.cs,Declarations/CelFunctionDecl.cs,Declarations/CelOverloadDecl.cs,Types/CelType.cs,Values/CelDuration.cs,Values/CelEnumType.cs,Values/CelNameAttribute.cs,Values/CelObjectAttribute.cs,Values/CelObjectField.cs,Values/CelObjectType.cs,Values/CelOptional.cs,Values/CelTimeZoneDatabase.cs,Values/CelTimestamp.cs,Values/CelTypeContextOptionsAttribute.cs,Values/CelTypeProvider.cs,Values/CelValue.cs}]
+# Skeleton of the public API: in these files bodies of members that CA1065 covers — property getters,
+# equality members, hash codes and ToString — still throw NotImplementedException until the increments
+# that implement them. Remove a file from the list when its bodies are implemented, and the section with
+# the last one.
 dotnet_diagnostic.CA1065.severity = none
 
 [*.{csproj,props,targets,slnx,config,json,xml}]

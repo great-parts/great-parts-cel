@@ -8,6 +8,7 @@
 | `src/Great.Parts.Cel/Values/KindTag.cs` | the static kind tags of the 24-byte layout | no |
 | `src/Great.Parts.Cel/Values/ValueArrayList.cs` | `CelList` over an array of values | no |
 | `src/Great.Parts.Cel/Values/EntryTableMap.cs` | `CelMap` over a table of entries in the order of insertion | no |
+| `src/Great.Parts.Cel/Values/ValueTypeNames.cs` | the names of the CEL types of value kinds in the text of error messages | no |
 | `src/Great.Parts.Cel/Values/EqualityRules.cs` | CEL equality of map keys | yes |
 | `src/Great.Parts.Cel/Values/KeyHashRules.cs` | which kinds can be map keys; their hash, consistent with equality | yes |
 | `src/Great.Parts.Cel/Values/ConversionRules.cs` | .NET values of simple types to CEL values | yes |

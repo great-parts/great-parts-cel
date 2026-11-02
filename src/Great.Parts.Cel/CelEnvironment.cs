@@ -2,8 +2,10 @@ using System;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
+using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Evaluation;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
 
@@ -31,9 +33,10 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelEnvironment
 {
-    internal CelEnvironment(ImmutableArray<CelVariableDecl> variableDeclarations)
+    internal CelEnvironment(ImmutableArray<CelVariableDecl> variableDeclarations, DeclarationIndex declarations)
     {
         VariableDeclarations = variableDeclarations;
+        Declarations = declarations;
     }
 
     /// <summary>
@@ -75,7 +78,28 @@ public sealed class CelEnvironment
     /// </exception>
     public CelCompileResult<T> Compile<T>(string expression, CelCompileOptions? options = null)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(expression);
+        if (options is not null || !ConversionRules.IsResultType<T>())
+        {
+            // Compile options and the result types outside the rows implemented so far are not
+            // implemented yet; they are not ignored.
+            throw new NotImplementedException();
+        }
+
+        ParseResult parsed = Parse(expression);
+        if (!parsed.IsSuccess)
+        {
+            return new CelCompileResult<T>(parsed.Errors);
+        }
+
+        CheckResult checkedResult = Check(parsed.Expression);
+        if (!checkedResult.IsSuccess)
+        {
+            return new CelCompileResult<T>(checkedResult.Errors);
+        }
+
+        CheckedExpression checkedExpression = checkedResult.Expression;
+        return new CelCompileResult<T>(new CelProgram<T>(Planner.Plan(checkedExpression), checkedExpression.ResultType));
     }
 
     /// <summary>
@@ -134,6 +158,10 @@ public sealed class CelEnvironment
 
     internal ImmutableArray<CelVariableDecl> VariableDeclarations { get; }
 
+    // The declarations of the standard library version and of the application, indexed for checking
+    // and evaluation.
+    internal DeclarationIndex Declarations { get; }
+
     /// <summary>
     /// Parses an expression: the parse step of <see cref="Compile{T}"/>, with the syntax of this environment. The
     /// parsed expression does not refer to the environment.
@@ -149,5 +177,36 @@ public sealed class CelEnvironment
     {
         ArgumentNullException.ThrowIfNull(expression);
         return Parser.Parse(expression);
+    }
+
+    /// <summary>
+    /// Checks the types of a parsed expression in this environment: the check step of <see cref="Compile{T}"/>.
+    /// </summary>
+    /// <param name="parsed">The parsed expression.</param>
+    /// <returns>
+    /// The checked expression with the type of the expression, or every error of the stage <see cref="CelErrorStage.Check"/>
+    /// in the order of the traversal.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="parsed"/> is <see langword="null"/>.</exception>
+    internal CheckResult Check(ParsedExpression parsed)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        return Checker.Check(parsed, Declarations);
+    }
+
+    /// <summary>
+    /// Evaluates a parsed expression without type checking: names are looked up in the bindings when they are
+    /// evaluated, and a function is chosen among all overloads of its name and argument count by the kinds of
+    /// the argument values.
+    /// </summary>
+    /// <param name="parsed">The parsed expression.</param>
+    /// <param name="bindings">The values of the variables.</param>
+    /// <returns>The value as it is, without conversion, or one error of the stage <see cref="CelErrorStage.Evaluate"/>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="parsed"/> or <paramref name="bindings"/> is <see langword="null"/>.</exception>
+    internal CelEvalResult<CelValue> EvaluateWithoutTypeCheck(ParsedExpression parsed, CelBindings bindings)
+    {
+        ArgumentNullException.ThrowIfNull(parsed);
+        ArgumentNullException.ThrowIfNull(bindings);
+        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations), bindings);
     }
 }

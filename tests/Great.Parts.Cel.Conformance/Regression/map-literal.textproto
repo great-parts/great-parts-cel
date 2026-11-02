@@ -1,0 +1,88 @@
+# Minimized cases of known divergences from cel-go in map literals. The expectation of each case is the answer of cel-go.
+
+name: "map_literal"
+description: "Map literals with a repeated key or a key that is not an int, uint, bool or string"
+section {
+  name: "duplicate_key"
+  description: "The language definition makes a repeated key an error; cel-go keeps the last entry or both"
+  test {
+    name: "bool_key_repeated"
+    description: "map(bool, int, bool, int) we-error"
+    expr: "{true: 1, true: 3}"
+    value: {
+      map_value: {
+        entries: {
+          key: {
+            bool_value: true
+          }
+          value: {
+            int64_value: 3
+          }
+        }
+      }
+    }
+  }
+  test {
+    name: "int_and_uint_key_equal"
+    description: "map(int, int, uint, int) we-error"
+    expr: "{0: 1, 0u: 2}"
+    value: {
+      map_value: {
+        entries: {
+          key: {
+            int64_value: 0
+          }
+          value: {
+            int64_value: 1
+          }
+        }
+        entries: {
+          key: {
+            uint64_value: 0
+          }
+          value: {
+            int64_value: 2
+          }
+        }
+      }
+    }
+  }
+}
+section {
+  name: "unsupported_key"
+  description: "A map key is an int, uint, bool or string; cel-go also accepts other keys"
+  test {
+    name: "double_key"
+    description: "map(double, int) we-error"
+    expr: "{1.0: 5}"
+    value: {
+      map_value: {
+        entries: {
+          key: {
+            double_value: 1
+          }
+          value: {
+            int64_value: 5
+          }
+        }
+      }
+    }
+  }
+  test {
+    name: "null_key"
+    description: "map(null_type, bool) we-error"
+    expr: "{null: false}"
+    value: {
+      map_value: {
+        entries: {
+          key: {
+            null_value: NULL_VALUE
+          }
+          value: {
+            bool_value: false
+          }
+        }
+      }
+    }
+  }
+}

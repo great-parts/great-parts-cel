@@ -9,6 +9,7 @@ using System.Text.Json;
 using System.Threading;
 using Cel.Expr;
 using Google.Protobuf;
+using Great.Parts.Cel.Eng.Difftest.Numbers;
 using Great.Parts.Cel.Eng.Findings;
 
 namespace Great.Parts.Cel.Eng.Difftest.Sides;
@@ -34,7 +35,8 @@ internal sealed record OracleHandshake(string Oracle, string Go)
 /// "Protocol"): the connection to the launcher of the oracle container, the path of the run manifest, the <c>log</c> lines of
 /// its steps, the handshake, and then one request and one answer per line. A <c>failed</c> line, a closed connection, no
 /// connection within the limit and no answer within the limit after the handshake throw <see cref="IOException"/>; a line or
-/// an answer that does not read throws <see cref="SideFailureException"/>, whose message quotes the line only in
+/// an answer that does not read, and a binding whose text does not read back to its value (<see cref="BindingJson"/>), throw
+/// <see cref="SideFailureException"/>, whose message quotes the line or the text only in
 /// <see cref="SideFailureException.QuotedMessage"/>. Both end the run with exit code 2.
 /// </summary>
 internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
@@ -184,6 +186,48 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
         }
     }
 
+    /// <summary>
+    /// The protojson of a binding for a request. A <c>double</c> is written by <see cref="DoubleRoundTrip"/>, and NaN and the
+    /// infinities as the strings of protojson: the formatter of Google.Protobuf writes a <c>double</c> with <c>"r"</c>, which on
+    /// .NET 10 gives for some values, such as 2^-25, the text of the neighbouring <c>double</c>. Every other kind goes through
+    /// that formatter. The text is then read back and compared with the value, a <c>double</c> bit for bit, so a value nested in
+    /// a list or a map that the formatter writes as another value fails the run instead of reaching the oracle.
+    /// </summary>
+    /// <param name="variable">The name of the variable.</param>
+    /// <param name="value">The value bound to it.</param>
+    /// <exception cref="SideFailureException">The text does not read back to the value.</exception>
+    internal static string BindingJson(string variable, Value value)
+    {
+        string json = value.KindCase == Value.KindOneofCase.DoubleValue
+            ? "{\"doubleValue\":" + DoubleJson(value.DoubleValue) + "}"
+            : JsonFormatter.Default.Format(value);
+        CheckReadsBack(variable, value, json);
+        return json;
+    }
+
+    /// <summary>Checks that the protojson of a binding reads back to the bound value, a <c>double</c> bit for bit.</summary>
+    /// <param name="variable">The name of the variable.</param>
+    /// <param name="value">The value bound to it.</param>
+    /// <param name="json">The protojson written for it.</param>
+    /// <exception cref="SideFailureException">The text reads back to another value; only the quoted message has the text.</exception>
+    internal static void CheckReadsBack(string variable, Value value, string json)
+    {
+        // The generated equality of a message compares double fields by their bits: NaN equals NaN, -0.0 differs from 0.0.
+        if (!JsonParser.Default.Parse<Value>(json).Equals(value))
+        {
+            throw Quoting($"the binding of {variable} does not read back to the bound value", json);
+        }
+    }
+
+    // A double in protojson: NaN and the infinities as strings, a finite value, -0.0 included, as its shortest number.
+    private static string DoubleJson(double value) => value switch
+    {
+        double.NaN => "\"NaN\"",
+        double.PositiveInfinity => "\"Infinity\"",
+        double.NegativeInfinity => "\"-Infinity\"",
+        _ => DoubleRoundTrip.Format(value),
+    };
+
     private static CompileStage Stage(JsonElement answer, long id)
     {
         string stage = Text(answer, "stage", id);
@@ -218,7 +262,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
             foreach ((string variable, Value value) in bindings)
             {
                 request.WritePropertyName(variable);
-                request.WriteRawValue(JsonFormatter.Default.Format(value));
+                request.WriteRawValue(BindingJson(variable, value));
             }
 
             request.WriteEndObject();

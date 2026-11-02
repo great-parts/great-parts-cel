@@ -34,32 +34,37 @@ namespace Great.Parts.Cel.Declarations;
 /// </remarks>
 public sealed class CelOverloadDecl
 {
-    private CelOverloadDecl()
+    // The declarations of the standard library tables, which are valid by construction.
+    internal CelOverloadDecl(string overloadId, bool isReceiverStyle, ImmutableArray<CelType> parameterTypes, CelType resultType)
     {
+        OverloadId = overloadId;
+        IsReceiverStyle = isReceiverStyle;
+        ParameterTypes = parameterTypes;
+        ResultType = resultType;
     }
 
     /// <summary>
     /// The overload identifier, such as <c>isInn_string</c>.
     /// </summary>
-    public string OverloadId => throw new NotImplementedException();
+    public string OverloadId { get; }
 
     /// <summary>
     /// Whether the overload is called on a receiver, as <c>x.f(…)</c>, rather than globally, as
     /// <c>f(…)</c>. For a receiver overload the first element of <see cref="ParameterTypes"/> is the type of
     /// the receiver.
     /// </summary>
-    public bool IsReceiverStyle => throw new NotImplementedException();
+    public bool IsReceiverStyle { get; }
 
     /// <summary>
     /// The types of the parameters in call order; for a receiver overload, the receiver comes first.
     /// The implementation receives its arguments in the same order.
     /// </summary>
-    public ImmutableArray<CelType> ParameterTypes => throw new NotImplementedException();
+    public ImmutableArray<CelType> ParameterTypes { get; }
 
     /// <summary>
     /// The type of the result.
     /// </summary>
-    public CelType ResultType => throw new NotImplementedException();
+    public CelType ResultType { get; }
 
     /// <summary>
     /// The function that tells the cost of a call of this overload, or <see langword="null"/> when a call

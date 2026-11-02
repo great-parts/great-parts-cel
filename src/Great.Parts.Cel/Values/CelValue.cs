@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 #if NET11_0_OR_GREATER
 using System.Numerics;
@@ -186,7 +187,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
     public static CelValue FromList(CelList value)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(value);
+        return new CelValue(CelValueKind.List, value, 0, 0);
     }
 
     /// <summary>
@@ -197,7 +199,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <exception cref="ArgumentNullException"><paramref name="value"/> is <see langword="null"/>.</exception>
     public static CelValue FromMap(CelMap value)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(value);
+        return new CelValue(CelValueKind.Map, value, 0, 0);
     }
 
     /// <summary>
@@ -341,7 +344,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.List"/>.</returns>
     public bool TryGetList([NotNullWhen(true)] out CelList? value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.List ? (CelList?)_ref : null;
+        return value is not null;
     }
 
     /// <summary>
@@ -351,7 +355,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Map"/>.</returns>
     public bool TryGetMap([NotNullWhen(true)] out CelMap? value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Map ? (CelMap?)_ref : null;
+        return value is not null;
     }
 
     /// <summary>
@@ -384,7 +389,18 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Error"/>.</returns>
     public bool TryGetError([NotNullWhen(true)] out CelError? value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Error ? (CelError?)_ref : null;
+        return value is not null;
+    }
+
+    /// <summary>
+    /// Creates an error value: the value of a part of an expression whose evaluation failed.
+    /// </summary>
+    /// <param name="error">The error.</param>
+    /// <returns>The value of the kind <see cref="CelValueKind.Error"/>.</returns>
+    internal static CelValue FromError(CelError error)
+    {
+        return new CelValue(CelValueKind.Error, error, 0, 0);
     }
 
 #if NET11_0_OR_GREATER
@@ -439,7 +455,23 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when the values are equal.</returns>
     public bool Equals(CelValue other)
     {
-        throw new NotImplementedException();
+        if (_kind != other._kind)
+        {
+            return false;
+        }
+
+        return _kind switch
+        {
+            CelValueKind.Null => true,
+            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt => _p0 == other._p0,
+            CelValueKind.Double => BitConverter.UInt64BitsToDouble(_p0).Equals(BitConverter.UInt64BitsToDouble(other._p0)),
+            CelValueKind.String => string.Equals((string?)_ref, (string?)other._ref, StringComparison.Ordinal),
+            CelValueKind.Bytes => BytesOf(this).Span.SequenceEqual(BytesOf(other).Span),
+            CelValueKind.List or CelValueKind.Map or CelValueKind.Error => ReferenceEquals(_ref, other._ref),
+
+            // No factory creates values of the other kinds yet.
+            _ => throw new NotImplementedException(),
+        };
     }
 
     /// <summary>
@@ -449,7 +481,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <paramref name="obj"/> is an equal value.</returns>
     public override bool Equals(object? obj)
     {
-        throw new NotImplementedException();
+        return obj is CelValue other && Equals(other);
     }
 
     /// <summary>
@@ -458,7 +490,19 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>The hash code.</returns>
     public override int GetHashCode()
     {
-        throw new NotImplementedException();
+        int content = _kind switch
+        {
+            CelValueKind.Null => 0,
+            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt => _p0.GetHashCode(),
+            CelValueKind.Double => BitConverter.UInt64BitsToDouble(_p0).GetHashCode(),
+            CelValueKind.String => ((string)_ref!).GetHashCode(StringComparison.Ordinal),
+            CelValueKind.Bytes => BytesHash(BytesOf(this).Span),
+            CelValueKind.List or CelValueKind.Map or CelValueKind.Error => RuntimeHelpers.GetHashCode(_ref),
+
+            // No factory creates values of the other kinds yet.
+            _ => throw new NotImplementedException(),
+        };
+        return HashCode.Combine(_kind, content);
     }
 
     /// <summary>
@@ -469,7 +513,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when the values are equal.</returns>
     public static bool operator ==(CelValue left, CelValue right)
     {
-        throw new NotImplementedException();
+        return left.Equals(right);
     }
 
     /// <summary>
@@ -480,6 +524,19 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when the values differ.</returns>
     public static bool operator !=(CelValue left, CelValue right)
     {
-        throw new NotImplementedException();
+        return !left.Equals(right);
+    }
+
+    private static ReadOnlyMemory<byte> BytesOf(CelValue value)
+    {
+        _ = value.TryGetBytes(out ReadOnlyMemory<byte> bytes);
+        return bytes;
+    }
+
+    private static int BytesHash(ReadOnlySpan<byte> bytes)
+    {
+        var hash = default(HashCode);
+        hash.AddBytes(bytes);
+        return hash.ToHashCode();
     }
 }

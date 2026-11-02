@@ -35,24 +35,39 @@ namespace Great.Parts.Cel;
     Justification = "A result is a value or errors returned by a call and is read, not compared; value equality would need equality of T and of error lists.")]
 public readonly struct CelEvalResult<T>
 {
+    private readonly T? _value;
+    private readonly ImmutableArray<CelError> _errors;
+
+    internal CelEvalResult(T? value)
+    {
+        _value = value;
+        _errors = [];
+    }
+
+    internal CelEvalResult(ImmutableArray<CelError> errors)
+    {
+        _errors = errors;
+    }
+
     /// <summary>
     /// Whether the evaluation succeeded: <see langword="true"/> when there are no errors.
     /// </summary>
     [MemberNotNullWhen(true, nameof(Value))]
-    public bool IsSuccess => throw new NotImplementedException();
+    public bool IsSuccess => _errors.IsEmpty;
 
     /// <summary>
     /// The value of the result converted to <typeparamref name="T"/>. Read it only when
     /// <see cref="IsSuccess"/> is <see langword="true"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException"><see cref="IsSuccess"/> is <see langword="false"/>.</exception>
-    public T? Value => throw new NotImplementedException();
+    public T? Value =>
+        IsSuccess ? _value : throw new InvalidOperationException("The evaluation gave no value: the result has errors.");
 
     /// <summary>
     /// The errors: the compilation errors or the one evaluation error; empty when <see cref="IsSuccess"/> is
     /// <see langword="true"/>.
     /// </summary>
-    public ImmutableArray<CelError> Errors => throw new NotImplementedException();
+    public ImmutableArray<CelError> Errors => _errors;
 
     /// <summary>
     /// Returns the value, for code in which an evaluation error is a programming mistake.
@@ -65,8 +80,5 @@ public readonly struct CelEvalResult<T>
         "Design",
         "CA1024:Use properties where appropriate",
         Justification = "The method throws for an unsuccessful result; a property getter must not throw, and the name tells the caller that it can.")]
-    public T GetValueOrThrow()
-    {
-        throw new NotImplementedException();
-    }
+    public T GetValueOrThrow() => IsSuccess ? _value! : throw new CelException(_errors);
 }

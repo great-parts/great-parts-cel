@@ -1,9 +1,9 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Tests.Syntax;
 using Great.Parts.Cel.Values;
 using Xunit;
@@ -86,6 +86,96 @@ public sealed class CelValueTests
         Assert.Equal("value", exception.ParamName);
     }
 
+    [Fact]
+    public static void List_IsTheSameInstanceAndReadOnlyByTryGetList()
+    {
+        CelList list = CelList.Create(CelValue.FromInt64(1));
+
+        CelValue value = CelValue.FromList(list);
+
+        Assert.Equal(CelValueKind.List, value.Kind);
+        Assert.True(value.TryGetList(out CelList? read));
+        Assert.Same(list, read);
+        Assert.Equal("List", ReadReferences(value));
+    }
+
+    [Fact]
+    public static void Map_IsTheSameInstanceAndReadOnlyByTryGetMap()
+    {
+        CelMap map = CelMap.Create([]);
+
+        CelValue value = CelValue.FromMap(map);
+
+        Assert.Equal(CelValueKind.Map, value.Kind);
+        Assert.True(value.TryGetMap(out CelMap? read));
+        Assert.Same(map, read);
+        Assert.Equal("Map", ReadReferences(value));
+    }
+
+    [Fact]
+    public static void Error_IsTheSameInstanceAndReadOnlyByTryGetError()
+    {
+        var error = new CelError(CelErrorCode.InternalError, CelErrorStage.Evaluate, "failed", default, null, null);
+
+        CelValue value = CelValue.FromError(error);
+
+        Assert.Equal(CelValueKind.Error, value.Kind);
+        Assert.True(value.TryGetError(out CelError? read));
+        Assert.Same(error, read);
+        Assert.Equal("Error", ReadReferences(value));
+    }
+
+    [Theory]
+    [MemberData(nameof(SampleCases))]
+    public static void ValueOfAnotherKind_IsNoListMapOrError(string sample, string expected)
+    {
+        CelValue value = Sample(sample);
+
+        Assert.StartsWith(value.Kind.ToString(), expected, StringComparison.Ordinal);
+        Assert.Equal("", ReadReferences(value));
+    }
+
+    [Fact]
+    public static void FromListAndFromMap_WithNull_Throw()
+    {
+        Assert.Equal("value", Assert.Throws<ArgumentNullException>(() => CelValue.FromList(null!)).ParamName);
+        Assert.Equal("value", Assert.Throws<ArgumentNullException>(() => CelValue.FromMap(null!)).ParamName);
+    }
+
+    // The names of the kinds whose TryGet… method of a reference read the value; the others give false and null.
+    private static string ReadReferences(CelValue value)
+    {
+        var parts = new List<string>();
+        if (value.TryGetList(out CelList? list))
+        {
+            parts.Add("List");
+        }
+        else
+        {
+            Assert.Null(list);
+        }
+
+        if (value.TryGetMap(out CelMap? map))
+        {
+            parts.Add("Map");
+        }
+        else
+        {
+            Assert.Null(map);
+        }
+
+        if (value.TryGetError(out CelError? error))
+        {
+            parts.Add("Error");
+        }
+        else
+        {
+            Assert.Null(error);
+        }
+
+        return string.Join(' ', parts);
+    }
+
     private static CelValue Sample(string name) => name switch
     {
         "null" => CelValue.Null,
@@ -162,20 +252,5 @@ public sealed class CelValueTests
         }
 
         return string.Join(' ', parts);
-    }
-
-    private sealed class ArrayMemoryManager(byte[] bytes) : MemoryManager<byte>
-    {
-        public override Span<byte> GetSpan() => bytes;
-
-        public override MemoryHandle Pin(int elementIndex = 0) => throw new NotSupportedException();
-
-        public override void Unpin()
-        {
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-        }
     }
 }

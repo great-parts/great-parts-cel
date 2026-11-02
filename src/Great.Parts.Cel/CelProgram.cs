@@ -1,7 +1,9 @@
 using System;
 using System.Threading;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Evaluation;
 using Great.Parts.Cel.Types;
+using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel;
 
@@ -23,15 +25,19 @@ namespace Great.Parts.Cel;
 /// <typeparam name="T">The .NET type in which <see cref="Evaluate"/> returns the result.</typeparam>
 public sealed class CelProgram<T>
 {
-    private CelProgram()
+    private readonly Plan _plan;
+
+    internal CelProgram(Plan plan, CelType resultType)
     {
+        _plan = plan;
+        ResultType = resultType;
     }
 
     /// <summary>
     /// The CEL type of the result that type checking found, for example <c>bool</c>, or <c>dyn</c> when
     /// the type is known only at evaluation.
     /// </summary>
-    public CelType ResultType => throw new NotImplementedException();
+    public CelType ResultType { get; }
 
     /// <summary>
     /// Evaluates the program on the bindings and returns the result converted to <typeparamref name="T"/>,
@@ -71,6 +77,29 @@ public sealed class CelProgram<T>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public CelEvalResult<T> Evaluate(CelBindings bindings, CelEvalOptions? options = null, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(bindings);
+        if (options?.CostLimit is not null || cancellationToken.CanBeCanceled)
+        {
+            // The cost limit and cancellation are not implemented yet; they are not ignored.
+            throw new NotImplementedException();
+        }
+
+        return Run(_plan, bindings);
+    }
+
+    // Evaluates a plan in a new frame and converts the value of the root to T: an error value of the root
+    // is the one error of the result, and a value that no result row converts is ResultConversion at the
+    // position of the root.
+    internal static CelEvalResult<T> Run(Plan plan, CelBindings bindings)
+    {
+        CelValue value = plan.Evaluate(bindings.Values);
+        if (value.TryGetError(out CelError? error))
+        {
+            return new CelEvalResult<T>([error]);
+        }
+
+        return ConversionRules.TryToClr(value, out T? result)
+            ? new CelEvalResult<T>(result)
+            : new CelEvalResult<T>([ConversionRules.ResultConversionError<T>(value, plan.Lines.GetLocation(plan.Root.Offset))]);
     }
 }

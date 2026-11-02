@@ -7,19 +7,28 @@ namespace Great.Parts.Cel.Eng.Run;
 
 /// <summary>
 /// The time that a step may take, in one place so a limit is easy to raise (<c>docs/design/eng-test.md</c>, "Time limits"). A limit is
-/// the time of a cold run measured on 2026-10-30, with 20 % added. A step that is still running when its limit is over is killed with
-/// its whole process tree and fails with <c>timeout after N s in step &lt;step&gt;</c>.
+/// the time of a cold run measured on 2026-10-30, the build, the JIT steps and the Native AOT publish on 2026-11-02, with 20 % added. A
+/// step that is still running when its limit is over is killed with its whole process tree and fails with
+/// <c>timeout after N s in step &lt;step&gt;</c>.
 /// </summary>
 internal static class Timeouts
 {
-    /// <summary>The build of the solution; also the build of one project that a command builds before its run.</summary>
-    internal static readonly TimeSpan Build = TimeSpan.FromSeconds(67);
+    /// <summary>
+    /// The build of the solution; also the build of one project that a command builds before its run. A cold build of the solution on
+    /// 2026-11-02 took at least 67.1 s.
+    /// </summary>
+    internal static readonly TimeSpan Build = TimeSpan.FromSeconds(81);
 
-    /// <summary>One test module under JIT, and the source and package checks of <c>eng/checks</c>.</summary>
-    internal static readonly TimeSpan Jit = TimeSpan.FromSeconds(72);
+    /// <summary>
+    /// One test module under JIT, and the source and package checks of <c>eng/checks</c>: those checks took 77.3 s in a cold run on
+    /// 2026-11-02, next to the four publishes.
+    /// </summary>
+    internal static readonly TimeSpan Jit = TimeSpan.FromSeconds(93);
 
-    /// <summary>The Native AOT publish of one project and target.</summary>
-    internal static readonly TimeSpan Publish = TimeSpan.FromSeconds(120);
+    /// <summary>
+    /// The Native AOT publish of one project and target: the longest of the four publishes of a cold run on 2026-11-02 took 166.7 s.
+    /// </summary>
+    internal static readonly TimeSpan Publish = TimeSpan.FromSeconds(201);
 
     /// <summary>The run of one published executable.</summary>
     internal static readonly TimeSpan AotRun = TimeSpan.FromSeconds(120);

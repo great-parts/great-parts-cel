@@ -25,26 +25,36 @@ namespace Great.Parts.Cel;
 /// <typeparam name="T">The .NET type in which the program returns its result.</typeparam>
 public sealed class CelCompileResult<T>
 {
-    private CelCompileResult()
+    private readonly CelProgram<T>? _program;
+
+    internal CelCompileResult(CelProgram<T> program)
     {
+        _program = program;
+        Errors = [];
+    }
+
+    internal CelCompileResult(ImmutableArray<CelError> errors)
+    {
+        Errors = errors;
     }
 
     /// <summary>
     /// Whether the expression compiled: <see langword="true"/> when there are no errors.
     /// </summary>
     [MemberNotNullWhen(true, nameof(Program))]
-    public bool IsSuccess => throw new NotImplementedException();
+    public bool IsSuccess => _program is not null;
 
     /// <summary>
     /// The compiled program. Read it only when <see cref="IsSuccess"/> is <see langword="true"/>.
     /// </summary>
     /// <exception cref="InvalidOperationException"><see cref="IsSuccess"/> is <see langword="false"/>.</exception>
-    public CelProgram<T>? Program => throw new NotImplementedException();
+    public CelProgram<T>? Program =>
+        _program ?? throw new InvalidOperationException("The program was not compiled: the result has compilation errors.");
 
     /// <summary>
     /// All compilation errors found; empty when <see cref="IsSuccess"/> is <see langword="true"/>.
     /// </summary>
-    public ImmutableArray<CelError> Errors => throw new NotImplementedException();
+    public ImmutableArray<CelError> Errors { get; }
 
     /// <summary>
     /// Returns the compiled program, for code in which a compilation error is a programming mistake.
@@ -57,8 +67,5 @@ public sealed class CelCompileResult<T>
         "Design",
         "CA1024:Use properties where appropriate",
         Justification = "The method throws for an unsuccessful result; a property getter must not throw, and the name tells the caller that it can.")]
-    public CelProgram<T> GetProgramOrThrow()
-    {
-        throw new NotImplementedException();
-    }
+    public CelProgram<T> GetProgramOrThrow() => _program ?? throw new CelException(Errors);
 }

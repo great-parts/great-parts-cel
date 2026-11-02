@@ -37,7 +37,7 @@ public abstract partial class CelList : IReadOnlyList<CelValue>
     /// <summary>
     /// The number of elements. Known without reading the elements.
     /// </summary>
-    public int Count => throw new NotImplementedException();
+    public int Count => CountCore;
 
     /// <summary>
     /// Gets the element at <paramref name="index"/>.
@@ -48,7 +48,20 @@ public abstract partial class CelList : IReadOnlyList<CelValue>
     /// application data cannot be read.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="index"/> is negative or not less than <see cref="Count"/>.</exception>
-    public CelValue this[int index] => throw new NotImplementedException();
+    public CelValue this[int index]
+    {
+        get
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(index);
+            ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, CountCore);
+            return GetCore(index);
+        }
+    }
+
+    /// <summary>
+    /// The number of elements, for <see cref="Count"/>.
+    /// </summary>
+    private protected abstract int CountCore { get; }
 
     /// <summary>
     /// Creates a list of <paramref name="items"/> in their order. The elements are copied, so a later
@@ -59,7 +72,15 @@ public abstract partial class CelList : IReadOnlyList<CelValue>
     /// <exception cref="ArgumentException">An element is a value of the kind <see cref="CelValueKind.Error"/>; an error is not an element of a CEL list.</exception>
     public static CelList Create(params ReadOnlySpan<CelValue> items)
     {
-        throw new NotImplementedException();
+        foreach (CelValue item in items)
+        {
+            if (item.Kind == CelValueKind.Error)
+            {
+                throw new ArgumentException("An error value is not an element of a CEL list.", nameof(items));
+            }
+        }
+
+        return new ValueArrayList(items.ToArray());
     }
 
     /// <summary>
@@ -68,11 +89,22 @@ public abstract partial class CelList : IReadOnlyList<CelValue>
     /// <returns>The enumerator.</returns>
     public IEnumerator<CelValue> GetEnumerator()
     {
-        throw new NotImplementedException();
+        int count = CountCore;
+        for (int index = 0; index < count; index++)
+        {
+            yield return GetCore(index);
+        }
     }
 
     IEnumerator IEnumerable.GetEnumerator()
     {
-        throw new NotImplementedException();
+        return GetEnumerator();
     }
+
+    /// <summary>
+    /// Reads the element at <paramref name="index"/>, which is already checked against <see cref="CountCore"/>.
+    /// </summary>
+    /// <param name="index">The zero-based index of the element.</param>
+    /// <returns>The element.</returns>
+    private protected abstract CelValue GetCore(int index);
 }

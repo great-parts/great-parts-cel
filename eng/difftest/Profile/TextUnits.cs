@@ -8,7 +8,8 @@ namespace Great.Parts.Cel.Eng.Difftest.Profile;
 /// <summary>
 /// The rules of the units of string and bytes literals, shared by the generator, which chooses only allowed forms, and the
 /// printer, which refuses any other form. A delimiting quote is never printed as itself, also inside triple quotes, where
-/// it could close the literal early.
+/// it could close the literal early. A carriage return (U+000D) is never printed as itself either, in any quotes, only as an
+/// escape, so a literal that holds one is never raw.
 /// </summary>
 internal static class TextUnits
 {
@@ -42,7 +43,10 @@ internal static class TextUnits
         _ => throw new ArgumentOutOfRangeException(nameof(quote), quote, "Not a form of quotes."),
     };
 
-    /// <summary>Whether a code point may stand as itself between the quotes.</summary>
+    /// <summary>
+    /// Whether a code point may stand as itself between the quotes: not the delimiting quote, never a carriage return, a line
+    /// feed only inside triple quotes, and a backslash only in a raw literal.
+    /// </summary>
     /// <param name="codePoint">The code point.</param>
     /// <param name="quote">The quotes.</param>
     /// <param name="raw">Whether the literal is raw.</param>
@@ -54,7 +58,14 @@ internal static class TextUnits
             return false;
         }
 
-        if (delimiter.Length == 1 && codePoint is '\n' or '\r')
+        // A carriage return is only escaped, in any quotes: cel-go turns a carriage return in the source of a literal into a
+        // line feed, while the library keeps it.
+        if (codePoint == '\r')
+        {
+            return false;
+        }
+
+        if (delimiter.Length == 1 && codePoint == '\n')
         {
             return false;
         }

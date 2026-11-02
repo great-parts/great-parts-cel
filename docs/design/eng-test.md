@@ -88,13 +88,13 @@ A command is a list of stages. A stage is lanes that run at the same time, and a
 
 `eng/run` limits the time of every step, so a hung process does not hold the run for ever. A step that is still running when its limit is over is killed together with the processes it started, and fails with the reason `timeout after <N> s in step <step>`; `<N>` is its limit in seconds. The command ends with exit code 1, also `difftest`, which otherwise returns the exit code of `eng/difftest`. The last line is, for example, `test: failed: timeout after 67 s in step dotnet build Great.Parts.Cel.slnx -c Release; head …; tree clean; 70.3 s; exit 1`. Whether a failed step stops the rest is decided as for any failed step ([eng/run](#engrun)).
 
-A limit is the time of a cold run, measured on 2026-10-30 in a new working copy, plus 20 %. The limits are constants of `eng/run/Timeouts.cs`; when runs fail by timeout regularly, a limit is raised there.
+A limit is the time of a cold run in a new working copy, plus 20 %. The runs of `dotnet build`, of the JIT module and of the publish were measured again on 2026-11-02 and took longer than on 2026-10-30; their limits come from the second measurement, the lowest cold run of it (67.1 s, 77.3 s and 166.7 s) plus 20 %, rounded up. The other limits come from the measurement of 2026-10-30. The limits are constants of `eng/run/Timeouts.cs`; when runs fail by timeout regularly, a limit is raised there.
 
 | Step | Limit | Cold run |
 | :- | :- | :- |
-| `dotnet build`: the solution in `test`, `eng/checks` in `mutate`, `eng/difftest` in `difftest` | 67 s | 56 s for the solution |
-| `test`: one test module under JIT; the checks of `eng/checks` of the same lane | 72 s each | about 60 s for the lane |
-| `test`: the Native AOT publish of one project and target | 120 s | about 100 s |
+| `dotnet build`: the solution in `test`, `eng/checks` in `mutate`, `eng/difftest` in `difftest` | 81 s | 56 s for the solution on 2026-10-30; at least 67.1 s on 2026-11-02 |
+| `test`: one test module under JIT; the checks of `eng/checks` of the same lane | 93 s each | about 60 s for the lane on 2026-10-30; at least 77.3 s on 2026-11-02 |
+| `test`: the Native AOT publish of one project and target | 201 s | about 100 s on 2026-10-30; at least 166.7 s on 2026-11-02 |
 | `test`: the run of one published executable | 120 s | about 100 s |
 | `test-count` of `test`; the reading of the report by `mutate` | 12 s | about 10 s |
 | `min-sdk`: each child process — `dotnet --version`, the build of the sample application | 20 s | 16 s for the command |

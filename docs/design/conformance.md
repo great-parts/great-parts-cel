@@ -67,8 +67,6 @@ For each case the runner adds to the setup what the case declares — `UseContai
 | `disable_check` | internal `env.Parse(expr)`, then internal `env.EvaluateWithoutTypeCheck(parsed, bindings)`; the result type is `dyn`, as for an unchecked expression in cel-go |
 | `check_only` | internal `env.Parse(expr)`, then internal `env.Check(parsed)`; the result type is `CheckedExpression.ResultType`; nothing is planned or evaluated |
 
-Until the library has these internal members, `LibraryEvaluator` does not call the library for a `disable_check` or `check_only` case: the case fails with the reason `internal entry point is not available yet`.
-
 See [facade.md](facade.md#internal-entry-points). A binding of the kind `value` is converted by `ValueConversion` and added with `CelBindings.Add(name, CelValue)`. A value converts from `cel.expr.Value` to `CelValue` and back for the kinds the library supports, through the public API only, since `eng/difftest` links the file; a type converts in `TypeConversion`, a file that is not linked: from `CelType` to `cel.expr.Type` for the result type, and from `cel.expr.Type` to `CelType` for the declarations of a case. Other kinds throw `NotImplementedException`.
 
 ## The rule

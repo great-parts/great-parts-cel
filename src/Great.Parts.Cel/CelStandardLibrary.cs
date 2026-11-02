@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Immutable;
+using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Library;
 
 namespace Great.Parts.Cel;
 
@@ -26,18 +29,22 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelStandardLibrary
 {
-    private CelStandardLibrary()
+    private CelStandardLibrary(ImmutableArray<OverloadBinding> overloads)
     {
+        Overloads = overloads;
     }
 
     /// <summary>
     /// Version 1: the standard definitions of the CEL language definition, including the functions on
     /// <c>timestamp</c> and <c>duration</c>.
     /// </summary>
-    public static CelStandardLibrary V1 { get; } = new();
+    public static CelStandardLibrary V1 { get; } = new(StandardLibraryV1.Overloads);
 
     /// <summary>
     /// The version number, which build errors show, for example "standard library v1".
     /// </summary>
     public uint Version => throw new NotImplementedException();
+
+    // The overloads of the version, in the order of its table.
+    internal ImmutableArray<OverloadBinding> Overloads { get; }
 }
