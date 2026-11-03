@@ -2,7 +2,7 @@
 # nothing of the working copy is copied into the image.
 
 # The .NET 10 runtime is taken from the .NET 10 SDK image: tests and tools of net10.0 run on it.
-FROM mcr.microsoft.com/dotnet/sdk:10.0.401 AS runtime10
+FROM mcr.microsoft.com/dotnet/sdk:10.0.403 AS runtime10
 
 # The tag is the SDK version of global.json (11.0.100-rc.2.26504.105 is the build behind the tag 11.0.100-rc.2);
 # it changes together with global.json. Floating tags are not used.
