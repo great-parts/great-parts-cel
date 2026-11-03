@@ -22,7 +22,6 @@ remap = [
 exclude = [
   "/docs/type-mapping\\.md(#.*)?$", # the type mapping page is not written yet; the XML documentation links it already
   "/docs/cost\\.md(#.*)?$", # the cost page is not written yet; the XML documentation links it already
-  "/docs/limits\\.md(#.*)?$", # the limits page is not written yet; the XML documentation links it already
   "/docs/standard-library\\.md(#.*)?$", # the standard library page is not written yet; the XML documentation links it already
   "/docs/extensions\\.md(#.*)?$", # the extension sets page is not written yet; the XML documentation links it already
   "/docs/environment-json\\.md(#.*)?$", # the environment JSON page is not written yet; the XML documentation links it already

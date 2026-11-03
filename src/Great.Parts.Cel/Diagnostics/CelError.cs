@@ -134,4 +134,26 @@ public sealed class CelError
     /// </para>
     /// </remarks>
     public Exception? Exception { get; }
+
+    /// <summary>
+    /// Gives this error with its position in the document that holds the expression, from the position at which the
+    /// expression starts there: the offset of the start plus the offset, the line of the start plus the line minus 1,
+    /// and on the first line of the expression the column of the start plus the column minus 1, on the other lines the
+    /// column itself.
+    /// </summary>
+    /// <param name="start">The position of the start of the expression in the document, with its source name.</param>
+    /// <returns>A new error with the same code, stage, message, position and exception.</returns>
+    internal CelError InDocument(CelSourceLocation start)
+    {
+        int column = Location.Line == 1 ? Add(start.Column, Location.Column - 1) : Location.Column;
+        var place = new CelSourceLocation(
+            start.SourceName!,
+            Add(start.Offset, Location.Offset),
+            Add(start.Line, Location.Line - 1),
+            column);
+        return new CelError(Code, Stage, Message, Location, place, Exception);
+    }
+
+    // The start is any position the application gives; a sum past int.MaxValue stays at int.MaxValue.
+    private static int Add(int start, int value) => (int)Math.Min((long)start + value, int.MaxValue);
 }

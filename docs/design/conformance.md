@@ -26,7 +26,7 @@
 | Path | Contents |
 | :- | :- |
 | `Runner/` | the core: the case model, the rule, the skip list reader, the cell, the findings and the summary; `MarkdownTable.cs` and `ValueConversion.cs`, which `eng/difftest` links too; `TypeConversion.cs` |
-| `CelSpec/` | `skips.md`, `CelSpecSuite.cs`, `CelSpecSuiteTests.cs` |
+| `CelSpec/` | `skips.md`, `CelSpecSuite.cs`, `CelSpecSuiteTests.cs`, `CelSpecParseTests.cs` |
 | `Regression/` | the corpus files `*.textproto`, `skips.md`, `known-differences.md`, `RegressionSuite.cs`, `RegressionSuiteTests.cs` |
 | `Synthetic/` | `synthetic.textproto` and `SyntheticSuiteTests.cs`: the tests of the runner itself |
 
@@ -56,7 +56,7 @@ All cases share one setup, as the cases of the cel-go runner share `stdOpts`. In
 For each case the runner adds to the setup what the case declares — `UseContainer` for `container`, `AddVariable(string, CelType)` for each identifier of `type_env`, the function declarations — and calls `Build`. A member that is not implemented yet throws, and the case fails until it arrives.
 
 - **Reserved names.** The runner neither declares nor binds the names `true`, `false`, `null` and `in` from `type_env` and `bindings`: they are keywords, never identifiers, and the library rejects them as variable names. The cases `basic/reserved_const/*` still check their point: a literal is never shadowed. The conformance page names this difference from the cel-go runner environment, like the evaluation without type checking.
-- **`disable_macros`** has no effect in the walking skeleton, which has no macros.
+- **`disable_macros`** parses the expression with the syntax options of the environment and `MacroTable.Empty`, as the cel-go runner clears the macros. Only the internal `Parse` takes syntax options, so a case with `disable_macros` on the checked path fails with the reason `disable_macros needs an internal compile entry point`; the cases `disable_check` and `check_only` pass the options to `Parse`. No case of the pinned commit has the flag.
 - **`locale`** is ignored, as by cel-go.
 
 ## Calls into the library
@@ -117,6 +117,21 @@ Each suite test writes one line: the passed cases out of all cases of the suite,
 cel-spec 8bef98f: 47/2592 passed, 2026-11-20 (jit, linux-x64, net11.0)
 regression corpus: 0/0 passed, 2026-11-20 (jit, linux-x64, net11.0)
 ```
+
+## Parse test of the cel-spec suite
+
+`CelSpecParseTests.EveryExpression_ParsesAndPrintsBack` takes every case of the cel-spec suite from `CelSpecSuite` and parses its expression with the internal `Parse` of an environment of `CelStandardLibrary.V1`. The syntax options are those of the cel-go runner, which gives all files one setup with `OptionalTypes` and clears the macros for `disable_macros`: `SyntaxOptions.Standard` with `OptionalSyntax` on, and `MacroTable.Empty` for a case with `disable_macros`. The macros of extension sets join the options with their sets; until then their calls stay calls. The test asserts, for each case:
+
+- the parse succeeds;
+- printing the tree and parsing the text again with the same options gives a tree without a difference by `SyntaxTreeComparer` ([syntax.md](syntax.md#printing-and-tree-equality)).
+
+Until the internal set `block` joins the options, its test macros `cel.iterVar` and `cel.accuVar` stay calls as well, and a comprehension macro whose first argument is such a call is `InvalidMacroCall` (1006), `argument must be a simple name` ([syntax.md](syntax.md#macros)). Eight cases of `block_ext.textproto` write their iteration variables so: `block_ext/basic/multiple_macros_1`, `block_ext/basic/multiple_macros_2`, `block_ext/basic/multiple_macros_3`, `block_ext/basic/nested_macros_1`, `block_ext/basic/nested_macros_2`, `block_ext/basic/adjacent_macros`, `block_ext/basic/macro_shadowed_variable_1` and `block_ext/basic/macro_shadowed_variable_2`. The test keeps their names in a list, and for a case of the list it asserts instead:
+
+- the parse fails, with at least one error, and every error is `InvalidMacroCall` whose message is `invalid call of macro '<macro>': argument must be a simple name`, at the `(` of a macro call whose first argument is a call of `cel.iterVar` or `cel.accuVar`: the text from the offset of the error starts with `(cel.iterVar(` or `(cel.accuVar(`.
+
+A case of the list that parses fails the test with its name and the words `parses now: remove it from the list`; a name of the list that is no case of the suite fails it too. When the set `block` joins the options, its macros expand, these cases parse, and the list is removed.
+
+A failure lists every failed case with its name, the place of its `test` token and the first error or difference. A second test, `CaseCount_IsThatOfThePinnedCommit`, checks that the suite has 2 592 cases, so a lost case shows up; it changes when the pinned commit moves. The skip list does not apply: every expression of the pinned commit parses, except the cases of the list above, which fail exactly as described. The workflow on the master branch of cel-spec does not run this test.
 
 ## Synthetic suite
 

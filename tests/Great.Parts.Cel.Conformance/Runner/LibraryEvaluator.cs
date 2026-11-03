@@ -28,6 +28,13 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     // Keywords of CEL, never identifiers: the library rejects them as variable names, so the runner neither declares nor binds them.
     private static readonly string[] ReservedNames = ["true", "false", "null", "in"];
 
+    // The syntax options of the environment without macros. Every environment has SyntaxOptions.Standard until extension sets
+    // bring syntax.
+    private static readonly SyntaxOptions WithoutMacros = SyntaxOptions.Standard with { Macros = MacroTable.Empty };
+
+    /// <summary>The reason why a checked case with <c>disable_macros</c> fails: only the internal <c>Parse</c> takes syntax options.</summary>
+    internal const string DisableMacrosOnCheckedPath = "disable_macros needs an internal compile entry point";
+
     /// <inheritdoc/>
     public CaseOutcome Evaluate(ConformanceCase testCase)
     {
@@ -51,9 +58,15 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
         }
     }
 
-    // A checked case: Compile<T> parses, checks and plans the expression, and the program is evaluated.
+    // A checked case: Compile<T> parses, checks and plans the expression, and the program is evaluated. Compile<T> takes no syntax
+    // options, so a checked case with disable_macros fails.
     private static CaseOutcome Compiled(CelEnvironment environment, ConformanceCase testCase, ref CaseStage stage)
     {
+        if (testCase.Environment.DisableMacros)
+        {
+            return CaseOutcome.Failed(CaseStage.Parse, DisableMacrosOnCheckedPath);
+        }
+
         stage = CaseStage.Check;
         CelCompileResult<CelValue> compiled = environment.Compile<CelValue>(testCase.Expression);
         if (!compiled.IsSuccess)
@@ -69,11 +82,12 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     }
 
     // A disable_check case is parsed and evaluated without a check, with the result type dyn as for an unchecked expression in
-    // cel-go; a check_only case is parsed and checked.
+    // cel-go; a check_only case is parsed and checked. A case with disable_macros is parsed without macros, as the cel-go runner
+    // clears them.
     private static CaseOutcome WithInternalEntryPoints(CelEnvironment environment, ConformanceCase testCase, ref CaseStage stage)
     {
         stage = CaseStage.Parse;
-        ParseResult parsed = environment.Parse(testCase.Expression);
+        ParseResult parsed = environment.Parse(testCase.Expression, testCase.Environment.DisableMacros ? WithoutMacros : null);
         if (!parsed.IsSuccess)
         {
             return CaseOutcome.Failed(CaseStage.Parse, Messages(parsed.Errors));

@@ -1,6 +1,6 @@
-using System.Globalization;
 using System.Text;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Evaluation;
@@ -25,61 +25,12 @@ internal static class EvaluationErrors
     private static CelValue Create(CelErrorCode code, string message, CelSourceLocation location) =>
         CelValue.FromError(new CelError(code, CelErrorStage.Evaluate, message, location, null, null));
 
-    // A key of one of the kinds of map keys, written as a CEL literal: int, uint, bool or string.
+    // A key of one of the kinds of map keys, written as a CEL literal: int, uint, bool or string, as the printer of the
+    // syntax tree writes a constant.
     private static string KeyText(CelValue key)
     {
-        if (key.TryGetInt64(out long intValue))
-        {
-            return intValue.ToString(CultureInfo.InvariantCulture);
-        }
-
-        if (key.TryGetUInt64(out ulong uintValue))
-        {
-            return uintValue.ToString(CultureInfo.InvariantCulture) + "u";
-        }
-
-        if (key.TryGetString(out string? text))
-        {
-            return Quote(text);
-        }
-
-        _ = key.TryGetBoolean(out bool boolValue);
-        return boolValue ? "true" : "false";
-    }
-
-    // A string in double quotes with the escapes of a CEL string literal for the backslash, the quote and the
-    // control characters, so that the message stays on one line and names the key without ambiguity.
-    private static string Quote(string text)
-    {
-        var quoted = new StringBuilder(text.Length + 2).Append('"');
-        foreach (char c in text)
-        {
-            switch (c)
-            {
-                case '\\':
-                    quoted.Append(@"\\");
-                    break;
-                case '"':
-                    quoted.Append("\\\"");
-                    break;
-                case '\n':
-                    quoted.Append(@"\n");
-                    break;
-                case '\r':
-                    quoted.Append(@"\r");
-                    break;
-                case '\t':
-                    quoted.Append(@"\t");
-                    break;
-                case < ' ' or '\u007F':
-                    quoted.Append(@"\u00").Append(((int)c).ToString("X2", CultureInfo.InvariantCulture));
-                    break;
-                default:
-                    quoted.Append(c);
-                    break;
-            }
-        }
-
-        return quoted.Append('"').ToString();
+        var text = new StringBuilder();
+        Printer.AppendConstant(text, key);
+        return text.ToString();
     }
 }

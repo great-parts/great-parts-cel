@@ -83,27 +83,28 @@ public sealed class CelEnvironment
     public CelCompileResult<T> Compile<T>(string expression, CelCompileOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        if (options is not null || !ConversionRules.IsResultType<T>())
+        if (!ConversionRules.IsResultType<T>())
         {
-            // Compile options and the result types outside the rows implemented so far are not
-            // implemented yet; they are not ignored.
+            // The result types outside the rows implemented so far are not implemented yet; they are not ignored.
             throw new NotImplementedException();
         }
 
+        // The options can only have a source location: setting the expected type throws.
+        CelSourceLocation? start = options?.SourceLocation;
         ParseResult parsed = Parse(expression);
         if (!parsed.IsSuccess)
         {
-            return new CelCompileResult<T>(parsed.Errors);
+            return new CelCompileResult<T>(InDocument(parsed.Errors, start));
         }
 
         CheckResult checkedResult = Check(parsed.Expression);
         if (!checkedResult.IsSuccess)
         {
-            return new CelCompileResult<T>(checkedResult.Errors);
+            return new CelCompileResult<T>(InDocument(checkedResult.Errors, start));
         }
 
         CheckedExpression checkedExpression = checkedResult.Expression;
-        return new CelCompileResult<T>(new CelProgram<T>(Planner.Plan(checkedExpression), checkedExpression.ResultType));
+        return new CelCompileResult<T>(new CelProgram<T>(Planner.Plan(checkedExpression), checkedExpression.ResultType, start));
     }
 
     /// <summary>
@@ -168,20 +169,61 @@ public sealed class CelEnvironment
     internal DeclarationIndex Declarations { get; }
 
     /// <summary>
-    /// Parses an expression: the parse step of <see cref="Compile{T}"/>, with the syntax of this environment. The
-    /// parsed expression does not refer to the environment.
+    /// Parses an expression: the parse step of <see cref="Compile{T}"/>, with the syntax of this environment unless
+    /// <paramref name="syntax"/> replaces it. The parsed expression does not refer to the environment.
     /// </summary>
     /// <param name="expression">The text of the expression.</param>
+    /// <param name="syntax">
+    /// The syntax options for this call, such as the optional syntax before its extension set; <see langword="null"/>
+    /// for those of the environment.
+    /// </param>
     /// <returns>The parsed expression, or the errors of the stage <see cref="CelErrorStage.Parse"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
     [SuppressMessage(
         "Performance",
         "CA1822:Mark members as static",
-        Justification = "An instance member of the environment by design (docs/design/facade.md, \"Internal entry points\"): parsing uses the syntax of the environment. The minimal environment has no syntax settings yet; they arrive with the complete grammar (macros, the length and depth limits, docs/design/syntax.md), and this suppression is removed with them.")]
-    internal ParseResult Parse(string expression)
+        Justification = "An instance member of the environment by design (docs/design/facade.md, \"Internal entry points\"): parsing uses the syntax options of the environment. Every environment has SyntaxOptions.Standard until extension sets bring syntax (docs/design/syntax.md, \"Syntax options\"), and this suppression is removed with them.")]
+    internal ParseResult Parse(string expression, SyntaxOptions? syntax = null)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        return Parser.Parse(expression);
+        return ParseWithinBoundary(new Parser(expression, syntax ?? SyntaxOptions.Standard), static parser => parser.Run());
+    }
+
+    /// <summary>
+    /// The compilation boundary of parsing: runs a parse step of the parser, and turns an unexpected exception other than
+    /// <see cref="OutOfMemoryException"/> into <see cref="CelErrorCode.InternalError"/> of the stage
+    /// <see cref="CelErrorStage.Parse"/>, after the errors the parser found before it.
+    /// </summary>
+    /// <param name="parser">The parser of the text.</param>
+    /// <param name="parse">The parse step: <see cref="Parse"/> runs the parser; a test can make the step throw.</param>
+    /// <returns>The result of the step, or the errors with <see cref="CelErrorCode.InternalError"/> last.</returns>
+    internal static ParseResult ParseWithinBoundary(Parser parser, Func<Parser, ParseResult> parse)
+    {
+        try
+        {
+            return parse(parser);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return parser.Interrupted(exception);
+        }
+    }
+
+    // The errors with their positions in the document of the expression, when the compile options give its start.
+    private static ImmutableArray<CelError> InDocument(ImmutableArray<CelError> errors, CelSourceLocation? start)
+    {
+        if (start is not { } documentStart)
+        {
+            return errors;
+        }
+
+        ImmutableArray<CelError>.Builder mapped = ImmutableArray.CreateBuilder<CelError>(errors.Length);
+        foreach (CelError error in errors)
+        {
+            mapped.Add(error.InDocument(documentStart));
+        }
+
+        return mapped.MoveToImmutable();
     }
 
     /// <summary>
@@ -212,6 +254,6 @@ public sealed class CelEnvironment
     {
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(bindings);
-        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations), bindings);
+        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations), bindings, start: null);
     }
 }

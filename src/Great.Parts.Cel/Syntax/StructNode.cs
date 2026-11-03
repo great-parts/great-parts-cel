@@ -15,7 +15,7 @@ internal sealed class StructNode : ExprNode
     }
 
     /// <summary>
-    /// The name of the message type, or the empty string for a map.
+    /// The name of the message type as written, a leading dot included, or the empty string for a map.
     /// </summary>
     internal string MessageName { get; }
 
@@ -23,4 +23,21 @@ internal sealed class StructNode : ExprNode
     /// The entries in the order of the text.
     /// </summary>
     internal ImmutableArray<StructEntry> Entries { get; }
+
+    /// <summary>
+    /// Tells whether an entry is optional, <c>?k: v</c> or <c>?f: v</c>.
+    /// </summary>
+    /// <returns><see langword="true"/> when at least one entry is optional.</returns>
+    internal bool HasOptionalEntry()
+    {
+        foreach (StructEntry entry in Entries)
+        {
+            if (entry.IsOptional)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }

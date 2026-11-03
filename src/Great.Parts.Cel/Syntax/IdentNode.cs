@@ -12,7 +12,7 @@ internal sealed class IdentNode : ExprNode
     }
 
     /// <summary>
-    /// The name as written in the text.
+    /// The name as written in the text, a leading dot included, as in <c>.x</c>.
     /// </summary>
     internal string Name { get; }
 }

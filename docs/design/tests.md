@@ -65,6 +65,18 @@ The verdict of a property is deterministic: the same code gives the same verdict
 - A failing case is reproduced from the seed and its number and becomes a unit test with fixed input.
 - Properties do no random search of their own; for the core, `eng/difftest` does it, with a seed taken from the date ([eng-difftest.md](eng-difftest.md)).
 
+## Properties of the parser
+
+`tests/Great.Parts.Cel.Properties/Syntax/` holds two classes. Both call the internal `CelEnvironment.Parse` of an environment of `CelStandardLibrary.V1`, so the compilation boundary is part of what they check; checking joins them with complete type checking. The parse of every expression of the cel-spec suite is a test of the conformance runner ([conformance.md](conformance.md#parse-test-of-the-cel-spec-suite)).
+
+- `ParserProperties`, each with the loop of the previous section and the number of cases set in the code:
+  - `NeverThrows`: generated strings up to 64 KB — random characters, random tokens, grammatical texts, among them nesting deeper than 250 and more than 100 syntax errors. `Parse` returns; no exception escapes; no error is `InternalError`; every error lies within the text. A generator knows the limit its text goes over, and the result then has `ExpressionTooLong`, `NestingTooDeep` or `TooManyErrors` with its position.
+  - `RoundTrip`: grammatical texts within the limits, from the whole grammar with the optional syntax and the standard macros, parse; printing and parsing again gives a tree without a difference by `SyntaxTreeComparer` ([syntax.md](syntax.md#printing-and-tree-equality)).
+  - The failure message names the property, the seed and the number of the case, then the reason and the smallest case.
+- `WorstInputTests`, one test per input, each at most 65 536 UTF-8 bytes: the deepest nesting allowed for each kind of nesting; chains of each binary level, `&&` and `||` included, filling 64 KB; a text with more than 100 syntax errors; 64 KB of garbage from a fixed seed. A test parses its input once to warm up and once under `Stopwatch`, asserts that no error is `InternalError` and writes `<input>: <seconds> s` to the test output.
+
+**Where the time limit blocks.** A time over 1 s fails a worst-input test, with the message `<input>: 1.42 s > 1 s`, only on the reference machine: a standard GitHub-hosted Linux x64 runner, recognized by the variables that GitHub Actions sets on every runner — `GITHUB_ACTIONS` is `true`, `RUNNER_OS` is `Linux`, `RUNNER_ARCH` is `X64` and `RUNNER_ENVIRONMENT` is `github-hosted`. In `ci.yml` these are the JIT cells on `ubuntu-latest`: the project runs only under JIT, and the Native AOT job runs only the published projects. Everywhere else — `eng/test` and `eng/mutate` in their containers, the cells on `macos-latest`, a machine of a developer — the time is only written, so there the verdict does not depend on time and repeats. `ci.yml` sets no variable of its own for this.
+
 ## Same tests under JIT and Native AOT
 
 `Great.Parts.Cel.Tests` and `Great.Parts.Cel.Conformance` are published under Native AOT and run as executables: in `eng/test` and in CI, on linux-x64, for both targets ([eng-test.md](eng-test.md)). `eng/checks test-count` compares the tests of each published run with the JIT run of the same commit, operating system and target ([eng-checks-artifacts.md](eng-checks-artifacts.md)). The other test projects run only under JIT.

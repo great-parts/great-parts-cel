@@ -44,6 +44,11 @@ internal sealed class Checker
             ConstantNode constant => ConstantType(constant.Value.Kind),
             IdentNode identifier => VisitIdentifier(identifier),
             CallNode call => VisitCall(call),
+
+            // Message literals and the optional syntax are not implemented yet; they are not taken for a map or a list.
+            ListNode { OptionalIndices.IsEmpty: false } => throw new NotImplementedException(),
+            StructNode unsupported when unsupported.MessageName.Length != 0 || unsupported.HasOptionalEntry() =>
+                throw new NotImplementedException(),
             ListNode list => VisitList(list),
             StructNode map => VisitMap(map),
             _ => throw new NotImplementedException(),

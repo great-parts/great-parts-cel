@@ -15,12 +15,13 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelCompileOptions
 {
+    private readonly CelSourceLocation? _sourceLocation;
+
     /// <summary>
     /// Creates options with no explicit expected type and no source position.
     /// </summary>
     public CelCompileOptions()
     {
-        throw new NotImplementedException();
     }
 
     /// <summary>
@@ -35,7 +36,9 @@ public sealed class CelCompileOptions
     /// </remarks>
     public CelType? ExpectedType
     {
-        get => throw new NotImplementedException();
+        get => null;
+
+        // The explicit expected type is not implemented yet; it is not ignored.
         init => throw new NotImplementedException();
     }
 
@@ -44,15 +47,34 @@ public sealed class CelCompileOptions
     /// expression starts in it, or <see langword="null"/> when the expression is not part of a document.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// When set, every error of the expression — at compilation and at evaluation of its program — reports,
     /// besides its position in the expression, the position in the document in
     /// <see cref="CelError.SourceLocation"/>: for example, an expression stored in a JSON or YAML file
     /// reports the line and column in that file.
+    /// </para>
+    /// <para>
+    /// The position in the document is the start plus the position in the expression: the offsets add up; the
+    /// lines add up, less one; on the first line of the expression the columns add up, less one, and on the
+    /// other lines the column is that in the expression. This assumes that the text of the expression stands in
+    /// the document character for character from the start; escape sequences of the document, such as those of
+    /// a JSON string, shift the positions after them. A sum that would pass <see cref="int.MaxValue"/> stays at <see cref="int.MaxValue"/>.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentException">The value has no <see cref="CelSourceLocation.SourceName"/>, such as <c>default(CelSourceLocation)</c>.</exception>
     public CelSourceLocation? SourceLocation
     {
-        get => throw new NotImplementedException();
-        init => throw new NotImplementedException();
+        get => _sourceLocation;
+        init
+        {
+            if (value is { SourceName: null })
+            {
+                throw new ArgumentException(
+                    "The start of an expression in a document must name the document; a position without a source name is a position in an expression.",
+                    nameof(value));
+            }
+
+            _sourceLocation = value;
+        }
     }
 }

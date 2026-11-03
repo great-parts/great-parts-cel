@@ -64,6 +64,11 @@ internal sealed class Planner
                 return new OrPlanNode(offset, VisitAll([.. operands], true, out stackSize));
             case CallNode call:
                 return VisitCall(call, offset, VisitAll(call.Arguments, true, out stackSize));
+
+            // Message literals and the optional syntax are not implemented yet; they are not taken for a map or a list.
+            case ListNode { OptionalIndices.IsEmpty: false }:
+            case StructNode unsupported when unsupported.MessageName.Length != 0 || unsupported.HasOptionalEntry():
+                throw new NotImplementedException();
             case ListNode list:
                 return new ListPlanNode(offset, VisitAll(list.Elements, false, out stackSize));
             case StructNode map:

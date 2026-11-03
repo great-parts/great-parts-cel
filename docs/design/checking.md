@@ -71,6 +71,6 @@ In the walking skeleton the expected type is not checked: a mismatch shows up at
 
 ## Not in the walking skeleton
 
-Type parameters, receiver-style calls, field selection, macros, type identifiers, the name resolution container, the expected type and `ExpectedTypeMismatch`, the stack check before each recursive step with `InsufficientStack`, and the compilation boundary that turns an unexpected exception into `InternalError` come with the complete type checking. Until then a deeply nested expression can exhaust the stack of the thread, as the parser can (see [syntax](syntax.md)).
+Type parameters, receiver-style calls, field selection, macros, type identifiers, the name resolution container, the expected type and `ExpectedTypeMismatch`, the stack check before each recursive step with `InsufficientStack`, and the compilation boundary that turns an unexpected exception into `InternalError` come with the complete type checking. Until then the depth of the checker's recursion is bounded only by the limits of the parser ([syntax](syntax.md#limits-and-the-stack)), and a node that the checker does not know yet, such as a selection or a comprehension, throws `NotImplementedException`.
 
 Related pages: [library](library.md), [evaluation](evaluation.md), [values](values.md), [facade](facade.md).

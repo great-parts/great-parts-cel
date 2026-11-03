@@ -56,7 +56,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | comparisons/bound/list_eq_right_false | * * * | Not implemented yet: comparisons. | | |
 | comparisons/bound/map_ne_right_false | * * * | Not implemented yet: comparisons. | | |
 | comparisons/bound/null_eq_left_true | * * * | Not implemented yet: comparisons. | | |
-| comparisons/bound/null_lt_right_no_such_overload | * * * | Not implemented yet: comparisons. | | |
 | comparisons/bound/string_gte_right_true | * * * | Not implemented yet: comparisons. | | |
 | comparisons/bound/uint_eq_right_false | * * * | Not implemented yet: comparisons. | | |
 | comparisons/eq_literal/eq_bool | * * * | Not implemented yet: comparisons. | | |
@@ -217,10 +216,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | comparisons/gt_literal/gt_dyn_uint_small_double | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gt_literal/gt_dyn_uint_small_int | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gt_literal/gt_int | * * * | Not implemented yet: comparisons. | | |
-| comparisons/gt_literal/gt_list_unsupported | * * * | Not implemented yet: comparisons. | | |
-| comparisons/gt_literal/gt_map_unsupported | * * * | Not implemented yet: comparisons. | | |
-| comparisons/gt_literal/gt_mixed_types_error | * * * | Not implemented yet: comparisons. | | |
-| comparisons/gt_literal/gt_null_unsupported | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gt_literal/gt_string_case | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gt_literal/gt_string_to_empty | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gt_literal/gt_string_unicode | * * * | Not implemented yet: comparisons. | | |
@@ -268,10 +263,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | comparisons/gte_literal/gte_dyn_uint_small_int | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gte_literal/gte_int_eq | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gte_literal/gte_int_gt | * * * | Not implemented yet: comparisons. | | |
-| comparisons/gte_literal/gte_list_unsupported | * * * | Not implemented yet: comparisons. | | |
-| comparisons/gte_literal/gte_map_unsupported | * * * | Not implemented yet: comparisons. | | |
-| comparisons/gte_literal/gte_mixed_types_error | * * * | Not implemented yet: comparisons. | | |
-| comparisons/gte_literal/gte_null_unsupported | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gte_literal/gte_string_empty | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gte_literal/gte_string_empty_to_nonempty | * * * | Not implemented yet: comparisons. | | |
 | comparisons/gte_literal/gte_string_length | * * * | Not implemented yet: comparisons. | | |
@@ -321,10 +312,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | comparisons/lt_literal/lt_dyn_uint_double | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lt_literal/lt_dyn_uint_int | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lt_literal/lt_int | * * * | Not implemented yet: comparisons. | | |
-| comparisons/lt_literal/lt_list_unsupported | * * * | Not implemented yet: comparisons. | | |
-| comparisons/lt_literal/lt_map_unsupported | * * * | Not implemented yet: comparisons. | | |
-| comparisons/lt_literal/lt_mixed_types_error | * * * | Not implemented yet: comparisons. | | |
-| comparisons/lt_literal/lt_null_unsupported | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lt_literal/lt_string | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lt_literal/lt_string_case | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lt_literal/lt_string_diacritical_mark_sensitive | * * * | Not implemented yet: comparisons. | | |
@@ -378,10 +365,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | comparisons/lte_literal/lte_dyn_uint_int | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lte_literal/lte_int_eq | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lte_literal/lte_int_lt | * * * | Not implemented yet: comparisons. | | |
-| comparisons/lte_literal/lte_list_unsupported | * * * | Not implemented yet: comparisons. | | |
-| comparisons/lte_literal/lte_map_unsupported | * * * | Not implemented yet: comparisons. | | |
-| comparisons/lte_literal/lte_mixed_types_error | * * * | Not implemented yet: comparisons. | | |
-| comparisons/lte_literal/lte_null_unsupported | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lte_literal/lte_string_empty | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lte_literal/lte_string_from_empty | * * * | Not implemented yet: comparisons. | | |
 | comparisons/lte_literal/lte_string_lexicographical | * * * | Not implemented yet: comparisons. | | |
@@ -880,8 +863,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | fields/qualified_identifier_resolution/int64_field_select_unsupported | * * * | Not implemented yet: fields. | | |
 | fields/qualified_identifier_resolution/list_field_select_unsupported | * * * | Not implemented yet: fields. | | |
 | fields/qualified_identifier_resolution/map_field_select | * * * | Not implemented yet: fields. | | |
-| fields/qualified_identifier_resolution/map_key_float | * * * | Not implemented yet: fields. | | |
-| fields/qualified_identifier_resolution/map_key_null | * * * | Not implemented yet: fields. | | |
 | fields/qualified_identifier_resolution/map_value_repeat_key | * * * | Not implemented yet: fields. | | |
 | fields/qualified_identifier_resolution/map_value_repeat_key_heterogeneous | * * * | Not implemented yet: fields. | | |
 | fields/qualified_identifier_resolution/qualified_ident | * * * | Not implemented yet: fields. | | |
@@ -908,7 +889,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | fp_math/fp_math/fp_overflow_negative | * * * | Not implemented yet: fp_math. | | |
 | fp_math/fp_math/fp_overflow_positive | * * * | Not implemented yet: fp_math. | | |
 | fp_math/fp_math/fp_underflow | * * * | Not implemented yet: fp_math. | | |
-| fp_math/fp_math/mod_not_support | * * * | Not implemented yet: fp_math. | | |
 | fp_math/fp_math/mul_associative | * * * | Not implemented yet: fp_math. | | |
 | fp_math/fp_math/mul_commutative | * * * | Not implemented yet: fp_math. | | |
 | fp_math/fp_math/mul_left_identity | * * * | Not implemented yet: fp_math. | | |
@@ -1063,19 +1043,16 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | logic/AND/error_right | * * * | Not implemented yet: logic. | | |
 | logic/AND/false_left | * * * | Not implemented yet: logic. | | |
 | logic/AND/false_right | * * * | Not implemented yet: logic. | | |
-| logic/AND/no_overload | * * * | Not implemented yet: logic. | | |
 | logic/AND/short_circuit_error_left | * * * | Not implemented yet: logic. | | |
 | logic/AND/short_circuit_error_right | * * * | Not implemented yet: logic. | | |
 | logic/AND/short_circuit_type_left | * * * | Not implemented yet: logic. | | |
 | logic/AND/short_circuit_type_right | * * * | Not implemented yet: logic. | | |
-| logic/NOT/no_overload | * * * | Not implemented yet: logic. | | |
 | logic/NOT/not_false | * * * | Not implemented yet: logic. | | |
 | logic/NOT/not_true | * * * | Not implemented yet: logic. | | |
 | logic/OR/error_left | * * * | Not implemented yet: logic. | | |
 | logic/OR/error_right | * * * | Not implemented yet: logic. | | |
 | logic/OR/short_circuit_error_left | * * * | Not implemented yet: logic. | | |
 | logic/OR/short_circuit_error_right | * * * | Not implemented yet: logic. | | |
-| logic/conditional/bad_type | * * * | Not implemented yet: logic. | | |
 | logic/conditional/error_case | * * * | Not implemented yet: logic. | | |
 | logic/conditional/false_case | * * * | Not implemented yet: logic. | | |
 | logic/conditional/mixed_type | * * * | Not implemented yet: logic. | | |
@@ -1528,23 +1505,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | parse/nest/list_literal | * * * | Not implemented yet: parse. | | |
 | parse/nest/map_literal | * * * | Not implemented yet: parse. | | |
 | parse/nest/message_literal | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/as | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/break | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/const | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/continue | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/else | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/for | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/function | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/if | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/import | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/let | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/loop | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/namespace | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/package | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/return | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/var | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/void | * * * | Not implemented yet: parse. | | |
-| parse/receiver_function_names/while | * * * | Not implemented yet: parse. | | |
 | parse/repeat/add_sub | * * * | Not implemented yet: parse. | | |
 | parse/repeat/and | * * * | Not implemented yet: parse. | | |
 | parse/repeat/conditional | * * * | Not implemented yet: parse. | | |
@@ -1553,7 +1513,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | parse/repeat/map_literal | * * * | Not implemented yet: parse. | | |
 | parse/repeat/message_literal | * * * | Not implemented yet: parse. | | |
 | parse/repeat/mul_div | * * * | Not implemented yet: parse. | | |
-| parse/repeat/not | * * * | Not implemented yet: parse. | | |
 | parse/repeat/select | * * * | Not implemented yet: parse. | | |
 | parse/selectors/as | * * * | Not implemented yet: parse. | | |
 | parse/selectors/break | * * * | Not implemented yet: parse. | | |
@@ -2066,23 +2025,9 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | string_ext/format/uint support for octal formatting clause | * * * | Not implemented yet: string_ext. | | |
 | string_ext/format/unsigned support for hexadecimal formatting clause | * * * | Not implemented yet: string_ext. | | |
 | string_ext/format/uppercase hexadecimal formatting clause | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/double substitution not allowed with hex clause | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/duration substitution not allowed with decimal clause | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/null not allowed for %X | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/null not allowed for %b | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/null not allowed for %d | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/null not allowed for %e | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/null not allowed for %f | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/null not allowed for %o | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/null not allowed for %x | * * * | Not implemented yet: string_ext. | | |
 | string_ext/format_errors/object inside list | * * * | Not implemented yet: string_ext. | | |
 | string_ext/format_errors/object inside map | * * * | Not implemented yet: string_ext. | | |
 | string_ext/format_errors/object not allowed | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/out of bounds arg index | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/string substitution is not allowed with binary clause | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/string substitution not allowed with octal clause | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/unrecognized formatting clause | * * * | Not implemented yet: string_ext. | | |
-| string_ext/format_errors/uppercase not allowed for scientific clause | * * * | Not implemented yet: string_ext. | | |
 | string_ext/index_of/char_index | * * * | Not implemented yet: string_ext. | | |
 | string_ext/index_of/char_index_offset | * * * | Not implemented yet: string_ext. | | |
 | string_ext/index_of/empty_index | * * * | Not implemented yet: string_ext. | | |
@@ -2158,33 +2103,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | string_ext/trim/unicode_space_chars_1 | * * * | Not implemented yet: string_ext. | | |
 | string_ext/trim/unicode_space_chars_2 | * * * | Not implemented yet: string_ext. | | |
 | string_ext/trim/unicode_space_chars_3 | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/charat_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/charat_invalid_type | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/indexof_binary_both_invalid_arguments | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/indexof_binary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/indexof_binary_invalid_argument_2 | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/indexof_ternary_invalid_arguments | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/indexof_unary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/indexof_unary_invalid_type | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/replace_binary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/replace_binary_invalid_argument_2 | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/replace_invalid_type | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/replace_quaternary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/replace_ternary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/replace_ternary_invalid_argument_2 | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/replace_ternary_invalid_argument_3 | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/replace_ternary_invalid_argument_4 | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/split_binary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/split_binary_invalid_argument_2 | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/split_binary_invalid_type | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/split_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/split_invalid_type | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/split_invalid_type_empty_arg | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/split_ternary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/substring_binary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/substring_binary_invalid_argument_2 | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/substring_binary_invalid_type | * * * | Not implemented yet: string_ext. | | |
-| string_ext/type_errors/substring_ternary_invalid_argument | * * * | Not implemented yet: string_ext. | | |
 | string_ext/value_errors/charat_out_of_range | * * * | Not implemented yet: string_ext. | | |
 | string_ext/value_errors/indexof_out_of_range | * * * | Not implemented yet: string_ext. | | |
 | string_ext/value_errors/lastindexof_negative_index | * * * | Not implemented yet: string_ext. | | |

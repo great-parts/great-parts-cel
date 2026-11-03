@@ -27,10 +27,14 @@ public sealed class CelProgram<T>
 {
     private readonly Plan _plan;
 
-    internal CelProgram(Plan plan, CelType resultType)
+    // The position at which the expression starts in its source document, from the compile options, or null.
+    private readonly CelSourceLocation? _start;
+
+    internal CelProgram(Plan plan, CelType resultType, CelSourceLocation? start)
     {
         _plan = plan;
         ResultType = resultType;
+        _start = start;
     }
 
     /// <summary>
@@ -80,22 +84,25 @@ public sealed class CelProgram<T>
             throw new NotImplementedException();
         }
 
-        return Run(_plan, bindings);
+        return Run(_plan, bindings, _start);
     }
 
     // Evaluates a plan in a new frame and converts the value of the root to T: an error value of the root
     // is the one error of the result, and a value that no result row converts is ResultConversion at the
-    // position of the root.
-    internal static CelEvalResult<T> Run(Plan plan, CelBindings bindings)
+    // position of the root. With the start of the expression in a document the error has its position there too.
+    internal static CelEvalResult<T> Run(Plan plan, CelBindings bindings, CelSourceLocation? start)
     {
         CelValue value = plan.Evaluate(bindings.Values);
         if (value.TryGetError(out CelError? error))
         {
-            return new CelEvalResult<T>([error]);
+            return new CelEvalResult<T>([InDocument(error, start)]);
         }
 
         return ConversionRules.TryToClr(value, out T? result)
             ? new CelEvalResult<T>(result)
-            : new CelEvalResult<T>([ConversionRules.ResultConversionError<T>(value, plan.Lines.GetLocation(plan.Root.Offset))]);
+            : new CelEvalResult<T>([InDocument(ConversionRules.ResultConversionError<T>(value, plan.Lines.GetLocation(plan.Root.Offset)), start)]);
     }
+
+    private static CelError InDocument(CelError error, CelSourceLocation? start) =>
+        start is { } documentStart ? error.InDocument(documentStart) : error;
 }

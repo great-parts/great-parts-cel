@@ -54,6 +54,13 @@ public sealed class LexerTests
         """a\""" → Error@0:8 End@8:0
         """a""""" → StringLiteral@0:7 StringLiteral@7:2 End@9:0
         """""""""" → StringLiteral@0:6 Error@6:4 End@10:0
+        `a` `a-b/c.d e_1` → EscapedIdentifier@0:3 EscapedIdentifier@4:13 End@17:0
+        x.`if`.`1` → Identifier@0:1 Dot@1:1 EscapedIdentifier@2:4 Dot@6:1 EscapedIdentifier@7:3 End@10:0
+        `` `a → Error@0:2 Error@3:2 End@5:0
+        `a+b` → Error@0:2 Plus@2:1 Identifier@3:1 Error@4:1 End@5:0
+        a.?b a[?0] {? → Identifier@0:1 Dot@1:1 Question@2:1 Identifier@3:1 Identifier@5:1 LeftBracket@6:1 Question@7:1 IntLiteral@8:1 RightBracket@9:1 LeftBrace@11:1 Question@12:1 End@13:0
+        1.5m 100M .5m 1e3m 2.5e-1M → DecimalLiteral@0:4 DecimalLiteral@5:4 DecimalLiteral@10:3 DecimalLiteral@14:4 DecimalLiteral@19:7 End@26:0
+        0x10m 12.5mx 1m2 1um 1.m 1m_ → IntLiteral@0:4 Identifier@4:1 DoubleLiteral@6:4 Identifier@10:2 IntLiteral@13:1 Identifier@14:2 UIntLiteral@17:2 Identifier@19:1 IntLiteral@21:1 Dot@22:1 Identifier@23:1 IntLiteral@25:1 Identifier@26:2 End@28:0
         """"""""""";
 
     public static TheoryData<string, string> TokenCases => CaseTable.Parse(Tokens);
@@ -87,6 +94,10 @@ public sealed class LexerTests
     [InlineData("x\n  =", 4, 2, 3, "syntax error: unexpected character '='")]
     [InlineData("[1,\r\n&", 5, 2, 1, "syntax error: unexpected character '&'")]
     [InlineData("1 | 2", 2, 1, 3, "syntax error: unexpected character '|'")]
+    [InlineData("x.`a", 2, 1, 3, "syntax error: unterminated escaped identifier")]
+    [InlineData("x.``", 2, 1, 3, "syntax error: empty escaped identifier")]
+    [InlineData("x.`a\nb`", 2, 1, 3, "syntax error: unexpected character in escaped identifier")]
+    [InlineData("A{\n`a+b`: 1}", 3, 2, 1, "syntax error: unexpected character in escaped identifier")]
     [InlineData("a + \U0001F600", 4, 1, 5, "syntax error: unexpected character '\U0001F600'")]
     [InlineData("\uD83D", 0, 1, 1, "syntax error: unexpected character '\uD83D'")]
     [InlineData("1 + b'abc", 4, 1, 5, "syntax error: unterminated string literal")]

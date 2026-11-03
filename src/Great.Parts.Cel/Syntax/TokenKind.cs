@@ -14,6 +14,9 @@ internal enum TokenKind
     /// <summary>An identifier, reserved words such as <c>if</c> included.</summary>
     Identifier,
 
+    /// <summary>An escaped identifier: a name between backticks, such as <c>`a-b`</c>.</summary>
+    EscapedIdentifier,
+
     /// <summary>An integer literal, decimal or hexadecimal, without a sign.</summary>
     IntLiteral,
 
@@ -22,6 +25,12 @@ internal enum TokenKind
 
     /// <summary>A floating literal: with a fraction, an exponent or both.</summary>
     DoubleLiteral,
+
+    /// <summary>
+    /// A <c>decimal</c> literal: a floating or decimal integer literal with the suffix <c>m</c> or <c>M</c>, without a
+    /// sign.
+    /// </summary>
+    DecimalLiteral,
 
     /// <summary>A string literal with its prefix and quotes.</summary>
     StringLiteral,

@@ -38,11 +38,17 @@ internal CelError(CelErrorCode code, CelErrorStage stage, string message,
 
 - The message is English text by the template of the error code table.
 - `location` is the position in the expression: the offset in UTF-16 code units, the line and the column from 1. The parser, the checker and the evaluator compute it from the offset of a node and the line table of the text (`LineTable` in `Diagnostics`, see [syntax](syntax.md)), and create it with the internal constructor `CelSourceLocation(int offset, int line, int column)`, which leaves the source name empty. Build errors have no position in an expression and pass `default`.
-- `sourceLocation` is the position in a source document: the JSON text of an environment description (see [environment description in JSON](configuration.md)). Positions of an expression inside a document arrive with the compile options and are `null` in the walking skeleton.
+- `sourceLocation` is the position in a source document: the JSON text of an environment description (see [environment description in JSON](configuration.md)), or the document that holds the expression when `CelCompileOptions.SourceLocation` gives its start, see [Source location of an expression](#source-location-of-an-expression).
 - Compilation returns every error of the stage that failed, in the order in which they were found; a text with parse errors is not checked.
 - Evaluation returns one error. An error inside evaluation is a value of the kind `Error` that travels like any value; `_||_` can absorb it. When it reaches the root, it becomes the single error of `CelEvalResult<T>`.
 
-**Compilation boundary.** `CelEnvironment` runs parsing and checking each inside one handler: an unexpected exception other than `OutOfMemoryException` becomes the error `InternalError` with the stage of that step and the original exception. The handler for parsing arrives with the complete grammar, the handler for checking with complete type checking; until then such an exception escapes `Compile<T>`.
+**Compilation boundary.** `CelEnvironment` runs parsing and checking each inside one handler: an unexpected exception other than `OutOfMemoryException` becomes the error `InternalError` with the stage of that step and the original exception. For parsing the handler is in `CelEnvironment.Parse`, so `Compile<T>` and the internal entry point share it: the errors found before the exception are kept, and `InternalError` (`internal error during parsing; the original exception is in CelError.Exception`) comes last, at the offset of the token the parser was at, or 0 before the first token. The handler for checking arrives with complete type checking; until then such an exception escapes `Compile<T>`, and so does `NotImplementedException` for the nodes the checker does not know yet, such as selections and comprehensions.
+
+### Source location of an expression
+
+`CelCompileOptions` can be created, and its `SourceLocation` set: the name of the document and the position at which the expression starts in it. Setting a value without a source name, such as `default(CelSourceLocation)`, throws `ArgumentException`; `null` means no document. `ExpectedType` returns `null`, and setting it throws `NotImplementedException` until complete type checking.
+
+When the start is set, every error of the compilation and of each evaluation of its program has, besides `Location` in the expression, `SourceLocation` in the document: the source name of the start; the offset of the start plus the offset in the expression; the line of the start plus the line in the expression minus 1; on the first line of the expression the column of the start plus the column minus 1, on the other lines the column itself. A sum that would pass `int.MaxValue` stays at `int.MaxValue`: the start is any position the application gives, and its offset, line and column can be as large as `Int32` allows, so the mapping neither throws nor wraps around. The rule assumes that the text stands in the document character for character from the start; escapes of the document, as in a JSON string, shift it. `Compile<T>` maps the errors of each stage; `CelProgram<T>` keeps the start and maps its evaluation error. Errors are immutable, so the facade creates each mapped error anew with the same code, stage, message, location and exception.
 
 ## Result conversion
 
@@ -65,16 +71,20 @@ In the walking skeleton the expected type that `T` implies is not checked at com
 
 ## Internal entry points
 
-The assembly gives `InternalsVisibleTo` to the test projects `Great.Parts.Cel.Tests`, `Great.Parts.Cel.Conformance` and `Great.Parts.Cel.Properties`, and to no other assembly. Three internal members of `CelEnvironment` give the stages one by one:
+The assembly gives `InternalsVisibleTo` to the test projects `Great.Parts.Cel.Tests`, `Great.Parts.Cel.Conformance` and `Great.Parts.Cel.Properties`, and to no other assembly. Three internal members of `CelEnvironment` give the stages one by one; a fourth, static one is the handler of the compilation boundary of parsing:
 
 ```text
 namespace Great.Parts.Cel
 CelEnvironment, internal members:
-    ParseResult Parse(string expression)
+    ParseResult Parse(string expression, SyntaxOptions? syntax = null)
     CheckResult Check(ParsedExpression parsed)
     CelEvalResult<CelValue> EvaluateWithoutTypeCheck(ParsedExpression parsed, CelBindings bindings)
+    static ParseResult ParseWithinBoundary(Parser parser, Func<Parser, ParseResult> parse)
 
 namespace Great.Parts.Cel.Syntax
+internal sealed record SyntaxOptions(bool OptionalSyntax, MacroTable Macros)
+    static SyntaxOptions Standard        // OptionalSyntax false, MacroTable.Standard; MacroTable.Empty: no macros
+
 internal sealed class ParseResult
     bool IsSuccess                       // [MemberNotNullWhen(true, nameof(Expression))]
     ParsedExpression? Expression
@@ -87,7 +97,8 @@ internal sealed class CheckResult
     ImmutableArray<CelError> Errors      // stage Check
 ```
 
-- **Parse only.** `Parse` is the parse step of `Compile<T>`: it uses the syntax of the environment, so a test of the parser sees what compilation sees. The parsed expression does not refer to the environment.
+- **Parse only.** `Parse` is the parse step of `Compile<T>`, the compilation boundary included: without `syntax` it uses the syntax options of the environment, so a test of the parser sees what compilation sees. `syntax` replaces them for one call; it serves the tests and the conformance runner, which need syntax that no public member enables yet — the `optional` syntax before its set, no macros for `disable_macros` ([syntax](syntax.md#syntax-options)). The parsed expression does not refer to the environment.
+- **Boundary of parsing.** `ParseWithinBoundary` is the handler of the "Compilation boundary" above, and `Parse` is its only caller in the library: it passes `new Parser(expression, syntax ?? SyntaxOptions.Standard)` and the step `parser => parser.Run()`, so `Compile<T>` and `Parse` share it. The step is a parameter so that a test can make it throw. The method returns the result of the step. When the step throws an exception other than `OutOfMemoryException`, it returns the errors that `Parser.Interrupted` gives: the errors the parser found before the exception, the error that stopped parsing if there is one, and `InternalError` last, with the exception in `CelError.Exception`, at the offset of the token the parser was at. Its line and column come from the line table of the text; before the line table exists, as before the first token, the position is offset 0, line 1, column 1. `OutOfMemoryException`, `InsufficientMemoryException` included, is not caught. The method checks no arguments.
 - **Check only.** `Check` is the check step of `Compile<T>`. `CheckedExpression.ResultType` is the type that `CelProgram<T>.ResultType` reports for the same text; the conformance runner compares it with the type a test case expects.
 - **Evaluation without type checking.** `EvaluateWithoutTypeCheck` serves the conformance cases that disable type checking. It plans the parsed expression without a checked expression: names are looked up in the bindings when they are evaluated, and a function is chosen among all overloads of its name and argument count by the kinds of the argument values. The value is returned as it is, without conversion, or with one error of the stage `Evaluate`. There is no public counterpart.
 
@@ -98,6 +109,6 @@ All three throw `ArgumentNullException` for a `null` argument and can be called 
 - `CelEnvironment.Evaluate<T>`, `CelCompilationCache`, `CelEnvironment.ToBuilder`;
 - functions, type sources, extension sets, the name resolution container and time zones in the builder, and the build errors about declarations: conflicts, names, unknown types;
 - the check of a binding against the declared type of its variable;
-- compile options, the cost limit and cancellation. A non-null `CelCompileOptions`, a cost limit or a token that can be canceled throws `NotImplementedException` instead of being ignored.
+- the expected type of the compile options ([Source location of an expression](#source-location-of-an-expression)), the cost limit and cancellation. Setting `ExpectedType`, a cost limit or a token that can be canceled throws `NotImplementedException` instead of being ignored.
 
 The input types of the walking skeleton for `AddVariable<T>` and `CelBindings.Add<T>` are the simple rows of the type mapping table: `long`, `int`, `short`, `sbyte`, `nint`, `ulong`, `uint`, `ushort`, `byte`, `nuint`, `double`, `float`, `Half`, `bool`, `string`, `Guid`, `byte[]`, `ReadOnlyMemory<byte>`, and `CelValue` for bindings. Other types throw `NotImplementedException`.

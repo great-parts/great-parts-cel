@@ -9,7 +9,8 @@ namespace Great.Parts.Cel.Syntax;
 /// </summary>
 /// <remarks>
 /// The lexer covers the whole lexis, so only the parser decides which constructs are accepted. A character outside
-/// the lexis, or a string without its closing quote, yields a token of the kind <see cref="TokenKind.Error"/>, and
+/// the lexis, a string without its closing quote, or an invalid escaped identifier yields a token of the kind
+/// <see cref="TokenKind.Error"/>, and
 /// <see cref="Error"/> holds the <see cref="CelErrorCode.SyntaxError"/> for it.
 /// </remarks>
 internal sealed class Lexer
@@ -91,6 +92,10 @@ internal sealed class Lexer
         {
             kind = ReadString(start, raw: false, TokenKind.StringLiteral);
         }
+        else if (c == '`')
+        {
+            kind = ReadEscapedIdentifier(start);
+        }
         else
         {
             kind = ReadOperator();
@@ -144,7 +149,7 @@ internal sealed class Lexer
             return ReadString(start, raw, bytes ? TokenKind.BytesLiteral : TokenKind.StringLiteral);
         }
 
-        while (_position < _text.Length && (char.IsAsciiLetterOrDigit(_text[_position]) || _text[_position] == '_'))
+        while (_position < _text.Length && IsIdentifierCharacter(_text[_position]))
         {
             _position++;
         }
@@ -159,7 +164,9 @@ internal sealed class Lexer
         };
     }
 
-    // Digits, or 0x and hexadecimal digits, then u or U; or a floating literal with a fraction, an exponent or both.
+    // Digits, or 0x and hexadecimal digits, then u or U; or a floating literal with a fraction, an exponent or both. A
+    // floating or decimal integer literal followed by m or M, which no identifier character follows, is a decimal
+    // literal; otherwise the number ends before the m.
     private TokenKind ReadNumber()
     {
         if (CharAt(_position) == '0' && CharAt(_position + 1) == 'x' && char.IsAsciiHexDigit(CharAt(_position + 2)))
@@ -183,8 +190,43 @@ internal sealed class Lexer
             floating = true;
         }
 
+        if (CharAt(_position) is 'm' or 'M' && !IsIdentifierCharacter(CharAt(_position + 1)))
+        {
+            _position++;
+            return TokenKind.DecimalLiteral;
+        }
+
         return floating ? TokenKind.DoubleLiteral : ReadUnsignedSuffix();
     }
+
+    // A backtick, one or more letters, digits, '_', '.', '-', '/' or spaces, and a backtick: ESC_IDENTIFIER of cel-go.
+    // An empty or unclosed one, or one with another character, is a syntax error at the opening backtick.
+    private TokenKind ReadEscapedIdentifier(int start)
+    {
+        _position++;
+        while (_position < _text.Length && IsEscapedIdentifierCharacter(_text[_position]))
+        {
+            _position++;
+        }
+
+        if (_position == _text.Length)
+        {
+            return Fail(start, "unterminated escaped identifier");
+        }
+
+        if (_text[_position] != '`')
+        {
+            return Fail(start, "unexpected character in escaped identifier");
+        }
+
+        _position++;
+        return _position - start == 2 ? Fail(start, "empty escaped identifier") : TokenKind.EscapedIdentifier;
+    }
+
+    private static bool IsIdentifierCharacter(char c) => char.IsAsciiLetterOrDigit(c) || c == '_';
+
+    private static bool IsEscapedIdentifierCharacter(char c) =>
+        char.IsAsciiLetterOrDigit(c) || c is '_' or '.' or '-' or '/' or ' ';
 
     private bool TryReadExponent()
     {
