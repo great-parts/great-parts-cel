@@ -1,0 +1,96 @@
+# The differential run against cel-go (docs/design/eng-difftest.md, "Nightly run"): every night with a budget of 20 minutes, and by hand
+# with the budget of the long run before a release, 2 hours or more. It runs the command of the container check, eng/difftest, through
+# eng/compose.yaml: the oracle is cel-go in the golang image of the service oracle, so the workflow has no Go setup.
+# The log of this workflow is public: the run has --numbers-only, so no output names a case, and the step summary holds the journal
+# line alone: the seed, the commit, the version of the oracle, the counts and the numbers of the cases of new signatures.
+name: difftest-nightly
+
+on:
+  schedule:
+    # 01:17 UTC every night.
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: "Time of the run: a whole number and s, m or h. The long run before a release is 2h or more."
+        type: string
+        default: 2h
+      seed:
+        description: "Seed of the run, a whole number. Without it: the date in UTC as yyyyMMdd."
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# One run at a time: a manual long run does not overlap the nightly one.
+concurrency:
+  group: difftest-nightly
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  difftest:
+    name: Differential run
+    # Only the main branch: a manual run from another branch is skipped.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    # The nightly run: the limit of eng/run for the run, the budget × 1.2 + 36 s, is 25 minutes; the image build and the cold module cache
+    # of Go take the rest of the hour. A manual run has 6 hours, the longest a job may take: its budget is the input.
+    timeout-minutes: ${{ github.event_name == 'schedule' && 60 || 360 }}
+    steps:
+      # eng/run reads git: the commit of the journal line and the state of the tree, so the history and the branch main are there.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Differential run (eng/difftest)
+        env:
+          # The nightly run has no inputs: its budget is the 20 minutes of the night. The values reach the script only through the
+          # environment, never through the text of the script.
+          BUDGET: ${{ inputs.budget || '20m' }}
+          SEED: ${{ inputs.seed }}
+        run: |
+          set -u
+          if ! [[ "$BUDGET" =~ ^[0-9]+[smh]$ ]]; then
+            echo "The budget is a whole number and s, m or h."
+            exit 2
+          fi
+          arguments=(--numbers-only --budget "$BUDGET")
+          if [ -n "$SEED" ]; then
+            if ! [[ "$SEED" =~ ^[0-9]+$ ]]; then
+              echo "The seed is a whole number."
+              exit 2
+            fi
+            arguments+=(--seed "$SEED")
+          fi
+
+          output="$RUNNER_TEMP/difftest.txt"
+          status=0
+          docker compose -f eng/compose.yaml run --rm -T difftest "${arguments[@]}" > "$output" || status=$?
+          cat "$output"
+
+          # The journal line is the whole result: no other line goes to the summary.
+          journal=$(grep -oE 'difftest seed=[0-9]+ commit=.*' "$output" | tail -n 1 || true)
+          {
+            echo "### difftest, budget $BUDGET"
+            echo
+            if [ -n "$journal" ]; then
+              echo '```text'
+              echo "$journal"
+              echo '```'
+            else
+              echo "No journal line: the run ended without one (exit code $status)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 0: no new signature; 1: a finding or a failed step (a new signature is the finding of the run); 2: the run could not
+          # be made. Every other code is a failure too, and so is a run that ended with 0 and no journal line.
+          if [ "$status" -eq 0 ] && [ -z "$journal" ]; then
+            exit 1
+          fi
+          exit "$status"

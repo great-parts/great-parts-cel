@@ -164,6 +164,26 @@ The journal line comes last; `commit` is the start of `HEAD`. `new-cases` lists 
 
 With `--numbers-only` standard output has the journal line alone: no `log` line and no finding, `ENG821` included. The journal line comes after `ENG821` too, with `cases=0` and exit code 1, a pair that no other finding gives. A message of exit code 2 quotes no case and no line or answer of the oracle, since those can carry expressions and values: a minimized case that agrees again is named by the seed and its number, which `--case` reproduces.
 
+## Nightly run
+
+`.github/workflows/difftest-nightly.yml` runs `eng/difftest` every night and, by hand, for the long run before a release. Both run the command of the container check, so the run on GitHub is the run on a developer machine; the oracle is the service `oracle` of Compose, which has Go, so the workflow has no Go setup.
+
+| Item | Value |
+| :- | :- |
+| Triggers | `schedule` at 01:17 UTC every night; `workflow_dispatch` with the inputs `budget` and `seed` |
+| Branch | `main` only: a manual run from another branch is skipped |
+| Runner | `ubuntu-latest` |
+| Command | `docker compose -f eng/compose.yaml run --rm -T difftest --numbers-only --budget <budget> [--seed <n>]` |
+| Checkout | the whole history, so `eng/run` reads the commit and the state of the tree |
+| Budget of the night | `20m`. With the image build and a cold module cache of Go the job takes 20 to 30 minutes; its time limit is 60 minutes, which holds the limit of `eng/run` for the run (24.6 minutes, [Invocation](#invocation)) |
+| Budget of a manual run | the input `budget`, `2h` by default: the long run before a release is 2 hours or more. The job limit is 360 minutes, the longest a job may take. The input is a whole number and `s`, `m` or `h`, as `--budget`; another form fails the run with exit code 2 before it starts |
+| Seed | the input `seed`, a whole number; without it the date in UTC as `yyyyMMdd`, as locally |
+| Concurrency | one run at a time; a started run is not cancelled |
+
+The log of the workflow is public, and a divergence can be an input that crashes a parser. So the run has `--numbers-only`: standard output holds the journal line alone ([Findings and output](#findings-and-output)), and the step summary of the run holds that line and the budget, nothing else. A new signature shows in the line as a count and the numbers of its cases (`new=2 (S1=1, S2=1) known=3 new-cases=1207,88391`); the case itself is reproduced on a machine of the maintainers with the same seed and `--case <n>`, and the text of a case reaches an issue only after the divergence is fixed.
+
+The result of the workflow is the exit code of `eng/difftest`, passed through `eng/run` unchanged: 0 without new signatures is green; 1 (a new signature, a failed build or a step that ran out of time) and 2 (a failed oracle or an invalid input) are red. A run that ends with 0 and no journal line is red too. The release takes a green manual run, 2 hours or more, on the commit of the tag.
+
 ## Tests
 
 `eng/tests/Difftest/` ([eng-tests.md](eng-tests.md)) uses fake sides with given outcomes, without Go or a working library:

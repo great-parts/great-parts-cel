@@ -1,0 +1,98 @@
+name: Difference from cel-go or cel-spec
+description: An expression gives a result or an error that differs from cel-go or from a cel-spec conformance test.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Great.Parts.Cel follows the CEL language definition and the conformance tests of cel-spec, and compares its results with cel-go.
+
+        Before you report, check the [known differences from cel-go](https://github.com/great-parts/great-parts-cel/blob/main/tests/Great.Parts.Cel.Conformance/Regression/known-differences.md): a difference listed there has already been analysed.
+
+        **Do not report a vulnerability here.** If the expression or its input makes the library crash the process, report it privately as [SECURITY.md](https://github.com/great-parts/great-parts-cel/blob/main/SECURITY.md) describes.
+  - type: dropdown
+    id: reference
+    attributes:
+      label: Differs from
+      options:
+        - cel-go
+        - A cel-spec conformance test
+        - The CEL language definition
+    validations:
+      required: true
+  - type: input
+    id: reference-version
+    attributes:
+      label: Version of the reference
+      description: The version of cel-go, or the commit of cel-spec, and for a conformance test its file, section and name.
+      placeholder: e.g. cel-go v0.x.y, or cel-spec 1a2b3c4, tests/simple/testdata/<file>, <section>/<test>
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Commit or package version of Great.Parts.Cel
+      description: The commit of `main` you built, or, after a release, the version of the package.
+      placeholder: e.g. 1a2b3c4
+    validations:
+      required: true
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Target framework
+      options:
+        - net10.0
+        - net11.0
+        - Both
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: JIT or Native AOT
+      options:
+        - JIT
+        - Native AOT
+        - Both
+    validations:
+      required: true
+  - type: textarea
+    id: expression
+    attributes:
+      label: Expression
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: variables
+    attributes:
+      label: Variables as JSON
+      description: The declarations of the variables and their values. Leave empty if the expression has none.
+      render: json
+    validations:
+      required: false
+  - type: textarea
+    id: reference-result
+    attributes:
+      label: Result of the reference
+      description: The result or the error that cel-go returns, or that the conformance test or the language definition expects.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Result of Great.Parts.Cel
+      description: The result you get. For an error, give its code, stage and message.
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before you submit
+      options:
+        - label: The difference is not in the list of known differences from cel-go.
+          required: true
+        - label: I searched the existing issues and did not find this difference.
+          required: true
+        - label: I agree to follow the [code of conduct](https://github.com/great-parts/great-parts-cel/blob/main/CODE_OF_CONDUCT.md).
+          required: true

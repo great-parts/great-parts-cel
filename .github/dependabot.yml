@@ -1,0 +1,45 @@
+# Version updates of the dependencies of the repository, once a week. A pull request of Dependabot is a proposal: the maintainers apply
+# it to main with their own commit, since a bot cannot sign off a commit. Dependabot alerts are a setting of the
+# repository, not of this file.
+version: 2
+updates:
+  # NuGet packages: the versions are in Directory.Packages.props, restore uses the lock files (packages.lock.json) next to the projects.
+  - package-ecosystem: nuget
+    directory: /
+    # eng/min-sdk is the sample application of the check min-sdk: it builds on the oldest SDK with the package of this build,
+    # so it has nothing to update.
+    exclude-paths:
+      - "eng/min-sdk/**"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # The actions of the workflows, pinned by the full SHA of a commit with the version in a comment.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  # The images of the build containers of eng/ (eng/docker/Dockerfile). The tags of the stages sdk and sdk-aot change together
+  # with global.json; the tag 10.0.100 of the stage sdk-min is the oldest SDK and does not change.
+  - package-ecosystem: docker
+    directory: /eng/docker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # The major version of an SDK image is the .NET it serves: 10 for the runtime of net10.0 and the oldest SDK, 11 for the build.
+      - dependency-name: "mcr.microsoft.com/dotnet/sdk"
+        update-types: ["version-update:semver-major"]
+
+  # cel-go, the oracle of the differential run (eng/oracle). cel.dev/expr and google.golang.org/protobuf stay at the versions that
+  # cel-go requires, and the image golang of eng/compose.yaml follows the go line of go.mod (docs/design/eng-oracle.md), so
+  # neither is proposed on its own.
+  - package-ecosystem: gomod
+    directory: /eng/oracle
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-name: "cel.dev/cel-go"

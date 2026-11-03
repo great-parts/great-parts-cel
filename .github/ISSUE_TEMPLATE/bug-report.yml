@@ -1,0 +1,86 @@
+name: Bug report
+description: An expression gives a wrong result or error, or the library does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Great.Parts.Cel is in pre-release, and the public API is unstable.
+
+        **Do not report a vulnerability here.** If an expression or its input makes the library crash the process, or an evaluation hangs or exhausts memory although the application set a cost limit, report it privately as [SECURITY.md](https://github.com/great-parts/great-parts-cel/blob/main/SECURITY.md) describes.
+
+        If the result differs from cel-go or from a cel-spec test, use the form **Difference from cel-go or cel-spec** instead.
+  - type: input
+    id: version
+    attributes:
+      label: Commit or package version
+      description: The commit of `main` you built, or, after a release, the version of the package.
+      placeholder: e.g. 1a2b3c4
+    validations:
+      required: true
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Target framework
+      options:
+        - net10.0
+        - net11.0
+        - Both
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: JIT or Native AOT
+      options:
+        - JIT
+        - Native AOT
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: e.g. Ubuntu 24.04, macOS 15, Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: expression
+    attributes:
+      label: Expression
+      description: The expression, or the smallest code that shows the problem.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: variables
+    attributes:
+      label: Variables as JSON
+      description: The variables of the expression and their values. Leave empty if the expression has none.
+      render: json
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+      description: The result or the error you expect, and why. A link to the documentation or to the CEL language definition helps.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: The result you get. For an error, give its code, stage and message; for an exception, the stack trace.
+    validations:
+      required: true
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and did not find this bug.
+          required: true
+        - label: I agree to follow the [code of conduct](https://github.com/great-parts/great-parts-cel/blob/main/CODE_OF_CONDUCT.md).
+          required: true

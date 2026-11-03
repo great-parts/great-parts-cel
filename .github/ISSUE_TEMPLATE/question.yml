@@ -1,0 +1,43 @@
+name: Question or documentation
+description: Ask how to use the library, or report a problem in the documentation.
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the [README](https://github.com/great-parts/great-parts-cel/blob/main/README.md) and the [documentation](https://github.com/great-parts/great-parts-cel/tree/main/docs). GitHub Discussions are not enabled, so questions are asked here.
+
+        The maintainer reads and answers issues. There is no guaranteed response time, as [SUPPORT.md](https://github.com/great-parts/great-parts-cel/blob/main/SUPPORT.md) says.
+
+        **Do not report a vulnerability here.** [SECURITY.md](https://github.com/great-parts/great-parts-cel/blob/main/SECURITY.md) describes how to report it privately.
+  - type: textarea
+    id: question
+    attributes:
+      label: Question or problem
+      description: What you want to do, or which page or example of the documentation is wrong or unclear, with a link to it.
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you tried
+      description: The code or the expression you tried, and what happened.
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Commit or package version
+      description: The commit of `main` you built, or, after a release, the version of the package.
+      placeholder: e.g. 1a2b3c4
+    validations:
+      required: false
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and the documentation.
+          required: true
+        - label: I agree to follow the [code of conduct](https://github.com/great-parts/great-parts-cel/blob/main/CODE_OF_CONDUCT.md).
+          required: true

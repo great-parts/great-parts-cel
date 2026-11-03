@@ -1,0 +1,117 @@
+# The cel-spec suite on the data of the last commit of the master branch of google/cel-spec (docs/design/conformance.md, "Run on master").
+# Every night and by hand. The pinned data of tests/cel-spec/ is replaced in the workspace of the run, and nothing is committed. The skip
+# list of the pinned commit does not apply to master: the list of the workspace is empty, so every case that fails is reported
+# (ENG801), and no entry gives ENG802 or ENG804. The result is the line "cel-spec master <SHA>: N/M passed, <date>" of the step summary.
+# A failed case does not fail the workflow: it is red when the build fails, the process of the run falls or the summary line is missing.
+name: conformance-master
+
+on:
+  schedule:
+    # 02:47 UTC every night.
+    - cron: "47 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: conformance-master
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  conformance-master:
+    name: cel-spec master
+    # Only the main branch: a manual run from another branch is skipped.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      # The last commit of master, without the history. The data of the pinned commit is replaced file for file as tests/cel-spec/
+      # holds it: tests/simple/testdata, the .proto files, doc/langdef.md, LICENSE and COMMIT, which names the commit of master.
+      - name: Take the data of cel-spec master
+        run: |
+          set -eu
+          master="$RUNNER_TEMP/cel-spec-master"
+          git clone --depth 1 --branch master https://github.com/google/cel-spec.git "$master"
+          spec=tests/cel-spec
+          rm -rf "$spec/tests" "$spec/proto" "$spec/doc" "$spec/LICENSE" "$spec/COMMIT"
+          mkdir -p "$spec/tests/simple" "$spec/doc"
+          cp -R "$master/tests/simple/testdata" "$spec/tests/simple/testdata"
+          cp -R "$master/proto" "$spec/proto"
+          cp "$master/doc/langdef.md" "$spec/doc/langdef.md"
+          cp "$master/LICENSE" "$spec/LICENSE"
+          git -C "$master" rev-parse HEAD > "$spec/COMMIT"
+          echo "cel-spec master $(git -C "$master" rev-parse --short=7 HEAD)"
+          find "$spec/tests/simple/testdata" -name '*.textproto' | wc -l
+
+      # The skip list of the pinned commit relates to that commit only: the list of the run has the table and no entries.
+      - name: Empty the skip list
+        run: |
+          set -eu
+          {
+            echo "# cel-spec conformance skip list"
+            echo
+            echo "No entries: the run on master does not apply the skip list of the pinned commit."
+            echo
+            echo "| Case | Scope | Reason | Reference | Issue |"
+            echo "|---|---|---|---|---|"
+          } > tests/Great.Parts.Cel.Conformance/CelSpec/skips.md
+
+      - name: Restore (locked)
+        run: dotnet restore tests/Great.Parts.Cel.Conformance --locked-mode
+
+      - name: Build
+        run: dotnet build tests/Great.Parts.Cel.Conformance -c Release -f net11.0 --no-restore
+
+      # JIT, linux-x64, net11.0: one cell. A failed case fails the test of the suite, which is not the result of the workflow: the
+      # process leaves its summary line and the findings in the log, and the step reads them. -showLiveOutput puts the summary line,
+      # which the test writes before it fails, in the log.
+      - name: cel-spec master suite
+        run: |
+          set -u
+          output="$RUNNER_TEMP/conformance-master.txt"
+          status=0
+          dotnet tests/Great.Parts.Cel.Conformance/bin/Release/net11.0/Great.Parts.Cel.Conformance.dll -noColor -showLiveOutput \
+            -method Great.Parts.Cel.Conformance.CelSpec.CelSpecSuiteTests.AllCases_PassOrAreSkipped \
+            -result-xml "$RUNNER_TEMP/conformance-master.xml" > "$output" 2>&1 || status=$?
+          cat "$output"
+          echo "exit code of the process: $status"
+
+          # "cel-spec <SHA>: N/M passed, <date> (<cell>)" becomes "cel-spec master <SHA>: N/M passed, <date> (<cell>)".
+          summary=$(grep -oE 'cel-spec [0-9a-f]{7}: [0-9]+/[0-9]+ passed, [0-9]{4}-[0-9]{2}-[0-9]{2} \([^)]*\)' "$output" | tail -n 1 || true)
+          if [ -z "$summary" ] || [ ! -s "$RUNNER_TEMP/conformance-master.xml" ]; then
+            {
+              echo "### cel-spec master"
+              echo
+              echo "No result: the run ended without the summary line or the report (exit code $status)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          failed=$(grep -cE 'error ENG801:' "$output" || true)
+          {
+            echo "### cel-spec master"
+            echo
+            echo '```text'
+            echo "${summary/cel-spec /cel-spec master }"
+            echo '```'
+            echo
+            echo "Cases that fail: $failed. The list of the pinned commit is not applied; the first 200 lines follow, the log has all."
+            echo
+            echo '```text'
+            grep -oE '[^ ]+\([0-9]+,[0-9]+\): error ENG801: .*' "$output" | head -n 200 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

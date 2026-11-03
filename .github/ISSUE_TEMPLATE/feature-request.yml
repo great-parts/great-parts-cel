@@ -1,0 +1,54 @@
+name: Feature request
+description: Propose a new feature or a change of the public API.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Great.Parts.Cel is in pre-release, and the public API is unstable.
+
+        A change of the public API is discussed in an issue before the pull request, as [CONTRIBUTING.md](https://github.com/great-parts/great-parts-cel/blob/main/CONTRIBUTING.md) describes. Start with the use case: what you want to do and what stops you today.
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What you want to do with the library, and what stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The feature or the change of the public API you propose. For an API change, show how the calling code would look.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What you use or do now instead, and other ways you considered.
+    validations:
+      required: false
+  - type: textarea
+    id: cel
+    attributes:
+      label: CEL and cel-go
+      description: If the feature belongs to the CEL language or its extensions, give a link to cel-spec, and say whether cel-go has it.
+    validations:
+      required: false
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to open a pull request for this feature after it is discussed.
+          required: false
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Before you submit
+      options:
+        - label: I searched the existing issues and did not find this proposal.
+          required: true
+        - label: I agree to follow the [code of conduct](https://github.com/great-parts/great-parts-cel/blob/main/CODE_OF_CONDUCT.md).
+          required: true

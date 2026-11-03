@@ -122,6 +122,26 @@ regression corpus: 0/0 passed, 2026-11-20 (jit, linux-x64, net11.0)
 
 `Synthetic/synthetic.textproto` is a small suite in the cel-spec format, built like the others. `SyntheticSuiteTests` run it with a scripted evaluator, independently of the progress of the library; skip lists are raw string literals inside the tests. A wrong expectation gives `ENG801` at the file and line of the case; an entry for a passing case `ENG802`; an entry for a missing case `ENG804`; each form of an invalid entry `ENG800`; a failure outside the scope of its entry `ENG801`, a pass outside it nothing. Each test checks code, path, line and column and matches the line with `Finding.Pattern`.
 
+## Run on master
+
+`.github/workflows/conformance-master.yml` runs the cel-spec suite on the last commit of the master branch of `google/cel-spec`, so a change in the test data shows up before the pinned commit moves. It runs every night (02:47 UTC) and by hand, on `main` only, in one cell: JIT, `linux-x64`, `net11.0`, on `ubuntu-latest`.
+
+1. The workflow clones the last commit of master without its history and replaces the data of `tests/cel-spec/` in its workspace, file for file as [Data and build](#data-and-build) lists it: `tests/simple/testdata`, the `.proto` files, `doc/langdef.md`, `LICENSE`, and `COMMIT`, which then holds the full SHA of the master commit.
+2. It replaces `CelSpec/skips.md` with its table without entries. The skip list belongs to the pinned commit; so a case of master that fails is `ENG801`, and no entry gives `ENG802` or `ENG804`. The regression corpus and its list are not run.
+3. It restores in the locked mode, builds `tests/Great.Parts.Cel.Conformance` for `net11.0` and runs only `CelSpecSuiteTests.AllCases_PassOrAreSkipped` of the built test assembly.
+4. Nothing is committed or pushed: the replaced files exist only in the workspace of the run.
+
+The result is the summary line of the suite with `master` after `cel-spec`, in the step summary and the log, with the lines of the failed cases (the first 200 in the summary, all in the log):
+
+```text
+cel-spec master 1f2e3d4: 2601/2614 passed, 2026-11-05 (jit, linux-x64, net11.0)
+tests/cel-spec/tests/simple/testdata/macros2.textproto(77,3): error ENG801: case 'macros2/…' failed: …
+```
+
+The share is counted from all cases of the suite, as for the pinned commit ([Summary line](#summary-line)).
+
+A failed case does not fail the workflow: the test of the suite fails with the findings, and the step reads the summary line from the output. The workflow is red when the restore or the build fails (new test data that protoc cannot encode included), when the process of the run falls before the summary line, or when the line or the report of the run is missing. A case that crashes the process is a defect of the library: it goes to the private report of `SECURITY.md`, not to an issue.
+
 ## Native AOT
 
 The project is published under Native AOT and runs as an executable ([tests.md](tests.md#same-tests-under-jit-and-native-aot), [eng-test.md](eng-test.md#test)). The runner uses no reflection: generated messages, embedded resources and the API of the library.
