@@ -25,7 +25,8 @@ namespace Great.Parts.Cel;
 /// error <see cref="CelErrorCode.StandardLibraryConflict"/>: without it, the application's declaration
 /// would silently replace or shadow the standard one.
 /// </para>
-/// <para>The list of declarations of each version is in the standard library table of the documentation.</para>
+/// <para>The list of declarations of each version is on the
+/// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md">Standard library</see>.</para>
 /// </remarks>
 public sealed class CelStandardLibrary
 {

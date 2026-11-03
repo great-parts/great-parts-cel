@@ -51,8 +51,9 @@ public sealed class CelCompilationCache
     /// <returns>The program or the compilation errors.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// <typeparamref name="T"/> is not in the result column of the type mapping table, or the expected type
-    /// of <paramref name="options"/> cannot be converted to <typeparamref name="T"/>.
+    /// <typeparamref name="T"/> is not in the result column of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// or the expected type of <paramref name="options"/> cannot be converted to <typeparamref name="T"/>.
     /// </exception>
     public CelCompileResult<T> GetOrCompile<T>(string expression, CelCompileOptions? options = null)
     {
@@ -78,8 +79,9 @@ public sealed class CelCompilationCache
     /// <returns>The result converted to <typeparamref name="T"/>, or the errors.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> or <paramref name="bindings"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// <typeparamref name="T"/> is not in the result column of the type mapping table, or the expected type
-    /// of <paramref name="compileOptions"/> cannot be converted to <typeparamref name="T"/>.
+    /// <typeparamref name="T"/> is not in the result column of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// or the expected type of <paramref name="compileOptions"/> cannot be converted to <typeparamref name="T"/>.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public CelEvalResult<T> Evaluate<T>(

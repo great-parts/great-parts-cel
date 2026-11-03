@@ -28,11 +28,13 @@ A command that takes an argument is followed by it, for example `signoff <range>
 | `--jit <report>` | `test-count`: the xUnit XML report of the JIT run; other commands ignore it |
 | `--aot <report>` | `test-count`: the report of the Native AOT run of the same commit, operating system and target; other commands ignore it |
 | `--where <text>` | `test-count`: the text for messages, used as it is and not parsed, for example `linux-x64, net11.0`; other commands ignore it |
-| `--report <file>` | `mutation`: the JSON report of Stryker.NET; other commands ignore it |
+| `--report <file>` | `mutation`: the JSON report of Stryker.NET; `links`: the JSON report of lychee, see [eng-docs.md](eng-docs.md#links); other commands ignore it |
 | `--config <file>` | `mutation`: the Stryker.NET configuration file of the run; other commands ignore it |
 | `--since <commit>` | `mutation`: the commit against which the changed files are listed; without it `main`. It enables `since` as it does in Stryker.NET, also when the configuration disables it ([eng-mutate.md](eng-mutate.md#mutation)). `eng/mutate` gives the full SHA of its own `--since`; other commands ignore it |
+| `--page <file>` | `error-codes`: the page of error codes, see [eng-docs.md](eng-docs.md#error-codes); other commands ignore it |
+| `--write` | `error-codes`: rewrite the table of the page from the members of `CelErrorCode` before the comparison; other commands ignore it |
 
-A relative path of a report or a configuration file is taken from the working directory. `test-count` without any of its three options, or `mutation` without `--report` or without `--config`, is exit code 2.
+A relative path of a report, a configuration file or a page is taken from the working directory. `test-count` without any of its three options, or `mutation` without `--report` or without `--config`, or `error-codes` without `--page`, or `links` without `--report`, is exit code 2.
 
 Commands run in the given order. Several commands in one run share their scans: `ratchet` uses the suppressions and the duplicate pairs that `suppressions` and `duplicates` found in the same run instead of scanning again. The container commands call it this way, see [eng-test.md](eng-test.md).
 
@@ -96,11 +98,13 @@ public readonly record struct Finding(
 - The path is relative to the repository root and uses `/`. A finding without a file of the repository names a git object instead: `commit/<sha>` or `tag/<name>`, place `(1,1)`; `Finding.ForCommit` and `Finding.ForTag` build such findings.
 - Line and column start at 1; the constructor rejects smaller values. A column counts UTF-16 code units of the line.
 - The message is English, one line. It names what is wrong and, where it helps, the second place or the value to change. It has no codes of requirements or decision records.
-- `Finding.Pattern` is the regular expression of a line, `Finding.TryParse` parses a line. Tests check every line of every own check against it:
+- `Finding.Pattern` is the regular expression of a line with a code of the repository, `ARCH` or `ENG`; `Finding.TryParse` parses such a line. Tests check every line of every own check against it, except the build errors of `examples`:
 
 ```text
 ^(?<path>[^(]+)\((?<line>\d+),(?<col>\d+)\): (error|warning) (ARCH|ENG)\d{3}: .+$
 ```
+
+`examples` reports an error of the build of an example — of the compiler, an analyzer or the SDK — as a finding with the level `error` and the code of that tool, such as `CS0103` ([eng-docs.md](eng-docs.md#examples)). Its line has the form of `Finding.ToString()`, but `Finding.Pattern` does not match it: the pattern checks the codes of the repository, and the code of a tool is not one of them. The tests of `examples` compare these lines as text.
 
 Findings go to standard output. Within a command they are sorted by path (ordinal), line and column, so two runs on the same input print the same lines. Messages of the application itself — an unknown command, a missing input file — go to standard error.
 

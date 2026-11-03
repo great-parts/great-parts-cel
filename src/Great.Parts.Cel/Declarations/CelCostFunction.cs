@@ -5,8 +5,9 @@ using Great.Parts.Cel.Values;
 namespace Great.Parts.Cel.Declarations;
 
 /// <summary>
-/// Tells the evaluation cost of a call of an application function from its arguments, in the cost units
-/// of the documentation, before the function is called.
+/// Tells the evaluation cost of a call of an application function from its arguments, in the cost units of the
+/// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>, before the
+/// function is called.
 /// </summary>
 /// <remarks>
 /// <para>

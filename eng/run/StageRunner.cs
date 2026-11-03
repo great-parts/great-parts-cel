@@ -57,7 +57,7 @@ internal static class StageRunner
                 passedOn = result.ExitCode;
             }
 
-            if (result.Succeeded)
+            if (result.Succeeded || (step.IgnoresExitCode && result.ExitCode is not null))
             {
                 continue;
             }

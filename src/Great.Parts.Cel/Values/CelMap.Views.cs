@@ -11,14 +11,15 @@ public abstract partial class CelMap
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Keys become CEL keys by the input type mapping table of the documentation: <see cref="string"/> and
-    /// <see cref="Guid"/> (in the format <c>D</c>, lower case) become <c>string</c>; signed integer types
-    /// and enumerations become <c>int</c>; unsigned integer types become <c>uint</c>;
-    /// <see cref="bool"/> stays <c>bool</c>. A lookup converts the CEL key back, so it costs one lookup in
-    /// <paramref name="source"/>, and keys meet on one number line: the key <c>1</c> of a dictionary over
-    /// <see cref="int"/> is found by <c>1</c>, <c>1u</c> and <c>1.0</c>. A key of an enumeration over
-    /// <see cref="ulong"/> above <see cref="long.MaxValue"/> cannot be a CEL key; an operation that meets it
-    /// gives an error value with the code <see cref="Diagnostics.CelErrorCode.ConversionRange"/>.
+    /// Keys become CEL keys by the input rows of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>:
+    /// <see cref="string"/> and <see cref="Guid"/> (in the format <c>D</c>, lower case) become <c>string</c>; signed
+    /// integer types and enumerations become <c>int</c>; unsigned integer types become <c>uint</c>; <see cref="bool"/>
+    /// stays <c>bool</c>. A lookup converts the CEL key back, so it costs one lookup in <paramref name="source"/>, and
+    /// keys meet on one number line: the key <c>1</c> of a dictionary over <see cref="int"/> is found by <c>1</c>,
+    /// <c>1u</c> and <c>1.0</c>. A key of an enumeration over <see cref="ulong"/> above <see cref="long.MaxValue"/>
+    /// cannot be a CEL key; an operation that meets it gives an error value with the code
+    /// <see cref="Diagnostics.CelErrorCode.ConversionRange"/>.
     /// </para>
     /// <para>
     /// The order of enumeration never depends on hash codes, which can differ between processes. When
@@ -48,8 +49,10 @@ public abstract partial class CelMap
     /// of .NET, and the map fields of protobuf messages, implement <see cref="IReadOnlyDictionary{TKey, TValue}"/>.
     /// </param>
     /// <param name="valueConverter">
-    /// Converts a value to a CEL value by the input type mapping table of the documentation; it can return
-    /// a value of the kind <see cref="CelValueKind.Error"/>. It must allow calls from many threads at once.
+    /// Converts a value to a CEL value by the input rows of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
+    /// it can return a value of the kind <see cref="CelValueKind.Error"/>. It must allow calls from many threads at
+    /// once.
     /// </param>
     /// <param name="keepSourceOrder">
     /// <see langword="true"/> to enumerate entries in the order of <paramref name="source"/> whatever its

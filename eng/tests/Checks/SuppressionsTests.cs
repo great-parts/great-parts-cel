@@ -791,6 +791,239 @@ public sealed class SuppressionsTests
         Assert.Equal(string.Empty, output.ToString());
     }
 
+    // ---- Examples that are not run (docs/design/eng-docs.md, "examples") ----
+
+    private const string ExampleReasonPlace = "reason after the word skip in the same line";
+    private const string NoExampleReason = "has no " + ExampleReasonPlace;
+    private const string ExampleAttributeReasonPlace = "reason in the skip attribute";
+    private const string NoExampleAttributeReason = "has no " + ExampleAttributeReasonPlace;
+
+    [Theory]
+    [InlineData("```csharp skip")]
+    [InlineData("```csharp skip:")]
+    [InlineData("```csharp net11.0 skip:   ")]
+    [InlineData("~~~csharp skip")]
+    public static void ExampleSkip_InMarkdownWithoutReason_IsEng101AtTheFence(string fence)
+    {
+        using TempDirectory root = new();
+        root.Write("README.md", Text("# Title", "", fence, "this is not C#", fence[..3]));
+
+        FindingAssert.Exactly(Run(root), Error(EngCodes.Eng101, "README.md", 3, 1, $"'csharp skip' {NoExampleReason}"));
+        Assert.Empty(Scan(root).Places);
+    }
+
+    [Theory]
+    [InlineData("```csharp skip: ENG301")]
+    [InlineData("```csharp skip: ENG301, ENG302.")]
+    [InlineData("```csharp net11.0 skip: eng302")]
+    public static void ExampleSkip_InMarkdownWithAReasonThatOnlyRepeatsTheCode_IsEng102(string fence)
+    {
+        using TempDirectory root = new();
+        root.Write("docs/a.md", Text("# Title", "", "  " + fence, "  this is not C#", "  ```"));
+
+        FindingAssert.Exactly(Run(root), Error(EngCodes.Eng102, "docs/a.md", 3, 3, $"'csharp skip' has a {ExampleReasonPlace} {RepeatsId}"));
+        Assert.Empty(Scan(root).Places);
+    }
+
+    [Fact]
+    public void ExampleSkip_InMarkdownWithAReason_IsCountedUnderExample()
+    {
+        using TempDirectory root = new();
+        root.Write(
+            "README.md",
+            Text("# Title", "", "```csharp skip: needs a running server", "this is not C#", "```", "", "```csharp", "Console.WriteLine(1);", "```"));
+
+        SuppressionScan scan = Scan(root);
+
+        FindingAssert.None(scan.Findings);
+        Assert.Equal([new SuppressionPlace("example", "README.md", new Position(3, 1))], scan.Places);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public static void ExampleSkip_InXmlDocumentationWithoutReason_IsEng101AtTheStartTag(string reason)
+    {
+        using TempDirectory root = new();
+        root.Write("src/A.cs", Text("namespace A;", "", "/// <summary>Shows it.</summary>", $"/// <code skip=\"{reason}\">not C#</code>", "public static class A { }"));
+
+        FindingAssert.Exactly(Run(root), Error(EngCodes.Eng101, "src/A.cs", 4, 5, $"'<code skip>' {NoExampleAttributeReason}"));
+        Assert.Empty(Scan(root).Places);
+    }
+
+    [Fact]
+    public void ExampleSkip_InXmlDocumentationWithAReasonThatOnlyRepeatsTheCode_IsEng102()
+    {
+        using TempDirectory root = new();
+        root.Write("src/A.cs", Text("/// <code skip=\"ENG302.\">not C#</code>", "public static class A { }"));
+
+        FindingAssert.Exactly(Run(root), Error(EngCodes.Eng102, "src/A.cs", 1, 5, $"'<code skip>' has a {ExampleAttributeReasonPlace} {RepeatsId}"));
+        Assert.Empty(Scan(root).Places);
+    }
+
+    [Fact]
+    public void ExampleSkip_InXmlDocumentationWithAReason_IsCountedUnderExampleWithTheOnesOfMarkdown()
+    {
+        using TempDirectory root = new();
+        root.Write("src/A.cs", Text("/// <code skip=\"needs a running server\">not C#</code>", "public static class A { }"));
+        root.Write("docs/a.md", Text("```csharp skip: uses the network", "not C#", "```", "", "```csharp", "Console.WriteLine(1);", "```"));
+
+        SuppressionScan scan = Scan(root);
+
+        FindingAssert.None(scan.Findings);
+        Assert.Equal("example=2", Counts(scan));
+        Assert.Equal(
+            [new SuppressionPlace("example", "docs/a.md", new Position(1, 1)), new SuppressionPlace("example", "src/A.cs", new Position(1, 5))],
+            scan.Places.OrderBy(place => place.Path, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void Example_WithoutSkipOrOutsideTheDocumentation_IsNotAForm()
+    {
+        using TempDirectory root = new();
+        root.Write("README.md", Text("```csharp net11.0", "Console.WriteLine(1m);", "```"));
+        root.Write("CHANGELOG.md", Text("```csharp skip", "not C#", "```"));
+        root.Write("tests/A.cs", Text("/// <code skip=\"\">not C#</code>", "public static class A { }"));
+
+        FindingAssert.None(Run(root));
+        Assert.Empty(Scan(root).Places);
+    }
+
+    // ---- .lycheeignore (docs/design/eng-checks-source.md, "suppressions") ----
+
+    private const string NoLycheeReason = "has no comment line above";
+    private const string LycheeRepeats = "has a comment line above that only repeats the rule ID";
+
+    [Fact]
+    public void LycheeIgnore_PatternWithoutAComment_IsEng101AtItsLine()
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text("# The page is written later", "^https://example\\.org/later", "^https://example\\.org/never"));
+
+        SuppressionScan scan = Scan(root);
+
+        FindingAssert.Exactly(scan.Findings, Error(EngCodes.Eng101, ".lycheeignore", 3, 1, $"'^https://example\\.org/never' {NoLycheeReason}"));
+        Assert.Equal([new SuppressionPlace("lychee", ".lycheeignore", new Position(2, 1))], scan.Places);
+    }
+
+    [Theory]
+    [InlineData("# ^https://example\\.org/later")]
+    [InlineData("#   ^https://example\\.org/later.")]
+    [InlineData("# ^https://example\\.ORG/later")]
+    public static void LycheeIgnore_CommentThatOnlyRepeatsThePattern_IsEng102(string comment)
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text(comment, "^https://example\\.org/later"));
+
+        FindingAssert.Exactly(Run(root), Error(EngCodes.Eng102, ".lycheeignore", 2, 1, $"'^https://example\\.org/later' {LycheeRepeats}"));
+        Assert.Empty(Scan(root).Places);
+    }
+
+    [Theory]
+    [InlineData("#")]
+    [InlineData("#  - ")]
+    public static void LycheeIgnore_CommentWithoutText_IsEng101(string comment)
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text(comment, "^https://example\\.org/later"));
+
+        FindingAssert.Exactly(Run(root), Error(EngCodes.Eng101, ".lycheeignore", 2, 1, $"'^https://example\\.org/later' {NoLycheeReason}"));
+    }
+
+    [Fact]
+    public void LycheeIgnore_PatternWithAReason_IsCountedUnderLychee()
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text("# The page is written later", "^https://example\\.org/later"));
+
+        SuppressionScan scan = Scan(root);
+
+        FindingAssert.None(scan.Findings);
+        Assert.Equal([new SuppressionPlace("lychee", ".lycheeignore", new Position(2, 1))], scan.Places);
+    }
+
+    [Fact]
+    public void LycheeIgnore_AllCommentLinesDirectlyAbove_AreTheReason()
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text("# ^https://example\\.org/later", "# The page is written later", "^https://example\\.org/later"));
+
+        SuppressionScan scan = Scan(root);
+
+        FindingAssert.None(scan.Findings);
+        Assert.Equal("lychee=1", Counts(scan));
+    }
+
+    [Fact]
+    public void LycheeIgnore_OneCommentCoversOnePattern()
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text("# Both pages are written later", "^https://example\\.org/one", "^https://example\\.org/two"));
+
+        SuppressionScan scan = Scan(root);
+
+        FindingAssert.Exactly(scan.Findings, Error(EngCodes.Eng101, ".lycheeignore", 3, 1, $"'^https://example\\.org/two' {NoLycheeReason}"));
+        Assert.Equal("lychee=1", Counts(scan));
+    }
+
+    [Fact]
+    public void LycheeIgnore_EmptyLineBetweenTheCommentAndThePattern_LeavesThePatternWithoutAReason()
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text("# The page is written later", "", "^https://example\\.org/later"));
+
+        FindingAssert.Exactly(Run(root), Error(EngCodes.Eng101, ".lycheeignore", 3, 1, $"'^https://example\\.org/later' {NoLycheeReason}"));
+        Assert.Empty(Scan(root).Places);
+    }
+
+    [Fact]
+    public void LycheeIgnore_AHashInsideAPatternLine_IsPartOfThePattern()
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text("# Anchors of a page that is written later", "^https://example\\.org/later#.*", "^https://example\\.org/#top"));
+
+        FindingAssert.Exactly(Run(root), Error(EngCodes.Eng101, ".lycheeignore", 3, 1, $"'^https://example\\.org/#top' {NoLycheeReason}"));
+    }
+
+    [Fact]
+    public void LycheeIgnore_IndentedLines_AreAtTheColumnOfTheirFirstCharacter()
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text("  # The page is written later", "  ^https://example\\.org/later", "\t^https://example\\.org/never"));
+
+        SuppressionScan scan = Scan(root);
+
+        FindingAssert.Exactly(scan.Findings, Error(EngCodes.Eng101, ".lycheeignore", 3, 2, $"'^https://example\\.org/never' {NoLycheeReason}"));
+        Assert.Equal([new SuppressionPlace("lychee", ".lycheeignore", new Position(2, 3))], scan.Places);
+    }
+
+    [Fact]
+    public void LycheeIgnore_OnlyCommentsAndEmptyLinesOrAnotherDirectory_HasNoForm()
+    {
+        using TempDirectory root = new();
+        root.Write("docs/.lycheeignore", Text("^https://example\\.org/later"));
+
+        FindingAssert.None(Run(root));
+
+        root.Write(".lycheeignore", Text("# Nothing is skipped", string.Empty, "   ", "# Not yet"));
+
+        FindingAssert.None(Run(root));
+        Assert.Empty(Scan(root).Places);
+    }
+
+    [Fact]
+    public void LycheeIgnore_AndLycheeToml_AreCountedTogetherUnderLychee()
+    {
+        using TempDirectory root = new();
+        root.Write(".lycheeignore", Text("# The page is written later", "^https://example\\.org/later"));
+        root.Write("lychee.toml", Text("exclude = ['^https://other\\.example/'] # The page is written later"));
+
+        SuppressionScan scan = Scan(root);
+
+        FindingAssert.None(scan.Findings);
+        Assert.Equal("lychee=2", Counts(scan));
+    }
+
     // ---- Helpers ----
 
     private static Finding Error(string code, string path, int line, int column, string message) =>

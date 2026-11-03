@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace Great.Parts.Cel.Eng.Run;
@@ -10,13 +12,22 @@ internal static class Commands
     internal const string Solution = "Great.Parts.Cel.slnx";
 
     /// <summary>The names of the commands, as the messages of <see cref="Program"/> list them.</summary>
-    internal const string Known = "test, mutate, difftest, min-sdk";
+    internal const string Known = "test, docs, mutate, difftest, min-sdk";
 
     /// <summary>The runtime identifier of the Native AOT publish, also the label of its test count.</summary>
     private const string AotRuntime = "linux-x64";
 
     /// <summary>The checks of <c>eng/checks</c> that <c>test</c> runs; <c>eng/checks</c> is built once, with the solution, and run without a build.</summary>
     private static readonly string[] Checks = ["suppressions", "duplicates", "ratchet", "packages", "--no-build"];
+
+    /// <summary>The error codes page that <c>docs</c> checks against <c>CelErrorCode</c> (<c>docs/design/eng-docs.md</c>, "Steps").</summary>
+    private const string ErrorCodesPage = "docs/error-codes.md";
+
+    /// <summary>The directory of <c>docs</c> under <c>artifacts/</c>: the report of lychee. It is deleted before a run and made again before lychee.</summary>
+    private const string DocsOutput = "artifacts/docs";
+
+    /// <summary>The report of lychee, run offline, that <c>docs</c> turns into findings with <c>eng/checks links</c>.</summary>
+    private const string DocsReport = DocsOutput + "/lychee.json";
 
     /// <summary>The report of Stryker.NET that <c>mutate</c> reads, under the output directory of the run.</summary>
     private const string MutateReport = "artifacts/mutate/reports/mutation-report.json";
@@ -33,9 +44,12 @@ internal static class Commands
     /// <summary>The directories of <c>min-sdk</c> under <c>artifacts/</c>, deleted before a run.</summary>
     private static readonly string[] MinSdkWritten = [MinSdk.Output];
 
+    /// <summary>The directories of <c>docs</c> under <c>artifacts/</c>, deleted before a run so the report of lychee comes from it.</summary>
+    private static readonly string[] DocsWritten = [DocsOutput];
+
     /// <summary>Whether the name is that of a command.</summary>
     /// <param name="name">The command name.</param>
-    internal static bool IsKnown(string name) => name is "test" or "mutate" or "difftest" or "min-sdk";
+    internal static bool IsKnown(string name) => name is "test" or "docs" or "mutate" or "difftest" or "min-sdk";
 
     /// <summary>
     /// Returns the directories under <c>artifacts/</c> that a command writes, relative to the repository root, or an empty list when
@@ -45,6 +59,7 @@ internal static class Commands
     internal static IReadOnlyList<string> Written(string name) => name switch
     {
         "test" => TestWritten,
+        "docs" => DocsWritten,
         "mutate" => MutateWritten,
         "min-sdk" => MinSdkWritten,
         _ => [],
@@ -57,6 +72,7 @@ internal static class Commands
     internal static IReadOnlyList<Stage>? Find(string name, IReadOnlyList<string> arguments) => name switch
     {
         "test" => TestStages(TestProjects.Find(Solution)),
+        "docs" => DocsStages(),
         "mutate" => MutateStages(MutateOptions.Parse(arguments)),
         "difftest" => DifftestStages(arguments),
         "min-sdk" => [.. MinSdk.Steps.Select(Stage.Of)],
@@ -83,6 +99,50 @@ internal static class Commands
         new Stage([JitLane(projects), .. projects.Where(project => project.PublishAot).SelectMany(AotLanes)]),
         new Stage([.. projects.Where(project => project.PublishAot).SelectMany(CountLanes)]),
     ];
+
+    /// <summary>
+    /// <c>docs</c> (<c>eng/docs</c>, <c>docs/design/eng-docs.md</c>, "Steps"), in three stages. First the build of <c>eng/checks</c>, which
+    /// every later check needs: a failed build stops the command. Then the lane of steps 1 to 3: the build of the library for both targets
+    /// with its XML documentation, the examples and the error codes page; a failed build skips the examples and the page, which need it,
+    /// but not the command. Then the lane of steps 4 and 5: lychee offline with its report, and the findings of the report. The exit code
+    /// of lychee is not used, because the report is the result; a report that is missing fails the last step.
+    /// </summary>
+    internal static List<Stage> DocsStages() =>
+    [
+        Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], Timeouts.Build, StopsOnFailure: true)),
+        new Stage([
+            [
+                new("dotnet", ["build", "src/Great.Parts.Cel", "-c", "Release"], Timeouts.Build, StopsOnFailure: true),
+                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "examples"], Timeouts.Examples),
+                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "error-codes", "--page", ErrorCodesPage], Timeouts.Check),
+            ],
+        ]),
+        new Stage([
+            [
+                Step.InProcess("docs: create " + DocsOutput, () => MakeDirectory(DocsOutput), stopsOnFailure: true),
+                new(
+                    "lychee",
+                    ["--offline", "--include-fragments", "--format", "json", "--output", DocsReport, "--config", "lychee.toml", "README.md", "docs", "src/**/*.cs"],
+                    Timeouts.Lychee,
+                    IgnoresExitCode: true),
+                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "links", "--report", DocsReport], Timeouts.Check),
+            ],
+        ]),
+    ];
+
+    // lychee writes its report to a file, not to a directory that is not there.
+    private static string? MakeDirectory(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+            return null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return exception.Message;
+        }
+    }
 
     // The module of every test project and target runs once under JIT, with its report; the report of the two projects that are also
     // published is the reference of their test count. Then the checks.

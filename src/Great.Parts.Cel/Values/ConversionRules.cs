@@ -6,9 +6,10 @@ using Great.Parts.Cel.Types;
 namespace Great.Parts.Cel.Values;
 
 /// <summary>
-/// .NET values of simple types to CEL values, by the input rows of the type mapping table: the types that
-/// variables and bindings accept so far. The conversion follows the static type <c>T</c> and does not box
-/// a value type.
+/// .NET values of simple types to CEL values, by the input rows of
+/// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>:
+/// the types that variables and bindings accept so far. The conversion follows the static type <c>T</c> and does not
+/// box a value type.
 /// </summary>
 internal static partial class ConversionRules
 {

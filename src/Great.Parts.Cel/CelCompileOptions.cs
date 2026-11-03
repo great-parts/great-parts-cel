@@ -29,10 +29,9 @@ public sealed class CelCompileOptions
     /// </summary>
     /// <remarks>
     /// Set it when the .NET type says too little: for example, <c>list(int)</c> with the result type
-    /// <see cref="CelValue"/>, which alone expects a result of any type. The type must be convertible to the
-    /// .NET type of the result by the type mapping table of the documentation; otherwise compilation throws
-    /// <see cref="ArgumentException"/>. An expression whose type is not assignable to it is the compilation
-    /// error <see cref="CelErrorCode.ExpectedTypeMismatch"/>.
+    /// <see cref="CelValue"/>, which alone expects a result of any type. The type must be convertible to the .NET type of the result by the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
+    /// otherwise compilation throws <see cref="ArgumentException"/>. An expression whose type is not assignable to it
+    /// is the compilation error <see cref="CelErrorCode.ExpectedTypeMismatch"/>.
     /// </remarks>
     public CelType? ExpectedType
     {

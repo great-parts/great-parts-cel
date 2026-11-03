@@ -51,8 +51,8 @@ Step 4 runs even when step 3 returns a non-zero exit code, so the surviving muta
 
 Every step has a time limit ([eng-test.md](eng-test.md#time-limits)). The step that runs Stryker.NET has two. The tool writes nothing about its progress while it tests the mutants, so a limit that counts from the last output is not possible; but it prints the number of mutants before it starts to test them:
 
-- the preparation — the build, the discovery of the tests and the run that captures coverage — has 3 minutes from the start of the step; the restore of the tool in step 1 has the same limit;
-- the line `<N> total mutants will be tested` replaces that limit with the time until the line plus 0.3 s for each mutant and 30 s for the end of the tool, which writes its report after the last mutant. A run of 812 mutants that took 118 s to prepare and 205 s to test is allowed 3 min and then 274 s; a run of 16 mutants that needed 5 s after the line is allowed 35 s.
+- the preparation — the build, the discovery of the tests and the run that captures coverage — has 241 s from the start of the step; the restore of the tool in step 1 has the same limit;
+- the line `<N> total mutants will be tested` replaces that limit with the time until the line plus 0.3 s for each mutant and 30 s for the end of the tool, which writes its report after the last mutant. A run of 812 mutants that took 118 s to prepare and 205 s to test is allowed 241 s and then 274 s; a run of 16 mutants that needed 5 s after the line is allowed 35 s.
 
 A step that runs out of time is killed with its process tree, and the command ends with `mutate: failed: timeout after <N> s in step <step>`, exit code 1. Step 4 still runs, as after any failure of the tool, and reads the report that the tool had written, if there is one.
 

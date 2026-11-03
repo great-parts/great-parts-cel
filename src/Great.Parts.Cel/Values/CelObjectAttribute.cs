@@ -14,11 +14,9 @@ namespace Great.Parts.Cel.Values;
 /// type that is only the type of a member needs no attribute of its own.
 /// </para>
 /// <para>
-/// The generator reads classes, records, structures and interfaces through their public instance
-/// properties and fields. A type of a kind it cannot read — such as a <see langword="ref"/> structure, an
-/// open generic type, a delegate or a stream — is a compiler error on the attribute; a member of such a
-/// kind is left out with a compiler warning, and selecting it in an expression is a type checking error
-/// that gives the reason. The supported kinds are listed in the type mapping table of the documentation.
+/// The generator reads classes, records, structures and interfaces through their public instance properties and fields.
+/// A type of a kind it cannot read — such as a
+/// <see langword="ref"/> structure, an open generic type, a delegate or a stream — is a compiler error on the attribute; a member of such a kind is left out with a compiler warning, and selecting it in an expression is a type checking error that gives the reason. The supported kinds are listed in the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]

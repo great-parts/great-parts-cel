@@ -83,10 +83,11 @@ public sealed class CelEnvironmentBuilder
     }
 
     /// <summary>
-    /// Declares a variable whose CEL type comes from the .NET type <typeparamref name="T"/> by the type
-    /// mapping table of the documentation, for example <c>long</c> as <c>int</c>,
-    /// <c>DateTimeOffset</c> as <c>timestamp</c>, <c>IReadOnlyList&lt;string&gt;</c> as <c>list(string)</c>,
-    /// and a .NET type described by a type source added with <see cref="AddTypes"/> as its object type.
+    /// Declares a variable whose CEL type comes from the .NET type <typeparamref name="T"/> by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// for example <c>long</c> as <c>int</c>, <c>DateTimeOffset</c> as <c>timestamp</c>,
+    /// <c>IReadOnlyList&lt;string&gt;</c> as <c>list(string)</c>, and a .NET type described by a type source added with
+    /// <see cref="AddTypes"/> as its object type.
     /// </summary>
     /// <remarks>
     /// A .NET type that maps to no CEL type and that no type source of the environment describes is a
@@ -140,30 +141,28 @@ public sealed class CelEnvironmentBuilder
     }
 
     /// <summary>
-    /// Declares a function without arguments, called as <c>f()</c>, and implements it with a .NET delegate.
-    /// The CEL result type comes from <typeparamref name="TResult"/> by the type mapping table of the
-    /// documentation.
+    /// Declares a function without arguments, called as <c>f()</c>, and implements it with a .NET delegate. The CEL
+    /// result type comes from <typeparamref name="TResult"/> by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The delegate forms declare one overload called globally. Its identifier is the function name followed
-    /// by the CEL type of each parameter in order, each preceded by <c>_</c> and written without spaces as in
-    /// an environment description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>,
-    /// <c>check_acme.sales.Order</c>; without parameters the identifier is the function name. Error messages
-    /// show the identifier, and a different overload with the same identifier, for example one declared in an
-    /// environment description in JSON, is a build error <see cref="CelErrorCode.DuplicateOverloadId"/>. The result enters the expression by the input rows of the
-    /// type mapping table. A .NET type that maps to no CEL type and that no type source describes is a
-    /// build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit; an overload that
-    /// declares its cost, an overload with parameters of type <c>dyn</c> or type parameters, and an overload
-    /// called on a receiver need <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name
-    /// are on <see cref="CelFunctionDecl"/>.
+    /// The delegate forms declare one overload called globally. Its identifier is the function name followed by the CEL
+    /// type of each parameter in order, each preceded by <c>_</c> and written without spaces as in an environment
+    /// description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>, <c>check_acme.sales.Order</c>; without
+    /// parameters the identifier is the function name. Error messages show the identifier, and a different overload
+    /// with the same identifier, for example one declared in an environment description in JSON, is a build error
+    /// <see cref="CelErrorCode.DuplicateOverloadId"/>. The result enters the expression by the input rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
+    /// A .NET type that maps to no CEL type and that no type source describes is a build error
+    /// <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit; an overload that declares its cost, an
+    /// overload with parameters of type <c>dyn</c> or type parameters, and an overload called on a receiver need
+    /// <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name are on
+    /// <see cref="CelFunctionDecl"/>.
     /// </para>
     /// <para>
-    /// The implementation runs synchronously inside evaluation, can be called from several threads at once,
-    /// and an exception it throws becomes the evaluation error <see cref="CelErrorCode.ApplicationException"/>.
-    /// Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked
-    /// on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the
-    /// evaluation and pass it in the bindings, as the recipe "Application functions" of the documentation
+    /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
+    /// exception it throws becomes the evaluation error
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -179,35 +178,29 @@ public sealed class CelEnvironmentBuilder
     }
 
     /// <summary>
-    /// Declares a function with one argument, called as <c>f(a)</c>, and implements it with a .NET delegate,
-    /// for example <c>AddFunction("isInn", static (string value) =&gt; Inn.IsValid(value))</c>. The CEL types
-    /// come from the delegate signature by the type mapping table of the documentation.
+    /// Declares a function with one argument, called as <c>f(a)</c>, and implements it with a .NET delegate, for
+    /// example <c>AddFunction("isInn", static (string value) =&gt; Inn.IsValid(value))</c>. The CEL types come from the
+    /// delegate signature by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The delegate forms declare one overload called globally. Its identifier is the function name followed
-    /// by the CEL type of each parameter in order, each preceded by <c>_</c> and written without spaces as in
-    /// an environment description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>,
-    /// <c>check_acme.sales.Order</c>; without parameters the identifier is the function name. Error messages
-    /// show the identifier, and a different overload with the same identifier, for example one declared in an
-    /// environment description in JSON, is a build error <see cref="CelErrorCode.DuplicateOverloadId"/>. An argument is passed to the delegate by the result rows of
-    /// the type mapping table; a value that does not convert, such as an <c>int</c> out of the range of an
-    /// <see cref="int"/> parameter, is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>.
-    /// The result enters the expression by the input rows of the table. A .NET type that maps to no CEL type
-    /// and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call
-    /// costs 1 cost unit, plus 1 + n units when an argument collection of n elements is copied to convert it
-    /// for the delegate, by the cost table of the documentation; an overload that declares its cost, an
-    /// overload with parameters of type
-    /// <c>dyn</c> or type parameters, and an overload called on a receiver need
-    /// <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name are on
-    /// <see cref="CelFunctionDecl"/>.
+    /// The delegate forms declare one overload called globally. Its identifier is the function name followed by the CEL
+    /// type of each parameter in order, each preceded by <c>_</c> and written without spaces as in an environment
+    /// description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>, <c>check_acme.sales.Order</c>; without
+    /// parameters the identifier is the function name. Error messages show the identifier, and a different overload
+    /// with the same identifier, for example one declared in an environment description in JSON, is a build error
+    /// <see cref="CelErrorCode.DuplicateOverloadId"/>. An argument is passed to the delegate by the result rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
+    /// a value that does not convert, such as an <c>int</c> out of the range of an
+    /// <see cref="int"/> parameter, is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units when an argument collection of n elements is copied to convert it for the delegate, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
+    /// gives; an overload that declares its cost, an overload with parameters of type <c>dyn</c> or type parameters,
+    /// and an overload called on a receiver need <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function
+    /// name are on <see cref="CelFunctionDecl"/>.
     /// </para>
     /// <para>
-    /// The implementation runs synchronously inside evaluation, can be called from several threads at once,
-    /// and an exception it throws becomes the evaluation error <see cref="CelErrorCode.ApplicationException"/>.
-    /// Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked
-    /// on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the
-    /// evaluation and pass it in the bindings, as the recipe "Application functions" of the documentation
+    /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
+    /// exception it throws becomes the evaluation error
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -224,33 +217,27 @@ public sealed class CelEnvironmentBuilder
     }
 
     /// <summary>
-    /// Declares a function with two arguments, called as <c>f(a, b)</c>, and implements it with a .NET
-    /// delegate. The CEL types come from the delegate signature by the type mapping table of the
-    /// documentation.
+    /// Declares a function with two arguments, called as <c>f(a, b)</c>, and implements it with a .NET delegate. The
+    /// CEL types come from the delegate signature by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The delegate forms declare one overload called globally. Its identifier is the function name followed
-    /// by the CEL type of each parameter in order, each preceded by <c>_</c> and written without spaces as in
-    /// an environment description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>,
-    /// <c>check_acme.sales.Order</c>; without parameters the identifier is the function name. Error messages
-    /// show the identifier, and a different overload with the same identifier, for example one declared in an
-    /// environment description in JSON, is a build error <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of
-    /// the type mapping table; a value that does not convert is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of
-    /// the table. A .NET type that maps to no CEL type and that no type source describes is a build error
-    /// <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each
-    /// argument collection of n elements that is copied to convert it for the delegate, by the cost table of
-    /// the documentation; other overloads need
-    /// <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name are on
+    /// The delegate forms declare one overload called globally. Its identifier is the function name followed by the CEL
+    /// type of each parameter in order, each preceded by <c>_</c> and written without spaces as in an environment
+    /// description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>, <c>check_acme.sales.Order</c>; without
+    /// parameters the identifier is the function name. Error messages show the identifier, and a different overload
+    /// with the same identifier, for example one declared in an environment description in JSON, is a build error
+    /// <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
+    /// a value that does not convert is the evaluation error
+    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each argument collection of n elements that is copied to convert it for the delegate, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
+    /// gives; other overloads need <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name are on
     /// <see cref="CelFunctionDecl"/>.
     /// </para>
     /// <para>
-    /// The implementation runs synchronously inside evaluation, can be called from several threads at once,
-    /// and an exception it throws becomes the evaluation error <see cref="CelErrorCode.ApplicationException"/>.
-    /// Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked
-    /// on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the
-    /// evaluation and pass it in the bindings, as the recipe "Application functions" of the documentation
+    /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
+    /// exception it throws becomes the evaluation error
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -268,33 +255,27 @@ public sealed class CelEnvironmentBuilder
     }
 
     /// <summary>
-    /// Declares a function with three arguments, called as <c>f(a, b, c)</c>, and implements it with a .NET
-    /// delegate. The CEL types come from the delegate signature by the type mapping table of the
-    /// documentation.
+    /// Declares a function with three arguments, called as <c>f(a, b, c)</c>, and implements it with a .NET delegate.
+    /// The CEL types come from the delegate signature by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The delegate forms declare one overload called globally. Its identifier is the function name followed
-    /// by the CEL type of each parameter in order, each preceded by <c>_</c> and written without spaces as in
-    /// an environment description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>,
-    /// <c>check_acme.sales.Order</c>; without parameters the identifier is the function name. Error messages
-    /// show the identifier, and a different overload with the same identifier, for example one declared in an
-    /// environment description in JSON, is a build error <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of
-    /// the type mapping table; a value that does not convert is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of
-    /// the table. A .NET type that maps to no CEL type and that no type source describes is a build error
-    /// <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each
-    /// argument collection of n elements that is copied to convert it for the delegate, by the cost table of
-    /// the documentation; other overloads need
-    /// <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name are on
+    /// The delegate forms declare one overload called globally. Its identifier is the function name followed by the CEL
+    /// type of each parameter in order, each preceded by <c>_</c> and written without spaces as in an environment
+    /// description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>, <c>check_acme.sales.Order</c>; without
+    /// parameters the identifier is the function name. Error messages show the identifier, and a different overload
+    /// with the same identifier, for example one declared in an environment description in JSON, is a build error
+    /// <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
+    /// a value that does not convert is the evaluation error
+    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each argument collection of n elements that is copied to convert it for the delegate, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
+    /// gives; other overloads need <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name are on
     /// <see cref="CelFunctionDecl"/>.
     /// </para>
     /// <para>
-    /// The implementation runs synchronously inside evaluation, can be called from several threads at once,
-    /// and an exception it throws becomes the evaluation error <see cref="CelErrorCode.ApplicationException"/>.
-    /// Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked
-    /// on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the
-    /// evaluation and pass it in the bindings, as the recipe "Application functions" of the documentation
+    /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
+    /// exception it throws becomes the evaluation error
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -313,33 +294,27 @@ public sealed class CelEnvironmentBuilder
     }
 
     /// <summary>
-    /// Declares a function with four arguments, called as <c>f(a, b, c, d)</c>, and implements it with a
-    /// .NET delegate. The CEL types come from the delegate signature by the type mapping table of the
-    /// documentation.
+    /// Declares a function with four arguments, called as <c>f(a, b, c, d)</c>, and implements it with a .NET delegate.
+    /// The CEL types come from the delegate signature by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The delegate forms declare one overload called globally. Its identifier is the function name followed
-    /// by the CEL type of each parameter in order, each preceded by <c>_</c> and written without spaces as in
-    /// an environment description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>,
-    /// <c>check_acme.sales.Order</c>; without parameters the identifier is the function name. Error messages
-    /// show the identifier, and a different overload with the same identifier, for example one declared in an
-    /// environment description in JSON, is a build error <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of
-    /// the type mapping table; a value that does not convert is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of
-    /// the table. A .NET type that maps to no CEL type and that no type source describes is a build error
-    /// <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each
-    /// argument collection of n elements that is copied to convert it for the delegate, by the cost table of
-    /// the documentation; functions with more arguments
-    /// and other overloads need <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name
-    /// are on <see cref="CelFunctionDecl"/>.
+    /// The delegate forms declare one overload called globally. Its identifier is the function name followed by the CEL
+    /// type of each parameter in order, each preceded by <c>_</c> and written without spaces as in an environment
+    /// description in JSON: <c>isInn_string</c>, <c>sum_list&lt;int&gt;</c>, <c>check_acme.sales.Order</c>; without
+    /// parameters the identifier is the function name. Error messages show the identifier, and a different overload
+    /// with the same identifier, for example one declared in an environment description in JSON, is a build error
+    /// <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
+    /// a value that does not convert is the evaluation error
+    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each argument collection of n elements that is copied to convert it for the delegate, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
+    /// gives; functions with more arguments and other overloads need <see cref="AddFunction(CelFunctionDecl)"/>. The
+    /// rules for the function name are on <see cref="CelFunctionDecl"/>.
     /// </para>
     /// <para>
-    /// The implementation runs synchronously inside evaluation, can be called from several threads at once,
-    /// and an exception it throws becomes the evaluation error <see cref="CelErrorCode.ApplicationException"/>.
-    /// Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked
-    /// on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the
-    /// evaluation and pass it in the bindings, as the recipe "Application functions" of the documentation
+    /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
+    /// exception it throws becomes the evaluation error
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -373,9 +348,10 @@ public sealed class CelEnvironmentBuilder
     /// </para>
     /// <para>
     /// The implementations run synchronously inside evaluation. Do not block in them on asynchronous work —
-    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of
-    /// ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the
-    /// bindings, as the recipe "Application functions" of the documentation shows.
+    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
+    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// shows.
     /// </para>
     /// </remarks>
     /// <param name="declaration">The declaration of the function.</param>
@@ -398,10 +374,9 @@ public sealed class CelEnvironmentBuilder
     /// </para>
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
-    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of
-    /// ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the
-    /// bindings; see <see cref="CelFunctionImplementation"/> and the recipe "Application functions" of the
-    /// documentation.
+    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
+    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings; see
+    /// <see cref="CelFunctionImplementation"/> and the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>.
     /// </para>
     /// </remarks>
     /// <param name="overloadId">The identifier of the overload.</param>
@@ -419,17 +394,19 @@ public sealed class CelEnvironmentBuilder
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The CEL types of the delegate, by the type mapping table of the documentation, must fit the declared
-    /// overload; otherwise it is a build error <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An
-    /// implementation whose identifier no declared overload has is a build error
-    /// <see cref="CelErrorCode.UnusedImplementation"/>; two implementations with one identifier are a build
-    /// error <see cref="CelErrorCode.DuplicateImplementation"/>.
+    /// The CEL types of the delegate, by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// must fit the declared overload; otherwise it is a build error
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An implementation whose identifier no declared
+    /// overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two implementations with one
+    /// identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
     /// </para>
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
-    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of
-    /// ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the
-    /// bindings, as the recipe "Application functions" of the documentation shows.
+    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
+    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// shows.
     /// </para>
     /// </remarks>
     /// <typeparam name="TResult">The .NET type of the result.</typeparam>
@@ -450,18 +427,20 @@ public sealed class CelEnvironmentBuilder
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The CEL types of the delegate, by the type mapping table of the documentation, must fit the declared
-    /// overload; otherwise it is a build error <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An
-    /// argument that does not convert to the parameter type at evaluation is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. An implementation whose identifier no declared overload
-    /// has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two implementations with one
-    /// identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
+    /// The CEL types of the delegate, by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// must fit the declared overload; otherwise it is a build error
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An argument that does not convert to the parameter
+    /// type at evaluation is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. An implementation
+    /// whose identifier no declared overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two
+    /// implementations with one identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
     /// </para>
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
-    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of
-    /// ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the
-    /// bindings, as the recipe "Application functions" of the documentation shows.
+    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
+    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// shows.
     /// </para>
     /// </remarks>
     /// <typeparam name="T1">The .NET type of the argument.</typeparam>
@@ -482,18 +461,20 @@ public sealed class CelEnvironmentBuilder
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The CEL types of the delegate, by the type mapping table of the documentation, must fit the declared
-    /// overload; otherwise it is a build error <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An
-    /// argument that does not convert to the parameter type at evaluation is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. An implementation whose identifier no declared overload
-    /// has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two implementations with one
-    /// identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
+    /// The CEL types of the delegate, by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// must fit the declared overload; otherwise it is a build error
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An argument that does not convert to the parameter
+    /// type at evaluation is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. An implementation
+    /// whose identifier no declared overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two
+    /// implementations with one identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
     /// </para>
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
-    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of
-    /// ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the
-    /// bindings, as the recipe "Application functions" of the documentation shows.
+    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
+    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// shows.
     /// </para>
     /// </remarks>
     /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
@@ -515,18 +496,20 @@ public sealed class CelEnvironmentBuilder
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The CEL types of the delegate, by the type mapping table of the documentation, must fit the declared
-    /// overload; otherwise it is a build error <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An
-    /// argument that does not convert to the parameter type at evaluation is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. An implementation whose identifier no declared overload
-    /// has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two implementations with one
-    /// identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
+    /// The CEL types of the delegate, by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// must fit the declared overload; otherwise it is a build error
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An argument that does not convert to the parameter
+    /// type at evaluation is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. An implementation
+    /// whose identifier no declared overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two
+    /// implementations with one identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
     /// </para>
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
-    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of
-    /// ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the
-    /// bindings, as the recipe "Application functions" of the documentation shows.
+    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
+    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// shows.
     /// </para>
     /// </remarks>
     /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
@@ -549,18 +532,20 @@ public sealed class CelEnvironmentBuilder
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The CEL types of the delegate, by the type mapping table of the documentation, must fit the declared
-    /// overload; otherwise it is a build error <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An
-    /// argument that does not convert to the parameter type at evaluation is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. An implementation whose identifier no declared overload
-    /// has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two implementations with one
-    /// identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
+    /// The CEL types of the delegate, by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// must fit the declared overload; otherwise it is a build error
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An argument that does not convert to the parameter
+    /// type at evaluation is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. An implementation
+    /// whose identifier no declared overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two
+    /// implementations with one identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
     /// </para>
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
-    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of
-    /// ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the
-    /// bindings, as the recipe "Application functions" of the documentation shows.
+    /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
+    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// shows.
     /// </para>
     /// </remarks>
     /// <typeparam name="T1">The .NET type of the first argument.</typeparam>

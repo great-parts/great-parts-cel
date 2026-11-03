@@ -4,7 +4,7 @@
 # /repo/.git of a linked worktree is a file with a host path that the container cannot reach. The two read-only
 # mounts give git the common git directory at /git and the file artifacts/worktree/gitdir in place of /repo/.git;
 # the host file stays unchanged. A missing source stops the run instead of creating a host directory. Every service
-# that runs eng/run gets them: test, mutate, difftest and min-sdk.
+# that runs eng/run gets them: test, mutate, docs, difftest and min-sdk.
 x-git: &git
   - type: bind
     source: ${ENG_GIT_COMMON_DIR:?set ENG_GIT_COMMON_DIR to the common git directory of the repository}
@@ -24,6 +24,8 @@ services:
     volumes: *git
   # In a linked worktree mutate runs only without since, such as the control set (docs/design/eng-mutate.md, "Linked worktrees").
   mutate:
+    volumes: *git
+  docs:
     volumes: *git
   difftest:
     volumes: *git

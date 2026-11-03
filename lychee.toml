@@ -1,0 +1,32 @@
+# Settings of lychee for eng/docs and for the cell of CI that checks the external links (docs/design/eng-docs.md).
+# The inputs, --offline, --include-fragments and the report are options of the command line, so both runs read this one file.
+
+# The output is read in a log, not on a terminal: no progress bar.
+no_progress = true
+
+# The XML documentation goes with the package, where a relative path leads nowhere, so it links a file of the repository by its
+# address on GitHub, on main. lychee reads a .cs file as plain text and finds only addresses with a scheme; offline it would skip
+# such an address. The remap turns it into the file itself, under /repo, the working directory of lychee in eng/docs and in CI: the
+# offline run checks the file and its anchor like a relative link, and the run of the external links, which checks only http and
+# https, skips it. An exclusion applies to the address after the remap.
+remap = [
+  "^https://github\\.com/great-parts/great-parts-cel/blob/main/(.*)$ file:///repo/$1",
+]
+
+# An exclusion is a regular expression of an address (exclude) or of a path (exclude_path). Its reason is a comment in the same
+# line as the string, for example:
+#   "^https://example\\.org/page$", # the page is published with the next release
+# `eng/checks suppressions` counts every exclusion under the key lychee and asks for the reason (ENG101, ENG102); the count is in
+# eng/ratchet.json, and it only goes down. A page that is not written yet is excluded here, with its reason, until it is. The
+# pattern of such a page, /docs/<page>.md with any anchor, matches both a relative link and a remapped address.
+exclude = [
+  "/docs/type-mapping\\.md(#.*)?$", # the type mapping page is not written yet; the XML documentation links it already
+  "/docs/cost\\.md(#.*)?$", # the cost page is not written yet; the XML documentation links it already
+  "/docs/limits\\.md(#.*)?$", # the limits page is not written yet; the XML documentation links it already
+  "/docs/standard-library\\.md(#.*)?$", # the standard library page is not written yet; the XML documentation links it already
+  "/docs/extensions\\.md(#.*)?$", # the extension sets page is not written yet; the XML documentation links it already
+  "/docs/environment-json\\.md(#.*)?$", # the environment JSON page is not written yet; the XML documentation links it already
+]
+
+exclude_path = [
+]

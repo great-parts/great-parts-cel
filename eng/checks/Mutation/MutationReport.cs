@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text.Json;
 
 namespace Great.Parts.Cel.Eng.Checks;
@@ -44,28 +43,7 @@ internal sealed class MutationReport
     /// <summary>Reads a report from a file.</summary>
     /// <param name="path">The full path of the report.</param>
     /// <exception cref="CheckInputException">The file cannot be read or is not a report.</exception>
-    internal static MutationReport Read(string path)
-    {
-        string text;
-        try
-        {
-            text = File.ReadAllText(path);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            throw new CheckInputException($"the mutation report {path} cannot be read: {exception.Message}", exception);
-        }
-
-        try
-        {
-            using JsonDocument document = JsonDocument.Parse(text);
-            return Parse(document.RootElement);
-        }
-        catch (Exception exception) when (exception is JsonException or InvalidOperationException or FormatException or KeyNotFoundException)
-        {
-            throw new CheckInputException($"the file {path} is not a mutation report: {exception.Message.ReplaceLineEndings(" ")}", exception);
-        }
-    }
+    internal static MutationReport Read(string path) => JsonReport.Read(path, "mutation report", Parse);
 
     private static MutationReport Parse(JsonElement root)
     {

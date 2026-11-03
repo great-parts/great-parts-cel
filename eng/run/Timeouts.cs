@@ -7,9 +7,10 @@ namespace Great.Parts.Cel.Eng.Run;
 
 /// <summary>
 /// The time that a step may take, in one place so a limit is easy to raise (<c>docs/design/eng-test.md</c>, "Time limits"). A limit is
-/// the time of a cold run measured on 2026-10-30, the build, the JIT steps and the Native AOT publish on 2026-11-02, with 20 % added. A
-/// step that is still running when its limit is over is killed with its whole process tree and fails with
-/// <c>timeout after N s in step &lt;step&gt;</c>.
+/// the time of a cold run measured on 2026-10-30, the build, the JIT steps and the Native AOT publish on 2026-11-02, the examples and
+/// lychee of <c>docs</c> and the preparation of <c>mutate</c> on 2026-11-03, with 20 % added and rounded up to a second. A step that is still
+/// running when its limit is over
+/// is killed with its whole process tree and fails with <c>timeout after N s in step &lt;step&gt;</c>.
 /// </summary>
 internal static class Timeouts
 {
@@ -36,11 +37,27 @@ internal static class Timeouts
     /// <summary>A command of <c>eng/checks</c> that reads reports or files and builds nothing: <c>test-count</c>, <c>mutation</c>.</summary>
     internal static readonly TimeSpan Check = TimeSpan.FromSeconds(12);
 
+    /// <summary>
+    /// The build and the run of all examples of the documentation in <c>eng/checks examples</c>: one <c>dotnet build</c> of all example
+    /// projects, then every program. A cold run of <c>docs</c> on 2026-11-03 took 24.1 s for the step.
+    /// </summary>
+    internal static readonly TimeSpan Examples = TimeSpan.FromSeconds(29);
+
+    /// <summary>
+    /// lychee, offline, over <c>README.md</c>, <c>docs/</c> and the sources: it reads files and checks them against files, with no
+    /// request. A cold run of <c>docs</c> on 2026-11-03 took 0.9 s for the step, the longest run of that day 1.4 s.
+    /// </summary>
+    internal static readonly TimeSpan Lychee = TimeSpan.FromSeconds(2);
+
     /// <summary>Each child process of <c>min-sdk</c>: the version of the SDK and the build of the sample application.</summary>
     internal static readonly TimeSpan MinSdk = TimeSpan.FromSeconds(20);
 
-    /// <summary>The preparation of <c>mutate</c>: the restore of the tool, and the tool until it says how many mutants it will test.</summary>
-    internal static readonly TimeSpan MutatePreparation = TimeSpan.FromMinutes(3);
+    /// <summary>
+    /// The preparation of <c>mutate</c>: the restore of the tool, and the tool until it says how many mutants it will test.
+    /// The runs of the control set on 2026-11-03, after the tests of the documentation checks were added, took 179.2 s cold, 200.1 s with
+    /// the Debug build done and more than 180 s once; the limit is the longest of them with 20 % added.
+    /// </summary>
+    internal static readonly TimeSpan MutatePreparation = TimeSpan.FromSeconds(241);
 
     /// <summary>The time of <c>mutate</c> for one mutant, counted from the line in which the tool says how many it will test.</summary>
     internal static readonly TimeSpan MutatePerMutant = TimeSpan.FromSeconds(0.3);

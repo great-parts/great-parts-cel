@@ -12,15 +12,12 @@ namespace Great.Parts.Cel.Values;
 /// </summary>
 /// <remarks>
 /// <para>
-/// This is the form of <see cref="CelObjectTypeBuilder{TCarrier}"/> with ready-made delegates, and the
-/// only form of a type described at run time that data can express without code: an environment
-/// description in JSON creates its object types this way. A field is present when the dictionary has its
-/// key. The value of the entry is converted by the value rows of the input type mapping table of the
-/// documentation, as for a member of the .NET type <see cref="object"/>, and checked against the declared
-/// type of the field: a value of another type is an error <see cref="CelErrorCode.FieldTypeMismatch"/>,
-/// and reading a missing key is an error <see cref="CelErrorCode.FieldNotSet"/>. A boxed
-/// <see cref="CelValue"/>, a <see cref="CelList"/> or a <see cref="CelMap"/> in the dictionary is taken as
-/// it is, which is how a dictionary holds a list or a map.
+/// This is the form of
+/// <see cref="CelObjectTypeBuilder{TCarrier}"/> with ready-made delegates, and the only form of a type described at run time that data can express without code: an environment description in JSON creates its object types this way. A field is present when the dictionary has its key. The value of the entry is converted by the input value rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+/// as for a member of the .NET type <see cref="object"/>, and checked against the declared type of the field: a value
+/// of another type is an error <see cref="CelErrorCode.FieldTypeMismatch"/>, and reading a missing key is an error
+/// <see cref="CelErrorCode.FieldNotSet"/>. A boxed <see cref="CelValue"/>, a <see cref="CelList"/> or a
+/// <see cref="CelMap"/> in the dictionary is taken as it is, which is how a dictionary holds a list or a map.
 /// </para>
 /// <para>
 /// The values are boxed in the dictionary and checked at each read; the generic builder over a typed

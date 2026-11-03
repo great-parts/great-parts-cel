@@ -14,10 +14,9 @@ namespace Great.Parts.Cel.Values;
 /// <c>CelObjectType.GetField</c> without looking up the name.
 /// </para>
 /// <para>
-/// Type checking uses the type of the field: a member of the .NET type <see cref="string"/> annotated as
-/// not nullable is <c>string</c>, a nullable one is the wrapper type of <c>string</c>, and a member of the
-/// .NET type <see cref="object"/> is <c>dyn</c>, as the type mapping table of the documentation gives.
-/// Instances are immutable and can be shared between threads.
+/// Type checking uses the type of the field: a member of the .NET type
+/// <see cref="string"/> annotated as not nullable is <c>string</c>, a nullable one is the wrapper type of <c>string</c>, and a member of the .NET type <see cref="object"/> is <c>dyn</c>, as the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>
+/// gives. Instances are immutable and can be shared between threads.
 /// </para>
 /// </remarks>
 public sealed class CelObjectField

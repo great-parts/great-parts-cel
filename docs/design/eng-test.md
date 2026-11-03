@@ -57,7 +57,7 @@ ENG_GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir)" \
   docker compose -f eng/compose.yaml -f eng/compose.worktree.yaml run --rm test
 ```
 
-It adds two read-only bind mounts to every service that runs `eng/run` — `test`, `mutate`, `difftest` and `min-sdk`, not `oracle`, which does not read git ([eng-oracle.md](eng-oracle.md#container)): the common git directory `${ENG_GIT_COMMON_DIR}` at `/git`, and the worktree's file `artifacts/worktree/gitdir` over `/repo/.git`. A mount over a file leaves the host file unchanged. Both have `create_host_path: false`: a missing source stops the run instead of creating a host directory.
+It adds two read-only bind mounts to every service that runs `eng/run` — `test`, `mutate`, `docs`, `difftest` and `min-sdk`, not `oracle`, which does not read git ([eng-oracle.md](eng-oracle.md#container)): the common git directory `${ENG_GIT_COMMON_DIR}` at `/git`, and the worktree's file `artifacts/worktree/gitdir` over `/repo/.git`. A mount over a file leaves the host file unchanged. Both have `create_host_path: false`: a missing source stops the run instead of creating a host directory.
 
 The file holds the line `gitdir: /git/worktrees/<name>`, with `<name>` from the host's `.git` file. Whoever creates the worktree writes it once, right after `git worktree add`; `artifacts/` is ignored by git, and the file goes away with the worktree. In Git Bash, in the worktree root:
 
@@ -81,25 +81,28 @@ A command is a list of stages. A stage is lanes that run at the same time, and a
 - A step stops the rest of its lane when it fails and is marked so, because the next steps need its result; a stage stops the command when it has a failed step and is marked so. A step that is not marked does not stop the others, so one run shows all failures.
 - Each command, and the launcher of the oracle, first deletes the directories under `artifacts/` that it writes, so every report there comes from the current run.
 - The last line of every command is its summary, in this form: `<command>: passed` or `<command>: failed: <steps or a reason>`, where a step that ran out of time is named `timeout after <N> s in step <step>`; `head <40 characters of the SHA of HEAD>`; `tree clean`, `tree dirty` or `tree unknown`; the duration in seconds; `exit <code>`; for `test` also the counters. The lines do not match the finding pattern. `tree` is `clean` when `git status --porcelain` listed nothing before the first step and after the last one, `unknown` when git cannot answer. A reviewer does not repeat a run whose summary names the same SHA of `HEAD` and a clean tree.
-- The exit code is 0 when every step returned 0, otherwise 1, a step that ran out of time included. After a successful build, `difftest` returns the exit code of `eng/difftest` unchanged: 0, 1 or 2 ([eng-difftest.md](eng-difftest.md#findings-and-output)).
+- The exit code is 0 when every step returned 0, otherwise 1, a step that ran out of time included. One step is marked so that its exit code is not used (`Step.IgnoresExitCode`): the lychee step of `docs`, whose report is the result ([eng-docs.md](eng-docs.md#steps)). A program that does not start or does not end within its limit still fails such a step. After a successful build, `difftest` returns the exit code of `eng/difftest` unchanged: 0, 1 or 2 ([eng-difftest.md](eng-difftest.md#findings-and-output)).
 - `eng/checks` is built once, with the solution or by the first step of `mutate`; every later call of it is `dotnet run --project eng/checks -c Release --no-build`.
 
 ## Time limits
 
 `eng/run` limits the time of every step, so a hung process does not hold the run for ever. A step that is still running when its limit is over is killed together with the processes it started, and fails with the reason `timeout after <N> s in step <step>`; `<N>` is its limit in seconds. The command ends with exit code 1, also `difftest`, which otherwise returns the exit code of `eng/difftest`. The last line is, for example, `test: failed: timeout after 67 s in step dotnet build Great.Parts.Cel.slnx -c Release; head …; tree clean; 70.3 s; exit 1`. Whether a failed step stops the rest is decided as for any failed step ([eng/run](#engrun)).
 
-A limit is the time of a cold run in a new working copy, plus 20 %. The runs of `dotnet build`, of the JIT module and of the publish were measured again on 2026-11-02 and took longer than on 2026-10-30; their limits come from the second measurement, the lowest cold run of it (67.1 s, 77.3 s and 166.7 s) plus 20 %, rounded up. The other limits come from the measurement of 2026-10-30. The limits are constants of `eng/run/Timeouts.cs`; when runs fail by timeout regularly, a limit is raised there.
+A limit is the time of a cold run in a new working copy, plus 20 %. The runs of `dotnet build`, of the JIT module and of the publish were measured again on 2026-11-02 and took longer than on 2026-10-30; their limits come from the second measurement, the lowest cold run of it (67.1 s, 77.3 s and 166.7 s) plus 20 %, rounded up. The limits measured on 2026-11-03 come from the longest run of the step on that day plus 20 %, rounded up to a second, because the runs of one step on that day differed widely, and a limit from the lowest run would leave little above the others: `examples` and lychee in `docs` from 24.1 s and 1.4 s (a cold run of `docs` took 24.1 s and 0.9 s); the preparation of `mutate` from 200.1 s, a run of the control set with the Debug build done (the cold run took 179.2 s, and a limit of 180 s was not enough once). The other limits come from the measurement of 2026-10-30. The limits are constants of `eng/run/Timeouts.cs`; when runs fail by timeout regularly, a limit is raised there.
 
 | Step | Limit | Cold run |
 | :- | :- | :- |
-| `dotnet build`: the solution in `test`, `eng/checks` in `mutate`, `eng/difftest` in `difftest` | 81 s | 56 s for the solution on 2026-10-30; at least 67.1 s on 2026-11-02 |
+| `dotnet build`: the solution in `test`, `eng/checks` in `mutate` and in `docs`, `eng/difftest` in `difftest`, `src/Great.Parts.Cel` in `docs` | 81 s | 56 s for the solution on 2026-10-30; at least 67.1 s on 2026-11-02 |
 | `test`: one test module under JIT; the checks of `eng/checks` of the same lane | 93 s each | about 60 s for the lane on 2026-10-30; at least 77.3 s on 2026-11-02 |
 | `test`: the Native AOT publish of one project and target | 201 s | about 100 s on 2026-10-30; at least 166.7 s on 2026-11-02 |
 | `test`: the run of one published executable | 120 s | about 100 s |
 | `test-count` of `test`; the reading of the report by `mutate` | 12 s | about 10 s |
 | `min-sdk`: each child process — `dotnet --version`, the build of the sample application | 20 s | 16 s for the command |
 | `difftest`: the run of `eng/difftest` | its budget × 1.2 + 36 s, see [eng-difftest.md](eng-difftest.md#invocation) | |
-| `mutate`: the restore of the tool; the run of Stryker.NET until it prints the number of mutants | 3 min | 118 s |
+| `docs`: `eng/checks examples` | 29 s | 24.1 s on 2026-11-03 |
+| `docs`: lychee, offline | 2 s | 0.9 s on 2026-11-03; up to 1.4 s in later runs |
+| `docs`: `eng/checks error-codes` and `eng/checks links` | 12 s | |
+| `mutate`: the restore of the tool; the run of Stryker.NET until it prints the number of mutants | 241 s | 118 s on 2026-10-30; for the control set on 2026-11-03 179.2 s, up to 200.1 s in later runs |
 | `mutate`: the run of Stryker.NET after that line | 0.3 s × the number of mutants + 30 s, see [eng-mutate.md](eng-mutate.md#time-limits) | 0.25 s per mutant |
 
 The build of `eng/checks` and of `eng/difftest`, the reading of the mutation report and the restore of the tool were not measured on their own: each has the limit of the step of the same kind in the table.

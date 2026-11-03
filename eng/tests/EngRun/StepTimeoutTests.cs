@@ -57,6 +57,32 @@ public sealed class StepTimeoutTests
     }
 
     [Fact]
+    public void Step_ThatIgnoresItsExitCodeAndFails_IsNotAFailure()
+    {
+        StageResult result = StageRunner.Run(Stage.Of(Shell("exit 2", TimeSpan.FromSeconds(30)) with { IgnoresExitCode = true }));
+
+        Assert.Empty(result.Failed);
+    }
+
+    [Fact]
+    public void Step_ThatIgnoresItsExitCodeAndRunsOutOfTime_StillFails()
+    {
+        StageResult result = StageRunner.Run(Stage.Of(Shell(LongSleep, OneSecond) with { IgnoresExitCode = true }));
+
+        Assert.Equal("timeout after 1 s in step sh -c sleep 60", Assert.Single(result.Failed));
+    }
+
+    [Fact]
+    public void Step_ThatIgnoresItsExitCodeAndDoesNotStart_StillFails()
+    {
+        Step step = new("/this/program/does/not/exist", [], TimeSpan.FromSeconds(30), IgnoresExitCode: true);
+
+        StageResult result = StageRunner.Run(Stage.Of(step));
+
+        Assert.StartsWith("/this/program/does/not/exist (", Assert.Single(result.Failed), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void StepInThisProcess_ThatFailsWithTheTimeoutOfItsChild_IsNamedWithTheLimit()
     {
         StageResult result = StageRunner.Run(Stage.Of(Step.InProcess("min-sdk: build", () => Timeouts.Reason(20))));

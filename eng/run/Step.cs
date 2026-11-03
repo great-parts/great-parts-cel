@@ -15,6 +15,8 @@ namespace Great.Parts.Cel.Eng.Run;
 /// <param name="Action">The C# of a step that runs in this process: it returns <see langword="null"/> on success, otherwise the reason.</param>
 /// <param name="Extend">Gives a new limit, counted from the start of the step, when a line of the output of the program calls for it; it
 /// returns <see langword="null"/> for the other lines. Only the first new limit counts.</param>
+/// <param name="IgnoresExitCode">Whether the step counts as run when the program ended with any exit code, because its result is a file that
+/// a later step reads: lychee. A program that did not start or ran out of time still fails the step.</param>
 internal sealed record Step(
     string FileName,
     IReadOnlyList<string> Arguments,
@@ -22,7 +24,8 @@ internal sealed record Step(
     bool StopsOnFailure = false,
     bool PassesExitCode = false,
     Func<string?>? Action = null,
-    Func<string, TimeSpan, TimeSpan?>? Extend = null)
+    Func<string, TimeSpan, TimeSpan?>? Extend = null,
+    bool IgnoresExitCode = false)
 {
     /// <summary>The command line of the step as it is written in the header line and in the failure summary.</summary>
     internal string CommandLine => string.Join(' ', [FileName, .. Arguments]);

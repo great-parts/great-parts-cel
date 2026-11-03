@@ -16,12 +16,10 @@ namespace Great.Parts.Cel;
 /// memory for the result: the structure holds the value itself.
 /// </para>
 /// <para>
-/// Read <see cref="Value"/> only after testing <see cref="IsSuccess"/>: for a reference type
-/// <typeparamref name="T"/> the compiler warns about a read without the test, and with warnings as errors
-/// the build fails. A CEL <c>null</c> result is <see langword="null"/> in <see cref="Value"/> even after the
-/// test; it occurs only when the expression can yield <c>null</c> and <typeparamref name="T"/> accepts it
-/// by the type mapping table of the documentation, such as <see cref="object"/>. Code in which an error is
-/// a programming mistake can call <see cref="GetValueOrThrow"/>.
+/// Read
+/// <see cref="Value"/> only after testing <see cref="IsSuccess"/>: for a reference type <typeparamref name="T"/> the compiler warns about a read without the test, and with warnings as errors the build fails. A CEL <c>null</c> result is <see langword="null"/> in <see cref="Value"/> even after the test; it occurs only when the expression can yield <c>null</c> and <typeparamref name="T"/> accepts it by the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+/// such as <see cref="object"/>. Code in which an error is a programming mistake can call
+/// <see cref="GetValueOrThrow"/>.
 /// </para>
 /// <para>
 /// <c>default(CelEvalResult&lt;T&gt;)</c> is not the result of any call: use only results returned by

@@ -46,23 +46,23 @@ public enum CelErrorCode
     InvalidLiteral = 1001,
 
     /// <summary>
-    /// The expression text is longer than the limit on the length of an expression in UTF-8 bytes,
-    /// given in the limits table of the documentation. Location: the character at which the limit
-    /// was exceeded.
+    /// The expression text is longer than the limit on the length of an expression in UTF-8 bytes, given on the
+    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>. Location:
+    /// the character at which the limit was exceeded.
     /// </summary>
     ExpressionTooLong = 1002,
 
     /// <summary>
-    /// The syntactic nesting or the depth of the syntax tree exceeds its limit, given in the limits
-    /// table of the documentation. Chains of <c>&amp;&amp;</c> and <c>||</c> do not add depth.
-    /// Location: the node at which the limit was exceeded.
+    /// The syntactic nesting or the depth of the syntax tree exceeds its limit, given on the
+    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>. Chains of
+    /// <c>&amp;&amp;</c> and <c>||</c> do not add depth. Location: the node at which the limit was exceeded.
     /// </summary>
     NestingTooDeep = 1003,
 
     /// <summary>
-    /// Parsing stopped after the maximum number of syntax errors, given in the limits table of the
-    /// documentation; this error is added after the errors already found. Location: the character at
-    /// which parsing stopped.
+    /// Parsing stopped after the maximum number of syntax errors, given on the
+    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>; this
+    /// error is added after the errors already found. Location: the character at which parsing stopped.
     /// </summary>
     TooManyErrors = 1004,
 
@@ -154,10 +154,11 @@ public enum CelErrorCode
     TypeNotConstructible = 2008,
 
     /// <summary>
-    /// A constant <c>matches</c> pattern is invalid: an RE2 syntax error, a construct that RE2 does not
-    /// support, or a pattern over a limit given in the limits table of the documentation. The message
-    /// gives the offset in the pattern and the kind of error. The pattern is compiled while the program
-    /// is planned. Location: the pattern literal.
+    /// A constant <c>matches</c> pattern is invalid: an RE2 syntax error, a construct that RE2 does not support, or a
+    /// pattern over a limit given on the
+    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>. The
+    /// message gives the offset in the pattern and the kind of error. The pattern is compiled while the program is
+    /// planned. Location: the pattern literal.
     /// </summary>
     InvalidRegex = 2009,
 
@@ -209,9 +210,10 @@ public enum CelErrorCode
     ModulusByZero = 3005,
 
     /// <summary>
-    /// The result of arithmetic is out of the range of its type: <c>int</c>, <c>uint</c>,
-    /// <c>duration</c>, <c>timestamp</c> or <c>decimal</c>. The ranges are in the limits table of the
-    /// documentation. Location: the call.
+    /// The result of arithmetic is out of the range of its type: <c>int</c>, <c>uint</c>, <c>duration</c>,
+    /// <c>timestamp</c> or <c>decimal</c>. The ranges are on the
+    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>. Location:
+    /// the call.
     /// </summary>
     Overflow = 3006,
 
@@ -260,9 +262,10 @@ public enum CelErrorCode
     TypeNotAccessible = 3012,
 
     /// <summary>
-    /// Charging the cost of the next operation would exceed the cost limit of the evaluation options;
-    /// the operation is not performed. Costs are given in the cost table of the documentation.
-    /// Location: the node of the operation.
+    /// Charging the cost of the next operation would exceed the cost limit of the evaluation options; the operation is
+    /// not performed. Costs are given on the
+    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>. Location: the
+    /// node of the operation.
     /// </summary>
     CostLimitExceeded = 3013,
 
@@ -279,10 +282,10 @@ public enum CelErrorCode
     ApplicationException = 3014,
 
     /// <summary>
-    /// The value of the result cannot be converted to the requested .NET type by the type mapping table
-    /// of the documentation, for example a <c>dyn</c> result that is a string when <c>bool</c> was
-    /// requested, or a <c>decimal</c> out of the range of <see cref="decimal"/>. Location: the root of
-    /// the expression.
+    /// The value of the result cannot be converted to the requested .NET type by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// for example a <c>dyn</c> result that is a string when <c>bool</c> was requested, or a <c>decimal</c> out of the
+    /// range of <see cref="decimal"/>. Location: the root of the expression.
     /// </summary>
     ResultConversion = 3015,
 
@@ -336,10 +339,11 @@ public enum CelErrorCode
     InvalidTimeZone = 3023,
 
     /// <summary>
-    /// A value cannot be passed to a parameter of the .NET delegate that implements an application function,
-    /// by the result rows of the type mapping table of the documentation: for example, an <c>int</c> that
-    /// does not fit an <see cref="int"/> parameter. The message names the function, the overload identifier
-    /// and the parameter. Location: the call.
+    /// A value cannot be passed to a parameter of the .NET delegate that implements an application function, by the
+    /// result rows of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>:
+    /// for example, an <c>int</c> that does not fit an <see cref="int"/> parameter. The message names the function, the
+    /// overload identifier and the parameter. Location: the call.
     /// </summary>
     ArgumentConversion = 3024,
 

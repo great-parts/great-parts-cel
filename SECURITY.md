@@ -8,7 +8,7 @@ Report it privately on GitHub with the form [Report a vulnerability](https://git
 
 Expressions often come from users of an application and cannot be trusted. If an expression or its input makes the library crash the process, report it here as a vulnerability, not in a public issue.
 
-The library sets no cost limit by default: without a limit an evaluation is not bounded, so a long evaluation or one that uses a lot of memory is not a vulnerability by itself. An application that evaluates untrusted expressions sets a cost limit in the evaluation options. If an evaluation hangs or exhausts memory although the application set such a limit, report it here as a vulnerability.
+The library sets no cost limit by default: without a limit an evaluation is not bounded, so a long evaluation or one that uses a lot of memory is not a vulnerability by itself. An application that evaluates untrusted expressions sets a cost limit in the evaluation options. If an evaluation hangs or exhausts memory although the application set such a limit, report it here as a vulnerability. In the pre-release the cost limit is not implemented yet: setting it throws `NotImplementedException`.
 
 Please include:
 
@@ -31,4 +31,9 @@ The details stay private until a fix is available. Then the vulnerability is pub
 
 No version has been released yet. Until the first release, fixes go to the `main` branch only.
 
-After releases, fixes are released for the latest minor version. Security fixes are also released for the previous major version for 6 months after the next major version comes out.
+After releases:
+
+- fixes are released for the latest minor version;
+- security fixes are also released for the previous major version, for 6 months after the next major version comes out.
+
+For example, when 2.0.0 comes out, a security fix still comes for the latest 1.x minor version for 6 months; other fixes come only for 2.0. The versions follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).

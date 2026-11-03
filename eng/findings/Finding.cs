@@ -12,7 +12,10 @@ namespace Great.Parts.Cel.Eng.Findings;
 /// <param name="Line">The line, starting with 1.</param>
 /// <param name="Column">The column in UTF-16 code units, starting with 1.</param>
 /// <param name="Severity">The severity.</param>
-/// <param name="Code">The code, <c>ARCH</c> or <c>ENG</c> and three digits.</param>
+/// <param name="Code">
+/// The code, <c>ARCH</c> or <c>ENG</c> and three digits; for an error of the build of an example of <c>examples</c>, the code of the
+/// compiler, an analyzer or the SDK, such as <c>CS0103</c>.
+/// </param>
 /// <param name="Message">The message: English, one line.</param>
 public readonly record struct Finding(string Path, int Line, int Column, FindingSeverity Severity, string Code, string Message)
 {
@@ -29,7 +32,10 @@ public readonly record struct Finding(string Path, int Line, int Column, Finding
         ? Column
         : throw new ArgumentOutOfRangeException(nameof(Column), Column, "The column starts with 1.");
 
-    /// <summary>The form of every finding line: <c>path(line,column): error|warning CODE: message</c>.</summary>
+    /// <summary>
+/// The form of every finding line with a code of the repository: <c>path(line,column): error|warning CODE: message</c>. A line of
+/// an error of the build of an example has the same form, but its code is the code of the tool, which the pattern does not match.
+/// </summary>
     public static Regex Pattern { get; } = new(
         @"^(?<path>[^(]+)\((?<line>\d+),(?<col>\d+)\): (error|warning) (ARCH|ENG)\d{3}: .+$",
         RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture);

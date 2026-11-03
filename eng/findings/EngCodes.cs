@@ -36,6 +36,30 @@ public static class EngCodes
     /// <summary>The license expression of the package is missing or differs from the package list.</summary>
     public const string Eng207 = "ENG207";
 
+    /// <summary>The output of a C# example of the documentation differs from the output shown next to it.</summary>
+    public const string Eng301 = "ENG301";
+
+    /// <summary>A C# example of the documentation ended with an exception, with an exit code other than 0, or did not end within the time limit.</summary>
+    public const string Eng302 = "ENG302";
+
+    /// <summary>The page of error codes differs from the members of <c>CelErrorCode</c>: a member has no row, a row has no member, or a row has another number or stage.</summary>
+    public const string Eng303 = "ENG303";
+
+    /// <summary>An external link of the documentation answered 404 or 410.</summary>
+    public const string Eng401 = "ENG401";
+
+    /// <summary>The domain of an external link of the documentation does not exist.</summary>
+    public const string Eng402 = "ENG402";
+
+    /// <summary>A relative link of the documentation names a file that does not exist.</summary>
+    public const string Eng403 = "ENG403";
+
+    /// <summary>A link of the documentation names an anchor that the page does not have.</summary>
+    public const string Eng404 = "ENG404";
+
+    /// <summary>An external link of the documentation failed in another way than 404 or 410: 429, 5xx, a timeout or another failed response. It is a warning.</summary>
+    public const string Eng409 = "ENG409";
+
     /// <summary>A mutant survived: the tests ran and none of them failed. It is an error when the mutation score is below the threshold, otherwise a warning.</summary>
     public const string Eng501 = "ENG501";
 

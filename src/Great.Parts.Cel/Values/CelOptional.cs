@@ -8,9 +8,8 @@ namespace Great.Parts.Cel.Values;
 /// be <see langword="null"/>.
 /// </summary>
 /// <typeparam name="T">
-/// The .NET type of the held value: <see cref="CelValue"/> inside function implementations, or the
-/// type requested for the result of an expression of type <c>optional_type(T)</c> by the type mapping
-/// table of the documentation.
+/// The .NET type of the held value:
+/// <see cref="CelValue"/> inside function implementations, or the type requested for the result of an expression of type <c>optional_type(T)</c> by the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
 /// </typeparam>
 /// <remarks>
 /// <para>

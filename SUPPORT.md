@@ -4,7 +4,7 @@ Great.Parts.Cel is in pre-release: no package has been published yet, and the pu
 
 ## Where to ask
 
-Ask questions and report bugs in [GitHub issues](https://github.com/great-parts/great-parts-cel/issues). GitHub Discussions are not enabled.
+Start with the [README](README.md) and the [documentation](docs/). Ask questions and report bugs in [GitHub issues](https://github.com/great-parts/great-parts-cel/issues). GitHub Discussions are not enabled.
 
 A vulnerability goes through [SECURITY.md](SECURITY.md), not through an issue.
 
@@ -21,4 +21,4 @@ Differences from cel-go that have already been analysed are listed in [known-dif
 
 ## Answers
 
-The maintainer reads and answers issues. There is no guaranteed response time.
+The maintainer reads and answers issues. There is no guaranteed response time. Everyone in the issues follows the [code of conduct](CODE_OF_CONDUCT.md).

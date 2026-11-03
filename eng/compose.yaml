@@ -31,6 +31,19 @@ services:
       - nuget:/root/.nuget/packages
     entrypoint: [dotnet, run, --project, eng/run, --, mutate]
 
+  # eng/docs: the check of the documentation (docs/design/eng-docs.md): the examples compile and print what they show, the page of
+  # error codes matches CelErrorCode, and the relative links, files and anchors exist, with lychee offline. It runs on the image stage
+  # with the lychee program. The external links are checked only in CI. Arguments after the service name go to the command of eng/run.
+  docs:
+    build:
+      context: docker
+      target: docs
+    working_dir: /repo
+    volumes:
+      - ..:/repo
+      - nuget:/root/.nuget/packages
+    entrypoint: [dotnet, run, --project, eng/run, --, docs]
+
   # Builds a sample application on the .NET SDK 10.0.100 from the packed Great.Parts.Cel of artifacts/packages; run it after the
   # service test. The image has no SDK 11, which building eng/run needs, so the service runs the eng/run that the service test
   # compiled. It has its own packages folder under artifacts/min-sdk and does not use the volume nuget

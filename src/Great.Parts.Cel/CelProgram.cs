@@ -45,15 +45,11 @@ public sealed class CelProgram<T>
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Evaluation errors are returned, not thrown, and there is one at most: when several parts of an
-    /// expression fail, the CEL language definition does not specify which error is reported. A variable
-    /// without a value in the bindings is the error <see cref="CelErrorCode.Unbound"/> when the expression
-    /// reads it; a value that does not have the declared type of its variable is the error
-    /// <see cref="CelErrorCode.BindingTypeMismatch"/>. An exception thrown by application code — a function
-    /// implementation, a member getter of an application object — becomes the error
-    /// <see cref="CelErrorCode.ApplicationException"/>, which keeps the original exception. A result that
-    /// does not convert to <typeparamref name="T"/> by the type mapping table of the documentation is the
-    /// error <see cref="CelErrorCode.ResultConversion"/>.
+    /// Evaluation errors are returned, not thrown, and there is one at most: when several parts of an expression fail,
+    /// the CEL language definition does not specify which error is reported. A variable without a value in the bindings
+    /// is the error
+    /// <see cref="CelErrorCode.Unbound"/> when the expression reads it; a value that does not have the declared type of its variable is the error <see cref="CelErrorCode.BindingTypeMismatch"/>. An exception thrown by application code — a function implementation, a member getter of an application object — becomes the error <see cref="CelErrorCode.ApplicationException"/>, which keeps the original exception. A result that does not convert to <typeparamref name="T"/> by the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>
+    /// is the error <see cref="CelErrorCode.ResultConversion"/>.
     /// </para>
     /// <para>
     /// When the token can be canceled, evaluation checks it before the first macro step or application

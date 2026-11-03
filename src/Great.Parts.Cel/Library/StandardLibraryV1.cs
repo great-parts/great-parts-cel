@@ -12,7 +12,8 @@ internal static class StandardLibraryV1
 {
     internal const string Source = "standard library v1";
 
-    // The overloads in the order of cel-go. Costs are units of the cost table: a call of constant time
+    // The overloads in the order of cel-go. Costs are units of the page Cost,
+    // https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md: a call of constant time
     // without allocation is 1 unit; a logical operator costs nothing beyond the operands it evaluates.
     internal static ImmutableArray<OverloadBinding> Overloads { get; } =
     [

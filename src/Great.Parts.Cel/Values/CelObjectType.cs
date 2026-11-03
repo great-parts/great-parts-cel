@@ -116,11 +116,11 @@ public abstract class CelObjectType
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The library calls this member only with an instance that belongs to the description and with the
-    /// number of one of <see cref="Fields"/>. An implementation reads the member directly, without
-    /// reflection and without a name lookup, and converts the value by the input type mapping table of
-    /// the documentation, using the public factories of <see cref="CelValue"/>, <see cref="CelList"/> and
-    /// <see cref="CelMap"/> and the protected conversion helpers of this class.
+    /// The library calls this member only with an instance that belongs to the description and with the number of one
+    /// of
+    /// <see cref="Fields"/>. An implementation reads the member directly, without reflection and without a name lookup, and converts the value by the input rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// using the public factories of <see cref="CelValue"/>, <see cref="CelList"/> and <see cref="CelMap"/> and the
+    /// protected conversion helpers of this class.
     /// </para>
     /// <para>
     /// A value that cannot be read — for example a <see langword="null"/> in a member that does not allow
@@ -324,20 +324,19 @@ public abstract class CelObjectType
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <see langword="null"/> becomes <c>null</c>. A value of a .NET type from the value rows of the input
-    /// type mapping table of the documentation — numbers, <see cref="bool"/>, <see cref="string"/>,
-    /// <see cref="Guid"/>, enumerations, bytes, time types, <c>decimal</c> types on .NET 11 — becomes a value
-    /// of its CEL type; a boxed <see cref="CelValue"/> stays as it is, and an instance of
-    /// <see cref="CelList"/> or <see cref="CelMap"/> becomes a <c>list</c> or a <c>map</c> value. A
-    /// <see cref="System.Text.Json.JsonElement"/> is read by the JSON data conversion of the CEL language
-    /// definition, lazily. Any other instance becomes an object value whose description evaluation finds
-    /// by the exact .NET type of the instance, then by its base classes; when no type source of the
-    /// environment describes it, using the value is an error <see cref="CelErrorCode.TypeNotAccessible"/>.
+    /// <see langword="null"/> becomes <c>null</c>. A value of a .NET type from the input value rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>
+    /// — numbers, <see cref="bool"/>, <see cref="string"/>, <see cref="Guid"/>, enumerations, bytes, time types,
+    /// <c>decimal</c> types on .NET 11 — becomes a value of its CEL type; a boxed <see cref="CelValue"/> stays as it
+    /// is, and an instance of <see cref="CelList"/> or <see cref="CelMap"/> becomes a <c>list</c> or a <c>map</c>
+    /// value. A <see cref="System.Text.Json.JsonElement"/> is read by the JSON data conversion of the CEL language
+    /// definition, lazily. Any other instance becomes an object value whose description evaluation finds by the exact
+    /// .NET type of the instance, then by its base classes; when no type source of the environment describes it, using
+    /// the value is an error <see cref="CelErrorCode.TypeNotAccessible"/>.
     /// </para>
     /// <para>
-    /// A value that a row of the table rejects gives an error value that names the type and the field, with
-    /// the code of that row: <see cref="CelErrorCode.InvalidArgument"/> for a <see cref="DateTime"/> whose
-    /// kind is not <see cref="DateTimeKind.Utc"/> or for an undefined <see cref="System.Text.Json.JsonElement"/>,
+    /// A value that a row of the type mapping rejects gives an error value that names the type and the field, with the
+    /// code of that row: <see cref="CelErrorCode.InvalidArgument"/> for a <see cref="DateTime"/> whose kind is not
+    /// <see cref="DateTimeKind.Utc"/> or for an undefined <see cref="System.Text.Json.JsonElement"/>,
     /// <see cref="CelErrorCode.ConversionRange"/> for a value out of the range of its CEL type.
     /// </para>
     /// </remarks>

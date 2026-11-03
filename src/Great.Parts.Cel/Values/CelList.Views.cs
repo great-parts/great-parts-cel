@@ -28,9 +28,10 @@ public abstract partial class CelList
     /// <typeparam name="T">The .NET type of the elements.</typeparam>
     /// <param name="source">The list of the application.</param>
     /// <param name="elementConverter">
-    /// Converts an element to a CEL value by the input type mapping table of the documentation; it can
-    /// return a value of the kind <see cref="CelValueKind.Error"/>. It must allow calls from many threads
-    /// at once.
+    /// Converts an element to a CEL value by the input rows of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
+    /// it can return a value of the kind <see cref="CelValueKind.Error"/>. It must allow calls from many threads at
+    /// once.
     /// </param>
     /// <returns>The view.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="elementConverter"/> is <see langword="null"/>.</exception>
@@ -53,7 +54,8 @@ public abstract partial class CelList
     /// </remarks>
     /// <typeparam name="T">The .NET type of the elements.</typeparam>
     /// <param name="source">The collection of the application.</param>
-    /// <param name="elementConverter">Converts an element to a CEL value by the input type mapping table of the documentation.</param>
+    /// <param name="elementConverter">Converts an element to a CEL value by the input rows of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.</param>
     /// <returns>The list.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="elementConverter"/> is <see langword="null"/>.</exception>
     public static CelList CreateCopy<T>(IReadOnlyCollection<T> source, Func<T, CelValue> elementConverter)
@@ -90,7 +92,8 @@ public abstract partial class CelList
     /// </remarks>
     /// <typeparam name="T">The .NET type of the elements.</typeparam>
     /// <param name="source">The set of the application.</param>
-    /// <param name="elementConverter">Converts an element to a CEL value by the input type mapping table of the documentation.</param>
+    /// <param name="elementConverter">Converts an element to a CEL value by the input rows of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.</param>
     /// <returns>The list.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="elementConverter"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">

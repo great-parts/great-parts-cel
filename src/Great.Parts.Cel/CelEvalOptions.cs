@@ -22,18 +22,18 @@ public sealed class CelEvalOptions
     }
 
     /// <summary>
-    /// The cost limit of one evaluation in the cost units of the documentation, or <see langword="null"/>
-    /// for no limit.
+    /// The cost limit of one evaluation in the cost units of the
+    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>, or
+    /// <see langword="null"/> for no limit.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The limit bounds both the time and the memory of an evaluation: one unit stands for a fixed amount of
-    /// work and a bounded number of allocated bytes. The cost of each operation is known before it runs and
-    /// depends only on the expression and the data, not on caches or on earlier calls. When charging the
-    /// next operation would make the total greater than the limit, the operation does not run and the
-    /// evaluation ends with the error <see cref="CelErrorCode.CostLimitExceeded"/>; a total equal to the
-    /// limit is allowed. Costs of operations are in the cost table of the documentation; an application
-    /// function costs 1 unit plus what its <see cref="CelCostFunction"/> returns.
+    /// The limit bounds both the time and the memory of an evaluation: one unit stands for a fixed amount of work and a
+    /// bounded number of allocated bytes. The cost of each operation is known before it runs and depends only on the
+    /// expression and the data, not on caches or on earlier calls. When charging the next operation would make the
+    /// total greater than the limit, the operation does not run and the evaluation ends with the error
+    /// <see cref="CelErrorCode.CostLimitExceeded"/>; a total equal to the limit is allowed. Costs of operations are on the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>;
+    /// an application function costs 1 unit plus what its <see cref="CelCostFunction"/> returns.
     /// </para>
     /// <para>
     /// There is no limit by default, and without a limit no cost is counted at all. Set a limit for

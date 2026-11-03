@@ -13,3 +13,7 @@ are adapted from the functions exprValueToRefValue, init, TestConformance and co
 conformance/conformance_test.go of cel-go v0.32.0 (https://github.com/cel-expr/cel-go), Copyright Google LLC, licensed
 under the Apache License, Version 2.0 (see LICENSE). The directory eng/oracle/ is the reference side of the differential
 run and is not part of the packages.
+
+The file CODE_OF_CONDUCT.md is adapted from the Contributor Covenant, version 3.0
+(https://www.contributor-covenant.org/version/3/0/), stewarded by the Organization for Ethical Source and licensed under
+CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/). The file is not part of the packages.

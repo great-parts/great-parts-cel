@@ -1,4 +1,5 @@
-# Build and tests on GitHub: JIT on Linux and macOS, Native AOT on linux-x64, both for net10.0 and net11.0, plus the Signed-off-by check.
+# Build and tests on GitHub: JIT on Linux and macOS, Native AOT on linux-x64, both for net10.0 and net11.0, the documentation checks (examples,
+# error codes page, links) on Linux, plus the Signed-off-by check.
 # The cells run the same commands as the container checks of eng/ (docs/design/eng-test.md), without containers: the runners have no
 # SDK 11, so actions/setup-dotnet installs the SDK of global.json and the SDK 10.0.x whose runtime the net10.0 tests need.
 name: ci
@@ -145,6 +146,86 @@ jobs:
               --where "linux-x64, $TARGET" || status=1
           done
           exit $status
+
+  # The documentation (docs/design/eng-docs.md): the steps of eng/docs, and the external links, which only this cell checks. The steps run
+  # in this order and, like in eng/docs, a failed step does not hide the later ones: the examples and the error codes page need the build
+  # of the library, the links of both runs need only the report of lychee. lychee is the program of the official image, as in the
+  # stage docs of eng/docker/Dockerfile; the tag changes together with that one. Its exit code is not used: eng/checks links turns the
+  # report into findings, 404, 410 and a domain that does not exist being errors and 429, 5xx and timeouts warnings.
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LYCHEE_IMAGE: lycheeverse/lychee:0.24.2
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: |
+          dotnet restore eng/checks --locked-mode
+          dotnet restore src/Great.Parts.Cel --locked-mode
+
+      - name: Build eng/checks
+        run: dotnet build eng/checks -c Release --no-restore
+
+      # Both targets, with the XML documentation that the examples and the error codes page are read from.
+      - name: Build the library
+        run: dotnet build src/Great.Parts.Cel -c Release --no-restore
+
+      - name: Examples
+        run: dotnet run --project eng/checks -c Release --no-build -- examples
+
+      - name: Error codes page
+        run: dotnet run --project eng/checks -c Release --no-build -- error-codes --page docs/error-codes.md
+
+      - name: Links, offline (lychee)
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p artifacts/docs
+          status=0
+          docker run --rm --user "$(id -u):$(id -g)" --volume "$PWD:/repo" --workdir /repo "$LYCHEE_IMAGE" \
+            --offline --include-fragments --format json --output artifacts/docs/lychee.json \
+            --config lychee.toml README.md docs 'src/**/*.cs' || status=$?
+          echo "lychee exit code $status (not used: the report is the result)"
+
+      - name: Links, offline (findings)
+        if: ${{ !cancelled() }}
+        run: dotnet run --project eng/checks -c Release --no-build -- links --report artifacts/docs/lychee.json
+
+      # The request cache of lychee outlives the run: the key is new for every run, so the cache of the last run is saved again with
+      # the answers of this one, and the restore takes the latest by the prefix.
+      - name: Request cache of lychee
+        if: ${{ !cancelled() }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .lycheecache
+          key: lychee-${{ github.run_id }}
+          restore-keys: lychee-
+
+      # Only the addresses of http and https: the files and the anchors are those of the offline run. A request that fails is
+      # repeated; an answer of 429 or 5xx is not cached, so the next run asks again.
+      - name: Links, external (lychee)
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p artifacts/docs
+          status=0
+          docker run --rm --user "$(id -u):$(id -g)" --volume "$PWD:/repo" --workdir /repo "$LYCHEE_IMAGE" \
+            --scheme http --scheme https --max-retries 3 --cache --max-cache-age 1d --cache-exclude-status '429, 500..' \
+            --format json --output artifacts/docs/lychee-external.json \
+            --config lychee.toml README.md docs 'src/**/*.cs' || status=$?
+          echo "lychee exit code $status (not used: the report is the result)"
+
+      - name: Links, external (findings)
+        if: ${{ !cancelled() }}
+        run: dotnet run --project eng/checks -c Release --no-build -- links --report artifacts/docs/lychee-external.json
 
   # Signed-off-by of every commit that reaches main (push: before..after, merges and bots included) and of every commit of a pull
   # request except those of Dependabot. A new branch or the first push has before = 0000..., then all commits of after are checked.

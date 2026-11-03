@@ -15,14 +15,14 @@ namespace Great.Parts.Cel.Protobuf;
 /// generated class, without copying; a variable declared with that class has the message type.
 /// </para>
 /// <para>
-/// Values follow the protobuf data conversion of the CEL language definition: 32-bit and 64-bit integers
-/// are <c>int</c> or <c>uint</c>, enumerations are <c>int</c>, repeated fields are lists and map fields are
-/// maps, read as views without copying; <c>google.protobuf.Timestamp</c> and <c>google.protobuf.Duration</c>
-/// are <c>timestamp</c> and <c>duration</c>; wrapper fields are their primitive values or <c>null</c>;
-/// <c>google.protobuf.Struct</c>, <c>Value</c> and <c>ListValue</c> are JSON-like maps, values and lists; a
-/// <c>google.protobuf.Any</c> is unpacked to the message its type URL names, which must be described by
-/// this provider. An unset message field reads as an empty message. The full mapping is in the type
-/// mapping table of the documentation.
+/// Values follow the protobuf data conversion of the CEL language definition: 32-bit and 64-bit integers are <c>int</c>
+/// or <c>uint</c>, enumerations are <c>int</c>, repeated fields are lists and map fields are maps, read as views
+/// without copying; <c>google.protobuf.Timestamp</c> and <c>google.protobuf.Duration</c> are <c>timestamp</c> and
+/// <c>duration</c>; wrapper fields are their primitive values or <c>null</c>; <c>google.protobuf.Struct</c>,
+/// <c>Value</c> and <c>ListValue</c> are JSON-like maps, values and lists; a <c>google.protobuf.Any</c> is unpacked to
+/// the message its type URL names, which must be described by this provider. An unset message field reads as an empty
+/// message. The full mapping is in
+/// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
 /// </para>
 /// <para>
 /// <c>has(m.f)</c> follows the field selection rules of the language definition: in proto2, and for proto3

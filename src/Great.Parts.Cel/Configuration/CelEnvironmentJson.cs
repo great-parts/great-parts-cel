@@ -14,14 +14,11 @@ namespace Great.Parts.Cel.Configuration;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The format is a subset of the JSON form of the environment configuration of cel-go, the CEL
-/// implementation in Go: the keys <c>name</c>, <c>description</c>, <c>container</c>, <c>extensions</c>,
-/// <c>variables</c> and <c>functions</c>, and the object <c>greatPartsCel</c> for what cel-go has no keys
-/// for: object types whose values are dictionaries, described as by
-/// <see cref="Values.CelObjectTypeBuilder.ForDictionary"/>, which tells how field values are read; the
-/// description has no enumeration types. Types are written as in cel-go, such as <c>int</c>,
-/// <c>map&lt;string, dyn&gt;</c>, <c>list&lt;acme.sales.Order&gt;</c> and <c>~T</c> for a type parameter. The
-/// keys, their values and the type syntax are in the environment description table of the documentation.
+/// The format is a subset of the JSON form of the environment configuration of cel-go, the CEL implementation in Go:
+/// the keys <c>name</c>, <c>description</c>, <c>container</c>, <c>extensions</c>, <c>variables</c> and
+/// <c>functions</c>, and the object <c>greatPartsCel</c> for what cel-go has no keys for: object types whose values are
+/// dictionaries, described as by
+/// <see cref="Values.CelObjectTypeBuilder.ForDictionary"/>, which tells how field values are read; the description has no enumeration types. Types are written as in cel-go, such as <c>int</c>, <c>map&lt;string, dyn&gt;</c>, <c>list&lt;acme.sales.Order&gt;</c> and <c>~T</c> for a type parameter. The keys, their values and the type syntax are on the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/environment-json.md">Environment description in JSON</see>.
 /// </para>
 /// <para>
 /// The description does not carry what only code can supply: the standard library version, which is the

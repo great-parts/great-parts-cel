@@ -38,16 +38,52 @@ public sealed class TimeoutsTests
     }
 
     [Fact]
+    public void DocsSteps_EveryStepHasTheLimitOfItsKindAndOnlyLychee_IgnoresItsExitCode()
+    {
+        List<Stage> stages = Commands.DocsStages();
+
+        Step[] steps = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
+
+        // The build of eng/checks and of the library: 81 s; the examples: 29 s; the error codes page: 12 s; the directory of the
+        // report: in this process, no limit; lychee: 2 s; the links of the report: 12 s. Literals, not the constants of Timeouts,
+        // so a changed constant fails the test.
+        Assert.Equal(
+            [
+                "dotnet build eng/checks -c Release=81",
+                "dotnet build src/Great.Parts.Cel -c Release=81",
+                "dotnet run --project eng/checks -c Release --no-build -- examples=29",
+                "dotnet run --project eng/checks -c Release --no-build -- error-codes --page docs/error-codes.md=12",
+                "docs: create artifacts/docs=",
+                "lychee --offline --include-fragments --format json --output artifacts/docs/lychee.json --config lychee.toml README.md docs src/**/*.cs=2",
+                "dotnet run --project eng/checks -c Release --no-build -- links --report artifacts/docs/lychee.json=12",
+            ],
+            steps.Select(step => $"{step.CommandLine}={step.Timeout?.TotalSeconds}"));
+        Assert.Equal(["lychee"], steps.Where(step => step.IgnoresExitCode).Select(step => step.FileName));
+    }
+
+    [Fact]
+    public void DocsSteps_FailedBuildOfTheLibrary_StopsItsLaneButNotTheCommand()
+    {
+        List<Stage> stages = Commands.DocsStages();
+
+        // The build of eng/checks stops the command; the lane of the examples is a stage that does not, and its first step stops the lane.
+        Assert.True(stages[0].StopsOnFailure);
+        Assert.False(stages[1].StopsOnFailure);
+        Assert.True(stages[1].Lanes[0][0].StopsOnFailure);
+        Assert.False(stages[2].StopsOnFailure);
+    }
+
+    [Fact]
     public void MutateSteps_EveryStepHasTheLimitOfItsKindAndOnlyTheRunOfTheToolExtendsIt()
     {
         List<Stage> stages = Commands.MutateStages(new MutateOptions("stryker-config.json", null), null);
 
         Step[] steps = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
 
-        // The restore of the tool and the preparation of the tool: 3 minutes; the build of eng/checks: 81 s; the reading of the
+        // The restore of the tool and the preparation of the tool: 241 s; the build of eng/checks: 81 s; the reading of the
         // report by eng/checks mutation: 12 s. Literals, not the constants of Timeouts, so a changed constant fails the test.
         Assert.Equal(
-            ["tool=180", "build=81", "stryker=180", "run=12"],
+            ["tool=241", "build=81", "stryker=241", "run=12"],
             steps.Select(step => $"{step.Arguments[0]}={step.Timeout?.TotalSeconds}"));
         Assert.Equal(["stryker"], steps.Where(step => step.Extend is not null).Select(step => step.Arguments[0]));
     }

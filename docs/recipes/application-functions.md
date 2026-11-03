@@ -15,7 +15,7 @@ So:
 
 A function that calls `.Result` or `.Wait()` on a database query or an HTTP request holds a thread until the I/O completes. In ASP.NET Core the thread comes from the thread pool: under load, requests block all pool threads, new requests wait for threads, and the application stops responding although the processor is idle. In `browser-wasm` there is only one thread, so the call never completes and the page hangs.
 
-```csharp
+```csharp skip: a fragment of the wrong way, shown only to be avoided
 // Do not do this: the implementation blocks a thread until the query completes.
 builder.AddFunction("isBlocked", (string inn) => registry.IsBlockedAsync(inn).Result);
 ```
@@ -24,8 +24,12 @@ builder.AddFunction("isBlocked", (string inn) => registry.IsBlockedAsync(inn).Re
 
 Declare the data as variables, load it asynchronously, then evaluate. The environment and the program are built once and shared: they are immutable and can be used from any number of threads at once.
 
-```csharp
+```csharp skip: the library does not implement yet the parts of the API and the operators that this program uses
 using Great.Parts.Cel;
+
+var policy = new InnPolicy(new FixedRegistry(["7700000001"]));
+Console.WriteLine(await policy.IsAllowedAsync("7700000001", CancellationToken.None)); // Output: False
+Console.WriteLine(await policy.IsAllowedAsync("7700000002", CancellationToken.None)); // Output: True
 
 // The data access of the application, for example a database query.
 public interface IInnRegistry
@@ -64,6 +68,13 @@ public sealed class InnPolicy
         // In this policy an evaluation error means "not allowed".
         return result.IsSuccess && result.Value;
     }
+}
+
+// A registry with a fixed list, for this example.
+public sealed class FixedRegistry(IReadOnlyList<string> blockedInns) : IInnRegistry
+{
+    public Task<IReadOnlyList<string>> GetBlockedInnsAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(blockedInns);
 }
 ```
 

@@ -20,6 +20,8 @@ internal sealed class SuppressionsCommand : ICheckCommand
         new EditorConfigSuppressionScanner(),
         new MSBuildSuppressionScanner(),
         new LycheeSuppressionScanner(),
+        new LycheeIgnoreSuppressionScanner(),
+        new ExampleSuppressionScanner(),
     ];
 
     /// <inheritdoc/>

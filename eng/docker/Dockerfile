@@ -12,6 +12,12 @@ COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/
 RUN git config --system --add safe.directory /repo \
  && git config --system --add safe.directory /git
 
+# The service docs runs eng/docs (docs/design/eng-docs.md): the sdk stage and the lychee program. The program is copied from the
+# official image at its exact version, so the link checker is one program in the same container as eng/checks and not a container
+# of its own. The tag changes together with the version of lychee that docs/design/eng-docs.md names.
+FROM sdk AS docs
+COPY --from=lycheeverse/lychee:0.24.2 /usr/local/bin/lychee /usr/local/bin/lychee
+
 # The -aot variant of the same SDK image adds the native toolchain that Native AOT publishing needs; the rest is as in sdk.
 # The service test runs on it (docs/design/eng-test.md). The tag changes together with global.json.
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2-aot AS sdk-aot

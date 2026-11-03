@@ -45,24 +45,27 @@ public sealed class CelEnvironment
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The expected CEL type of the result comes from <typeparamref name="T"/> by the type mapping table of
-    /// the documentation, for example <c>bool</c> for <see cref="bool"/>; <see cref="CelValue"/> and
-    /// <see cref="object"/> accept a result of any type. An expression whose type is not assignable to the
-    /// expected type is the compilation error <see cref="CelErrorCode.ExpectedTypeMismatch"/>.
-    /// <see cref="CelCompileOptions.ExpectedType"/> sets the expected type explicitly when
-    /// <typeparamref name="T"/> says too little, such as <c>list(int)</c> for <see cref="CelValue"/>.
+    /// The expected CEL type of the result comes from <typeparamref name="T"/> by
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// for example <c>bool</c> for <see cref="bool"/>; <see cref="CelValue"/> and <see cref="object"/> accept a result
+    /// of any type. An expression whose type is not assignable to the expected type is the compilation error
+    /// <see cref="CelErrorCode.ExpectedTypeMismatch"/>. <see cref="CelCompileOptions.ExpectedType"/> sets the expected
+    /// type explicitly when <typeparamref name="T"/> says too little, such as <c>list(int)</c> for
+    /// <see cref="CelValue"/>.
     /// </para>
     /// <para>
-    /// Errors are returned, not thrown: parse and check errors, every one found, each with its position in
-    /// the expression. The text is untrusted input: an expression longer than the length limit or nested
-    /// deeper than the nesting limit of the documentation is a compilation error, not an exception, and
-    /// compilation of any text up to the length limit ends within a bounded time. Compilation takes no
-    /// cancellation token: its work is bounded by these limits.
+    /// Errors are returned, not thrown: parse and check errors, every one found, each with its position in the
+    /// expression. The text is untrusted input: an expression longer than the length limit or nested deeper than the
+    /// nesting limit
+    /// (page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>) is a
+    /// compilation error, not an exception, and compilation of any text up to the length limit ends within a bounded
+    /// time. Compilation takes no cancellation token: its work is bounded by these limits.
     /// </para>
     /// </remarks>
     /// <typeparam name="T">
-    /// The .NET type in which evaluation returns the result: a type of the result column of the type mapping
-    /// table, <see cref="CelValue"/> or <see cref="object"/>.
+    /// The .NET type in which evaluation returns the result: a type of the result column of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// <see cref="CelValue"/> or <see cref="object"/>.
     /// </typeparam>
     /// <param name="expression">The text of the expression.</param>
     /// <param name="options">
@@ -72,8 +75,9 @@ public sealed class CelEnvironment
     /// <returns>The program or the compilation errors.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// <typeparamref name="T"/> is not in the result column of the type mapping table, or
-    /// <see cref="CelCompileOptions.ExpectedType"/> of <paramref name="options"/> cannot be converted to
+    /// <typeparamref name="T"/> is not in the result column of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// or <see cref="CelCompileOptions.ExpectedType"/> of <paramref name="options"/> cannot be converted to
     /// <typeparamref name="T"/>.
     /// </exception>
     public CelCompileResult<T> Compile<T>(string expression, CelCompileOptions? options = null)
@@ -128,8 +132,9 @@ public sealed class CelEnvironment
     /// <returns>The result converted to <typeparamref name="T"/>, or the errors.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> or <paramref name="bindings"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// <typeparamref name="T"/> is not in the result column of the type mapping table, or the expected type
-    /// of <paramref name="compileOptions"/> cannot be converted to <typeparamref name="T"/>.
+    /// <typeparamref name="T"/> is not in the result column of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// or the expected type of <paramref name="compileOptions"/> cannot be converted to <typeparamref name="T"/>.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public CelEvalResult<T> Evaluate<T>(

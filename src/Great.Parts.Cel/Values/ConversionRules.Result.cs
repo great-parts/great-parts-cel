@@ -7,8 +7,9 @@ using Great.Parts.Cel.Diagnostics;
 namespace Great.Parts.Cel.Values;
 
 /// <summary>
-/// CEL values to the requested .NET type, by the result rows of the type mapping table for the simple
-/// types so far. There is no conversion between numeric types: a <c>uint</c> is not a <c>long</c>.
+/// CEL values to the requested .NET type, by the result rows of
+/// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see> for
+/// the simple types so far. There is no conversion between numeric types: a <c>uint</c> is not a <c>long</c>.
 /// </summary>
 internal static partial class ConversionRules
 {

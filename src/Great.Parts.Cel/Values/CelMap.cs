@@ -17,10 +17,10 @@ namespace Great.Parts.Cel.Values;
 /// them. Only the library creates maps, so the class cannot be derived from outside it.
 /// </para>
 /// <para>
-/// Keys compare by CEL equality: <c>int</c>, <c>uint</c> and <c>double</c> keys meet on one number line,
-/// so a lookup with <c>1u</c> or <c>1.0</c> finds the key <c>1</c>. The order of enumeration never
-/// depends on hash codes: a table keeps the order in which its entries were added; the order of a view
-/// over a dictionary is given in the type mapping table of the documentation.
+/// Keys compare by CEL equality: <c>int</c>, <c>uint</c> and <c>double</c> keys meet on one number line, so a lookup
+/// with <c>1u</c> or <c>1.0</c> finds the key <c>1</c>. The order of enumeration never depends on hash codes: a table
+/// keeps the order in which its entries were added; the order of a view over a dictionary is given in
+/// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
 /// </para>
 /// <para>
 /// Reading a value of a view can fail, for example when a getter of the application throws. Such a value

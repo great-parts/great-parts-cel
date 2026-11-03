@@ -26,9 +26,9 @@ namespace Great.Parts.Cel;
 /// the environment is built.
 /// </para>
 /// <para>
-/// The name of each set is also its name in an environment description in JSON, except that
-/// <c>decimal</c> is added only in code. The functions and overloads of each version, with their overload
-/// identifiers, are in the extension sets table of the documentation.
+/// The name of each set is also its name in an environment description in JSON, except that <c>decimal</c> is added
+/// only in code. The functions and overloads of each version, with their overload identifiers, are on the
+/// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md">Extension sets</see>.
 /// </para>
 /// </remarks>
 public static class CelExtensions

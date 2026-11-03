@@ -11,11 +11,12 @@ namespace Great.Parts.Cel.Types;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Types are declared in an environment — the types of variables, of overload parameters and
-/// results, of fields of types described at run time — and reported back, for example as the type
-/// of the result of a compiled program. Most declarations infer the CEL type from a .NET type by the
-/// type mapping table of the documentation; this class is for the cases the inference does not cover,
-/// such as <c>dyn</c>, generic overloads, or a <c>list(int)</c> result requested as a CEL value.
+/// Types are declared in an environment — the types of variables, of overload parameters and results, of fields of
+/// types described at run time — and reported back, for example as the type of the result of a compiled program. Most
+/// declarations infer the CEL type from a .NET type by
+/// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
+/// this class is for the cases the inference does not cover, such as <c>dyn</c>, generic overloads, or a
+/// <c>list(int)</c> result requested as a CEL value.
 /// </para>
 /// <para>
 /// Two instances that describe the same type are equal by <see cref="Equals(CelType)"/>; the static

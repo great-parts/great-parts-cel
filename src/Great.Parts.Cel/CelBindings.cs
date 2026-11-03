@@ -44,8 +44,8 @@ public sealed class CelBindings
     internal IReadOnlyDictionary<string, CelValue> Values => _values;
 
     /// <summary>
-    /// Binds a name to a value, converted by the static type <typeparamref name="T"/> through the input rows
-    /// of the type mapping table of the documentation.
+    /// Binds a name to a value, converted by the static type <typeparamref name="T"/> through the input rows of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -57,10 +57,9 @@ public sealed class CelBindings
     /// type sources of the environment by the declared type of the variable.
     /// </para>
     /// <para>
-    /// Values that a row of the table rejects outright are rejected here, before any evaluation: a
+    /// Values that a row of the type mapping rejects outright are rejected here, before any evaluation: a
     /// <see cref="DateTime"/> whose kind is not <see cref="DateTimeKind.Utc"/>, an undefined
-    /// <see cref="System.Text.Json.JsonElement"/>, and on .NET 11 a <c>Decimal128</c> that is a NaN or an
-    /// infinity.
+    /// <see cref="System.Text.Json.JsonElement"/>, and on .NET 11 a <c>Decimal128</c> that is a NaN or an infinity.
     /// </para>
     /// </remarks>
     /// <typeparam name="T">The .NET type of the value, which selects the conversion.</typeparam>
@@ -69,8 +68,9 @@ public sealed class CelBindings
     /// <returns>These bindings.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="name"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="name"/> is empty or already bound, or <paramref name="value"/> is a value the type
-    /// mapping table rejects, as listed in the remarks.
+    /// <paramref name="name"/> is empty or already bound, or <paramref name="value"/> is a value
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>
+    /// rejects, as listed in the remarks.
     /// </exception>
     public CelBindings Add<T>(string name, T value)
     {
