@@ -3,7 +3,7 @@ module github.com/great-parts/great-parts-cel/eng/oracle
 go 1.27.3
 
 require (
-	cel.dev/cel-go v0.32.0
+	cel.dev/cel-go v0.33.2
 	cel.dev/expr v0.25.1
 	google.golang.org/protobuf v1.36.10
 )
