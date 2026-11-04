@@ -79,7 +79,7 @@ public sealed class CelBindingsTests
         var bindings = new CelBindings();
 
         Assert.Throws<NotImplementedException>(() => bindings.Add("d", 1m));
-        Assert.Throws<NotImplementedException>(() => bindings.Add<object>("o", 1L));
+        Assert.Throws<NotImplementedException>(() => bindings.Add("t", DateTime.UnixEpoch));
         Assert.Empty(bindings.Values);
     }
 }

@@ -6,17 +6,30 @@ using Great.Parts.Cel.Values;
 namespace Great.Parts.Cel.Evaluation;
 
 // A call with several candidates, or with none: evaluates the arguments and calls the first candidate,
-// in the order of the reference map, whose parameter types fit the kinds of the values. When none fits,
-// and so always without candidates, the call is EvalNoMatchingOverload at its position. The cost is
-// that of the chosen overload, so planning knows none of it.
+// in the order of the reference map, that Matches the values — the top level of every argument and the
+// arguments the planner marked for that candidate at any depth. When none matches, and so always without
+// candidates, the call is EvalNoMatchingOverload at its position. The cost is that of the chosen
+// overload, so planning knows none of it.
 internal sealed class DispatchPlanNode : PlanNode
 {
     private readonly string _function;
 
-    internal DispatchPlanNode(int offset, string function, ImmutableArray<OverloadBinding> candidates, ImmutableArray<PlanNode> arguments)
+    // The marks of the arguments for each candidate, at the same index.
+    private readonly ImmutableArray<ImmutableArray<bool>> _marks;
+    private readonly bool _charges;
+
+    internal DispatchPlanNode(
+        int offset,
+        string function,
+        ImmutableArray<OverloadBinding> candidates,
+        ImmutableArray<ImmutableArray<bool>> marks,
+        bool charges,
+        ImmutableArray<PlanNode> arguments)
         : base(offset, 0)
     {
         _function = function;
+        _marks = marks;
+        _charges = charges;
         Candidates = candidates;
         Arguments = arguments;
     }
@@ -27,29 +40,29 @@ internal sealed class DispatchPlanNode : PlanNode
 
     internal override CelValue Evaluate(Frame frame)
     {
-        if (!TryPushArguments(frame, Arguments, out CelValue error))
+        if (!HasStack(frame, out CelValue error) || !TryPushArguments(frame, Arguments, out error))
         {
             return error;
         }
 
+        frame.Offset = Offset;
         ReadOnlySpan<CelValue> values = frame.Peek(Arguments.Length);
-        var site = new CallSite(_function, Offset, frame.Lines);
-        CelValue result = Call(values, site);
+        CelValue result = Call(frame, values);
         frame.Pop(Arguments.Length);
         return result;
     }
 
-    private CelValue Call(ReadOnlySpan<CelValue> values, in CallSite site)
+    private CelValue Call(Frame frame, ReadOnlySpan<CelValue> values)
     {
-        foreach (OverloadBinding candidate in Candidates)
+        for (int i = 0; i < Candidates.Length; i++)
         {
-            if (KindMatch.Fits(values, candidate.Declaration.ParameterTypes))
+            OverloadBinding candidate = Candidates[i];
+            if (candidate.Matches(values, _marks[i].AsSpan(), frame.Meter))
             {
-                // Only the special form _||_ has no implementation, and the planner plans it as an OrPlanNode.
-                return candidate.Implementation!(values, in site);
+                return Invocation.Call(frame, candidate, values, Offset, _charges);
             }
         }
 
-        return site.NoMatchingOverload(values);
+        return new CallSite(_function, Offset, frame.Lines).NoMatchingOverload(values);
     }
 }

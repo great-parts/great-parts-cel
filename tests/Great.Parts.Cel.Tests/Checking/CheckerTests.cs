@@ -35,13 +35,13 @@ public sealed class CheckerTests
         true || false → bool
         any + n → int
         any || any → bool
-        -any → int
+        -any → dyn
         [] → list(dyn)
         [3, n] → list(int)
         [3, 3u] → list(dyn)
         [any, 3] → list(dyn)
         [[3], numbers] → list(list(int))
-        [[3], []] → list(dyn)
+        [[3], []] → list(list(int))
         {} → map(dyn, dyn)
         {"a": 3, "b": n} → map(string, int)
         {"a": 3, 4: "b"} → map(dyn, dyn)
@@ -54,11 +54,11 @@ public sealed class CheckerTests
     private const string Errors = """
         missing → 2000 0 1 1 undeclared reference to 'missing' (in container '')
         n +\n  other → 2000 6 2 3 undeclared reference to 'other' (in container '')
-        size(n) → 2000 4 1 5 undeclared reference to 'size' (in container '')
+        unknown(n) → 2000 7 1 8 undeclared reference to 'unknown' (in container '')
         t + 2 → 2001 2 1 3 found no matching overload for '_+_' applied to '(string, int)'
         -u → 2001 0 1 1 found no matching overload for '-_' applied to '(uint)'
-        n || true → 2001 2 1 3 found no matching overload for '_||_' applied to '(int, bool)'
-        numbers + [n] → 2001 8 1 9 found no matching overload for '_+_' applied to '(list(int), list(int))'
+        n || true → 2002 0 1 1 expected type 'bool' but found 'int'
+        numbers - [n] → 2001 8 1 9 found no matching overload for '_-_' applied to '(list(int), list(int))'
         {t: n} / 2 → 2001 7 1 8 found no matching overload for '_/_' applied to '(map(string, int), int)'
         null / n → 2001 5 1 6 found no matching overload for '_/_' applied to '(null_type, int)'
         """;
@@ -121,7 +121,7 @@ public sealed class CheckerTests
     }
 
     [Fact]
-    public static void Errors_AreAllReturnedInTheOrderOfTheTraversal()
+    public static void Errors_AreAllReturnedInTheOrderOfTheirOffsets()
     {
         CheckResult result = Check(Declared, "first + (t + 2) + -second");
 

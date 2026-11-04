@@ -6,19 +6,22 @@ using Great.Parts.Cel.Values;
 namespace Great.Parts.Cel.Evaluation;
 
 // A call with one candidate: evaluates the arguments and calls the implementation of the candidate. When
-// an argument has the static type dyn, the kinds of the values are checked against the parameter types
-// first; a mismatch is EvalNoMatchingOverload at the call. Costs the fixed cost of the overload.
+// the planner marked arguments, the values are checked with Matches first — the top level of each and
+// the marked ones at any depth, charging the descent; a mismatch is EvalNoMatchingOverload at the call.
+// A call whose arguments are all unmarked calls the implementation directly. Costs the cost of the
+// overload, after the checks.
 internal sealed class CallPlanNode : PlanNode
 {
-    private readonly OverloadImplementation _implementation;
-    private readonly bool _checksKinds;
+    private readonly ImmutableArray<bool> _marks;
+    private readonly bool _checks;
+    private readonly bool _charges;
 
-    internal CallPlanNode(int offset, OverloadBinding overload, bool checksKinds, ImmutableArray<PlanNode> arguments)
-        : base(offset, overload.FixedCost)
+    internal CallPlanNode(int offset, OverloadBinding overload, ImmutableArray<bool> marks, bool charges, ImmutableArray<PlanNode> arguments)
+        : base(offset, charges ? overload.FixedCost : 0)
     {
-        // Only the special form _||_ has no implementation, and the planner plans it as an OrPlanNode.
-        _implementation = overload.Implementation!;
-        _checksKinds = checksKinds;
+        _marks = marks;
+        _checks = marks.Contains(true);
+        _charges = charges;
         Overload = overload;
         Arguments = arguments;
     }
@@ -27,18 +30,22 @@ internal sealed class CallPlanNode : PlanNode
 
     internal ImmutableArray<PlanNode> Arguments { get; }
 
+    // Whether the planner marked any argument for the check.
+    internal bool Checks => _checks;
+
     internal override CelValue Evaluate(Frame frame)
     {
-        if (!TryPushArguments(frame, Arguments, out CelValue error))
+        if (!HasStack(frame, out CelValue error) || !TryPushArguments(frame, Arguments, out error))
         {
             return error;
         }
 
+        // The cost is charged after the checks, by Invocation.
+        frame.Offset = Offset;
         ReadOnlySpan<CelValue> values = frame.Peek(Arguments.Length);
-        var site = new CallSite(Overload.Function, Offset, frame.Lines);
-        CelValue result = _checksKinds && !KindMatch.Fits(values, Overload.Declaration.ParameterTypes)
-            ? site.NoMatchingOverload(values)
-            : _implementation(values, in site);
+        CelValue result = _checks && !Overload.Matches(values, _marks.AsSpan(), frame.Meter)
+            ? new CallSite(Overload.Function, Offset, frame.Lines).NoMatchingOverload(values)
+            : Invocation.Call(frame, Overload, values, Offset, _charges);
         frame.Pop(Arguments.Length);
         return result;
     }

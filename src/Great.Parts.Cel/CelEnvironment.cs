@@ -7,6 +7,7 @@ using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Evaluation;
 using Great.Parts.Cel.Syntax;
+using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel;
@@ -33,9 +34,15 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelEnvironment
 {
-    internal CelEnvironment(ImmutableArray<CelVariableDecl> variableDeclarations, DeclarationIndex declarations)
+    private readonly CelStandardLibrary _standardLibrary;
+
+    // The declarations the environment was built from, for ToBuilder.
+    private readonly DeclarationSet _declarationSet;
+
+    internal CelEnvironment(CelStandardLibrary standardLibrary, DeclarationSet declarationSet, DeclarationIndex declarations)
     {
-        VariableDeclarations = variableDeclarations;
+        _standardLibrary = standardLibrary;
+        _declarationSet = declarationSet;
         Declarations = declarations;
     }
 
@@ -83,13 +90,9 @@ public sealed class CelEnvironment
     public CelCompileResult<T> Compile<T>(string expression, CelCompileOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        if (!ConversionRules.IsResultType<T>())
-        {
-            // The result types outside the rows implemented so far are not implemented yet; they are not ignored.
-            throw new NotImplementedException();
-        }
 
-        // The options can only have a source location: setting the expected type throws.
+        // The expected type is derived before the text is read, so the same T and options throw for every text.
+        CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options));
         CelSourceLocation? start = options?.SourceLocation;
         ParseResult parsed = Parse(expression);
         if (!parsed.IsSuccess)
@@ -97,14 +100,14 @@ public sealed class CelEnvironment
             return new CelCompileResult<T>(InDocument(parsed.Errors, start));
         }
 
-        CheckResult checkedResult = Check(parsed.Expression);
+        CheckResult checkedResult = Check(parsed.Expression, expectedType);
         if (!checkedResult.IsSuccess)
         {
             return new CelCompileResult<T>(InDocument(checkedResult.Errors, start));
         }
 
         CheckedExpression checkedExpression = checkedResult.Expression;
-        return new CelCompileResult<T>(new CelProgram<T>(Planner.Plan(checkedExpression), checkedExpression.ResultType, start));
+        return new CelCompileResult<T>(new CelProgram<T>(Planner.Plan(checkedExpression, Declarations), checkedExpression.ResultType, start));
     }
 
     /// <summary>
@@ -145,7 +148,27 @@ public sealed class CelEnvironment
         CelEvalOptions? evalOptions = null,
         CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(expression);
+        ArgumentNullException.ThrowIfNull(bindings);
+        cancellationToken.ThrowIfCancellationRequested();
+        return EvaluateCompiled(Compile<T>(expression, compileOptions), bindings, evalOptions, cancellationToken);
+    }
+
+    // The steps of the one-step call after the compilation: the errors of a failed compilation are the result; otherwise
+    // the token is checked again and the program evaluated.
+    internal static CelEvalResult<T> EvaluateCompiled<T>(
+        CelCompileResult<T> compiled,
+        CelBindings bindings,
+        CelEvalOptions? evalOptions,
+        CancellationToken cancellationToken)
+    {
+        if (!compiled.IsSuccess)
+        {
+            return new CelEvalResult<T>(compiled.Errors);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return compiled.Program.Evaluate(bindings, evalOptions, cancellationToken);
     }
 
     /// <summary>
@@ -157,12 +180,10 @@ public sealed class CelEnvironment
     /// compiled in it do not change and give the same results as before.
     /// </remarks>
     /// <returns>The builder.</returns>
-    public CelEnvironmentBuilder ToBuilder()
-    {
-        throw new NotImplementedException();
-    }
+    public CelEnvironmentBuilder ToBuilder() => new(_standardLibrary, _declarationSet);
 
-    internal ImmutableArray<CelVariableDecl> VariableDeclarations { get; }
+    // The declarations of variables as the builder collected them.
+    internal ImmutableArray<CelVariableDecl> VariableDeclarations => _declarationSet.Variables;
 
     // The declarations of the standard library version and of the application, indexed for checking
     // and evaluation.
@@ -227,18 +248,32 @@ public sealed class CelEnvironment
     }
 
     /// <summary>
-    /// Checks the types of a parsed expression in this environment: the check step of <see cref="Compile{T}"/>.
+    /// Checks the types of a parsed expression in this environment: the check step of <see cref="Compile{T}"/>, inside the
+    /// compilation boundary of checking. An unexpected exception other than <see cref="OutOfMemoryException"/> becomes
+    /// <see cref="CelErrorCode.InternalError"/> at the node being checked, with the errors found before it.
     /// </summary>
     /// <param name="parsed">The parsed expression.</param>
+    /// <param name="expectedType">
+    /// The expected type of the expression, which <see cref="Compile{T}"/> derives; <see langword="null"/> for none, as
+    /// <c>dyn</c>.
+    /// </param>
     /// <returns>
     /// The checked expression with the type of the expression, or every error of the stage <see cref="CelErrorStage.Check"/>
-    /// in the order of the traversal.
+    /// ordered by offset.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="parsed"/> is <see langword="null"/>.</exception>
-    internal CheckResult Check(ParsedExpression parsed)
+    internal CheckResult Check(ParsedExpression parsed, CelType? expectedType = null)
     {
         ArgumentNullException.ThrowIfNull(parsed);
-        return Checker.Check(parsed, Declarations);
+        var checker = new Checker(parsed, Declarations, expectedType);
+        try
+        {
+            return checker.Run();
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return checker.Interrupted(exception);
+        }
     }
 
     /// <summary>
@@ -254,6 +289,6 @@ public sealed class CelEnvironment
     {
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(bindings);
-        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations), bindings, start: null);
+        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations), CelType.Dyn, bindings, null, null, CancellationToken.None);
     }
 }

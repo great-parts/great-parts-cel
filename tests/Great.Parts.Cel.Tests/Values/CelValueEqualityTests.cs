@@ -1,12 +1,13 @@
 using System;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Tests.Syntax;
+using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Values;
 
-// .NET equality of CelValue: the same kind and the same content; lists, maps and errors by reference.
+// .NET equality of CelValue: the same kind and the same content, types by CelType.Equals; lists, maps and errors by reference.
 public sealed class CelValueEqualityTests
 {
     private static readonly CelList SharedList = CelList.Create(CelValue.FromInt64(1));
@@ -44,6 +45,9 @@ public sealed class CelValueEqualityTests
         error-shared error-shared → equal
         error-new error-new → different
         list-new map-new → different
+        type-list-int type-list-int → equal
+        type-list-int type-list-dyn → different
+        type-int int-1 → different
         """;
 
     public static TheoryData<string, string> PairCases => CaseTable.Parse(Pairs);
@@ -107,6 +111,9 @@ public sealed class CelValueEqualityTests
         "map-new" => CelValue.FromMap(CelMap.Create([new(CelValue.FromInt64(1), CelValue.FromInt64(2))])),
         "error-shared" => CelValue.FromError(SharedError),
         "error-new" => CelValue.FromError(Error()),
+        "type-list-int" => CelValue.FromType(CelType.ListOf(CelType.Int)),
+        "type-list-dyn" => CelValue.FromType(CelType.ListOf(CelType.Dyn)),
+        "type-int" => CelValue.FromType(CelType.Int),
         _ => throw new ArgumentOutOfRangeException(nameof(name), name, null),
     };
 

@@ -25,6 +25,7 @@ internal static class ValueTypeNames
         CelValueKind.Bytes => "bytes",
         CelValueKind.List => "list",
         CelValueKind.Map => "map",
+        CelValueKind.Type => "type",
         CelValueKind.Error => "error",
         _ => throw new NotImplementedException(),
     };

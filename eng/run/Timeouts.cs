@@ -7,7 +7,7 @@ namespace Great.Parts.Cel.Eng.Run;
 
 /// <summary>
 /// The time that a step may take, in one place so a limit is easy to raise (<c>docs/design/eng-test.md</c>, "Time limits"). A limit is
-/// the time of a cold run measured on 2026-10-30, the build, the JIT steps and the Native AOT publish on 2026-11-02, the examples and
+/// the time of a cold run measured on 2026-10-30, the Native AOT publish on 2026-11-02, the build and the JIT steps on 2026-11-04, the examples and
 /// lychee of <c>docs</c> and the preparation of <c>mutate</c> on 2026-11-03, with 20 % added and rounded up to a second. A step that is still
 /// running when its limit is over
 /// is killed with its whole process tree and fails with <c>timeout after N s in step &lt;step&gt;</c>.
@@ -16,15 +16,15 @@ internal static class Timeouts
 {
     /// <summary>
     /// The build of the solution; also the build of one project that a command builds before its run. A cold build of the solution on
-    /// 2026-11-02 took at least 67.1 s.
+    /// 2026-11-04 took up to 85 s, next to the code of the third increment.
     /// </summary>
-    internal static readonly TimeSpan Build = TimeSpan.FromSeconds(81);
+    internal static readonly TimeSpan Build = TimeSpan.FromSeconds(102);
 
     /// <summary>
-    /// One test module under JIT, and the source and package checks of <c>eng/checks</c>: those checks took 77.3 s in a cold run on
-    /// 2026-11-02, next to the four publishes.
+    /// One test module under JIT, and the source and package checks of <c>eng/checks</c>: the module of the tests of <c>eng/</c> took more than 93 s in
+    /// the runs of 2026-11-04, next to the four publishes.
     /// </summary>
-    internal static readonly TimeSpan Jit = TimeSpan.FromSeconds(93);
+    internal static readonly TimeSpan Jit = TimeSpan.FromSeconds(112);
 
     /// <summary>
     /// The Native AOT publish of one project and target: the longest of the four publishes of a cold run on 2026-11-02 took 166.7 s.
@@ -45,9 +45,9 @@ internal static class Timeouts
 
     /// <summary>
     /// lychee, offline, over <c>README.md</c>, <c>docs/</c> and the sources: it reads files and checks them against files, with no
-    /// request. A cold run of <c>docs</c> on 2026-11-03 took 0.9 s for the step, the longest run of that day 1.4 s.
+    /// request. A run of <c>docs</c> on 2026-11-03 took 0.9 s for the step, the longest run of that day 1.4 s; on 2026-11-04 three runs took 1.6 s, 2.1 s and 2.1 s.
     /// </summary>
-    internal static readonly TimeSpan Lychee = TimeSpan.FromSeconds(2);
+    internal static readonly TimeSpan Lychee = TimeSpan.FromSeconds(3);
 
     /// <summary>Each child process of <c>min-sdk</c>: the version of the SDK and the build of the sample application.</summary>
     internal static readonly TimeSpan MinSdk = TimeSpan.FromSeconds(20);

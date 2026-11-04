@@ -39,6 +39,14 @@ public sealed class CelEnvironmentBuilder
 {
     private readonly CelStandardLibrary _standardLibrary;
     private readonly List<CelVariableDecl> _variables = [];
+    private readonly List<CelFunctionDecl> _functions = [];
+    private readonly List<ImplementationEntry> _implementations = [];
+
+    // The non-empty containers, each once.
+    private readonly List<string> _containers = [];
+
+    // Declarations whose .NET type is outside the input rows, which Build reports as TypeNotDeclared.
+    private readonly List<UnmappedDeclaration> _unmapped = [];
 
     /// <summary>
     /// Creates a builder for an environment with the given version of the standard library.
@@ -79,7 +87,23 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="container"/> is neither empty nor a qualified name.</exception>
     public CelEnvironmentBuilder UseContainer(string container)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(container);
+        if (container.Length == 0)
+        {
+            return this;
+        }
+
+        if (!DeclarationNames.IsQualifiedIdentifier(container))
+        {
+            throw new ArgumentException("The container '" + container + "' is not a qualified name.", nameof(container));
+        }
+
+        if (!_containers.Contains(container))
+        {
+            _containers.Add(container);
+        }
+
+        return this;
     }
 
     /// <summary>
@@ -105,7 +129,13 @@ public sealed class CelEnvironmentBuilder
     public CelEnvironmentBuilder AddVariable<T>(string name)
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
-        return AddVariable(name, ConversionRules.InputType<T>() ?? throw new NotImplementedException());
+        if (ConversionRules.InputType<T>() is not CelType type)
+        {
+            AddUnmapped(new UnmappedDeclaration(name, null, typeof(T)));
+            return this;
+        }
+
+        return AddVariable(name, type);
     }
 
     /// <summary>
@@ -122,11 +152,7 @@ public sealed class CelEnvironmentBuilder
     /// <returns>This builder.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="type"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
-    public CelEnvironmentBuilder AddVariable(string name, CelType type)
-    {
-        _variables.Add(new CelVariableDecl(name, type));
-        return this;
-    }
+    public CelEnvironmentBuilder AddVariable(string name, CelType type) => AddVariable(new CelVariableDecl(name, type));
 
     /// <summary>
     /// Declares a variable.
@@ -137,7 +163,13 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentNullException"><paramref name="declaration"/> is <see langword="null"/>.</exception>
     public CelEnvironmentBuilder AddVariable(CelVariableDecl declaration)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(declaration);
+        if (!_variables.Exists(declaration.SameAs))
+        {
+            _variables.Add(declaration);
+        }
+
+        return this;
     }
 
     /// <summary>
@@ -174,7 +206,9 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunction<TResult>(string name, Func<TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [], Clr<TResult>(), _ => TypedImplementation.Of(implementation));
     }
 
     /// <summary>
@@ -192,7 +226,7 @@ public sealed class CelEnvironmentBuilder
     /// with the same identifier, for example one declared in an environment description in JSON, is a build error
     /// <see cref="CelErrorCode.DuplicateOverloadId"/>. An argument is passed to the delegate by the result rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
     /// a value that does not convert, such as an <c>int</c> out of the range of an
-    /// <see cref="int"/> parameter, is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units when an argument collection of n elements is copied to convert it for the delegate, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
+    /// <see cref="int"/> parameter, is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus the units of each argument that is copied to convert it for the delegate: a list of n elements 1 + n, a map of n pairs 1 + 2n and ⌈L/10⌉ for each string key of length L, a <c>byte[]</c> of L bytes 1 + ⌈L/10⌉, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
     /// gives; an overload that declares its cost, an overload with parameters of type <c>dyn</c> or type parameters,
     /// and an overload called on a receiver need <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function
     /// name are on <see cref="CelFunctionDecl"/>.
@@ -213,7 +247,9 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunction<T1, TResult>(string name, Func<T1, TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [Clr<T1>()], Clr<TResult>(), id => TypedImplementation.Of(id, implementation));
     }
 
     /// <summary>
@@ -230,7 +266,7 @@ public sealed class CelEnvironmentBuilder
     /// with the same identifier, for example one declared in an environment description in JSON, is a build error
     /// <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
     /// a value that does not convert is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each argument collection of n elements that is copied to convert it for the delegate, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
+    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus the units of each argument that is copied to convert it for the delegate: a list of n elements 1 + n, a map of n pairs 1 + 2n and ⌈L/10⌉ for each string key of length L, a <c>byte[]</c> of L bytes 1 + ⌈L/10⌉, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
     /// gives; other overloads need <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name are on
     /// <see cref="CelFunctionDecl"/>.
     /// </para>
@@ -251,7 +287,9 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunction<T1, T2, TResult>(string name, Func<T1, T2, TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>()], Clr<TResult>(), id => TypedImplementation.Of(id, implementation));
     }
 
     /// <summary>
@@ -268,7 +306,7 @@ public sealed class CelEnvironmentBuilder
     /// with the same identifier, for example one declared in an environment description in JSON, is a build error
     /// <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
     /// a value that does not convert is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each argument collection of n elements that is copied to convert it for the delegate, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
+    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus the units of each argument that is copied to convert it for the delegate: a list of n elements 1 + n, a map of n pairs 1 + 2n and ⌈L/10⌉ for each string key of length L, a <c>byte[]</c> of L bytes 1 + ⌈L/10⌉, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
     /// gives; other overloads need <see cref="AddFunction(CelFunctionDecl)"/>. The rules for the function name are on
     /// <see cref="CelFunctionDecl"/>.
     /// </para>
@@ -290,7 +328,9 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunction<T1, T2, T3, TResult>(string name, Func<T1, T2, T3, TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>(), Clr<T3>()], Clr<TResult>(), id => TypedImplementation.Of(id, implementation));
     }
 
     /// <summary>
@@ -307,7 +347,7 @@ public sealed class CelEnvironmentBuilder
     /// with the same identifier, for example one declared in an environment description in JSON, is a build error
     /// <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed to the delegate by the result rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>;
     /// a value that does not convert is the evaluation error
-    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus 1 + n units for each argument collection of n elements that is copied to convert it for the delegate, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
+    /// <see cref="CelErrorCode.ArgumentConversion"/>. The result enters the expression by the input rows of the type mapping. A .NET type that maps to no CEL type and that no type source describes is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. A call costs 1 cost unit, plus the units of each argument that is copied to convert it for the delegate: a list of n elements 1 + n, a map of n pairs 1 + 2n and ⌈L/10⌉ for each string key of length L, a <c>byte[]</c> of L bytes 1 + ⌈L/10⌉, as the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see>
     /// gives; functions with more arguments and other overloads need <see cref="AddFunction(CelFunctionDecl)"/>. The
     /// rules for the function name are on <see cref="CelFunctionDecl"/>.
     /// </para>
@@ -330,7 +370,9 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunction<T1, T2, T3, T4, TResult>(string name, Func<T1, T2, T3, T4, TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>(), Clr<T3>(), Clr<T4>()], Clr<TResult>(), id => TypedImplementation.Of(id, implementation));
     }
 
     /// <summary>
@@ -359,7 +401,13 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentNullException"><paramref name="declaration"/> is <see langword="null"/>.</exception>
     public CelEnvironmentBuilder AddFunction(CelFunctionDecl declaration)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(declaration);
+        if (!_functions.Contains(declaration))
+        {
+            _functions.Add(declaration);
+        }
+
+        return this;
     }
 
     /// <summary>
@@ -386,7 +434,9 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="overloadId"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunctionImplementation(string overloadId, CelFunctionImplementation implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(overloadId);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddImplementation(new ImplementationEntry(overloadId, implementation, TypedImplementation.Of(implementation)));
     }
 
     /// <summary>
@@ -417,7 +467,16 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="overloadId"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunctionImplementation<TResult>(string overloadId, Func<TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(overloadId);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddTyped(
+            overloadId,
+            implementation,
+            TypedImplementation.Of(implementation),
+            [],
+            ConversionRules.InputType<TResult>(),
+            [],
+            ConversionRules.TakesNullReference<TResult>());
     }
 
     /// <summary>
@@ -452,7 +511,16 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="overloadId"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunctionImplementation<T1, TResult>(string overloadId, Func<T1, TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(overloadId);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddTyped(
+            overloadId,
+            implementation,
+            TypedImplementation.Of(overloadId, implementation),
+            [ConversionRules.ParameterType<T1>()],
+            ConversionRules.InputType<TResult>(),
+            [ConversionRules.TakesNullReference<T1>()],
+            ConversionRules.TakesNullReference<TResult>());
     }
 
     /// <summary>
@@ -487,7 +555,16 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="overloadId"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunctionImplementation<T1, T2, TResult>(string overloadId, Func<T1, T2, TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(overloadId);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddTyped(
+            overloadId,
+            implementation,
+            TypedImplementation.Of(overloadId, implementation),
+            [ConversionRules.ParameterType<T1>(), ConversionRules.ParameterType<T2>()],
+            ConversionRules.InputType<TResult>(),
+            [ConversionRules.TakesNullReference<T1>(), ConversionRules.TakesNullReference<T2>()],
+            ConversionRules.TakesNullReference<TResult>());
     }
 
     /// <summary>
@@ -523,7 +600,16 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="overloadId"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunctionImplementation<T1, T2, T3, TResult>(string overloadId, Func<T1, T2, T3, TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(overloadId);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddTyped(
+            overloadId,
+            implementation,
+            TypedImplementation.Of(overloadId, implementation),
+            [ConversionRules.ParameterType<T1>(), ConversionRules.ParameterType<T2>(), ConversionRules.ParameterType<T3>()],
+            ConversionRules.InputType<TResult>(),
+            [ConversionRules.TakesNullReference<T1>(), ConversionRules.TakesNullReference<T2>(), ConversionRules.TakesNullReference<T3>()],
+            ConversionRules.TakesNullReference<TResult>());
     }
 
     /// <summary>
@@ -560,7 +646,21 @@ public sealed class CelEnvironmentBuilder
     /// <exception cref="ArgumentException"><paramref name="overloadId"/> is empty.</exception>
     public CelEnvironmentBuilder AddFunctionImplementation<T1, T2, T3, T4, TResult>(string overloadId, Func<T1, T2, T3, T4, TResult> implementation)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(overloadId);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddTyped(
+            overloadId,
+            implementation,
+            TypedImplementation.Of(overloadId, implementation),
+            [ConversionRules.ParameterType<T1>(), ConversionRules.ParameterType<T2>(), ConversionRules.ParameterType<T3>(), ConversionRules.ParameterType<T4>()],
+            ConversionRules.InputType<TResult>(),
+            [
+                ConversionRules.TakesNullReference<T1>(),
+                ConversionRules.TakesNullReference<T2>(),
+                ConversionRules.TakesNullReference<T3>(),
+                ConversionRules.TakesNullReference<T4>(),
+            ],
+            ConversionRules.TakesNullReference<TResult>());
     }
 
     /// <summary>
@@ -652,10 +752,108 @@ public sealed class CelEnvironmentBuilder
     /// <returns>The environment or the build errors.</returns>
     public CelBuildResult Build()
     {
-        ImmutableArray<CelVariableDecl> variables = VariableDeclarations;
-        return new(new CelEnvironment(variables, DeclarationIndex.Create(_standardLibrary.Overloads, variables)));
+        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped]);
+        LibraryDeclarations library = _standardLibrary.Declarations;
+        ImmutableArray<CelError> errors = DeclarationChecks.Check(
+            declarations,
+            library,
+            out ImmutableArray<CelVariableDecl> variables,
+            out ImmutableArray<OverloadBinding> overloads,
+            out string container);
+        if (!errors.IsEmpty)
+        {
+            return new(errors);
+        }
+
+        DeclarationIndex index = DeclarationIndex.Create([.. library.Overloads, .. overloads], variables, library.TypeIdentifiers, container);
+        return new(new CelEnvironment(_standardLibrary, declarations, index));
     }
 
-    // The declarations of variables collected so far, in the order of the calls.
+    // A builder with the declarations of an environment.
+    internal CelEnvironmentBuilder(CelStandardLibrary standardLibrary, DeclarationSet declarations)
+        : this(standardLibrary)
+    {
+        _variables.AddRange(declarations.Variables);
+        _functions.AddRange(declarations.Functions);
+        _implementations.AddRange(declarations.Implementations);
+        _containers.AddRange(declarations.Containers);
+        _unmapped.AddRange(declarations.Unmapped);
+    }
+
+    // The declarations of variables collected so far, in the order of the calls, each once.
     internal ImmutableArray<CelVariableDecl> VariableDeclarations => [.. _variables];
+
+    // The CEL type that the input rows give a .NET type, or null outside them, with the .NET type; for a parameter also
+    // the CEL type that the expected-type table gives it, which the build compares with the inferred one.
+    private static (CelType? Type, Type ClrType, CelType? ParameterType) Clr<T>() =>
+        (ConversionRules.InputType<T>(), typeof(T), ConversionRules.ParameterType<T>());
+
+    // The global overload of a delegate: its identifier from the name and the CEL types of the parameters,
+    // and the delegate as its implementation.
+    private CelEnvironmentBuilder AddDelegate(
+        string name,
+        Delegate original,
+        ReadOnlySpan<(CelType? Type, Type ClrType, CelType? ParameterType)> parameters,
+        (CelType? Type, Type ClrType, CelType? ParameterType) result,
+        Func<string, OverloadImplementation> implementation)
+    {
+        var parameterTypes = new CelType[parameters.Length];
+        var parts = new string[parameters.Length];
+        var expectedTypes = new CelType?[parameters.Length];
+        Type? unmapped = null;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            (CelType? type, Type clrType, expectedTypes[i]) = parameters[i];
+            if (type is null)
+            {
+                parts[i] = clrType.ToString();
+                unmapped ??= clrType;
+            }
+            else
+            {
+                parts[i] = DeclarationText.Json(type);
+                parameterTypes[i] = type;
+            }
+        }
+
+        string overloadId = DeclarationText.DerivedOverloadId(name, parts);
+        if (unmapped is not null || result.Type is not CelType resultType)
+        {
+            AddUnmapped(new UnmappedDeclaration(overloadId, name, unmapped ?? result.ClrType));
+            return this;
+        }
+
+        // The typed delegate is checked against the inferred overload like a typed implementation.
+        _functions.Add(new CelFunctionDecl(name, CelOverloadDecl.Global(overloadId, parameterTypes, resultType)));
+        return AddImplementation(
+            new ImplementationEntry(overloadId, original, implementation(overloadId), [.. expectedTypes], resultType, default, false));
+    }
+
+    private CelEnvironmentBuilder AddTyped(
+        string overloadId,
+        Delegate original,
+        OverloadImplementation implementation,
+        ImmutableArray<CelType?> parameterTypes,
+        CelType? resultType,
+        ImmutableArray<bool> parameterTakesNull,
+        bool resultTakesNull) =>
+        AddImplementation(new ImplementationEntry(overloadId, original, implementation, parameterTypes, resultType, parameterTakesNull, resultTakesNull));
+
+    private CelEnvironmentBuilder AddImplementation(ImplementationEntry implementation)
+    {
+        if (!_implementations.Exists(implementation.SameAs))
+        {
+            _implementations.Add(implementation);
+        }
+
+        return this;
+    }
+
+    private void AddUnmapped(UnmappedDeclaration declaration)
+    {
+        if (!_unmapped.Contains(declaration))
+        {
+            _unmapped.Add(declaration);
+        }
+    }
 }

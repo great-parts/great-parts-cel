@@ -34,13 +34,20 @@ namespace Great.Parts.Cel.Declarations;
 /// </remarks>
 public sealed class CelOverloadDecl
 {
-    // The declarations of the standard library tables, which are valid by construction.
-    internal CelOverloadDecl(string overloadId, bool isReceiverStyle, ImmutableArray<CelType> parameterTypes, CelType resultType)
+    // The declarations of the standard library tables, which are valid by construction, and the checked
+    // arguments of the factories.
+    internal CelOverloadDecl(
+        string overloadId,
+        bool isReceiverStyle,
+        ImmutableArray<CelType> parameterTypes,
+        CelType resultType,
+        CelCostFunction? cost = null)
     {
         OverloadId = overloadId;
         IsReceiverStyle = isReceiverStyle;
         ParameterTypes = parameterTypes;
         ResultType = resultType;
+        Cost = cost;
     }
 
     /// <summary>
@@ -74,7 +81,7 @@ public sealed class CelOverloadDecl
     /// A call of an application function costs 1 unit plus the value of this function, which is computed
     /// from the arguments before the implementation is called; see <see cref="CelCostFunction"/>.
     /// </remarks>
-    public CelCostFunction? Cost => throw new NotImplementedException();
+    public CelCostFunction? Cost { get; }
 
     /// <summary>
     /// Declares an overload called globally, as <c>f(a, b)</c>.
@@ -92,7 +99,9 @@ public sealed class CelOverloadDecl
     /// <exception cref="ArgumentException"><paramref name="overloadId"/> is empty.</exception>
     public static CelOverloadDecl Global(string overloadId, ReadOnlySpan<CelType> parameterTypes, CelType resultType)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(overloadId);
+        ArgumentNullException.ThrowIfNull(resultType);
+        return new CelOverloadDecl(overloadId, false, Parameters(null, parameterTypes), resultType);
     }
 
     /// <summary>
@@ -113,7 +122,10 @@ public sealed class CelOverloadDecl
     /// <exception cref="ArgumentException"><paramref name="overloadId"/> is empty.</exception>
     public static CelOverloadDecl Receiver(string overloadId, CelType receiverType, ReadOnlySpan<CelType> parameterTypes, CelType resultType)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(overloadId);
+        ArgumentNullException.ThrowIfNull(receiverType);
+        ArgumentNullException.ThrowIfNull(resultType);
+        return new CelOverloadDecl(overloadId, true, Parameters(receiverType, parameterTypes), resultType);
     }
 
     /// <summary>
@@ -125,6 +137,49 @@ public sealed class CelOverloadDecl
     /// <exception cref="ArgumentNullException"><paramref name="cost"/> is <see langword="null"/>.</exception>
     public CelOverloadDecl WithCost(CelCostFunction cost)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(cost);
+        return new CelOverloadDecl(OverloadId, IsReceiverStyle, ParameterTypes, ResultType, cost);
+    }
+
+    // Whether two declarations are the same overload: one identifier, call style, parameter types, result
+    // type and cost function — the same instance, or both none. The same overload declared twice is one.
+    internal bool SameAs(CelOverloadDecl other)
+    {
+        if (!string.Equals(OverloadId, other.OverloadId, StringComparison.Ordinal)
+            || IsReceiverStyle != other.IsReceiverStyle
+            || ParameterTypes.Length != other.ParameterTypes.Length
+            || !ResultType.Equals(other.ResultType)
+            || !ReferenceEquals(Cost, other.Cost))
+        {
+            return false;
+        }
+
+        for (int i = 0; i < ParameterTypes.Length; i++)
+        {
+            if (!ParameterTypes[i].Equals(other.ParameterTypes[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // The parameter types, the receiver first when there is one; a null element throws.
+    private static ImmutableArray<CelType> Parameters(CelType? receiverType, ReadOnlySpan<CelType> parameterTypes)
+    {
+        ImmutableArray<CelType>.Builder parameters = ImmutableArray.CreateBuilder<CelType>(parameterTypes.Length + (receiverType is null ? 0 : 1));
+        if (receiverType is not null)
+        {
+            parameters.Add(receiverType);
+        }
+
+        foreach (CelType parameterType in parameterTypes)
+        {
+            ArgumentNullException.ThrowIfNull(parameterType, nameof(parameterTypes));
+            parameters.Add(parameterType);
+        }
+
+        return parameters.MoveToImmutable();
     }
 }

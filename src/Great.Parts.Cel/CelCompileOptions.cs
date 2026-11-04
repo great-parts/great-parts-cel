@@ -34,13 +34,7 @@ public sealed class CelCompileOptions
     /// otherwise compilation throws <see cref="ArgumentException"/>. An expression whose type is not assignable to it
     /// is the compilation error <see cref="CelErrorCode.ExpectedTypeMismatch"/>.
     /// </remarks>
-    public CelType? ExpectedType
-    {
-        get => null;
-
-        // The explicit expected type is not implemented yet; it is not ignored.
-        init => throw new NotImplementedException();
-    }
+    public CelType? ExpectedType { get; init; }
 
     /// <summary>
     /// The name of the source document that contains the expression and the position at which the

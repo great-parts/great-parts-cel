@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -143,13 +144,13 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
         return Text(answer.RootElement, "textproto", id);
     }
 
-    /// <summary>The profile of the walking skeleton has no time zone data file, so the oracle has no request <c>offset</c> yet.</summary>
+    /// <summary>The profile has no time zone data file until time, so the oracle has no request <c>offset</c> yet.</summary>
     /// <param name="zone">The name of the zone.</param>
     /// <param name="instant">The instant.</param>
     /// <returns>Nothing: it always throws.</returns>
     /// <exception cref="NotSupportedException">Always.</exception>
     public TimeSpan ZoneOffset(string zone, DateTimeOffset instant) =>
-        throw new NotSupportedException("the profile of the walking skeleton compares no time zone offsets");
+        throw new NotSupportedException("the profile compares no time zone offsets until time");
 
     /// <summary>Closes the connection: standard input of the oracle ends, and the oracle and its container end.</summary>
     public void Dispose()
@@ -187,10 +188,10 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
     }
 
     /// <summary>
-    /// The protojson of a binding for a request. A <c>double</c> is written by <see cref="DoubleRoundTrip"/>, and NaN and the
-    /// infinities as the strings of protojson: the formatter of Google.Protobuf writes a <c>double</c> with <c>"r"</c>, which on
-    /// .NET 10 gives for some values, such as 2^-25, the text of the neighbouring <c>double</c>. Every other kind goes through
-    /// that formatter. The text is then read back and compared with the value, a <c>double</c> bit for bit, so a value nested in
+    /// The protojson of a binding for a request. A <c>double</c>, also in a list or a map, is written by
+    /// <see cref="DoubleRoundTrip"/>, and NaN and the infinities as the strings of protojson: the formatter of Google.Protobuf
+    /// writes a <c>double</c> with <c>"r"</c>, which on .NET 10 gives for some values, such as 2^-25, the text of the
+    /// neighbouring <c>double</c>. Lists and maps are written element by element; every other kind goes through that formatter. The text is then read back and compared with the value, a <c>double</c> bit for bit, so a value nested in
     /// a list or a map that the formatter writes as another value fails the run instead of reaching the oracle.
     /// </summary>
     /// <param name="variable">The name of the variable.</param>
@@ -198,9 +199,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
     /// <exception cref="SideFailureException">The text does not read back to the value.</exception>
     internal static string BindingJson(string variable, Value value)
     {
-        string json = value.KindCase == Value.KindOneofCase.DoubleValue
-            ? "{\"doubleValue\":" + DoubleJson(value.DoubleValue) + "}"
-            : JsonFormatter.Default.Format(value);
+        string json = ValueJson(value);
         CheckReadsBack(variable, value, json);
         return json;
     }
@@ -218,6 +217,17 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
             throw Quoting($"the binding of {variable} does not read back to the bound value", json);
         }
     }
+
+    // The protojson of a value: a double by its shortest text, lists and maps element by element, other kinds by the formatter.
+    private static string ValueJson(Value value) => value.KindCase switch
+    {
+        Value.KindOneofCase.DoubleValue => "{\"doubleValue\":" + DoubleJson(value.DoubleValue) + "}",
+        Value.KindOneofCase.ListValue => "{\"listValue\":{\"values\":[" + string.Join(',', value.ListValue.Values.Select(ValueJson)) + "]}}",
+        Value.KindOneofCase.MapValue => "{\"mapValue\":{\"entries\":["
+            + string.Join(',', value.MapValue.Entries.Select(entry => "{\"key\":" + ValueJson(entry.Key) + ",\"value\":" + ValueJson(entry.Value) + "}"))
+            + "]}}",
+        _ => JsonFormatter.Default.Format(value),
+    };
 
     // A double in protojson: NaN and the infinities as strings, a finite value, -0.0 included, as its shortest number.
     private static string DoubleJson(double value) => value switch

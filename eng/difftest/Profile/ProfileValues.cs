@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using System.Text;
 using Cel.Expr;
 using CsCheck;
@@ -20,6 +22,20 @@ internal static class ProfileValues
 
     // The boundaries of double that only bindings take: NaN and the infinities, which no literal has, and -0.0.
     private static readonly double[] SpecialDoubles = [double.NaN, double.PositiveInfinity, double.NegativeInfinity, -0.0];
+
+    // Texts of conversions to int and uint: signs, spaces, _, prefixes, a suffix, the empty string, and numbers out of range.
+    private static readonly string[] IntegerTexts = ["0", "-0", "+5", "-12", "007", "1_000", "0x10", "1u", " 1", "1 ", "", "-", "1e3", "99999999", "-9999999", "1.0"];
+
+    // Texts of conversions to double: the forms of the standard library page and near them.
+    private static readonly string[] DoubleTexts =
+    [
+        "1.5", "-0.0", "1e3", "1E-3", "1_000.5", ".5", "5.", "0x1p-2", "0x1.8p1", "0x10", "inf", "-inf", "+Inf",
+        "Infinity", "infinity", "nan", "NaN", "-nan", " 1", "1 ", "", "1e400", "-1e400", "1e-400", "1__0", "_1", "1_",
+    ];
+
+    // Texts of the conversion to bool: the twelve strings of the standard library page and near them.
+    private static readonly string[] BoolTexts =
+        ["1", "t", "T", "TRUE", "true", "True", "0", "f", "F", "FALSE", "false", "False", "tRUE", "yes", " true", ""];
 
     // The code points that escapes treat specially: the character escapes and the quotes.
     private static readonly int[] SpecialCodePoints = [0x07, 0x08, 0x0C, 0x0A, 0x0D, 0x09, 0x0B, '\\', '\'', '"', '`', '?'];
@@ -97,7 +113,10 @@ internal static class ProfileValues
         return [.. bytes];
     }
 
-    /// <summary>A binding of a variable: a value of its type, a value of any scalar kind or <c>null</c> for <c>dyn</c>.</summary>
+    /// <summary>
+    /// A binding of a variable: a value of its type; for <c>dyn</c> a scalar, <c>null</c>, a list of 0–3 scalars or a map of
+    /// 0–3 entries whose keys are as in map literals and whose values are scalars.
+    /// </summary>
     /// <param name="pcg">The random source.</param>
     /// <param name="type">The type of the variable.</param>
     internal static Value Binding(PCG pcg, ProfileType type) => type switch
@@ -109,9 +128,89 @@ internal static class ProfileValues
         ProfileType.StringType => new Value { StringValue = StringValue(pcg) },
         ProfileType.BytesType => new Value { BytesValue = ByteString.CopyFrom(BytesValue(pcg)) },
         ProfileType.NullType => new Value { NullValue = NullValue.NullValue },
+        ProfileType.ListType => ListBinding(pcg),
+        ProfileType.MapType => MapBinding(pcg),
         ProfileType.DynType => Binding(pcg, pcg.Pick(ProfileTables.DynKinds)),
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "No variable has this type."),
     };
+
+    /// <summary>
+    /// The text of a number or a <c>bool</c>, the argument of a conversion from a string, in the forms of the standard library
+    /// page and near them: signs, <c>_</c>, hexadecimal, a binary exponent, <c>inf</c>, <c>nan</c>, spaces, and the letters
+    /// of <c>bool</c>; at most <see cref="ProfileTables.MaxCodePoints"/> code points.
+    /// </summary>
+    /// <param name="pcg">The random source.</param>
+    /// <param name="type">The result of the conversion: <c>int</c>, <c>uint</c>, <c>double</c> or <c>bool</c>.</param>
+    internal static string NumberText(PCG pcg, ProfileType type)
+    {
+        if (type == ProfileType.BoolType)
+        {
+            return pcg.Pick(BoolTexts);
+        }
+
+        if (pcg.OneIn(2))
+        {
+            return pcg.Pick(type == ProfileType.DoubleType ? DoubleTexts : IntegerTexts);
+        }
+
+        string digits = type == ProfileType.DoubleType
+            ? (pcg.Below(2001) / Math.Pow(10, pcg.Below(4))).ToString("R", CultureInfo.InvariantCulture)
+            : pcg.Below(100_000).ToString(CultureInfo.InvariantCulture);
+        string text = pcg.Below(6) switch
+        {
+            0 => "-" + digits,
+            1 => "+" + digits,
+            2 => " " + digits,
+            3 when digits.Length > 1 => digits[..1] + "_" + digits[1..],
+            _ => digits,
+        };
+        return text.EnumerateRunes().Count() <= ProfileTables.MaxCodePoints ? text : digits;
+    }
+
+    // A bound list of 0–3 scalars or null.
+    private static Value ListBinding(PCG pcg)
+    {
+        ListValue list = new();
+        int count = pcg.Below(ProfileTables.MaxElements + 1);
+        for (int i = 0; i < count; i++)
+        {
+            list.Values.Add(Binding(pcg, pcg.Pick(ProfileTables.ScalarKinds)));
+        }
+
+        return new Value { ListValue = list };
+    }
+
+    // A bound map of 0–3 entries: keys of int, uint, bool and string, pairwise unequal by CEL equality, a string key a field
+    // name half the time; values scalars or null.
+    private static Value MapBinding(PCG pcg)
+    {
+        MapValue map = new();
+        HashSet<string> keys = new(StringComparer.Ordinal);
+        int count = pcg.Below(ProfileTables.MaxElements + 1);
+        for (int i = 0; i < count; i++)
+        {
+            Value key = pcg.Pick(ProfileTables.KeyTypes) switch
+            {
+                ProfileType.StringType => new Value { StringValue = pcg.OneIn(2) ? pcg.Pick(ProfileTables.FieldNames) : StringValue(pcg) },
+                ProfileType.BoolType => new Value { BoolValue = pcg.OneIn(2) },
+                ProfileType.UintType => new Value { Uint64Value = UintValue(pcg) },
+                _ => new Value { Int64Value = IntValue(pcg) },
+            };
+            string identity = key.KindCase switch
+            {
+                Value.KindOneofCase.StringValue => "string " + key.StringValue,
+                Value.KindOneofCase.BoolValue => key.BoolValue ? "bool true" : "bool false",
+                Value.KindOneofCase.Uint64Value => "number " + key.Uint64Value.ToString(CultureInfo.InvariantCulture),
+                _ => "number " + key.Int64Value.ToString(CultureInfo.InvariantCulture),
+            };
+            if (keys.Add(identity))
+            {
+                map.Entries.Add(new MapValue.Types.Entry { Key = key, Value = Binding(pcg, pcg.Pick(ProfileTables.ScalarKinds)) });
+            }
+        }
+
+        return new Value { MapValue = map };
+    }
 
     // The value of a double binding: a finite value, or sometimes NaN, ±infinity or -0.0.
     private static double BoundDoubleValue(PCG pcg) =>

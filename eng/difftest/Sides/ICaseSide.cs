@@ -17,7 +17,7 @@ internal interface ICaseSide
     SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings);
 
     /// <summary>
-    /// The offset of a time zone from UTC at an instant. The profile of the walking skeleton has no time zone data file: runs
+    /// The offset of a time zone from UTC at an instant. The profile has no time zone data file until time: runs
     /// do not compare offsets, and both sides throw <see cref="NotSupportedException"/>.
     /// </summary>
     /// <param name="zone">The name of the zone in the time zone data file, such as <c>Europe/Berlin</c>.</param>

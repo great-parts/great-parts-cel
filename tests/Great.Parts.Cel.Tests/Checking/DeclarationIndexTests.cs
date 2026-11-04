@@ -62,6 +62,33 @@ public sealed class DeclarationIndexTests
         Assert.False(Index.TryGetVariable("f", out _));
     }
 
+    // The lookups by span, through which checking tries the candidates of the container, find what the lookups
+    // by string find; a function is found with the name that the index keeps.
+    [Fact]
+    public static void LookupsBySpan_FindTheDeclarationsOfTheirText()
+    {
+        ReadOnlySpan<char> text = "[x.f]";
+
+        Assert.True(Index.TryGetVariable(text.Slice(1, 1), out CelVariableDecl? x));
+        Assert.Equal("x", x.Name);
+        Assert.False(Index.TryGetVariable(text.Slice(1, 3), out _));
+        Assert.True(Index.TryGetFunction(text.Slice(3, 1), out string? function));
+        Assert.Equal("f", function);
+        Assert.False(Index.TryGetFunction(text.Slice(1, 1), out _));
+        Assert.False(Index.TryGetTypeIdentifier(text.Slice(1, 1), out _));
+    }
+
+    [Fact]
+    public static void TypeIdentifiers_AreFoundByStringAndBySpan()
+    {
+        CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1).Build().GetEnvironmentOrThrow();
+
+        Assert.True(environment.Declarations.TryGetTypeIdentifier("list", out CelType? list));
+        Assert.Equal(CelType.ListOf(CelType.Dyn), list);
+        Assert.True(environment.Declarations.TryGetTypeIdentifier("a.int".AsSpan(2), out CelType? integer));
+        Assert.Equal(CelType.Int, integer);
+    }
+
     private static OverloadBinding Overload(string function, string overloadId, ImmutableArray<CelType> parameterTypes) =>
         new(function, new CelOverloadDecl(overloadId, false, parameterTypes, CelType.Bool), null, 1, null, "test");
 }

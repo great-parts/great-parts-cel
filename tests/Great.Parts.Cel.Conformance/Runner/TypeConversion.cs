@@ -22,12 +22,10 @@ internal static class TypeConversion
     {
         CelTypeKind.Dyn => Dyn,
         CelTypeKind.Null => new Type { Null = NullValue.NullValue },
-        CelTypeKind.Bool => Primitive(PrimitiveType.Bool),
-        CelTypeKind.Int => Primitive(PrimitiveType.Int64),
-        CelTypeKind.UInt => Primitive(PrimitiveType.Uint64),
-        CelTypeKind.Double => Primitive(PrimitiveType.Double),
-        CelTypeKind.String => Primitive(PrimitiveType.String),
-        CelTypeKind.Bytes => Primitive(PrimitiveType.Bytes),
+        CelTypeKind.Bool or CelTypeKind.Int or CelTypeKind.UInt or CelTypeKind.Double or CelTypeKind.String or CelTypeKind.Bytes =>
+            new Type { Primitive = ToPrimitive(type) },
+        CelTypeKind.Wrapper => new Type { Wrapper = ToPrimitive(type.Parameters[0]) },
+        CelTypeKind.Type => new Type { Type_ = ToExprType(type.Parameters[0]) },
         CelTypeKind.List => new Type { ListType = new Type.Types.ListType { ElemType = ToExprType(type.Parameters[0]) } },
         CelTypeKind.Map => new Type
         {
@@ -43,20 +41,33 @@ internal static class TypeConversion
     {
         Type.TypeKindOneofCase.Dyn => CelType.Dyn,
         Type.TypeKindOneofCase.Null => CelType.Null,
-        Type.TypeKindOneofCase.Primitive => type.Primitive switch
-        {
-            PrimitiveType.Bool => CelType.Bool,
-            PrimitiveType.Int64 => CelType.Int,
-            PrimitiveType.Uint64 => CelType.UInt,
-            PrimitiveType.Double => CelType.Double,
-            PrimitiveType.String => CelType.String,
-            PrimitiveType.Bytes => CelType.Bytes,
-            _ => throw new NotImplementedException(),
-        },
+        Type.TypeKindOneofCase.Primitive => FromPrimitive(type.Primitive),
+        Type.TypeKindOneofCase.Wrapper => CelType.WrapperOf(FromPrimitive(type.Wrapper)),
         Type.TypeKindOneofCase.ListType => CelType.ListOf(ToCelType(type.ListType.ElemType)),
         Type.TypeKindOneofCase.MapType => CelType.MapOf(ToCelType(type.MapType.KeyType), ToCelType(type.MapType.ValueType)),
+        Type.TypeKindOneofCase.Type_ => CelType.TypeOf(ToCelType(type.Type_)),
         _ => throw new NotImplementedException(),
     };
 
-    private static Type Primitive(PrimitiveType primitive) => new() { Primitive = primitive };
+    private static PrimitiveType ToPrimitive(CelType type) => type.Kind switch
+    {
+        CelTypeKind.Bool => PrimitiveType.Bool,
+        CelTypeKind.Int => PrimitiveType.Int64,
+        CelTypeKind.UInt => PrimitiveType.Uint64,
+        CelTypeKind.Double => PrimitiveType.Double,
+        CelTypeKind.String => PrimitiveType.String,
+        CelTypeKind.Bytes => PrimitiveType.Bytes,
+        _ => throw new NotImplementedException(),
+    };
+
+    private static CelType FromPrimitive(PrimitiveType primitive) => primitive switch
+    {
+        PrimitiveType.Bool => CelType.Bool,
+        PrimitiveType.Int64 => CelType.Int,
+        PrimitiveType.Uint64 => CelType.UInt,
+        PrimitiveType.Double => CelType.Double,
+        PrimitiveType.String => CelType.String,
+        PrimitiveType.Bytes => CelType.Bytes,
+        _ => throw new NotImplementedException(),
+    };
 }

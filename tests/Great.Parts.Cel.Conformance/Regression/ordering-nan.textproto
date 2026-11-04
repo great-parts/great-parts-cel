@@ -1,0 +1,332 @@
+# Minimized cases of known divergences from cel-go in ordering with NaN. The expectation of each case is the answer of cel-go.
+
+name: "ordering_nan"
+description: "Ordering of a NaN double with a value that is not a number"
+section {
+  name: "nan_first"
+  description: "A NaN double before a value that is not a number: ordering is not defined across the kinds; cel-go returns false"
+  test {
+    name: "less_double_bool"
+    description: "_<_(double, bool) we-error"
+    expr: "0.0 / 0.0 < dyn(true)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_double_string"
+    description: "_<_(double, string) we-error"
+    expr: "0.0 / 0.0 < dyn('a')"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_double_bytes"
+    description: "_<_(double, bytes) we-error"
+    expr: "0.0 / 0.0 < dyn(b'a')"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_double_null"
+    description: "_<_(double, null_type) we-error"
+    expr: "0.0 / 0.0 < dyn(null)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_double_list"
+    description: "_<_(double, list) we-error"
+    expr: "0.0 / 0.0 < dyn([1])"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_double_map"
+    description: "_<_(double, map) we-error"
+    expr: "0.0 / 0.0 < dyn({'a': 1})"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_double_type"
+    description: "_<_(double, type) we-error"
+    expr: "0.0 / 0.0 < dyn(int)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_double_bool"
+    description: "_<=_(double, bool) we-error"
+    expr: "0.0 / 0.0 <= dyn(true)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_double_string"
+    description: "_<=_(double, string) we-error"
+    expr: "0.0 / 0.0 <= dyn('a')"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_double_bytes"
+    description: "_<=_(double, bytes) we-error"
+    expr: "0.0 / 0.0 <= dyn(b'a')"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_double_null"
+    description: "_<=_(double, null_type) we-error"
+    expr: "0.0 / 0.0 <= dyn(null)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_double_list"
+    description: "_<=_(double, list) we-error"
+    expr: "0.0 / 0.0 <= dyn([1])"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_double_map"
+    description: "_<=_(double, map) we-error"
+    expr: "0.0 / 0.0 <= dyn({'a': 1})"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_double_type"
+    description: "_<=_(double, type) we-error"
+    expr: "0.0 / 0.0 <= dyn(int)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_bool"
+    description: "_>_(double, bool) we-error"
+    expr: "0.0 / 0.0 > dyn(true)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_string"
+    description: "_>_(double, string) we-error"
+    expr: "0.0 / 0.0 > dyn('a')"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_bytes"
+    description: "_>_(double, bytes) we-error"
+    expr: "0.0 / 0.0 > dyn(b'a')"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_null"
+    description: "_>_(double, null_type) we-error"
+    expr: "0.0 / 0.0 > dyn(null)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_list"
+    description: "_>_(double, list) we-error"
+    expr: "0.0 / 0.0 > dyn([1])"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_map"
+    description: "_>_(double, map) we-error"
+    expr: "0.0 / 0.0 > dyn({'a': 1})"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_type"
+    description: "_>_(double, type) we-error"
+    expr: "0.0 / 0.0 > dyn(int)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_double_bool"
+    description: "_>=_(double, bool) we-error"
+    expr: "0.0 / 0.0 >= dyn(true)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_double_string"
+    description: "_>=_(double, string) we-error"
+    expr: "0.0 / 0.0 >= dyn('a')"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_double_bytes"
+    description: "_>=_(double, bytes) we-error"
+    expr: "0.0 / 0.0 >= dyn(b'a')"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_double_null"
+    description: "_>=_(double, null_type) we-error"
+    expr: "0.0 / 0.0 >= dyn(null)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_double_list"
+    description: "_>=_(double, list) we-error"
+    expr: "0.0 / 0.0 >= dyn([1])"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_double_map"
+    description: "_>=_(double, map) we-error"
+    expr: "0.0 / 0.0 >= dyn({'a': 1})"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_double_type"
+    description: "_>=_(double, type) we-error"
+    expr: "0.0 / 0.0 >= dyn(int)"
+    value: {
+      bool_value: false
+    }
+  }
+}
+section {
+  name: "nan_second"
+  description: "A bool, string or bytes value before a NaN double: ordering is not defined across the kinds; cel-go returns false"
+  test {
+    name: "less_bool_double"
+    description: "_<_(bool, double) we-error"
+    expr: "dyn(true) < 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_string_double"
+    description: "_<_(string, double) we-error"
+    expr: "dyn('a') < 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_bytes_double"
+    description: "_<_(bytes, double) we-error"
+    expr: "dyn(b'a') < 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_bool_double"
+    description: "_<=_(bool, double) we-error"
+    expr: "dyn(true) <= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_string_double"
+    description: "_<=_(string, double) we-error"
+    expr: "dyn('a') <= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_bytes_double"
+    description: "_<=_(bytes, double) we-error"
+    expr: "dyn(b'a') <= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_bool_double"
+    description: "_>_(bool, double) we-error"
+    expr: "dyn(true) > 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_string_double"
+    description: "_>_(string, double) we-error"
+    expr: "dyn('a') > 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_bytes_double"
+    description: "_>_(bytes, double) we-error"
+    expr: "dyn(b'a') > 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_bool_double"
+    description: "_>=_(bool, double) we-error"
+    expr: "dyn(true) >= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_string_double"
+    description: "_>=_(string, double) we-error"
+    expr: "dyn('a') >= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_bytes_double"
+    description: "_>=_(bytes, double) we-error"
+    expr: "dyn(b'a') >= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+}

@@ -13,8 +13,8 @@ namespace Great.Parts.Cel.Eng.Difftest.Compare;
 
 /// <summary>
 /// The comparison of time zone offsets, <c>ENG822</c> (docs/design/eng-difftest.md, "Findings and output"): the offsets of
-/// every zone of the time zone data file at generated instants. The path of the file is a parameter; the profile of the
-/// walking skeleton has no file, so runs do not compare offsets.
+/// every zone of the time zone data file at generated instants. The path of the file is a parameter; the profile has no
+/// file until time, so runs do not compare offsets.
 /// </summary>
 internal static class ZoneOffsets
 {

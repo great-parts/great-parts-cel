@@ -2,11 +2,12 @@
     "codeMetrics": {
         "CA1502": 15
     },
-    "duplicates": 40,
+    "duplicates": 88,
     "suppressions": {
         "CA1008": 1,
         "CA1024": 3,
         "CA1032": 1,
+        "CA1064": 1,
         "CA1065": 1,
         "CA1700": 1,
         "CA1707": 4,
@@ -16,7 +17,6 @@
         "CA1819": 1,
         "CA1822": 1,
         "CS1591": 4,
-        "example": 2,
-        "lychee": 5
+        "lychee": 2
     }
 }

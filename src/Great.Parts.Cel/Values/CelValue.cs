@@ -213,7 +213,13 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <exception cref="ArgumentException"><paramref name="value"/> is a type parameter, which has no value.</exception>
     public static CelValue FromType(CelType value)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(value);
+        if (value.Kind == CelTypeKind.TypeParameter)
+        {
+            throw new ArgumentException($"The type parameter '{value}' has no type value.", nameof(value));
+        }
+
+        return new CelValue(CelValueKind.Type, value, 0, 0);
     }
 
     /// <summary>
@@ -367,7 +373,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Type"/>.</returns>
     public bool TryGetType([NotNullWhen(true)] out CelType? value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Type ? (CelType?)_ref : null;
+        return value is not null;
     }
 
     /// <summary>
@@ -438,7 +445,19 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>A value of the kind <see cref="CelValueKind.Bool"/> or <see cref="CelValueKind.Error"/>.</returns>
     public static CelValue CelEquals(CelValue left, CelValue right)
     {
-        throw new NotImplementedException();
+        return EqualityRules.AreEqual(left, right, null, out CelValue error) switch
+        {
+            ValueEquality.Equal => FromBoolean(true),
+            ValueEquality.NotEqual => FromBoolean(false),
+            ValueEquality.Error => error,
+            _ => FromError(new CelError(
+                CelErrorCode.InsufficientStack,
+                CelErrorStage.Evaluate,
+                EqualityRules.InsufficientStackMessage,
+                new CelSourceLocation(0, 1, 1),
+                null,
+                null)),
+        };
     }
 
     /// <summary>
@@ -467,6 +486,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.Double => BitConverter.UInt64BitsToDouble(_p0).Equals(BitConverter.UInt64BitsToDouble(other._p0)),
             CelValueKind.String => string.Equals((string?)_ref, (string?)other._ref, StringComparison.Ordinal),
             CelValueKind.Bytes => BytesOf(this).Span.SequenceEqual(BytesOf(other).Span),
+            CelValueKind.Type => ((CelType)_ref!).Equals((CelType?)other._ref),
             CelValueKind.List or CelValueKind.Map or CelValueKind.Error => ReferenceEquals(_ref, other._ref),
 
             // No factory creates values of the other kinds yet.
@@ -497,6 +517,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.Double => BitConverter.UInt64BitsToDouble(_p0).GetHashCode(),
             CelValueKind.String => ((string)_ref!).GetHashCode(StringComparison.Ordinal),
             CelValueKind.Bytes => BytesHash(BytesOf(this).Span),
+            CelValueKind.Type => ((CelType)_ref!).GetHashCode(),
             CelValueKind.List or CelValueKind.Map or CelValueKind.Error => RuntimeHelpers.GetHashCode(_ref),
 
             // No factory creates values of the other kinds yet.

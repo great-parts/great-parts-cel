@@ -29,6 +29,7 @@
 | `CelSpec/` | `skips.md`, `CelSpecSuite.cs`, `CelSpecSuiteTests.cs`, `CelSpecParseTests.cs` |
 | `Regression/` | the corpus files `*.textproto`, `skips.md`, `known-differences.md`, `RegressionSuite.cs`, `RegressionSuiteTests.cs` |
 | `Synthetic/` | `synthetic.textproto` and `SyntheticSuiteTests.cs`: the tests of the runner itself |
+| `Environment/` | `CultureFitnessTests.cs`: both suites under the culture `tr-TR` ([tests.md](tests.md#culture-of-the-process)) |
 
 ## Core and suites
 
@@ -53,8 +54,11 @@ The suites run as two tests, `CelSpecSuiteTests.AllCases_PassOrAreSkipped` and `
 
 All cases share one setup, as the cases of the cel-go runner share `stdOpts`. In the walking skeleton it is `new CelEnvironmentBuilder(CelStandardLibrary.V1)`: the latest version, because cel-go has no versions of the standard library. Later parts add their extension sets; the internal `block` set joins with `bindings` version 1, as `celBlockLib` in cel-go.
 
-For each case the runner adds to the setup what the case declares — `UseContainer` for `container`, `AddVariable(string, CelType)` for each identifier of `type_env`, the function declarations — and calls `Build`. A member that is not implemented yet throws, and the case fails until it arrives.
+For each case the runner starts a new builder from the setup, adds what the case declares and calls `Build`; an environment is not shared between cases, since their declarations differ. A member that is not implemented yet throws, and the case fails until it arrives.
 
+- **`container`** — `UseContainer(container)`. The name resolution of the library follows the language definition ([checking.md](checking.md#name-resolution)); `namespace.textproto` checks it with qualified variables such as `x.y` and `com.example.y`, which `AddVariable` takes as names and `CelBindings.Add` binds under the same name.
+- **`type_env`, `ident`** — `AddVariable(name, type)`, the type converted by `TypeConversion` from `cel.expr.Type`: `primitive`, `list_type`, `map_type`, `dyn`, `null`, `wrapper` and `type` in this part; `message_type`, `well_known` and `abstract_type` throw `NotImplementedException` until their parts, and the case fails with that reason. The seven files of this part declare only `primitive`, `list_type` and `map_type`.
+- **`type_env`, `function`** — no file of this part declares functions. The case fails with the reason `function declarations need a later part`, and the part that brings the first such file decides how the runner supplies their implementations, which `Build` requires (`MissingImplementation`).
 - **Reserved names.** The runner neither declares nor binds the names `true`, `false`, `null` and `in` from `type_env` and `bindings`: they are keywords, never identifiers, and the library rejects them as variable names. The cases `basic/reserved_const/*` still check their point: a literal is never shadowed. The conformance page names this difference from the cel-go runner environment, like the evaluation without type checking.
 - **`disable_macros`** parses the expression with the syntax options of the environment and `MacroTable.Empty`, as the cel-go runner clears the macros. Only the internal `Parse` takes syntax options, so a case with `disable_macros` on the checked path fails with the reason `disable_macros needs an internal compile entry point`; the cases `disable_check` and `check_only` pass the options to `Parse`. No case of the pinned commit has the flag.
 - **`locale`** is ignored, as by cel-go.
@@ -63,11 +67,11 @@ For each case the runner adds to the setup what the case declares — `UseContai
 
 | Case | Calls |
 | :- | :- |
-| checked | `env.Compile<CelValue>(expr)`; the result type is `CelProgram<CelValue>.ResultType`; then `program.Evaluate(bindings)` |
+| checked | `env.Compile<CelValue>(expr)` — the expected type `dyn`, as the cel-go runner checks without one; the result type is `CelProgram<CelValue>.ResultType`; then `program.Evaluate(bindings)`, without a cost limit or a token |
 | `disable_check` | internal `env.Parse(expr)`, then internal `env.EvaluateWithoutTypeCheck(parsed, bindings)`; the result type is `dyn`, as for an unchecked expression in cel-go |
 | `check_only` | internal `env.Parse(expr)`, then internal `env.Check(parsed)`; the result type is `CheckedExpression.ResultType`; nothing is planned or evaluated |
 
-See [facade.md](facade.md#internal-entry-points). A binding of the kind `value` is converted by `ValueConversion` and added with `CelBindings.Add(name, CelValue)`. A value converts from `cel.expr.Value` to `CelValue` and back for the kinds the library supports, through the public API only, since `eng/difftest` links the file; a type converts in `TypeConversion`, a file that is not linked: from `CelType` to `cel.expr.Type` for the result type, and from `cel.expr.Type` to `CelType` for the declarations of a case. Other kinds throw `NotImplementedException`.
+See [facade.md](facade.md#internal-entry-points). A binding of the kind `value` is converted by `ValueConversion` and added with `CelBindings.Add(name, CelValue)`. A value converts from `cel.expr.Value` to `CelValue` and back for the kinds the library supports — in this part `null_value`, `bool_value`, `int64_value`, `uint64_value`, `double_value`, `string_value`, `bytes_value`, `list_value`, `map_value` and `type_value`, the name of a type value as `type()` gives it (`int`, `list`, `type`) — through the public API only, since `eng/difftest` links the file; a type converts in `TypeConversion`, a file that is not linked: from `CelType` to `cel.expr.Type` for the result type, and from `cel.expr.Type` to `CelType` for the declarations of a case. Other kinds throw `NotImplementedException`.
 
 ## The rule
 

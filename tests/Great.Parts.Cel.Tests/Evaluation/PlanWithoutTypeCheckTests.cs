@@ -16,7 +16,7 @@ public sealed class PlanWithoutTypeCheckTests
     [Fact]
     public static void NameWithoutAValue_IsUnboundAtItsIdentifier()
     {
-        CelError error = Plans.Error(Plans.WithoutTypeCheck("1 + x").Evaluate(NoBindings));
+        CelError error = Plans.Error(Plans.WithoutTypeCheck("1 + x").EvaluateOn(NoBindings));
 
         Assert.Equal(
             (CelErrorCode.Unbound, 4, "no value is bound to variable 'x'"),
@@ -27,7 +27,7 @@ public sealed class PlanWithoutTypeCheckTests
     [Fact]
     public static void BoundName_HasItsValueWithoutADeclaration()
     {
-        CelValue value = Plans.WithoutTypeCheck("undeclared").Evaluate(new Dictionary<string, CelValue> { ["undeclared"] = CelValue.FromString("v") });
+        CelValue value = Plans.WithoutTypeCheck("undeclared").EvaluateOn(new Dictionary<string, CelValue> { ["undeclared"] = CelValue.FromString("v") });
 
         Assert.Equal(CelValue.FromString("v"), value);
     }
@@ -49,7 +49,7 @@ public sealed class PlanWithoutTypeCheckTests
     [InlineData("1 + 'a'", CelErrorCode.EvalNoMatchingOverload, 2, "no such overload: _+_(int, string)")]
     public static void CallWithoutAFittingOverload_IsEvalNoMatchingOverloadAtTheCall(string expression, CelErrorCode code, int offset, string message)
     {
-        CelError error = Plans.Error(Plans.WithoutTypeCheck(expression).Evaluate(NoBindings));
+        CelError error = Plans.Error(Plans.WithoutTypeCheck(expression).EvaluateOn(NoBindings));
 
         Assert.Equal((code, offset, message), (error.Code, error.Location.Offset, error.Message));
     }
@@ -60,8 +60,8 @@ public sealed class PlanWithoutTypeCheckTests
         Plan plan = Plans.WithoutTypeCheck("1 + 2");
 
         var dispatch = Assert.IsType<DispatchPlanNode>(plan.Root);
-        Assert.Equal(["add_int64"], dispatch.Candidates.Select(candidate => candidate.Declaration.OverloadId));
-        Assert.Equal(CelValue.FromInt64(3), plan.Evaluate(NoBindings));
+        Assert.Equal(["add_bytes", "add_double", "add_int64", "add_list", "add_string", "add_uint64"], dispatch.Candidates.Select(candidate => candidate.Declaration.OverloadId));
+        Assert.Equal(CelValue.FromInt64(3), plan.EvaluateOn(NoBindings));
     }
 
     [Fact]
@@ -70,6 +70,6 @@ public sealed class PlanWithoutTypeCheckTests
         Plan plan = Plans.WithoutTypeCheck("x || y || true");
 
         Assert.Equal(3, Assert.IsType<OrPlanNode>(plan.Root).Operands.Length);
-        Assert.Equal(CelValue.FromBoolean(true), plan.Evaluate(NoBindings));
+        Assert.Equal(CelValue.FromBoolean(true), plan.EvaluateOn(NoBindings));
     }
 }

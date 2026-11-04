@@ -53,14 +53,14 @@ public sealed class CompileTests
         Assert.Equal(CelType.ListOf(CelType.Int), compiled.Program.ResultType);
     }
 
-    // The expected type that T implies is not checked yet: a mismatch shows up only at evaluation.
+    // The expected type that T implies is checked: a type that T does not hold is a compilation error.
     [Fact]
-    public void TypeThatTDoesNotHold_StillCompiles()
+    public void TypeThatTDoesNotHold_IsExpectedTypeMismatch()
     {
         CelCompileResult<string> compiled = Environment.Compile<string>("count");
 
-        Assert.True(compiled.IsSuccess);
-        Assert.Equal(CelType.Int, compiled.Program.ResultType);
+        Assert.False(compiled.IsSuccess);
+        Assert.Equal(CelErrorCode.ExpectedTypeMismatch, Assert.Single(compiled.Errors).Code);
     }
 
     [Fact]
@@ -69,12 +69,14 @@ public sealed class CompileTests
         Assert.Equal("expression", Assert.Throws<ArgumentNullException>(() => Environment.Compile<long>(null!)).ParamName);
     }
 
-    // The result rows of the other types arrive with the kinds of values they convert.
+    // T outside the tables is a violated condition of the call, before the text is read; T of time, optional or decimal
+    // is not implemented yet and not ignored.
     [Fact]
-    public void Compile_ToATypeOutsideTheResultRowsSoFar_ThrowsNotImplementedException()
+    public void Compile_ToATypeOutsideTheTables_ThrowsArgumentException()
     {
-        Assert.Throws<NotImplementedException>(() => Environment.Compile<object>("count"));
-        Assert.Throws<NotImplementedException>(() => Environment.Compile<short>("count"));
-        Assert.Throws<NotImplementedException>(() => Environment.Compile<long?>("count"));
+        Assert.Throws<ArgumentException>(() => Environment.Compile<short>("count +"));
+        Assert.Throws<ArgumentException>(() => Environment.Compile<Guid>("count"));
+        Assert.Throws<NotImplementedException>(() => Environment.Compile<DateTimeOffset>("count"));
+        Assert.True(Environment.Compile<long?>("count").IsSuccess);
     }
 }

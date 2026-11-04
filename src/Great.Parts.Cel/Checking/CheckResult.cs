@@ -5,7 +5,7 @@ using Great.Parts.Cel.Diagnostics;
 namespace Great.Parts.Cel.Checking;
 
 // The result of the internal entry point CelEnvironment.Check: the checked expression, or every check
-// error in the order of the traversal.
+// error ordered by offset, errors at one offset in the order in which the checker found them.
 internal sealed class CheckResult
 {
     internal CheckResult(CheckedExpression expression)

@@ -54,28 +54,33 @@ public sealed class SkipListTests
         Assert.All(list.Entries, entry => Assert.Equal(6, entry.Scope.Count));
     }
 
-    // The four differences of map literals and the cases of the corpus that minimize them.
+    // The 45 differences of the registry — map literals, a bytes value in a map and orderings of NaN with another kind — and
+    // the cases of the corpus that minimize them: one entry of the list for each signature, the entries in ordinal order.
     [Fact]
     public void PinnedCorpusListAndRegistry_HaveNoFindingAndAnEntryForEachSignatureOfTheRegistry()
     {
         KnownDifferences registry = KnownDifferences.Read(RegistryPath, EmbeddedData.ReadText(RegistryPath));
+        string text = EmbeddedData.ReadText(CorpusPath);
 
-        SkipList list = SkipList.ReadCorpus(CorpusPath, EmbeddedData.ReadText(CorpusPath), registry.Signatures);
+        SkipList list = SkipList.ReadCorpus(CorpusPath, text, registry.Signatures);
 
         Assert.Empty(registry.Findings);
-        Assert.Equal(
-            ["map(bool, int, bool, int) we-error", "map(double, int) we-error", "map(int, int, uint, int) we-error", "map(null_type, bool) we-error"],
-            registry.Signatures.Order(StringComparer.Ordinal));
         Assert.Empty(list.Findings);
-        Assert.Equal(
-            [
-                "map_literal/duplicate_key/bool_key_repeated",
-                "map_literal/duplicate_key/int_and_uint_key_equal",
-                "map_literal/unsupported_key/double_key",
-                "map_literal/unsupported_key/null_key",
-            ],
-            list.Entries.Select(entry => entry.Case));
+        Assert.Equal(45, registry.Signatures.Count);
+        Assert.Equal(45, list.Entries.Count);
+        Assert.Equal(registry.Signatures.Order(StringComparer.Ordinal), EntrySignatures(text).Order(StringComparer.Ordinal));
+        Assert.Equal(list.Entries.Select(entry => entry.Case).Order(StringComparer.Ordinal), list.Entries.Select(entry => entry.Case));
     }
+
+    // The signature column of the rows of a corpus list, after the head of the table.
+    private static List<string> EntrySignatures(string text) =>
+    [
+        .. text.ReplaceLineEndings("\n").Split('\n')
+            .SkipWhile(line => !line.StartsWith("|---", StringComparison.Ordinal))
+            .Skip(1)
+            .Where(line => line.StartsWith("| ", StringComparison.Ordinal))
+            .Select(line => line.Split(" | ")[2]),
+    ];
 
     [Fact]
     public void ValidCelSpecList_HasNoFindingAndItsEntriesWithTheirScopes()

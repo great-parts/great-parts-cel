@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Syntax;
@@ -10,56 +15,173 @@ using Great.Parts.Cel.Values;
 namespace Great.Parts.Cel.Checking;
 
 // Gradual type checking of a parsed expression against the declarations of an environment. The tree is
-// visited depth first: the children of a node from left to right, then the node. The type of a node is
-// a CelType, or null for the type error: a node with an error is assignable to every type and produces
-// no further errors, and checking goes on, so every check error of the text is returned in the order
-// of the traversal.
+// visited depth first, the children of a node before the node, except that a comprehension adds the
+// scopes of its variables. The type of a node is a CelType, or null for the type error: a node with an
+// error is assignable to every type and produces no further errors, and checking goes on, so every check
+// error of the text is returned, ordered by offset. Type parameters of overloads are replaced by fresh
+// type variables at each call and bound in one substitution of the expression; the checked expression
+// has the types after the substitution, with the variables still free replaced by dyn.
 internal sealed class Checker
 {
+    private const string LogicalAnd = "_&&_";
+    private const string LogicalOr = "_||_";
+    private const string OptionalTypeName = "optional_type";
+
     private readonly ParsedExpression _parsed;
     private readonly DeclarationIndex _declarations;
-    private readonly Dictionary<int, Reference> _references = [];
-    private readonly Dictionary<int, CelType> _types = [];
-    private readonly ImmutableArray<CelError>.Builder _errors = ImmutableArray.CreateBuilder<CelError>();
 
-    private Checker(ParsedExpression parsed, DeclarationIndex declarations)
+    // The expected type of the root; null for none, as dyn.
+    private readonly CelType? _expectedType;
+
+    private readonly TypeSubstitution _substitution = new();
+    private readonly Dictionary<int, Reference> _references = [];
+
+    // The types of the nodes by id, before the final substitution.
+    private readonly List<(int Id, CelType Type)> _types = [];
+
+    private readonly List<CelError> _errors = [];
+
+    // The variables of the enclosing comprehensions, the innermost last; a null type is the type error.
+    private readonly List<(string Name, CelType? Type)> _locals = [];
+
+    // The selections of the chain of names being resolved, the outermost first.
+    private readonly List<SelectNode> _chain = [];
+
+    // The candidates of the call being resolved and their result types.
+    private readonly List<OverloadBinding> _candidates = [];
+    private readonly List<CelType> _candidateResults = [];
+
+    // The type parameters of the overload being tried, each with its fresh variable, and its instantiated
+    // parameter types.
+    private string[] _parameterNames = new string[4];
+    private CelType[] _freshVariables = new CelType[4];
+    private int _freshCount;
+    private CelType[] _instantiated = new CelType[4];
+
+    // A name and, in front of it, the room for the container, where the candidates of a name are composed.
+    private char[] _names = [];
+
+    private int _variableCount;
+
+    // The node being checked, for InternalError; null before the root and after it.
+    private ExprNode? _current;
+
+    // Whether checking stopped at InsufficientStack.
+    private bool _stopped;
+
+    internal Checker(ParsedExpression parsed, DeclarationIndex declarations, CelType? expectedType)
     {
         _parsed = parsed;
         _declarations = declarations;
+        _expectedType = expectedType;
     }
 
-    internal static CheckResult Check(ParsedExpression parsed, DeclarationIndex declarations)
+    internal static CheckResult Check(ParsedExpression parsed, DeclarationIndex declarations, CelType? expectedType = null) =>
+        new Checker(parsed, declarations, expectedType).Run();
+
+    // Checks the expression and, when it has no error, its type against the expected type.
+    internal CheckResult Run()
     {
-        var checker = new Checker(parsed, declarations);
-        checker.Visit(parsed.Root);
-        return checker._errors.Count == 0
-            ? new CheckResult(new CheckedExpression(parsed, checker._references, checker._types))
-            : new CheckResult(checker._errors.ToImmutable());
+        CelType? type = Visit(_parsed.Root);
+        if (_errors.Count == 0 && type is not null)
+        {
+            CheckExpectedType(type);
+        }
+
+        return _errors.Count == 0 ? new CheckResult(Checked()) : Failed();
+    }
+
+    // The result of a check that an unexpected exception interrupted: the errors found before it and
+    // InternalError at the node being checked, ordered by offset.
+    internal CheckResult Interrupted(Exception exception)
+    {
+        _errors.Add(CheckErrors.InternalError(exception, Location(_current ?? _parsed.Root)));
+        return Failed();
+    }
+
+    // The types of the nodes after the substitution. The bindings no longer change, so the result for each type variable
+    // is kept: a chain of bindings, such as that of the elements of a list of empty lists, is walked once for all nodes.
+    private CheckedExpression Checked()
+    {
+        var types = new Dictionary<int, CelType>(_types.Count);
+        var kept = new Dictionary<string, StrongBox<CelType>>(StringComparer.Ordinal);
+        foreach ((int id, CelType type) in _types)
+        {
+            types.Add(id, SubstitutionRules.Apply(_substitution, type, freeToDyn: true, kept));
+        }
+
+        return new CheckedExpression(_parsed, _references, types);
+    }
+
+    // The errors ordered by offset; errors at one offset keep the order in which they were found.
+    private CheckResult Failed()
+    {
+        var keys = new long[_errors.Count];
+        var errors = new CelError[_errors.Count];
+        for (int i = 0; i < errors.Length; i++)
+        {
+            errors[i] = _errors[i];
+            keys[i] = ((long)errors[i].Location.Offset << 32) | (uint)i;
+        }
+
+        Array.Sort(keys, errors);
+        return new CheckResult(ImmutableCollectionsMarshal.AsImmutableArray(errors));
+    }
+
+    private void CheckExpectedType(CelType type)
+    {
+        if (_expectedType is null || _expectedType.Kind == CelTypeKind.Dyn)
+        {
+            return;
+        }
+
+        _freshCount = 0;
+        CelType expected = HasTypeParameters(_expectedType) ? Instantiate(_expectedType) : _expectedType;
+        if (!AssignabilityRules.IsAssignable(type, expected, _substitution, []))
+        {
+            _errors.Add(CheckErrors.ExpectedTypeMismatch(Shown(type), _expectedType, Location(_parsed.Root)));
+        }
     }
 
     private CelType? Visit(ExprNode node)
     {
+        if (_stopped)
+        {
+            return null;
+        }
+
+        if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
+        {
+            _stopped = true;
+            _errors.Add(CheckErrors.InsufficientStack(Location(node)));
+            return null;
+        }
+
+        ExprNode? parent = _current;
+        _current = node;
         CelType? type = node switch
         {
             ConstantNode constant => ConstantType(constant.Value.Kind),
             IdentNode identifier => VisitIdentifier(identifier),
+            SelectNode select => VisitSelect(select),
             CallNode call => VisitCall(call),
-
-            // Message literals and the optional syntax are not implemented yet; they are not taken for a map or a list.
-            ListNode { OptionalIndices.IsEmpty: false } => throw new NotImplementedException(),
-            StructNode unsupported when unsupported.MessageName.Length != 0 || unsupported.HasOptionalEntry() =>
-                throw new NotImplementedException(),
             ListNode list => VisitList(list),
-            StructNode map => VisitMap(map),
-            _ => throw new NotImplementedException(),
+            StructNode { MessageName.Length: 0 } map => VisitMap(map),
+            StructNode message => VisitMessage(message),
+            ComprehensionNode comprehension => VisitComprehension(comprehension),
+            _ => throw new UnreachableException("The parser creates no other node."),
         };
+        _current = parent;
+        Record(node, type);
+        return type;
+    }
 
+    private void Record(ExprNode node, CelType? type)
+    {
         if (type is not null)
         {
-            _types.Add(node.Id, type);
+            _types.Add((node.Id, type));
         }
-
-        return type;
     }
 
     private static CelType ConstantType(CelValueKind kind) => kind switch
@@ -71,84 +193,254 @@ internal sealed class Checker
         CelValueKind.Double => CelType.Double,
         CelValueKind.String => CelType.String,
         CelValueKind.Bytes => CelType.Bytes,
-        _ => throw new NotImplementedException(),
+        _ => throw new UnreachableException("A literal has no other kind."),
     };
 
+    // A variable of an enclosing comprehension, unless the name has a leading dot; then the declarations by
+    // the candidates of the container.
     private CelType? VisitIdentifier(IdentNode identifier)
     {
-        if (!_declarations.TryGetVariable(identifier.Name, out CelVariableDecl? variable))
+        string name = identifier.Name;
+        bool leadingDot = name[0] == '.';
+        if (!leadingDot && TryGetLocal(name, out CelType? localType))
         {
-            _errors.Add(CheckErrors.UndeclaredReference(identifier.Name, Location(identifier)));
-            return null;
+            _references.Add(identifier.Id, Reference.ToLocal(name));
+            return localType;
         }
 
-        _references.Add(identifier.Id, Reference.ToVariable(variable));
-        return variable.Type;
+        ReadOnlySpan<char> written = leadingDot ? name.AsSpan(1) : name;
+        written.CopyTo(NameRoom(written.Length));
+        if (TryResolveName(written.Length, leadingDot, out Reference? reference, out CelType? type))
+        {
+            _references.Add(identifier.Id, reference);
+            return type;
+        }
+
+        _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Location(identifier)));
+        return null;
+    }
+
+    private CelType? VisitSelect(SelectNode select)
+    {
+        if (!select.IsPresenceTest && TryCollectChain(select, out IdentNode? root))
+        {
+            return VisitChain(root);
+        }
+
+        return SelectField(select, Visit(select.Operand));
+    }
+
+    // A chain of selections that ends in an identifier, such as a.b.c: the longest prefix that names a
+    // declaration wins, and the selections after it select fields. Nothing declared is UndeclaredReference
+    // at the identifier.
+    private CelType? VisitChain(IdentNode root)
+    {
+        int count = _chain.Count;
+        int length = WriteChainName(root, null);
+        bool leadingDot = root.Name[0] == '.';
+        int resolved = count;
+        CelType? type = null;
+        while (true)
+        {
+            if (TryResolveName(length, leadingDot, out Reference? reference, out CelType? found))
+            {
+                _references.Add(ChainNode(root, resolved).Id, reference);
+                type = found;
+                break;
+            }
+
+            if (resolved == 0)
+            {
+                _errors.Add(CheckErrors.UndeclaredReference(root.Name, _declarations.Container, Location(root)));
+                break;
+            }
+
+            length -= 1 + _chain[count - resolved].Field.Length;
+            resolved--;
+        }
+
+        // The outermost selection is recorded by Visit.
+        if (resolved < count)
+        {
+            Record(ChainNode(root, resolved), type);
+        }
+
+        for (int selects = resolved + 1; selects <= count; selects++)
+        {
+            SelectNode select = _chain[count - selects];
+            type = SelectField(select, type);
+            if (selects < count)
+            {
+                Record(select, type);
+            }
+        }
+
+        return type;
+    }
+
+    // The node of the chain that the identifier and its first selections form: the identifier for none.
+    private ExprNode ChainNode(IdentNode root, int selects) => selects == 0 ? root : _chain[_chain.Count - selects];
+
+    // The field of a map, or dyn for an operand of the type dyn, error or a type parameter, which is bound to
+    // dyn; any other type has no fields. A presence test has the type bool.
+    private CelType? SelectField(SelectNode select, CelType? operandType)
+    {
+        if (operandType is not null)
+        {
+            CelType head = Head(operandType);
+            switch (head.Kind)
+            {
+                case CelTypeKind.Map:
+                    operandType = head.Parameters[1];
+                    break;
+                case CelTypeKind.Dyn:
+                    break;
+                case CelTypeKind.TypeParameter:
+                    _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
+                    operandType = CelType.Dyn;
+                    break;
+                default:
+                    _errors.Add(CheckErrors.NoSuchField(select.Field, Shown(head), Location(select)));
+                    return null;
+            }
+        }
+
+        return select.IsPresenceTest ? CelType.Bool : operandType ?? CelType.Dyn;
     }
 
     private CelType? VisitCall(CallNode call)
     {
-        ImmutableArray<ExprNode> arguments = call.Arguments;
-        var argumentTypes = new CelType[arguments.Length];
-        bool hasError = false;
+        ExprNode? target = call.Target;
+        if (target is null)
+        {
+            return call.Function is LogicalAnd or LogicalOr && call.Arguments.Length == 2 ? VisitLogical(call) : VisitGlobalCall(call);
+        }
+
+        // A target that is a chain of names can be part of a qualified function name: a.b.f(x) calls a.b.f.
+        if (TryCollectChain(target, out IdentNode? root))
+        {
+            int length = WriteChainName(root, call.Function);
+            if (TryResolveFunction(length, root.Name[0] == '.', out string? qualified))
+            {
+                return VisitArguments(call.Arguments, 0, out CelType[] types) ? Resolve(call, qualified, false, types) : null;
+            }
+        }
+
+        CelType? targetType = Visit(target);
+        bool argumentsChecked = VisitArguments(call.Arguments, 1, out CelType[] argumentTypes);
+        if (targetType is null || !argumentsChecked)
+        {
+            return null;
+        }
+
+        argumentTypes[0] = targetType;
+        call.Function.AsSpan().CopyTo(NameRoom(call.Function.Length));
+        if (!TryResolveFunction(call.Function.Length, false, out string? function))
+        {
+            _errors.Add(CheckErrors.UndeclaredReference(call.Function, _declarations.Container, Location(call)));
+            return null;
+        }
+
+        return Resolve(call, function, true, argumentTypes);
+    }
+
+    private CelType? VisitGlobalCall(CallNode call)
+    {
+        if (!VisitArguments(call.Arguments, 0, out CelType[] argumentTypes))
+        {
+            return null;
+        }
+
+        string name = call.Function;
+        bool leadingDot = name[0] == '.';
+        ReadOnlySpan<char> written = leadingDot ? name.AsSpan(1) : name;
+        written.CopyTo(NameRoom(written.Length));
+        if (!TryResolveFunction(written.Length, leadingDot, out string? function))
+        {
+            _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Location(call)));
+            return null;
+        }
+
+        return Resolve(call, function, false, argumentTypes);
+    }
+
+    // && and ||: each operand must be assignable to bool, otherwise TypeMismatch at that operand, as cel-go
+    // checks them.
+    private CelType? VisitLogical(CallNode call)
+    {
+        ImmutableArray<ExprNode> operands = call.Arguments;
+        CelType? left = Visit(operands[0]);
+        CelType? right = Visit(operands[1]);
+        bool assignable = Expect(operands[0], left, CelType.Bool) & Expect(operands[1], right, CelType.Bool);
+        if (!assignable || left is null || right is null)
+        {
+            return null;
+        }
+
+        _references.Add(call.Id, Reference.ToCandidates(_declarations.GetOverloads(call.Function, false, 2)));
+        return CelType.Bool;
+    }
+
+    // Checks every argument, so that each reports its errors; false when one has the type error. The types
+    // start at the index first, after the room for a receiver.
+    private bool VisitArguments(ImmutableArray<ExprNode> arguments, int first, out CelType[] types)
+    {
+        int count = first + arguments.Length;
+        types = count == 0 ? [] : new CelType[count];
+        bool checkedAll = true;
         for (int i = 0; i < arguments.Length; i++)
         {
-            CelType? argumentType = Visit(arguments[i]);
-            hasError |= argumentType is null;
-            argumentTypes[i] = argumentType ?? CelType.Dyn;
+            CelType? type = Visit(arguments[i]);
+            checkedAll &= type is not null;
+            types[first + i] = type ?? CelType.Dyn;
         }
 
-        if (hasError)
-        {
-            return null;
-        }
-
-        if (!_declarations.IsFunction(call.Function))
-        {
-            _errors.Add(CheckErrors.UndeclaredReference(call.Function, Location(call)));
-            return null;
-        }
-
-        ImmutableArray<OverloadBinding> candidates = Candidates(_declarations.GetOverloads(call.Function, arguments.Length), argumentTypes);
-        if (candidates.IsEmpty)
-        {
-            _errors.Add(CheckErrors.NoMatchingOverload(call.Function, argumentTypes, Location(call)));
-            return null;
-        }
-
-        _references.Add(call.Id, Reference.ToCandidates(candidates));
-        return CommonType(candidates);
+        return checkedAll;
     }
 
-    // The overloads whose parameters accept the argument types, in the order of the index.
-    private static ImmutableArray<OverloadBinding> Candidates(ImmutableArray<OverloadBinding> overloads, CelType[] argumentTypes)
+    // The overloads of the function that accept the argument types, in the order of the index; each
+    // successful trial keeps its bindings. The type is the result type of the first candidate after the
+    // substitution, or dyn when the candidates differ.
+    private CelType? Resolve(CallNode call, string function, bool isReceiverStyle, CelType[] argumentTypes)
     {
-        ImmutableArray<OverloadBinding>.Builder candidates = ImmutableArray.CreateBuilder<OverloadBinding>();
+        ImmutableArray<OverloadBinding> overloads = _declarations.GetOverloads(function, isReceiverStyle, argumentTypes.Length);
+        _candidates.Clear();
+        _candidateResults.Clear();
         foreach (OverloadBinding overload in overloads)
         {
-            ImmutableArray<CelType> parameterTypes = overload.Declaration.ParameterTypes;
-            bool accepts = true;
-            for (int i = 0; i < argumentTypes.Length && accepts; i++)
+            if (overload.DynOnly && !HasDynArgument(argumentTypes))
             {
-                accepts = AssignabilityRules.IsAssignable(argumentTypes[i], parameterTypes[i]);
+                continue;
             }
 
-            if (accepts)
+            int mark = _substitution.Mark;
+            if (TryOverload(overload.Declaration, argumentTypes, out CelType? result))
             {
-                candidates.Add(overload);
+                _candidates.Add(overload);
+                _candidateResults.Add(result);
+            }
+            else
+            {
+                _substitution.Rollback(mark);
             }
         }
 
-        return candidates.ToImmutable();
-    }
-
-    // The result type of the candidates when they agree, otherwise dyn.
-    private static CelType CommonType(ImmutableArray<OverloadBinding> candidates)
-    {
-        CelType type = candidates[0].Declaration.ResultType;
-        for (int i = 1; i < candidates.Length; i++)
+        if (_candidates.Count == 0)
         {
-            if (!candidates[i].Declaration.ResultType.Equals(type))
+            for (int i = 0; i < argumentTypes.Length; i++)
+            {
+                argumentTypes[i] = Shown(argumentTypes[i]);
+            }
+
+            _errors.Add(CheckErrors.NoMatchingOverload(function, argumentTypes, Location(call)));
+            return null;
+        }
+
+        _references.Add(call.Id, Reference.ToCandidates(_candidates.Count == overloads.Length ? overloads : [.. _candidates]));
+        CelType type = SubstitutionRules.Apply(_substitution, _candidateResults[0], freeToDyn: false);
+        for (int i = 1; i < _candidateResults.Count; i++)
+        {
+            if (!SubstitutionRules.Apply(_substitution, _candidateResults[i], freeToDyn: false).Equals(type))
             {
                 return CelType.Dyn;
             }
@@ -157,59 +449,457 @@ internal sealed class Checker
         return type;
     }
 
+    // Tries the argument types, the receiver first, against the parameter types of the overload, its type
+    // parameters replaced by fresh variables, which are the only ones a trial inside a type value may bind.
+    private bool TryOverload(CelOverloadDecl overload, CelType[] argumentTypes, [NotNullWhen(true)] out CelType? result)
+    {
+        ImmutableArray<CelType> parameterTypes = overload.ParameterTypes;
+        _freshCount = 0;
+        if (!HasTypeParameters(overload))
+        {
+            for (int i = 0; i < argumentTypes.Length; i++)
+            {
+                if (!AssignabilityRules.IsAssignable(argumentTypes[i], parameterTypes[i], _substitution, []))
+                {
+                    result = null;
+                    return false;
+                }
+            }
+
+            result = overload.ResultType;
+            return true;
+        }
+
+        if (_instantiated.Length < parameterTypes.Length)
+        {
+            _instantiated = new CelType[parameterTypes.Length];
+        }
+
+        for (int i = 0; i < parameterTypes.Length; i++)
+        {
+            _instantiated[i] = Instantiate(parameterTypes[i]);
+        }
+
+        result = Instantiate(overload.ResultType);
+        for (int i = 0; i < argumentTypes.Length; i++)
+        {
+            if (!AssignabilityRules.IsAssignable(argumentTypes[i], _instantiated[i], _substitution, _freshVariables.AsSpan(0, _freshCount)))
+            {
+                result = null;
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // Whether an argument has the static type dyn after the substitution.
+    private bool HasDynArgument(CelType[] argumentTypes)
+    {
+        foreach (CelType argumentType in argumentTypes)
+        {
+            if (Head(argumentType).Kind == CelTypeKind.Dyn)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool HasTypeParameters(CelOverloadDecl overload)
+    {
+        foreach (CelType parameterType in overload.ParameterTypes)
+        {
+            if (HasTypeParameters(parameterType))
+            {
+                return true;
+            }
+        }
+
+        return HasTypeParameters(overload.ResultType);
+    }
+
+    private static bool HasTypeParameters(CelType type)
+    {
+        if (type.Kind == CelTypeKind.TypeParameter)
+        {
+            return true;
+        }
+
+        foreach (CelType parameter in type.Parameters)
+        {
+            if (HasTypeParameters(parameter))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // The type with each type parameter replaced by its fresh variable, created at its first occurrence.
+    private CelType Instantiate(CelType type)
+    {
+        if (type.Kind == CelTypeKind.TypeParameter)
+        {
+            return FreshVariableFor(type.Name);
+        }
+
+        ImmutableArray<CelType> parameters = type.Parameters;
+        if (parameters.IsEmpty || !HasTypeParameters(type))
+        {
+            return type;
+        }
+
+        ImmutableArray<CelType>.Builder instantiated = ImmutableArray.CreateBuilder<CelType>(parameters.Length);
+        foreach (CelType parameter in parameters)
+        {
+            instantiated.Add(Instantiate(parameter));
+        }
+
+        return new CelType(type.Kind, type.Name, instantiated.MoveToImmutable());
+    }
+
+    private CelType FreshVariableFor(string parameterName)
+    {
+        for (int i = 0; i < _freshCount; i++)
+        {
+            if (string.Equals(_parameterNames[i], parameterName, StringComparison.Ordinal))
+            {
+                return _freshVariables[i];
+            }
+        }
+
+        if (_freshCount == _freshVariables.Length)
+        {
+            Array.Resize(ref _parameterNames, 2 * _freshCount);
+            Array.Resize(ref _freshVariables, 2 * _freshCount);
+        }
+
+        CelType variable = NewVariable();
+        _parameterNames[_freshCount] = parameterName;
+        _freshVariables[_freshCount++] = variable;
+        return variable;
+    }
+
+    // A type variable of this expression: _var0, _var1, and so on.
+    private CelType NewVariable() => CelType.TypeParameter("_var" + (_variableCount++).ToString(CultureInfo.InvariantCulture));
+
+    // The join of the element types; an empty list has a fresh element type.
     private CelType? VisitList(ListNode list)
     {
-        var elements = new ElementType();
-        foreach (ExprNode element in list.Elements)
+        ImmutableArray<ExprNode> elements = list.Elements;
+        ImmutableArray<int> optionalIndices = list.OptionalIndices;
+        int nextOptional = 0;
+        CelType? joined = null;
+        bool hasError = false;
+        for (int i = 0; i < elements.Length; i++)
         {
-            elements.Add(Visit(element));
+            CelType? type = Visit(elements[i]);
+            if (nextOptional < optionalIndices.Length && optionalIndices[nextOptional] == i)
+            {
+                nextOptional++;
+                type = OptionalValue(elements[i], type);
+            }
+
+            hasError |= type is null;
+            joined = Join(joined, type);
         }
 
-        return elements.HasError ? null : CelType.ListOf(elements.Type);
+        return hasError ? null : CelType.ListOf(joined ?? NewVariable());
     }
 
-    // A map literal; message literals come with the complete grammar. The key types are not checked: a
-    // key that cannot be a map key is an evaluation error.
+    // The joins of the key types and of the value types; the key types are not checked.
     private CelType? VisitMap(StructNode map)
     {
-        var keys = new ElementType();
-        var values = new ElementType();
+        CelType? keys = null;
+        CelType? values = null;
+        bool hasError = false;
         foreach (StructEntry entry in map.Entries)
         {
-            keys.Add(Visit(entry.Key));
-            values.Add(Visit(entry.Value));
+            CelType? keyType = Visit(entry.Key);
+            CelType? valueType = Visit(entry.Value);
+            if (entry.IsOptional)
+            {
+                valueType = OptionalValue(entry.Value, valueType);
+            }
+
+            hasError |= keyType is null || valueType is null;
+            keys = Join(keys, keyType);
+            values = Join(values, valueType);
         }
 
-        return keys.HasError || values.HasError ? null : CelType.MapOf(keys.Type, values.Type);
+        return hasError ? null : CelType.MapOf(keys ?? NewVariable(), values ?? NewVariable());
     }
+
+    private CelType? Join(CelType? joined, CelType? next) =>
+        next is null ? joined : joined is null ? next : AssignabilityRules.Join(joined, next, _substitution);
+
+    // The value of an optional element or entry: the value type of an optional_type, or dyn; any other type
+    // is TypeMismatch, as cel-go checks it.
+    private CelType? OptionalValue(ExprNode node, CelType? type)
+    {
+        if (type is null)
+        {
+            return null;
+        }
+
+        CelType head = Head(type);
+        if (head.Kind == CelTypeKind.Optional)
+        {
+            return head.Parameters[0];
+        }
+
+        if (head.Kind == CelTypeKind.Dyn)
+        {
+            return head;
+        }
+
+        CelType shown = Shown(head);
+        _errors.Add(CheckErrors.TypeMismatch(new CelType(CelTypeKind.Optional, OptionalTypeName, [shown]), shown, Location(node)));
+        return null;
+    }
+
+    // Message literals come with object types; until then no name is an object type.
+    private CelType? VisitMessage(StructNode message)
+    {
+        _errors.Add(CheckErrors.UndeclaredReference(message.MessageName, _declarations.Container, Location(message)));
+        return null;
+    }
+
+    // The range and the accumulator initializer in the enclosing scopes; the loop condition and the step
+    // with the accumulator and the iteration variable; the result with the accumulator only. The type is
+    // that of the result, also when the range is invalid.
+    private CelType? VisitComprehension(ComprehensionNode comprehension)
+    {
+        CelType? rangeType = Visit(comprehension.IterRange);
+        CelType? variableType = IterationType(comprehension.IterRange, rangeType);
+        CelType? accumulatorType = Visit(comprehension.AccuInit);
+        _locals.Add((comprehension.AccuVar, accumulatorType));
+        _locals.Add((comprehension.IterVar, variableType));
+        _ = Expect(comprehension.LoopCondition, Visit(comprehension.LoopCondition), CelType.Bool);
+        _ = Expect(comprehension.LoopStep, Visit(comprehension.LoopStep), accumulatorType);
+        _locals.RemoveAt(_locals.Count - 1);
+        CelType? result = Visit(comprehension.Result);
+        _locals.RemoveAt(_locals.Count - 1);
+        return result;
+    }
+
+    // The element type of a list, the key type of a map, dyn for dyn, error or a type parameter, which is
+    // bound to dyn; another type is InvalidComprehensionRange and the type error.
+    private CelType? IterationType(ExprNode range, CelType? rangeType)
+    {
+        if (rangeType is null)
+        {
+            return CelType.Dyn;
+        }
+
+        CelType head = Head(rangeType);
+        switch (head.Kind)
+        {
+            case CelTypeKind.List:
+            case CelTypeKind.Map:
+                return head.Parameters[0];
+            case CelTypeKind.Dyn:
+                return head;
+            case CelTypeKind.TypeParameter:
+                _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
+                return CelType.Dyn;
+            default:
+                _errors.Add(CheckErrors.InvalidComprehensionRange(Shown(head), Location(range)));
+                return null;
+        }
+    }
+
+    // Whether a part is assignable to the type its construct requires; otherwise TypeMismatch at the part,
+    // and the bindings of the failed trial are undone. The type error passes on either side.
+    private bool Expect(ExprNode node, CelType? actual, CelType? expected)
+    {
+        if (actual is null || expected is null)
+        {
+            return true;
+        }
+
+        int mark = _substitution.Mark;
+        if (AssignabilityRules.IsAssignable(actual, expected, _substitution, []))
+        {
+            return true;
+        }
+
+        _substitution.Rollback(mark);
+        _errors.Add(CheckErrors.TypeMismatch(Shown(expected), Shown(actual), Location(node)));
+        return false;
+    }
+
+    // Collects the selections of a chain of names that starts at the node and ends in an identifier that is
+    // not a variable of a comprehension: such a chain can be a qualified name.
+    private bool TryCollectChain(ExprNode node, [NotNullWhen(true)] out IdentNode? root)
+    {
+        _chain.Clear();
+        while (node is SelectNode { IsPresenceTest: false } select)
+        {
+            _chain.Add(select);
+            node = select.Operand;
+        }
+
+        root = node as IdentNode;
+        return root is not null && (root.Name[0] == '.' || !TryGetLocal(root.Name, out _));
+    }
+
+    // Writes the name of the identifier and the collected selections, then the last name if there is one,
+    // without a leading dot, into the name buffer; returns the length.
+    private int WriteChainName(IdentNode root, string? last)
+    {
+        ReadOnlySpan<char> first = root.Name[0] == '.' ? root.Name.AsSpan(1) : root.Name;
+        int length = first.Length + (last is null ? 0 : 1 + last.Length);
+        foreach (SelectNode select in _chain)
+        {
+            length += 1 + select.Field.Length;
+        }
+
+        Span<char> name = NameRoom(length);
+        first.CopyTo(name);
+        int position = first.Length;
+        for (int i = _chain.Count - 1; i >= -1; i--)
+        {
+            string? segment = i >= 0 ? _chain[i].Field : last;
+            if (segment is not null)
+            {
+                name[position++] = '.';
+                segment.AsSpan().CopyTo(name[position..]);
+                position += segment.Length;
+            }
+        }
+
+        return length;
+    }
+
+    private bool TryGetLocal(string name, out CelType? type)
+    {
+        for (int i = _locals.Count - 1; i >= 0; i--)
+        {
+            if (string.Equals(_locals[i].Name, name, StringComparison.Ordinal))
+            {
+                type = _locals[i].Type;
+                return true;
+            }
+        }
+
+        type = null;
+        return false;
+    }
+
+    // The room in the name buffer for a name of the length, after the room for the container.
+    private Span<char> NameRoom(int length)
+    {
+        int start = _declarations.Container.Length + 1;
+        if (_names.Length < start + length)
+        {
+            Array.Resize(ref _names, Math.Max(start + length, 2 * _names.Length));
+        }
+
+        return _names.AsSpan(start, length);
+    }
+
+    // The variable or the type identifier that the name in the name buffer refers to, by the candidates of
+    // the container.
+    private bool TryResolveName(int length, bool asWritten, [NotNullWhen(true)] out Reference? reference, [NotNullWhen(true)] out CelType? type)
+    {
+        var candidates = new NameCandidates(_names, _declarations.Container, length, asWritten);
+        while (candidates.MoveNext(out ReadOnlySpan<char> candidate))
+        {
+            if (_declarations.TryGetVariable(candidate, out CelVariableDecl? variable))
+            {
+                reference = Reference.ToVariable(variable);
+                type = variable.Type;
+                return true;
+            }
+
+            if (_declarations.TryGetTypeIdentifier(candidate, out CelType? typeValue))
+            {
+                reference = Reference.ToTypeIdentifier(typeValue);
+                type = CelType.TypeOf(typeValue);
+                return true;
+            }
+        }
+
+        reference = null;
+        type = null;
+        return false;
+    }
+
+    // The declared function that the name in the name buffer refers to, by the candidates of the container.
+    private bool TryResolveFunction(int length, bool asWritten, [NotNullWhen(true)] out string? function)
+    {
+        var candidates = new NameCandidates(_names, _declarations.Container, length, asWritten);
+        while (candidates.MoveNext(out ReadOnlySpan<char> candidate))
+        {
+            if (_declarations.TryGetFunction(candidate, out function))
+            {
+                return true;
+            }
+        }
+
+        function = null;
+        return false;
+    }
+
+    // The type itself, or the binding of a bound type parameter, at the top level.
+    private CelType Head(CelType type)
+    {
+        while (type.Kind == CelTypeKind.TypeParameter && _substitution.TryGet(type.Name, out CelType? bound))
+        {
+            type = bound;
+        }
+
+        return type;
+    }
+
+    // The type as messages show it: after the substitution, free variables as dyn.
+    private CelType Shown(CelType type) => SubstitutionRules.Apply(_substitution, type, freeToDyn: true);
 
     private CelSourceLocation Location(ExprNode node) => _parsed.Lines.GetLocation(_parsed.GetOffset(node.Id));
 
-    // The type shared by the elements of a list, or by the keys or the values of a map: T when all have
-    // the type T, dyn when there are none or their types differ.
-    private struct ElementType
+    // The candidates of a name in the container, the longest first (language definition, "Name
+    // Resolution"): in the container a.b the name x is a.b.x, a.x, then x; a name with a leading dot only
+    // as written. The name stands in the buffer after the room for the container, and each candidate is
+    // composed in front of it, so no string is created.
+    private ref struct NameCandidates
     {
-        private CelType? _type;
-        private bool _differ;
+        private readonly Span<char> _buffer;
+        private readonly ReadOnlySpan<char> _container;
+        private readonly int _length;
 
-        internal bool HasError { get; private set; }
+        // The length of the prefix of the container in the next candidate; -1 after the last.
+        private int _prefix;
 
-        internal readonly CelType Type => _differ || _type is null ? CelType.Dyn : _type;
-
-        internal void Add(CelType? type)
+        internal NameCandidates(char[] buffer, string container, int length, bool asWritten)
         {
-            if (type is null)
+            _buffer = buffer;
+            _container = container;
+            _length = length;
+            _prefix = asWritten ? 0 : container.Length;
+        }
+
+        internal bool MoveNext(out ReadOnlySpan<char> candidate)
+        {
+            int nameStart = _container.Length + 1;
+            if (_prefix <= 0)
             {
-                HasError = true;
+                candidate = _prefix == 0 ? _buffer.Slice(nameStart, _length) : default;
+                bool hasNext = _prefix == 0;
+                _prefix = -1;
+                return hasNext;
             }
-            else if (_type is null)
-            {
-                _type = type;
-            }
-            else if (!_type.Equals(type))
-            {
-                _differ = true;
-            }
+
+            ReadOnlySpan<char> prefix = _container[.._prefix];
+            int start = nameStart - _prefix - 1;
+            prefix.CopyTo(_buffer[start..]);
+            _buffer[nameStart - 1] = '.';
+            candidate = _buffer.Slice(start, _prefix + 1 + _length);
+            _prefix = Math.Max(prefix.LastIndexOf('.'), 0);
+            return true;
         }
     }
 }

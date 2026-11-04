@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Tests.Syntax;
+using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using Xunit;
 
@@ -123,6 +124,29 @@ public sealed class CelValueTests
         Assert.True(value.TryGetError(out CelError? read));
         Assert.Same(error, read);
         Assert.Equal("Error", ReadReferences(value));
+    }
+
+    [Fact]
+    public static void Type_IsTheSameInstanceAndReadOnlyByTryGetType()
+    {
+        CelType type = CelType.MapOf(CelType.String, CelType.Bool);
+
+        CelValue value = CelValue.FromType(type);
+
+        Assert.Equal(CelValueKind.Type, value.Kind);
+        Assert.True(value.TryGetType(out CelType? read));
+        Assert.Same(type, read);
+        Assert.Equal("", ReadReferences(value));
+        Assert.Equal("Type", ReadAll(value));
+        Assert.False(CelValue.FromInt64(1).TryGetType(out CelType? none));
+        Assert.Null(none);
+    }
+
+    [Fact]
+    public static void FromType_OfATypeParameterOrNull_Throws()
+    {
+        Assert.Equal("value", Assert.Throws<ArgumentException>(() => CelValue.FromType(CelType.TypeParameter("T"))).ParamName);
+        Assert.Equal("value", Assert.Throws<ArgumentNullException>(() => CelValue.FromType(null!)).ParamName);
     }
 
     [Theory]

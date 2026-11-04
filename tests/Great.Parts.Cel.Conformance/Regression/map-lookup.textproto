@@ -1,0 +1,18 @@
+# Minimized cases of known divergences from cel-go in lookups of map keys. The expectation of each case is the answer of cel-go.
+
+name: "map_lookup"
+description: "Lookups of a map key by a value that is not a key type"
+section {
+  name: "bytes_key"
+  description: "A bytes value is never a key of a map; cel-go fails its hash in a map lookup"
+  test {
+    name: "in_map"
+    description: "in_map(bytes, map) we-value"
+    expr: "dyn(b'a') in {'a': 1}"
+    eval_error: {
+      errors: {
+        message: "internal error: runtime error: hash of unhashable type types.Bytes"
+      }
+    }
+  }
+}

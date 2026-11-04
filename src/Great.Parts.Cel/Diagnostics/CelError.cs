@@ -26,6 +26,25 @@ namespace Great.Parts.Cel.Diagnostics;
 /// </remarks>
 public sealed class CelError
 {
+    // Where the message and the position come from: the line table of the expression for an error of evaluation, the
+    // given message and positions, or null for an error of evaluation that has no place yet.
+    private readonly object? _source;
+
+    // Forms the message of an error of evaluation from its parts when it is read; null when the message was given.
+    private readonly Func<CelError, string>? _format;
+
+    // The parts of the message of an error of evaluation: references to objects that already exist, a number and a
+    // byte, so that creating the error allocates this object only. An exception that caused the error is the first part.
+    private readonly object? _first;
+    private readonly object? _second;
+    private readonly long _number;
+    private readonly byte _small;
+
+    // The offset of the node of an error of evaluation, for its line table.
+    private readonly int _offset;
+    private readonly ushort _code;
+    private readonly byte _stage;
+
     internal CelError(
         CelErrorCode code,
         CelErrorStage stage,
@@ -34,13 +53,45 @@ public sealed class CelError
         CelSourceLocation? sourceLocation,
         Exception? exception)
     {
-        Code = code;
-        Stage = stage;
-        Message = message;
-        Location = location;
-        SourceLocation = sourceLocation;
-        Exception = exception;
+        _code = (ushort)code;
+        _stage = (byte)stage;
+        _source = new Given(message, location, sourceLocation, exception);
     }
+
+    // An error of evaluation whose message and position are formed only when they are read, so that an error value
+    // that a later operator absorbs costs no text. Without a line table the error has no position.
+    internal CelError(
+        CelErrorCode code,
+        Func<CelError, string> format,
+        LineTable? lines,
+        int offset,
+        object? first = null,
+        object? second = null,
+        long number = 0,
+        byte small = 0)
+    {
+        _code = (ushort)code;
+        _stage = (byte)CelErrorStage.Evaluate;
+        _source = lines;
+        _format = format;
+        _offset = offset;
+        _first = first;
+        _second = second;
+        _number = number;
+        _small = small;
+    }
+
+    // The format of a message that is its first part.
+    internal static Func<CelError, string> FirstPart { get; } = static error => (string)error._first!;
+
+    // The parts of the message, for the format.
+    internal object? First => _first;
+
+    internal object? Second => _second;
+
+    internal long Number => _number;
+
+    internal byte Small => _small;
 
     /// <summary>
     /// The code of the error from the published list of codes.
@@ -50,7 +101,7 @@ public sealed class CelError
     /// meaning is a breaking change and happens only in a major version; new codes can appear in a
     /// minor version, so a <see langword="switch"/> over codes needs a default branch.
     /// </remarks>
-    public CelErrorCode Code { get; }
+    public CelErrorCode Code => (CelErrorCode)_code;
 
     /// <summary>
     /// The stage at which the error was found.
@@ -59,7 +110,7 @@ public sealed class CelError
     /// For codes 9000–9999, which occur at any stage, this is the only indication of the stage.
     /// For a one-step evaluation it tells whether compilation or evaluation failed.
     /// </remarks>
-    public CelErrorStage Stage { get; }
+    public CelErrorStage Stage => (CelErrorStage)_stage;
 
     /// <summary>
     /// A description of the error in English, with the names and values involved: the variable, field,
@@ -78,7 +129,7 @@ public sealed class CelError
     /// <see cref="Location"/> and <see cref="SourceLocation"/>.
     /// </para>
     /// </remarks>
-    public string Message { get; }
+    public string Message => _format is null ? ((Given)_source!).Message : _format(this);
 
     /// <summary>
     /// The position of the error in the expression text.
@@ -97,7 +148,12 @@ public sealed class CelError
     /// <see cref="SourceLocation"/>.
     /// </para>
     /// </remarks>
-    public CelSourceLocation Location { get; }
+    public CelSourceLocation Location => _source switch
+    {
+        LineTable lines => lines.GetLocation(_offset),
+        Given given => given.Location,
+        _ => default,
+    };
 
     /// <summary>
     /// The position of the error in the source document, or <see langword="null"/> when the error has
@@ -116,7 +172,7 @@ public sealed class CelError
     /// description.
     /// </para>
     /// </remarks>
-    public CelSourceLocation? SourceLocation { get; }
+    public CelSourceLocation? SourceLocation => (_source as Given)?.SourceLocation;
 
     /// <summary>
     /// The exception that caused the error, or <see langword="null"/>.
@@ -133,7 +189,7 @@ public sealed class CelError
     /// <see cref="OutOfMemoryException"/> are never turned into errors: they propagate to the caller.
     /// </para>
     /// </remarks>
-    public Exception? Exception { get; }
+    public Exception? Exception => _source is Given given ? given.Exception : _first as Exception;
 
     /// <summary>
     /// Gives this error with its position in the document that holds the expression, from the position at which the
@@ -156,4 +212,16 @@ public sealed class CelError
 
     // The start is any position the application gives; a sum past int.MaxValue stays at int.MaxValue.
     private static int Add(int start, int value) => (int)Math.Min((long)start + value, int.MaxValue);
+
+    // The message and the positions of an error that is created with them.
+    private sealed class Given(string message, CelSourceLocation location, CelSourceLocation? sourceLocation, Exception? exception)
+    {
+        internal string Message { get; } = message;
+
+        internal CelSourceLocation Location { get; } = location;
+
+        internal CelSourceLocation? SourceLocation { get; } = sourceLocation;
+
+        internal Exception? Exception { get; } = exception;
+    }
 }

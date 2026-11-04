@@ -1,0 +1,64 @@
+# Declarations: variables, functions and the build of an environment
+
+`Great.Parts.Cel.Declarations` holds the public declarations — `CelVariableDecl`, `CelFunctionDecl`, `CelOverloadDecl` and the delegates `CelFunctionImplementation` and `CelCostFunction` — and the internal form in which an environment keeps an overload with its code. `CelEnvironmentBuilder` (the facade) collects declarations as a set; `Build` checks the whole set by the rules of this page and only then creates the declaration index of [checking](checking.md). Nothing here is core: the rules decide whether an environment exists, not the value of an expression.
+
+| File | Content |
+| :- | :- |
+| `src/Great.Parts.Cel/Declarations/CelVariableDecl.cs`, `CelFunctionDecl.cs`, `CelOverloadDecl.cs` | the public declarations |
+| `src/Great.Parts.Cel/Declarations/CelFunctionImplementation.cs`, `CelCostFunction.cs` | the public delegates |
+| `src/Great.Parts.Cel/Declarations/OverloadBinding.cs`, `OverloadImplementation.cs`, `CallSite.cs` | an overload with its implementation and cost, as the index and evaluation use it |
+| `src/Great.Parts.Cel/CelEnvironmentBuilder.cs`, `CelBuildResult.cs`, `CelStandardLibrary.cs` | the builder, its result, the versions of the standard library (facade) |
+
+## Declarations
+
+- **`CelVariableDecl`** — a name and a `CelType`. A type parameter in the type is erased to `dyn` when the environment is built: only overloads bind type parameters (see [types](types.md)). Two declarations are the same when name and type are equal.
+- **`CelFunctionDecl`** — a name and at least one overload, kept in the given order; the constructor throws as its documentation says.
+- **`CelOverloadDecl`** — `Global(id, parameters, result)` or `Receiver(id, receiver, parameters, result)`, whose `ParameterTypes` start with the receiver; `WithCost` returns a copy with the cost function; `Cost` is `null` without one. Two overload declarations of one function are the same when the identifier, the call style, the parameter types, the result type and the cost function (the same instance, or both none) are equal. A type parameter that occurs only in the result type stays free and checks as `dyn`.
+- **`CelFunctionImplementation`** — receives the CEL values in parameter order; **`CelCostFunction`** — the cost of a call from the arguments. How evaluation calls them, charges the cost and turns exceptions into `ApplicationException` is in [evaluation](evaluation.md).
+
+The builder takes them as follows, by the rules of the type mapping table for bindings and application functions:
+
+| Call | Declares |
+| :- | :- |
+| `AddVariable<T>(name)` | a variable whose CEL type comes from `T` by the conversion rows of [values](values.md) |
+| `AddVariable(name, type)`, `AddVariable(decl)` | the variable as given |
+| `AddFunction(name, Func<…>)` | one global overload with the CEL types of the parameters and the result inferred from the delegate, the identifier `<name>_<type1>_…_<typeN>` (types written as in an environment description in JSON, without spaces — `isInn_string`, `sum_list<int>`; without parameters, the name; a .NET type outside the input rows stands in place of its CEL type, written by `Type.ToString()` — `early_System.DateTime`), no cost function, and the delegate as its implementation, a typed one like that of `AddFunctionImplementation<T1, …, TResult>` below, `Build` checks included |
+| `AddFunction(decl)` | the overloads of the declaration, without implementations |
+| `AddFunctionImplementation(id, CelFunctionImplementation)` | an implementation that receives the values as they are |
+| `AddFunctionImplementation<T1, …, TResult>(id, Func<…>)` | an implementation that converts the arguments to `T1`… by the result rows and the result back by the input rows. The CEL type of a parameter is the one that the expected-type table ([facade](facade.md), "Expected type") derives from its .NET type, as for `Compile<T>`, and must be the declared one (4011 below); for a declared `wrapper(P)` also a reference type whose type is `P` — `string` for `wrapper(string)`, `byte[]` for `wrapper(bytes)` — whose `null` is the `null` value; a refusal by the value is `ArgumentConversion`, 3024 |
+| `UseContainer(container)` | the name resolution container; the empty string declares none |
+
+Repeating a call with the same declaration adds nothing. The builder only collects; every error below comes from `Build`.
+
+## Build
+
+`Build` checks the whole set: the standard library version passed to the constructor, as the source `standard library v1`, and the declarations of the application, as the source `application`. Later parts add the sources `environment description` (JSON) and `extension <name> v<version>`. It reports every error it finds as a `CelBuildResult` without an environment, ordered by code and then by message, ordinal, so the order of the builder calls changes neither the environment nor the errors. Build errors have the stage `Build` and no location. Without errors it creates the environment: the index merges the table of the version with the overloads of the application, each wrapped into an `OverloadBinding` with the fixed cost 1 and the cost function of its declaration.
+
+| Code | When | Message |
+| :- | :- | :- |
+| `InvalidFunctionName` (4015) | the name of a function of the application is not an identifier or a qualified name: segments separated by `.`, the first an `IDENT` of the language definition, the others `SELECTOR`s — so neither a reserved word first nor an operator such as `_+_` or `@in` | `function name '{name}' of {source} is not an identifier or a qualified name; operators and internal functions cannot be declared` |
+| `InvalidVariableName` (4016) | the same for the name of a variable | `variable name '{name}' of {source} is not an identifier or a qualified name` |
+| `TypeNotDeclared` (4008) | a type of a variable or of an overload is a .NET type outside the conversion rows, or a CEL type that nothing in the environment declares: `ObjectNamed`, and the types of later parts (`optional_type`, `decimal`); `{declarationKind}` is `variable` or `overload`, `{name}` the variable or the overload identifier, `{hint}` empty in this part; `{type}` is a CEL type in its text form, a .NET type by `Type.ToString()` (`System.DateTime`), as `{clrType}` of 3015 and 3024. For a delegate form of `AddFunction` it is the first parameter type outside the input rows, in parameter order, or else the result type: one error per delegate | `{declarationKind} '{name}' has type '{type}', which no type source or extension of the environment declares{hint}` |
+| `DuplicateVariable` (4000) | two different declarations of one variable name | `variable '{name}' is declared by both {source1} and {source2}` |
+| `StandardLibraryConflict` (4006) | a variable named as a type identifier of the version (`google.protobuf.Timestamp` and `google.protobuf.Duration` included); a function of the application with the name, the call style and the argument count of a macro (`has` global with 1; `all`, `exists`, `exists_one`, `filter` on a receiver with 2; `map` on a receiver with 2 or 3); an overload of the application that overlaps an overload of the version of the same function | `{kind} '{name}' of {source} conflicts with standard library {version}: {detail}`, with `{kind}` `variable`, `function` or `overload`, `{version}` `v1`, `{detail}` `it is a type identifier`, `it has the form of the macro '{macro}'` or `it overlaps overload '{overloadId}'` |
+| `DuplicateOverloadId` (4013) | one identifier for two overloads that are not the same, in the application or across the application and the version | `overload id '{overloadId}' is used by both {source1} and {source2}` |
+| `OverlappingOverloads` (4002) | two overloads of the application of one function overlap after erasure (see [types](types.md)) | `overload '{overload1}' of {source1} overlaps overload '{overload2}' of {source2} of function '{function}'` |
+| `DuplicateImplementation` (4014) | two implementations registered for one identifier, or an implementation for an overload of the version | `overload id '{overloadId}' has more than one implementation` |
+| `MissingImplementation` (4007) | an overload declared with `AddFunction(decl)` that no implementation registers | `overload '{overloadId}' of function '{function}' has no implementation` |
+| `UnusedImplementation` (4010) | an implementation whose identifier no overload declares | `implementation '{overloadId}' has no matching overload declaration` |
+| `ImplementationSignatureMismatch` (4011) | a typed implementation — of `AddFunctionImplementation<T1, …, TResult>` or the delegate of `AddFunction(name, Func<…>)` — whose parameter count differs from the overload's; whose result type the input rows do not map to the declared result type after erasure; or a parameter whose .NET type the expected-type table ([facade](facade.md), "Expected type") does not map to the declared parameter type after erasure — `dyn` and type parameters take `CelValue` and `object`. A declared `wrapper(P)`, of a parameter or of the result, also takes a reference type whose type is `P`: `string` for `wrapper(string)`, `byte[]` for `wrapper(bytes)`, since `null` passes as a `null` reference; without it no typed delegate could take `wrapper(string)`, which no .NET type derives. A parameter type that passes is a `T` of the result rows for the declared type, so an argument that fits the declared type is passed but for a refusal by the value. So 4011: `Guid`, `short`, `sbyte`, `ushort`, `byte`, `nint`, `nuint`, `float`, `Half`, an enumeration, their `Nullable<>`, `IReadOnlyList<short>`, arrays and typed collections nested deeper than one step, such as `IReadOnlyList<IReadOnlyList<long>>` (no expected type); `long` for `dyn`; `CelList` and `IReadOnlyList<object>` for `list(int)` (the expected type `list(dyn)`); `CelValue`, `object`, `ReadOnlyMemory<byte>` and `long` for a `wrapper(…)` (`ReadOnlyMemory<byte>` and `long` take no `null`). It builds: `IReadOnlyList<long>` and `IReadOnlyList<int>` for `list(int)`, `CelList` for `list(dyn)`, `IReadOnlyList<CelList>` for `list(list(dyn))`, `long?` for `wrapper(int)`, `string` for `wrapper(string)`, `byte[]` and `ReadOnlyMemory<byte>?` for `wrapper(bytes)`, `CelType` for `type`. The delegate form infers the declared types by the input rows, so a .NET type outside them is 4008 there — `IReadOnlyList<…>` and arrays until the collections of the application come with their part — and the inferred overload is checked by the same rule: `AddFunction<short, bool>("small", …)` is `implementation 'small_int' does not match the signature small(int) -> bool of the overload`. A refusal by the value — `int` outside `Int32`, also an element of an `IReadOnlyList<int>` — stays `ArgumentConversion` at the call; `{signature}` is the overload in the notation of the language definition, such as `isInn(string) -> bool` or `string.isInn() -> bool` | `implementation '{overloadId}' does not match the signature {signature} of the overload` |
+| `ContainerConflict` (4017) | two different non-empty containers | `name resolution container '{container1}' of {source1} conflicts with container '{container2}' of {source2}` |
+
+A conflicting pair is one error. In it the standard library comes before the application, and of two items of one source the one with the smaller overload identifier or container, ordinal, comes first, so the text does not depend on the order of the calls either. A declaration that fails a name or type check is left out of the later checks, so it produces no second error.
+
+An overload of the application may extend a function of the standard library when it does not overlap it: `size` on an object of the application, `contains` with other argument types. Operators cannot be extended: their names fail 4015.
+
+## The environment and `ToBuilder`
+
+The environment keeps the declaration set it was built from. `ToBuilder` returns a new builder with the same version, variables, functions, implementations and container; `Build` on it with nothing added gives an equal environment — the same declarations, the same index order, the same results for every expression — and the earlier environment and its programs do not change. `CelStandardLibrary.V1.Version` is 1.
+
+## Not in this part
+
+Type sources (`AddTypes`, `DuplicateType` 4001), extension sets (4003–4005, 4018), the time zone database (4012), the `decimal` literal flag and the environment description in JSON (`InvalidConfiguration` 4009 and the JSON source of the other codes) come with their parts.
+
+Related pages: [checking](checking.md), [types](types.md), [values](values.md), [facade](facade.md), [library](library.md), [evaluation](evaluation.md).

@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel;
 
@@ -25,9 +28,28 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelCompilationCache
 {
+    private readonly CelEnvironment _environment;
+    private readonly int _maxEntryCount;
+    private readonly int _maxTotalTextLength;
+
+    // Lookups take no lock; insertions and evictions take _lock.
+    private readonly ConcurrentDictionary<Key, Entry> _entries = new();
+    private readonly Lock _lock = new();
+
+    // The kept entries for the clock algorithm of eviction, and its hand; under _lock.
+    private readonly List<Entry> _ring = [];
+    private int _hand;
+    private long _totalTextLength;
+
     /// <summary>
     /// Creates an empty cache for compilations in <paramref name="environment"/>.
     /// </summary>
+    /// <remarks>
+    /// A cache entry keeps the program of its text, which grows with the text. Up to 80,000 entries and a total
+    /// text length of 900,000 keep a full cache within about 64 MiB; the page
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md#compilation-cache">Limits</see>
+    /// gives how the values were measured.
+    /// </remarks>
     /// <param name="environment">The environment in which the cache compiles expressions.</param>
     /// <param name="maxEntryCount">The largest number of entries the cache keeps, 1 or more.</param>
     /// <param name="maxTotalTextLength">
@@ -38,7 +60,12 @@ public sealed class CelCompilationCache
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="maxEntryCount"/> or <paramref name="maxTotalTextLength"/> is less than 1.</exception>
     public CelCompilationCache(CelEnvironment environment, int maxEntryCount, int maxTotalTextLength)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxEntryCount, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxTotalTextLength, 1);
+        _environment = environment;
+        _maxEntryCount = maxEntryCount;
+        _maxTotalTextLength = maxTotalTextLength;
     }
 
     /// <summary>
@@ -57,7 +84,16 @@ public sealed class CelCompilationCache
     /// </exception>
     public CelCompileResult<T> GetOrCompile<T>(string expression, CelCompileOptions? options = null)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(expression);
+        var key = new Key(expression, typeof(T), options?.ExpectedType, options?.SourceLocation);
+        if (_entries.TryGetValue(key, out Entry? entry))
+        {
+            entry.Referenced = true;
+            return (CelCompileResult<T>)entry.Result;
+        }
+
+        CelCompileResult<T> result = _environment.Compile<T>(expression, options);
+        return expression.Length > _maxTotalTextLength ? result : (CelCompileResult<T>)Insert(new Entry(key, result)).Result;
     }
 
     /// <summary>
@@ -91,6 +127,94 @@ public sealed class CelCompilationCache
         CelEvalOptions? evalOptions = null,
         CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(expression);
+        ArgumentNullException.ThrowIfNull(bindings);
+        cancellationToken.ThrowIfCancellationRequested();
+        return CelEnvironment.EvaluateCompiled(GetOrCompile<T>(expression, compileOptions), bindings, evalOptions, cancellationToken);
+    }
+
+    // The number of kept entries and the sum of their text lengths, for the tests.
+    internal (int Count, long TotalTextLength) Kept
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return (_ring.Count, _totalTextLength);
+            }
+        }
+    }
+
+    // Inserts an entry and evicts others until both capacities hold; returns the entry in the cache, which is another
+    // one when a thread inserted the same key first.
+    private Entry Insert(Entry entry)
+    {
+        lock (_lock)
+        {
+            Entry present = _entries.GetOrAdd(entry.Key, entry);
+            if (!ReferenceEquals(present, entry))
+            {
+                return present;
+            }
+
+            _ring.Add(entry);
+            _totalTextLength += entry.Key.Text.Length;
+            while (_ring.Count > _maxEntryCount || _totalTextLength > _maxTotalTextLength)
+            {
+                EvictOne(entry);
+            }
+
+            return entry;
+        }
+    }
+
+    // The clock algorithm: the hand clears the mark of an entry read since the hand last passed it and removes the
+    // first entry without a mark, never the new one. A hit only sets a mark, so the work per insertion is constant on
+    // average.
+    private void EvictOne(Entry inserted)
+    {
+        while (true)
+        {
+            if (_hand >= _ring.Count)
+            {
+                _hand = 0;
+            }
+
+            Entry candidate = _ring[_hand];
+            if (ReferenceEquals(candidate, inserted) || candidate.Referenced)
+            {
+                candidate.Referenced = false;
+                _hand++;
+                continue;
+            }
+
+            int last = _ring.Count - 1;
+            _ring[_hand] = _ring[last];
+            _ring.RemoveAt(last);
+            _entries.TryRemove(candidate.Key, out _);
+            _totalTextLength -= candidate.Key.Text.Length;
+            return;
+        }
+    }
+
+    // The text by ordinal comparison, the result type, the expected type by CelType.Equals and the source location by
+    // value; null options are options with both properties null.
+    private readonly record struct Key(string Text, Type ResultType, CelType? ExpectedType, CelSourceLocation? SourceLocation);
+
+    private sealed class Entry(Key key, object result)
+    {
+        // Set by a hit, cleared by the hand of the clock.
+        private volatile bool _referenced;
+
+        internal Key Key { get; } = key;
+
+        // The CelCompileResult<T> of the key.
+        internal object Result { get; } = result;
+
+        internal bool Referenced
+        {
+            get => _referenced;
+            set => _referenced = value;
+        }
     }
 }

@@ -84,7 +84,7 @@ public sealed class EvaluateTests
     public void SuccessfulEvaluation_HoldsTheValueAndNoErrors()
     {
         CelEvalResult<string> text = Run(Environment.Compile<string>("anything").GetProgramOrThrow(), new CelBindings().Add("anything", "value"));
-        CelEvalResult<string> nothing = Run(Environment.Compile<string>("null").GetProgramOrThrow(), new CelBindings());
+        CelEvalResult<string> nothing = Run(Environment.Compile<string>("null", new CelCompileOptions { ExpectedType = CelType.Null }).GetProgramOrThrow(), new CelBindings());
 
         Assert.True(text.IsSuccess);
         Assert.Empty(text.Errors);
@@ -102,14 +102,14 @@ public sealed class EvaluateTests
         Assert.Equal("bindings", Assert.Throws<ArgumentNullException>(() => Run(program, null!)).ParamName);
     }
 
-    // Cancellation is not implemented yet and is not ignored.
+    // A token that can be canceled but is not leaves the result unchanged.
     [Fact]
-    public void Evaluate_WithATokenThatCanBeCanceled_ThrowsNotImplementedException()
+    public void Evaluate_WithATokenThatIsNotCanceled_ReturnsTheValue()
     {
         CelProgram<long> program = Environment.Compile<long>("count").GetProgramOrThrow();
         using var source = new CancellationTokenSource();
 
-        Assert.Throws<NotImplementedException>(() => program.Evaluate(new CelBindings().Add("count", 1L), null, source.Token));
+        Assert.Equal(1L, program.Evaluate(new CelBindings().Add("count", 1L), null, source.Token).GetValueOrThrow());
     }
 
     // Without type checking a name is read from the bindings, declared or not, and the value is returned

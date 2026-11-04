@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Cel.Expr;
 using Google.Protobuf;
+using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using NullValue = Google.Protobuf.WellKnownTypes.NullValue;
 using Value = Cel.Expr.Value;
@@ -30,6 +31,7 @@ internal static class ValueConversion
         Value.KindOneofCase.ListValue => CelValue.FromList(CelList.Create([.. value.ListValue.Values.Select(ToCelValue)])),
         Value.KindOneofCase.MapValue => CelValue.FromMap(CelMap.Create(
             value.MapValue.Entries.Select(entry => KeyValuePair.Create(ToCelValue(entry.Key), ToCelValue(entry.Value))))),
+        Value.KindOneofCase.TypeValue => CelValue.FromType(TypeOfName(value.TypeValue)),
         _ => throw new NotImplementedException(),
     };
 
@@ -89,6 +91,28 @@ internal static class ValueConversion
             };
         }
 
+        if (value.TryGetType(out CelType? type))
+        {
+            // A type value is named as type() gives it: its parameters are erased at evaluation.
+            return new Value { TypeValue = type.Name };
+        }
+
         throw new NotImplementedException();
     }
+
+    // The type value of a name, with the parameters erased as at evaluation; the names of the time types throw.
+    private static CelType TypeOfName(string name) => name switch
+    {
+        "null_type" => CelType.Null,
+        "bool" => CelType.Bool,
+        "int" => CelType.Int,
+        "uint" => CelType.UInt,
+        "double" => CelType.Double,
+        "string" => CelType.String,
+        "bytes" => CelType.Bytes,
+        "list" => CelType.ListOf(CelType.Dyn),
+        "map" => CelType.MapOf(CelType.Dyn, CelType.Dyn),
+        "type" => CelType.TypeOf(CelType.Dyn),
+        _ => throw new NotImplementedException(),
+    };
 }

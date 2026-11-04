@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
@@ -32,7 +34,7 @@ internal static class Plans
     {
         CheckResult checkedResult = Environment.Check(Parse(expression));
         Assert.True(checkedResult.IsSuccess, expression);
-        return Planner.Plan(checkedResult.Expression);
+        return Planner.Plan(checkedResult.Expression, Environment.Declarations);
     }
 
     // Plans an expression checked against the standard library and the test overloads, with the
@@ -44,7 +46,7 @@ internal static class Plans
             [new CelVariableDecl("n", CelType.Int), new CelVariableDecl("any", CelType.Dyn)]);
         CheckResult checkedResult = Checker.Check(Parse(expression), index);
         Assert.True(checkedResult.IsSuccess, expression);
-        return Planner.Plan(checkedResult.Expression);
+        return Planner.Plan(checkedResult.Expression, index);
     }
 
     internal static Plan WithoutTypeCheck(string expression) =>
@@ -57,6 +59,10 @@ internal static class Plans
     // An implementation that returns 42 whatever its arguments, so a test sees whether the node checked
     // their kinds before the call.
     internal static readonly OverloadImplementation Constant = (ReadOnlySpan<CelValue> _, in CallSite _) => CelValue.FromInt64(42);
+
+    // Evaluates a plan without a cost limit and with a token that cannot be canceled.
+    internal static CelValue EvaluateOn(this Plan plan, IReadOnlyDictionary<string, CelValue> bindings) =>
+        plan.Evaluate(bindings, null, CancellationToken.None);
 
     internal static CelError Error(CelValue value)
     {

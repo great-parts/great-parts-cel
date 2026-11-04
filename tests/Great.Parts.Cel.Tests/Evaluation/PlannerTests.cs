@@ -62,12 +62,12 @@ public sealed class PlannerTests
     [InlineData("7", 0)]
     public static void IdentifiersOfOneVariable_ShareOneSlot(string expression, int slots)
     {
-        Assert.Equal(slots, Plans.Checked(expression).SlotCount);
+        Assert.Equal(slots, Plans.Checked(expression).VariableCount);
     }
 
     // The costs of the nodes, charged before their operations: a literal 0, a variable 1, a call the
     // fixed cost of its overload in the table of the library, a chain of || nothing beyond the operands,
-    // a list of n elements and a map of n entries 1 + n.
+    // a list of n elements 1 + n, and a map of n entries 1 + 2n, a key and a value each.
     [Theory]
     [InlineData("7", 0UL)]
     [InlineData("n", 1UL)]
@@ -78,7 +78,7 @@ public sealed class PlannerTests
     [InlineData("[]", 1UL)]
     [InlineData("[1, 2, 3]", 4UL)]
     [InlineData("{}", 1UL)]
-    [InlineData("{1: 2, 3: 4}", 3UL)]
+    [InlineData("{1: 2, 3: 4}", 5UL)]
     public static void Node_HasTheCostOfItsKind(string expression, ulong cost)
     {
         Assert.Equal(cost, Plans.Checked(expression).Root.Cost);
@@ -90,7 +90,7 @@ public sealed class PlannerTests
     {
         Plan plan = Plans.Checked("n + n");
 
-        CelValue[] results = [.. new long[] { 1, 20, 1, 300 }.Select(n => plan.Evaluate(new Dictionary<string, CelValue> { ["n"] = CelValue.FromInt64(n) }))];
+        CelValue[] results = [.. new long[] { 1, 20, 1, 300 }.Select(n => plan.EvaluateOn(new Dictionary<string, CelValue> { ["n"] = CelValue.FromInt64(n) }))];
 
         Assert.Equal([CelValue.FromInt64(2), CelValue.FromInt64(40), CelValue.FromInt64(2), CelValue.FromInt64(600)], results);
     }

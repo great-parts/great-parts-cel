@@ -20,9 +20,6 @@ remap = [
 # eng/ratchet.json, and it only goes down. A page that is not written yet is excluded here, with its reason, until it is. The
 # pattern of such a page, /docs/<page>.md with any anchor, matches both a relative link and a remapped address.
 exclude = [
-  "/docs/type-mapping\\.md(#.*)?$", # the type mapping page is not written yet; the XML documentation links it already
-  "/docs/cost\\.md(#.*)?$", # the cost page is not written yet; the XML documentation links it already
-  "/docs/standard-library\\.md(#.*)?$", # the standard library page is not written yet; the XML documentation links it already
   "/docs/extensions\\.md(#.*)?$", # the extension sets page is not written yet; the XML documentation links it already
   "/docs/environment-json\\.md(#.*)?$", # the environment JSON page is not written yet; the XML documentation links it already
 ]

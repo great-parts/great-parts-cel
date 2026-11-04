@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using System.Text;
 using CsCheck;
@@ -8,39 +9,86 @@ using CsCheck;
 namespace Great.Parts.Cel.Eng.Difftest.Profile;
 
 /// <summary>
-/// Builds a well-typed expression of the profile for a target type (docs/design/eng-difftest.md, "Profile of the walking
-/// skeleton"), within the limits of depth and nodes.
+/// Builds an expression of the profile for a target type (docs/design/eng-difftest.md, "Profile"), within the limits of
+/// depth, nodes and nested macros, so that every expression type checks. The builder knows the static type of each node it
+/// builds as a bound from below (<see cref="StaticType"/>): where two operands must have assignable types — the operands of
+/// <c>==</c>, <c>!=</c>, <c>_?_:_</c> and <c>+</c> on lists, the element of <c>in</c>, the key of an index — and the known
+/// types do not guarantee it, the second operand is wrapped in <c>dyn()</c>. A <c>dyn</c> operand may stand wherever a
+/// function takes one; an ordering across numeric kinds always has one.
 /// </summary>
 internal sealed class ExprBuilder
 {
     // A node gets parentheses that precedence does not need with a chance of one in this.
     private const int ParenthesesOneIn = 10;
 
-    // An operand of _+_ or _/_ is a dyn variable with a chance of one in this.
-    private const int DynOperandOneIn = 4;
+    // An operand of a concrete target is a dyn variable with a chance of one in this.
+    private const int DynOperandOneIn = 6;
+
+    // An atom is an iteration variable in scope that fits the target with a chance of one in this.
+    private const int IterationVariableOneIn = 3;
 
     // A list or map literal ends with a comma with a chance of one in this.
     private const int TrailingCommaOneIn = 4;
 
     // The target types of the root, list elements and map values: every type of the profile, int and bool more often, since
-    // the functions of the profile take them.
+    // most functions take or give them.
     private static readonly ProfileType[] WeightedTargets =
     [
         .. ProfileTables.TargetTypes,
         ProfileType.IntType,
-        ProfileType.IntType,
+        ProfileType.BoolType,
         ProfileType.BoolType,
     ];
 
-    private static readonly string[] IntVariables = ["i1", "i2"];
-    private static readonly string[] BoolVariables = ["b1", "b2", "x1", "x2"];
-    private static readonly string[] DynVariables = ["x1", "x2"];
+    // The target types without dyn.
+    private static readonly ProfileType[] ConcreteTargets = [.. ProfileTables.TargetTypes.Where(type => type != ProfileType.DynType)];
+
+    // The functions whose overloads take and give types without parameters, by result type; the other functions have builders of their own.
+    private static readonly Dictionary<ProfileType, ProfileOverload[][]> SimpleOverloads = ProfileTables.Overloads
+        .Where(overload => !SpecialFunctions().Contains(overload.Function) && overload.Id != "add_list"
+            && !overload.Parameters.Any(ProfileTypeNames.IsParameter) && !overload.Result.IsParameter())
+        .GroupBy(overload => overload.Result)
+        .ToDictionary(byResult => byResult.Key, byResult => byResult.GroupBy(overload => overload.Function).Select(byFunction => byFunction.ToArray()).ToArray());
+
+    // The conversions whose string argument is, half the time, a number or a bool in the text forms of the standard library page.
+    private static readonly HashSet<string> TextConversions = new(StringComparer.Ordinal)
+    {
+        ProfileTables.IntConversion, ProfileTables.UintConversion, ProfileTables.DoubleConversion, ProfileTables.BoolConversion,
+    };
 
     private readonly PCG pcg;
+
+    // The iteration variables in scope, the innermost last, with their static types.
+    private readonly List<(string Name, StaticType? Type)> scope = [];
+
+    // The number of macros around the node being built, through their ranges or their other arguments.
+    private int macros;
 
     /// <summary>Creates a builder that draws every choice from a random source.</summary>
     /// <param name="pcg">The random source.</param>
     internal ExprBuilder(PCG pcg) => this.pcg = pcg;
+
+    private enum Form
+    {
+        Conditional,
+        IndexList,
+        IndexMap,
+        SelectMap,
+        SelectDyn,
+        DynWrap,
+        Simple,
+        Chain,
+        Equality,
+        In,
+        Has,
+        Quantifier,
+        List,
+        AddList,
+        Transform,
+        Map,
+        TypeOf,
+        DynIndex,
+    }
 
     /// <summary>Builds an expression.</summary>
     /// <param name="type">The target type: a member of <see cref="ProfileTables.TargetTypes"/>.</param>
@@ -49,18 +97,11 @@ internal sealed class ExprBuilder
     /// <returns>The expression and its number of nodes.</returns>
     internal (Expr Expr, int Nodes) Build(ProfileType type, int depth, int limit)
     {
-        (Expr expr, int nodes) = type switch
-        {
-            ProfileType.IntType => BuildInt(depth, limit),
-            ProfileType.BoolType => BuildBool(depth, limit),
-            ProfileType.ListType => BuildList(depth, limit),
-            ProfileType.MapType => BuildMap(depth, limit),
-            _ => (BuildScalar(type), 1),
-        };
-        return (Maybe(expr), nodes);
+        Built built = Make(type, depth, limit);
+        return (built.Expr, built.Nodes);
     }
 
-    /// <summary>A target type for the root, a list element or a map value: any type of the profile.</summary>
+    /// <summary>A target type for the root, a list element or a map value: any type of the profile, <c>dyn</c> included.</summary>
     internal ProfileType Target() => pcg.Pick(WeightedTargets);
 
     /// <summary>A literal of a type of the profile.</summary>
@@ -91,126 +132,630 @@ internal sealed class ExprBuilder
         _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Not a key of the profile."),
     };
 
-    private Expr BuildScalar(ProfileType type)
+    private static HashSet<string> SpecialFunctions() => new(StringComparer.Ordinal)
     {
-        string? variable = type switch
+        ProfileTables.Conditional, ProfileTables.LogicalAnd, ProfileTables.LogicalOr, ProfileTables.Equal, ProfileTables.NotEqual,
+        ProfileTables.Index, ProfileTables.In, ProfileTables.TypeOf, ProfileTables.Dyn,
+    };
+
+    // The static type of a key literal.
+    private static ProfileType KeyKind(Expr key) => key switch
+    {
+        IntLiteral => ProfileType.IntType,
+        UintLiteral => ProfileType.UintType,
+        BoolLiteral => ProfileType.BoolType,
+        _ => ProfileType.StringType,
+    };
+
+    // The type of a map literal's keys: literals have exact types, so keys of one kind give that kind and mixed keys dyn.
+    private static StaticType? KeyType(List<MapEntry> entries) =>
+        entries.Count == 0 ? null
+        : entries.All(entry => KeyKind(entry.Key) == KeyKind(entries[0].Key)) ? StaticType.Of(KeyKind(entries[0].Key))
+        : StaticType.Dyn;
+
+    // ---- Nodes of a target type ----
+
+    // A node of a target type: an atom near the limits and more often deeper, otherwise a compound form.
+    private Built Make(ProfileType target, int depth, int limit)
+    {
+        Built built = depth >= ProfileTables.MaxDepth || limit < 2 || pcg.Below(ProfileTables.MaxDepth + 1) < depth
+            ? Atom(target)
+            : Compound(target, depth, limit) ?? Atom(target);
+        return built with { Expr = Maybe(built.Expr) };
+    }
+
+    // A node of one node.
+    private Built Atom(ProfileType target)
+    {
+        if (target != ProfileType.DynType && pcg.OneIn(DynOperandOneIn))
         {
-            ProfileType.UintType => "u1",
-            ProfileType.DoubleType => "d1",
-            ProfileType.StringType => "s1",
-            ProfileType.BytesType => "y1",
+            return DynVariable();
+        }
+
+        if (pcg.OneIn(IterationVariableOneIn) && IterationVariable(target) is { } local)
+        {
+            return local;
+        }
+
+        switch (target)
+        {
+            case ProfileType.DynType:
+                return pcg.OneIn(3) ? DynVariable() : Atom(pcg.Pick(ConcreteTargets));
+            case ProfileType.ListType:
+                return new Built(new ListLiteral([], TrailingComma()), 1, StaticType.ListOf(null));
+            case ProfileType.MapType:
+                return new Built(new MapLiteral([], TrailingComma()), 1, StaticType.MapOf(null, null));
+            case ProfileType.TypeType:
+                return new Built(new Ident(pcg.Pick(ProfileTables.TypeIdentifiers)), 1, StaticType.Of(ProfileType.TypeType));
+            case ProfileType.NullType:
+                return new Built(new NullLiteral(), 1, StaticType.Of(ProfileType.NullType));
+            default:
+                List<ProfileVariable> variables = [.. ProfileTables.Variables.Where(variable => variable.Type == target)];
+                Expr atom = variables.Count > 0 && pcg.OneIn(2) ? new Ident(pcg.Pick(variables).Name) : Literal(target);
+                return new Built(atom, 1, StaticType.Of(target));
+        }
+    }
+
+    private Built DynVariable() => new(new Ident(pcg.OneIn(2) ? "x1" : "x2"), 1, StaticType.Dyn);
+
+    // An iteration variable in scope whose type fits the target; any of them for dyn.
+    private Built? IterationVariable(ProfileType target)
+    {
+        List<(string Name, StaticType? Type)> fitting = [.. scope.Where(local => StaticType.Fits(local.Type, target))];
+        if (fitting.Count == 0)
+        {
+            return null;
+        }
+
+        (string name, StaticType? type) = pcg.Pick(fitting);
+        return new Built(new Ident(name), 1, type);
+    }
+
+    private Built? Compound(ProfileType target, int depth, int limit)
+    {
+        if (target == ProfileType.DynType)
+        {
+            return pcg.Below(8) switch
+            {
+                0 => DynIndex(depth, limit),
+                1 => DynWrap(ProfileType.DynType, depth, limit),
+                _ => Compound(pcg.Pick(ConcreteTargets), depth, limit),
+            };
+        }
+
+        List<(Form Form, int Weight)> forms =
+        [
+            (Form.Conditional, 1), (Form.IndexList, 1), (Form.IndexMap, 1), (Form.SelectMap, 1), (Form.SelectDyn, 1), (Form.DynWrap, 1),
+        ];
+        forms.AddRange(target switch
+        {
+            ProfileType.BoolType =>
+            [
+                (Form.Simple, 4), (Form.Chain, 3), (Form.Equality, 3), (Form.In, 2), (Form.Has, 2), (Form.Quantifier, 2),
+            ],
+            ProfileType.ListType => [(Form.List, 4), (Form.AddList, 2), (Form.Transform, 2)],
+            ProfileType.MapType => [(Form.Map, 5)],
+            ProfileType.TypeType => [(Form.TypeOf, 4)],
+            ProfileType.NullType => [],
+            _ => [(Form.Simple, 6)],
+        });
+        int total = forms.Sum(form => form.Weight);
+        int draw = pcg.Below(total);
+        Form chosen = forms[0].Form;
+        foreach ((Form form, int weight) in forms)
+        {
+            if (draw < weight)
+            {
+                chosen = form;
+                break;
+            }
+
+            draw -= weight;
+        }
+
+        return chosen switch
+        {
+            Form.Conditional => Conditional(target, depth, limit),
+            Form.IndexList => IndexList(target, depth, limit),
+            Form.IndexMap => IndexMap(target, depth, limit),
+            Form.SelectMap => SelectMap(target, depth, limit),
+            Form.SelectDyn => SelectDyn(depth, limit),
+            Form.DynWrap => DynWrap(target, depth, limit),
+            Form.Simple => Simple(target, depth, limit),
+            Form.Chain => Chain(depth, limit),
+            Form.Equality => Equality(depth, limit),
+            Form.In => In(depth, limit),
+            Form.Has => Has(depth, limit),
+            Form.Quantifier => Quantifier(depth, limit),
+            Form.List => ListOfAny(depth, limit),
+            Form.AddList => AddList(depth, limit),
+            Form.Transform => Transform(depth, limit),
+            Form.Map => MapOfAny(depth, limit, ProfileTables.MaxElements),
+            Form.TypeOf => TypeOf(depth, limit),
             _ => null,
         };
-        return variable is not null && pcg.OneIn(2) ? new Ident(variable) : Literal(type);
     }
 
-    // int: a literal, i1, i2, or a call of _+_, _/_ or -_ on int operands. A dyn variable is an operand of _+_ and _/_ only
-    // next to an operand of the static type int, and never of -_.
-    private (Expr, int) BuildInt(int depth, int limit)
+    // ---- Operands ----
+
+    // An operand at a depth whose type the caller accepts; one that is not accepted is wrapped in dyn(), so it is built a level
+    // deeper and one node smaller than the operand may be. Near the limits it is an atom, or a dyn variable.
+    private Built Operand(ProfileType target, int depth, int limit, Func<StaticType?, bool> accept)
     {
-        int choice = depth < ProfileTables.MaxDepth && limit >= 3 ? pcg.Below(5) : pcg.Below(2);
+        if (depth >= ProfileTables.MaxDepth || limit < 2)
+        {
+            Built atom = Atom(target);
+            return accept(atom.Type) ? atom : DynVariable();
+        }
+
+        Built inner = Make(target, depth + 1, limit - 1);
+        return accept(inner.Type) ? inner : Wrap(inner);
+    }
+
+    private static Built Wrap(Built inner) => new(new Call(ProfileTables.Dyn, [inner.Expr]), inner.Nodes + 1, StaticType.Dyn);
+
+    // An operand whose type is assignable to a given type under every type the checkers may give.
+    private Built CompatibleOperand(ProfileType target, StaticType? with, int depth, int limit) =>
+        Operand(target, depth, limit, type => StaticType.Compatible(type, with) == Compatibility.Yes);
+
+    // A node of the static type dyn: a dyn variable, a dyn iteration variable, dyn() of any node, or a selection on such a node.
+    private Built DynExpr(int depth, int limit)
+    {
+        int choice = depth >= ProfileTables.MaxDepth || limit < 2 ? pcg.Below(2) : pcg.Below(5);
         switch (choice)
         {
-            case 0:
-                return (Literal(ProfileType.IntType), 1);
-            case 1:
-                return (new Ident(pcg.Pick(IntVariables)), 1);
-            case 2:
-                (Expr operand, int nodes) = Build(ProfileType.IntType, depth + 1, limit - 1);
-                return (new Call(ProfileTables.Negate, [operand]), nodes + 1);
+            case 1 when scope.Exists(local => local.Type is { IsDyn: true }):
+                (string name, _) = pcg.Pick(scope.Where(local => local.Type is { IsDyn: true }).ToList());
+                return new Built(new Ident(name), 1, StaticType.Dyn);
+            case 2 or 3:
+                return Wrap(Make(Target(), depth + 1, limit - 1));
+            case 4:
+                Built operand = DynExpr(depth + 1, limit - 1);
+                return new Built(new Select(operand.Expr, pcg.Pick(ProfileTables.FieldNames)), operand.Nodes + 1, StaticType.Dyn);
             default:
-                return BuildBinaryInt(choice == 3 ? ProfileTables.Add : ProfileTables.Divide, depth, limit);
+                return DynVariable();
         }
     }
 
-    private (Expr, int) BuildBinaryInt(string function, int depth, int limit)
+    // ---- Forms of any target ----
+
+    private Built? Conditional(ProfileType target, int depth, int limit)
     {
-        if (pcg.OneIn(DynOperandOneIn))
+        if (limit < 4)
         {
-            Expr dyn = Maybe(new Ident(pcg.Pick(DynVariables)));
-            (Expr other, int otherNodes) = Build(ProfileType.IntType, depth + 1, limit - 2);
-            Expr[] args = pcg.OneIn(2) ? [dyn, other] : [other, dyn];
-            return (new Call(function, args), otherNodes + 2);
+            return null;
         }
 
-        (Expr left, int leftNodes) = Build(ProfileType.IntType, depth + 1, limit - 2);
-        (Expr right, int rightNodes) = Build(ProfileType.IntType, depth + 1, limit - 1 - leftNodes);
-        return (new Call(function, [left, right]), leftNodes + rightNodes + 1);
+        Built condition = Make(ProfileType.BoolType, depth + 1, limit - 3);
+        Built first = Make(target, depth + 1, limit - 2 - condition.Nodes);
+        Built second = CompatibleOperand(target, first.Type, depth + 1, limit - 1 - condition.Nodes - first.Nodes);
+        return new Built(
+            new Call(ProfileTables.Conditional, [condition.Expr, first.Expr, second.Expr]),
+            1 + condition.Nodes + first.Nodes + second.Nodes,
+            StaticType.Meet(first.Type, second.Type));
     }
 
-    // bool: a literal, b1, b2, x1, x2, or a chain of || with 2–4 such operands, nested to the left as the parser reads it.
-    private (Expr, int) BuildBool(int depth, int limit)
+    // e[i] on a list literal whose elements have the target type.
+    private Built? IndexList(ProfileType target, int depth, int limit)
     {
-        int longest = Math.Min(Math.Min(4, ProfileTables.MaxDepth - depth + 1), (limit + 1) / 2);
-        if (longest < 2 || pcg.OneIn(2))
+        if (limit < 4 || depth + 2 > ProfileTables.MaxDepth)
         {
-            return (BoolAtom(), 1);
+            return null;
         }
 
-        int operands = 2 + pcg.Below(longest - 1);
-        Expr chain = BoolAtom();
-        for (int i = 1; i < operands; i++)
-        {
-            chain = Maybe(new Call(ProfileTables.LogicalOr, [chain, BoolAtom()]));
-        }
-
-        return (chain, (2 * operands) - 1);
+        (Built list, StaticType? element) = ElementList(target, depth + 1, limit - 2);
+        Built index = pcg.OneIn(2)
+            ? new Built(new IntLiteral(pcg.Below(5) - 1, IntegerForm.DecimalDigits), 1, StaticType.Of(ProfileType.IntType))
+            : Make(ProfileType.IntType, depth + 1, limit - 1 - list.Nodes);
+        return new Built(new Call(ProfileTables.Index, [list.Expr, index.Expr]), 1 + list.Nodes + index.Nodes, element);
     }
 
-    private Expr BoolAtom() => Maybe(pcg.OneIn(3) ? Literal(ProfileType.BoolType) : new Ident(pcg.Pick(BoolVariables)));
-
-    // Parentheses around any node at random.
-    private Expr Maybe(Expr expr) => pcg.OneIn(ParenthesesOneIn) ? expr with { Parenthesized = true } : expr;
-
-    private (Expr, int) BuildList(int depth, int limit)
+    // e[k] on a map literal whose values have the target type.
+    private Built? IndexMap(ProfileType target, int depth, int limit)
     {
-        int most = depth < ProfileTables.MaxDepth ? Math.Min(ProfileTables.MaxElements, limit - 1) : 0;
-        int count = pcg.Below(most + 1);
+        if (limit < 5 || depth + 2 > ProfileTables.MaxDepth)
+        {
+            return null;
+        }
+
+        (Built map, StaticType? value) = ValueMap(target, null, depth + 1, limit - 2);
+        Built key = Key((MapLiteral)map.Expr, map.Type, depth + 1, limit - 1 - map.Nodes);
+        return new Built(new Call(ProfileTables.Index, [map.Expr, key.Expr]), 1 + map.Nodes + key.Nodes, value);
+    }
+
+    // m.f on a map literal whose values have the target type; one key is often the field.
+    private Built? SelectMap(ProfileType target, int depth, int limit)
+    {
+        if (limit < 4 || depth + 2 > ProfileTables.MaxDepth)
+        {
+            return null;
+        }
+
+        string field = pcg.Pick(ProfileTables.FieldNames);
+        (Built map, StaticType? value) = ValueMap(target, field, depth + 1, limit - 1);
+        return new Built(new Select(map.Expr, field), 1 + map.Nodes, value);
+    }
+
+    private Built? SelectDyn(int depth, int limit)
+    {
+        Built operand = DynExpr(depth + 1, limit - 1);
+        return new Built(new Select(operand.Expr, pcg.Pick(ProfileTables.FieldNames)), 1 + operand.Nodes, StaticType.Dyn);
+    }
+
+    private Built? DynWrap(ProfileType target, int depth, int limit) => Wrap(Make(target, depth + 1, limit - 1));
+
+    // A list literal of 1–3 elements of the target type, each assignable to the join of those before it.
+    private (Built List, StaticType? Element) ElementList(ProfileType target, int depth, int limit)
+    {
+        int count = 1 + pcg.Below(Math.Min(ProfileTables.MaxElements, limit - 1));
+        Built list = ListLiteralOf(count, limit, (i, join, budget) =>
+            i == 0 ? Make(target, depth + 1, budget) : CompatibleOperand(target, join, depth + 1, budget));
+        return (list, list.Type?.Element);
+    }
+
+    // A map literal of 1–3 entries whose values have the target type, each assignable to the join of those before it; with a
+    // field, one key is that field two times in three.
+    private (Built Map, StaticType? Value) ValueMap(ProfileType target, string? field, int depth, int limit)
+    {
+        int count = 1 + pcg.Below(Math.Min(ProfileTables.MaxElements, (limit - 1) / 2));
+        int fieldAt = field is not null && pcg.Below(3) < 2 ? pcg.Below(count) : -1;
+        Built map = MapLiteralOf(count, fieldAt, field, limit, (i, join, budget) =>
+            i == 0 ? Make(target, depth + 1, budget) : CompatibleOperand(target, join, depth + 1, budget));
+        return (map, map.Type?.Value);
+    }
+
+    // A list literal of count elements, each built by element from its index, the join of the elements before it and its
+    // budget of nodes; the type is the list of the join.
+    private Built ListLiteralOf(int count, int limit, Func<int, StaticType?, int, Built> element)
+    {
         List<Expr> elements = [];
+        StaticType? join = null;
         int nodes = 1;
         for (int i = 0; i < count; i++)
         {
-            (Expr element, int elementNodes) = Build(Target(), depth + 1, limit - nodes - (count - 1 - i));
-            elements.Add(element);
-            nodes += elementNodes;
+            Built built = element(i, join, limit - nodes - (count - 1 - i));
+            join = i == 0 ? built.Type : StaticType.Join(join, built.Type);
+            elements.Add(built.Expr);
+            nodes += built.Nodes;
         }
 
-        return (new ListLiteral(elements, TrailingComma()), nodes);
+        return new Built(new ListLiteral(elements, TrailingComma()), nodes, StaticType.ListOf(join));
     }
 
-    // Map keys are literals of int, uint, bool and string, pairwise unequal by CEL equality; a key equal to an earlier one is
-    // drawn again, and after a few draws the entry is left out.
-    private (Expr, int) BuildMap(int depth, int limit)
+    // A map literal of at most count entries, the key of entry fieldAt the field. Map keys are literals of int, uint, bool and
+    // string, pairwise unequal by CEL equality; a key equal to an earlier one is drawn again, and after a few draws the entry
+    // is left out. Each value is built by value from the number of entries before it, their join and its budget of nodes.
+    private Built MapLiteralOf(int count, int fieldAt, string? field, int limit, Func<int, StaticType?, int, Built> value)
     {
-        int most = depth < ProfileTables.MaxDepth ? Math.Min(ProfileTables.MaxElements, (limit - 1) / 2) : 0;
-        int count = pcg.Below(most + 1);
         List<MapEntry> entries = [];
         HashSet<string> keys = new(StringComparer.Ordinal);
+        StaticType? join = null;
         int nodes = 1;
         for (int i = 0; i < count; i++)
         {
-            Expr? key = DistinctKey(keys);
+            Expr? key = i == fieldAt ? FieldKey(field!, keys) : DistinctKey(keys);
             if (key is null)
             {
                 continue;
             }
 
-            (Expr value, int valueNodes) = Build(Target(), depth + 1, limit - nodes - 1 - (2 * (count - 1 - i)));
-            entries.Add(new MapEntry(key, value));
-            nodes += 1 + valueNodes;
+            Built built = value(entries.Count, join, limit - nodes - 1 - (2 * (count - 1 - i)));
+            join = entries.Count == 0 ? built.Type : StaticType.Join(join, built.Type);
+            entries.Add(new MapEntry(key, built.Expr));
+            nodes += 1 + built.Nodes;
         }
 
-        return (new MapLiteral(entries, TrailingComma()), nodes);
+        return new Built(new MapLiteral(entries, TrailingComma()), nodes, StaticType.MapOf(KeyType(entries), entries.Count == 0 ? null : join));
     }
+
+    // The key of an index or of in on a map: half the time an equal copy of a key of the map literal, otherwise a key of any
+    // key type, wrapped in dyn() when its type is not that of the keys.
+    private Built Key(MapLiteral? map, StaticType? mapType, int depth, int limit)
+    {
+        if (map is { Entries.Count: > 0 } && pcg.OneIn(2))
+        {
+            Expr copy = pcg.Pick(map.Entries).Key with { Parenthesized = false };
+            if (StaticType.Compatible(StaticType.Of(KeyKind(copy)), mapType?.Key) == Compatibility.Yes || mapType is { IsDyn: true })
+            {
+                return new Built(copy, 1, StaticType.Of(KeyKind(copy)));
+            }
+        }
+
+        StaticType? keyType = mapType is { IsDyn: true } ? StaticType.Dyn : mapType?.Key;
+        ProfileType target = keyType is { IsDyn: false } known && ProfileTables.KeyTypes.Contains(known.Kind) && pcg.OneIn(2)
+            ? known.Kind
+            : pcg.Pick(ProfileTables.KeyTypes);
+        return CompatibleOperand(target, keyType, depth, limit);
+    }
+
+    // ---- Forms of one target ----
+
+    // A call of an overload whose parameters and result have no type parameters.
+    private Built? Simple(ProfileType target, int depth, int limit)
+    {
+        if (!SimpleOverloads.TryGetValue(target, out ProfileOverload[][]? functions))
+        {
+            return null;
+        }
+
+        ProfileOverload overload = pcg.Pick(pcg.Pick(functions));
+        int count = overload.Parameters.Count;
+        if (limit < 1 + count)
+        {
+            return null;
+        }
+
+        int dynAt = overload.DynOnly ? pcg.Below(count) : -1;
+        List<Expr> args = [];
+        int nodes = 1;
+        for (int i = 0; i < count; i++)
+        {
+            ProfileType parameter = overload.Parameters[i];
+            int budget = limit - nodes - (count - 1 - i);
+            Built arg = i == dynAt
+                ? Operand(parameter, depth + 1, budget, type => type is { IsDyn: true })
+                : parameter == ProfileType.StringType && TextConversions.Contains(overload.Function) && pcg.OneIn(2)
+                    ? new Built(StringLiteral(ProfileValues.NumberText(pcg, overload.Result)), 1, StaticType.Of(ProfileType.StringType))
+                    : Make(parameter, depth + 1, budget);
+            args.Add(arg.Expr);
+            nodes += arg.Nodes;
+        }
+
+        return new Built(new Call(overload.Function, args) { Receiver = overload.Receiver }, nodes, StaticType.Of(target));
+    }
+
+    // A chain of && or || with 2–4 operands, nested to the left as the parser reads it.
+    private Built? Chain(int depth, int limit)
+    {
+        int longest = Math.Min(Math.Min(ProfileTables.MaxChain, ProfileTables.MaxDepth - depth), (limit + 1) / 2);
+        if (longest < 2)
+        {
+            return null;
+        }
+
+        string function = pcg.OneIn(2) ? ProfileTables.LogicalAnd : ProfileTables.LogicalOr;
+        int operands = 2 + pcg.Below(longest - 1);
+        int nodes = operands - 1;
+        Built first = Make(ProfileType.BoolType, depth + operands - 1, limit - nodes - (operands - 1));
+        Expr chain = first.Expr;
+        nodes += first.Nodes;
+        for (int i = 1; i < operands; i++)
+        {
+            Built next = Make(ProfileType.BoolType, depth + operands - i, limit - nodes - (operands - 1 - i));
+            nodes += next.Nodes;
+            chain = new Call(function, [chain, next.Expr]);
+            if (i < operands - 1)
+            {
+                chain = Maybe(chain);
+            }
+        }
+
+        return new Built(chain, nodes, StaticType.Of(ProfileType.BoolType));
+    }
+
+    // == or != on two operands of one target type, the second assignable to the first.
+    private Built? Equality(int depth, int limit)
+    {
+        if (limit < 3)
+        {
+            return null;
+        }
+
+        ProfileType target = Target();
+        Built left = Make(target, depth + 1, limit - 2);
+        Built right = CompatibleOperand(target, left.Type, depth + 1, limit - 1 - left.Nodes);
+        string function = pcg.OneIn(2) ? ProfileTables.Equal : ProfileTables.NotEqual;
+        return new Built(new Call(function, [left.Expr, right.Expr]), 1 + left.Nodes + right.Nodes, StaticType.Of(ProfileType.BoolType));
+    }
+
+    // e in a list or a map; the element is assignable to the elements of the list or to the keys of the map.
+    private Built? In(int depth, int limit)
+    {
+        if (limit < 3)
+        {
+            return null;
+        }
+
+        Built container;
+        Built element;
+        if (pcg.OneIn(2))
+        {
+            container = Make(ProfileType.ListType, depth + 1, limit - 2);
+            StaticType? with = container.Type is { IsDyn: true } ? StaticType.Dyn : container.Type?.Element;
+            ProfileType target = with is { IsDyn: false } known && pcg.OneIn(2) ? known.Kind : Target();
+            element = CompatibleOperand(target, with, depth + 1, limit - 1 - container.Nodes);
+        }
+        else
+        {
+            container = Make(ProfileType.MapType, depth + 1, limit - 2);
+            element = Key(container.Expr as MapLiteral, container.Type, depth + 1, limit - 1 - container.Nodes);
+        }
+
+        return new Built(new Call(ProfileTables.In, [element.Expr, container.Expr]), 1 + container.Nodes + element.Nodes, StaticType.Of(ProfileType.BoolType));
+    }
+
+    // has(e.f) on a map literal that often has the field as a key, on any node of the type map, or on a node of the type dyn.
+    private Built? Has(int depth, int limit)
+    {
+        string field = pcg.Pick(ProfileTables.FieldNames);
+        Built operand = pcg.Below(3) switch
+        {
+            0 when limit >= 4 && depth + 2 <= ProfileTables.MaxDepth => ValueMap(Target(), field, depth + 1, limit - 1).Map,
+            1 => Make(ProfileType.MapType, depth + 1, limit - 1),
+            _ => DynExpr(depth + 1, limit - 1),
+        };
+        return new Built(new PresenceTest(operand.Expr, field), 1 + operand.Nodes, StaticType.Of(ProfileType.BoolType));
+    }
+
+    // all, exists or exists_one.
+    private Built? Quantifier(int depth, int limit)
+    {
+        // The range is built a level deeper and two nodes smaller, so that dyn() always fits around it.
+        if (limit < 4 || depth + 1 >= ProfileTables.MaxDepth || macros >= ProfileTables.MaxMacroNesting)
+        {
+            return null;
+        }
+
+        string macro = pcg.Pick<string>([ProfileTables.All, ProfileTables.Exists, ProfileTables.ExistsOne]);
+        macros++;
+        (Built range, StaticType? variableType) = Range(depth + 1, limit - 2);
+        string variable = ProfileTables.IterationVariables[scope.Count];
+        scope.Add((variable, variableType));
+        Built predicate = Make(ProfileType.BoolType, depth + 1, limit - 1 - range.Nodes);
+        scope.RemoveAt(scope.Count - 1);
+        macros--;
+        return new Built(new Comprehension(macro, range.Expr, variable, [predicate.Expr]), 1 + range.Nodes + predicate.Nodes, StaticType.Of(ProfileType.BoolType));
+    }
+
+    // map with 2 or 3 arguments, or filter.
+    private Built? Transform(int depth, int limit)
+    {
+        if (limit < 4 || depth + 1 >= ProfileTables.MaxDepth || macros >= ProfileTables.MaxMacroNesting)
+        {
+            return null;
+        }
+
+        string macro = pcg.OneIn(2) ? ProfileTables.MapMacro : ProfileTables.Filter;
+        bool predicateAndTransform = macro == ProfileTables.MapMacro && limit >= 5 && pcg.OneIn(2);
+        macros++;
+        (Built range, StaticType? variableType) = TransformRange(depth + 1, limit - (predicateAndTransform ? 3 : 2));
+        string variable = ProfileTables.IterationVariables[scope.Count];
+        scope.Add((variable, variableType));
+        List<Expr> arguments = [];
+        int nodes = 1 + range.Nodes;
+        StaticType? element = variableType;
+        if (macro == ProfileTables.Filter || predicateAndTransform)
+        {
+            Built predicate = Make(ProfileType.BoolType, depth + 1, limit - nodes - (predicateAndTransform ? 1 : 0));
+            arguments.Add(predicate.Expr);
+            nodes += predicate.Nodes;
+        }
+
+        if (macro == ProfileTables.MapMacro)
+        {
+            Built transform = Make(Target(), depth + 1, limit - nodes);
+            arguments.Add(transform.Expr);
+            nodes += transform.Nodes;
+            element = transform.Type;
+        }
+
+        scope.RemoveAt(scope.Count - 1);
+        macros--;
+        return new Built(new Comprehension(macro, range.Expr, variable, arguments), nodes, StaticType.ListOf(element));
+    }
+
+    // The range of map and filter, whose result lists the elements in the order of the range: a list literal, a list literal
+    // in dyn(), or a map literal of at most one entry. cel-go iterates a map in no fixed order, so a map of more entries, and a
+    // dyn variable, which may be bound to one, would give results that differ from run to run. The range is built a level deeper
+    // and a node smaller, as an operand is, so that dyn() always fits around it (the caller checks the room). A range whose
+    // iteration variable has no static type — an empty literal, whose element is a free type variable that the body may bind to
+    // the type type — or the type type is wrapped in dyn(): the variable is then dyn.
+    private (Built Range, StaticType? Variable) TransformRange(int depth, int limit)
+    {
+        switch (pcg.Below(6))
+        {
+            case 0:
+                return (Wrap(ListOfAny(depth + 1, limit - 1)), StaticType.Dyn);
+            case 1:
+                Built map = MapOfAny(depth + 1, limit - 1, most: 1);
+                return map.Type?.Key is null or { Kind: ProfileType.TypeType } ? (Wrap(map), StaticType.Dyn) : (map, map.Type.Key);
+            default:
+                Built list = ListOfAny(depth + 1, limit - 1);
+                return list.Type?.Element is null or { Kind: ProfileType.TypeType }
+                    ? (Wrap(list), StaticType.Dyn)
+                    : (list, list.Type.Element);
+        }
+    }
+
+    // The range of a macro — a list, a map or a node of the type dyn — and the type of its iteration variable: the element of a
+    // list, the key of a map, dyn for dyn. A range whose iteration variable has no static type (an empty literal, or an iteration
+    // variable of an outer macro of that kind) or the static type type is wrapped in dyn(): the variable is then dyn. The range is
+    // built a level deeper and a node smaller, so that dyn() always fits around it (the caller checks the room).
+    private (Built Range, StaticType? Variable) Range(int depth, int limit)
+    {
+        Built range = pcg.Below(4) switch
+        {
+            0 or 1 => Make(ProfileType.ListType, depth + 1, limit - 1),
+            2 => Make(ProfileType.MapType, depth + 1, limit - 1),
+            _ => DynExpr(depth, limit),
+        };
+        StaticType? variable = range.Type switch
+        {
+            { IsDyn: true } => StaticType.Dyn,
+            { Kind: ProfileType.ListType } list => list.Element,
+            { Kind: ProfileType.MapType } map => map.Key,
+            _ => null,
+        };
+        return variable is null or { Kind: ProfileType.TypeType } ? (Wrap(range), StaticType.Dyn) : (range, variable);
+    }
+
+    // A list literal of 0–3 elements of any types.
+    private Built ListOfAny(int depth, int limit)
+    {
+        int count = depth < ProfileTables.MaxDepth ? pcg.Below(Math.Min(ProfileTables.MaxElements, limit - 1) + 1) : 0;
+        return ListLiteralOf(count, limit, (_, _, budget) => Make(Target(), depth + 1, budget));
+    }
+
+    // + on two lists, the second assignable to the first.
+    private Built? AddList(int depth, int limit)
+    {
+        if (limit < 3)
+        {
+            return null;
+        }
+
+        Built left = Make(ProfileType.ListType, depth + 1, limit - 2);
+        Built right = CompatibleOperand(ProfileType.ListType, left.Type, depth + 1, limit - 1 - left.Nodes);
+        StaticType? type = StaticType.Meet(left.Type, right.Type);
+        return new Built(
+            new Call(ProfileTables.Add, [left.Expr, right.Expr]),
+            1 + left.Nodes + right.Nodes,
+            type is { IsDyn: true } ? StaticType.ListOf(null) : type);
+    }
+
+    // A map literal of 0 to most entries with values of any types.
+    private Built MapOfAny(int depth, int limit, int most)
+    {
+        int count = depth < ProfileTables.MaxDepth ? pcg.Below(Math.Min(most, (limit - 1) / 2) + 1) : 0;
+        return MapLiteralOf(count, -1, null, limit, (_, _, budget) => Make(Target(), depth + 1, budget));
+    }
+
+    private Built? TypeOf(int depth, int limit)
+    {
+        Built operand = Make(Target(), depth + 1, limit - 1);
+        return new Built(new Call(ProfileTables.TypeOf, [operand.Expr]), 1 + operand.Nodes, StaticType.Of(ProfileType.TypeType));
+    }
+
+    // e[k] on a node of the type dyn: both index overloads are candidates, so the type is not known.
+    private Built? DynIndex(int depth, int limit)
+    {
+        if (limit < 3)
+        {
+            return null;
+        }
+
+        Built container = DynExpr(depth + 1, limit - 2);
+        Built key = pcg.OneIn(2)
+            ? new Built(new IntLiteral(pcg.Below(4), IntegerForm.DecimalDigits), 1, StaticType.Of(ProfileType.IntType))
+            : Make(pcg.Pick(ProfileTables.KeyTypes), depth + 1, limit - 1 - container.Nodes);
+        return new Built(new Call(ProfileTables.Index, [container.Expr, key.Expr]), 1 + container.Nodes + key.Nodes, null);
+    }
+
+    // ---- Literals ----
+
+    // Parentheses around any node at random.
+    private Expr Maybe(Expr expr) => pcg.OneIn(ParenthesesOneIn) ? expr with { Parenthesized = true } : expr;
 
     // A list or map literal sometimes ends with a comma, also without elements: [,] and {,}.
     private bool TrailingComma() => pcg.OneIn(TrailingCommaOneIn);
 
+    // A key literal unequal to the keys before it; a string key is a field name half the time.
     private Expr? DistinctKey(HashSet<string> keys)
     {
         for (int attempt = 0; attempt < 4; attempt++)
         {
-            Expr key = Literal(pcg.Pick(ProfileTables.KeyTypes));
+            ProfileType type = pcg.Pick(ProfileTables.KeyTypes);
+            Expr key = type == ProfileType.StringType && pcg.OneIn(2) ? StringLiteral(pcg.Pick(ProfileTables.FieldNames)) : Literal(type);
             if (keys.Add(KeyIdentity(key)))
             {
                 return Maybe(key);
@@ -218,6 +763,13 @@ internal sealed class ExprBuilder
         }
 
         return null;
+    }
+
+    // The field as a string key, unless an equal key is there already.
+    private StringLiteral? FieldKey(string field, HashSet<string> keys)
+    {
+        StringLiteral key = StringLiteral(field);
+        return keys.Add(KeyIdentity(key)) ? key : null;
     }
 
     private StringLiteral StringLiteral(string value)
@@ -295,4 +847,7 @@ internal sealed class ExprBuilder
     // A unit stands as itself half of the time when it may.
     private Escape PickForm(List<Escape> forms) =>
         forms[0] == Escape.Literal && pcg.OneIn(2) ? Escape.Literal : pcg.Pick(forms);
+
+    // A built node: the expression, its number of nodes and its static type.
+    private readonly record struct Built(Expr Expr, int Nodes, StaticType? Type);
 }

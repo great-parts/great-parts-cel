@@ -101,13 +101,13 @@ internal sealed class LibrarySide : ICaseSide
         }
     }
 
-    /// <summary>The profile of the walking skeleton has no time zone data file, so the library side has no offsets yet.</summary>
+    /// <summary>The profile has no time zone data file until time, so the library side has no offsets yet.</summary>
     /// <param name="zone">The name of the zone.</param>
     /// <param name="instant">The instant.</param>
     /// <returns>Nothing: it always throws.</returns>
     /// <exception cref="NotSupportedException">Always.</exception>
     public TimeSpan ZoneOffset(string zone, DateTimeOffset instant) =>
-        throw new NotSupportedException("the profile of the walking skeleton compares no time zone offsets");
+        throw new NotSupportedException("the profile compares no time zone offsets until time");
 
     private static string Messages(ImmutableArray<CelError> errors) =>
         errors.IsDefaultOrEmpty ? "no error message" : string.Join("; ", errors.Select(error => error.Message));

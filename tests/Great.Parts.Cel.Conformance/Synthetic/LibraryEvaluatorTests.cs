@@ -5,8 +5,9 @@ using Xunit;
 
 namespace Great.Parts.Cel.Conformance.Synthetic;
 
-// The flag disable_macros of a case (docs/design/conformance.md, "Environment of the cases"): the paths through the internal
-// entry points parse without macros, as the cel-go runner clears them; the checked path has no entry point with syntax options.
+// The environment of a case (docs/design/conformance.md, "Environment of the cases"). The flag disable_macros: the paths through
+// the internal entry points parse without macros, as the cel-go runner clears them; the checked path has no entry point with syntax
+// options. Functions of type_env: the case fails with the reason, whatever the mode.
 public sealed class LibraryEvaluatorTests
 {
     // With the macros, a call of all whose first argument is not a name is a parse error; without them it is a call.
@@ -37,14 +38,38 @@ public sealed class LibraryEvaluatorTests
         Assert.Equal([LibraryEvaluator.DisableMacrosOnCheckedPath], outcome.Errors);
     }
 
-    private static CaseOutcome Evaluate(CheckMode check, bool disableMacros) =>
+    [Fact]
+    public void CaseWithFunctionDeclarations_FailsWithTheReasonInEveryMode()
+    {
+        Decl function = new()
+        {
+            Name = "f",
+            Function = new Decl.Types.FunctionDecl
+            {
+                Overloads = { new Decl.Types.FunctionDecl.Types.Overload { OverloadId = "f_int", ResultType = new Type { Dyn = new() } } },
+            },
+        };
+
+        foreach (CheckMode check in (CheckMode[])[CheckMode.Check, CheckMode.WithoutCheck, CheckMode.CheckOnly])
+        {
+            CaseOutcome outcome = Evaluate(check, disableMacros: false, "true", [function]);
+
+            Assert.Equal(CaseStage.Environment, outcome.Stage);
+            Assert.Equal([LibraryEvaluator.FunctionDeclarationsInALaterPart], outcome.Errors);
+            Assert.Null(outcome.Exception);
+        }
+    }
+
+    private static CaseOutcome Evaluate(CheckMode check, bool disableMacros) => Evaluate(check, disableMacros, InvalidMacroCall, []);
+
+    private static CaseOutcome Evaluate(CheckMode check, bool disableMacros, string expression, IReadOnlyList<Decl> declarations) =>
         new LibraryEvaluator().Evaluate(new ConformanceCase(
             "f/s/t",
             "f.textproto",
             1,
             1,
-            InvalidMacroCall,
-            new CaseEnvironment("", [], disableMacros),
+            expression,
+            new CaseEnvironment("", declarations, disableMacros),
             new Dictionary<string, ExprValue>(),
             check,
             new Expectation(ExpectationKind.Value, "none", new Value { BoolValue = true }, null)));

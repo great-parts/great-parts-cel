@@ -109,6 +109,41 @@ public sealed class CelEnvironmentBuilderTests
         Assert.Equal([("x", CelType.Int)], Pairs(second.VariableDeclarations));
     }
 
+    [Fact]
+    public void FunctionMembers_ReturnTheSameBuilder()
+    {
+        CelEnvironmentBuilder builder = new(CelStandardLibrary.V1);
+        CelFunctionImplementation implementation = arguments => arguments[0];
+
+        Assert.Same(builder, builder.AddFunction<long>("zero", () => 0));
+        Assert.Same(builder, builder.AddFunction<long, long>("one", value => value));
+        Assert.Same(builder, builder.AddFunction<long, long, long>("two", (value, _) => value));
+        Assert.Same(builder, builder.AddFunction<long, long, long, long>("three", (value, _, _) => value));
+        Assert.Same(builder, builder.AddFunction<long, long, long, long, long>("four", (value, _, _, _) => value));
+        Assert.Same(builder, builder.AddFunction(new CelFunctionDecl("five", CelOverloadDecl.Global("five_int", [CelType.Int], CelType.Int))));
+        Assert.Same(builder, builder.AddFunctionImplementation("five_int", implementation));
+        Assert.Same(builder, builder.AddVariable(new CelVariableDecl("v", CelType.Int)));
+        Assert.Same(builder, builder.UseContainer("acme"));
+        Assert.True(builder.Build().IsSuccess);
+    }
+
+    [Fact]
+    public void FunctionMembers_CheckTheirArguments()
+    {
+        CelEnvironmentBuilder builder = new(CelStandardLibrary.V1);
+
+        Assert.Equal("declaration", Assert.Throws<ArgumentNullException>(() => builder.AddVariable((CelVariableDecl)null!)).ParamName);
+        Assert.Equal("declaration", Assert.Throws<ArgumentNullException>(() => builder.AddFunction(null!)).ParamName);
+        Assert.Equal("name", Assert.Throws<ArgumentNullException>(() => builder.AddVariable<long>(null!)).ParamName);
+        Assert.Equal("name", Assert.Throws<ArgumentException>(() => builder.AddFunction<long>(string.Empty, () => 0)).ParamName);
+        Assert.Equal("implementation", Assert.Throws<ArgumentNullException>(() => builder.AddFunction<long, long>("f", null!)).ParamName);
+        Assert.Equal("overloadId", Assert.Throws<ArgumentException>(() => builder.AddFunctionImplementation(string.Empty, arguments => arguments[0])).ParamName);
+        Assert.Equal("implementation", Assert.Throws<ArgumentNullException>(() => builder.AddFunctionImplementation("f", (CelFunctionImplementation)null!)).ParamName);
+        Assert.Equal("overloadId", Assert.Throws<ArgumentNullException>(() => builder.AddFunctionImplementation<long, long>(null!, value => value)).ParamName);
+        Assert.Equal("implementation", Assert.Throws<ArgumentNullException>(() => builder.AddFunctionImplementation<long, long, long, long, long>("f", null!)).ParamName);
+        Assert.True(builder.Build().IsSuccess);
+    }
+
     private static (string Name, CelType Type)[] Pairs(IEnumerable<CelVariableDecl> declarations) =>
         [.. declarations.Select(declaration => (declaration.Name, declaration.Type))];
 }

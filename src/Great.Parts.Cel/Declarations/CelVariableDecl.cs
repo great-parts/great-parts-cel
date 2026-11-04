@@ -59,4 +59,8 @@ public sealed class CelVariableDecl
     /// The declared CEL type of the variable.
     /// </summary>
     public CelType Type { get; }
+
+    // Whether two declarations are the same: equal names and types. The same declaration twice is one.
+    internal bool SameAs(CelVariableDecl other) =>
+        string.Equals(Name, other.Name, StringComparison.Ordinal) && Type.Equals(other.Type);
 }

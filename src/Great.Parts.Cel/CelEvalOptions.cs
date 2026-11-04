@@ -1,4 +1,3 @@
-using System;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 
@@ -18,7 +17,6 @@ public sealed class CelEvalOptions
     /// </summary>
     public CelEvalOptions()
     {
-        throw new NotImplementedException();
     }
 
     /// <summary>
@@ -41,9 +39,5 @@ public sealed class CelEvalOptions
     /// limits on the length and nesting of the expression.
     /// </para>
     /// </remarks>
-    public ulong? CostLimit
-    {
-        get => throw new NotImplementedException();
-        init => throw new NotImplementedException();
-    }
+    public ulong? CostLimit { get; init; }
 }

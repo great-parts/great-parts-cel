@@ -33,13 +33,19 @@ internal static class Minimizer
         return current;
     }
 
-    /// <summary>The children of a node: the arguments of a call, the elements of a list, the keys and values of a map.</summary>
+    /// <summary>
+    /// The children of a node: the arguments of a call, the elements of a list, the keys and values of a map, the operand of a
+    /// selection and of a presence test, and the range of a macro only, since its other arguments read the iteration variable.
+    /// </summary>
     /// <param name="node">The node.</param>
     internal static IEnumerable<Expr> Children(Expr node) => node switch
     {
         Call call => call.Args,
         ListLiteral list => list.Elements,
         MapLiteral map => map.Entries.SelectMany(entry => new[] { entry.Key, entry.Value }),
+        Select select => [select.Operand],
+        PresenceTest test => [test.Operand],
+        Comprehension comprehension => [comprehension.Range],
         _ => [],
     };
 }

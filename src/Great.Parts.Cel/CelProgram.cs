@@ -25,14 +25,12 @@ namespace Great.Parts.Cel;
 /// <typeparam name="T">The .NET type in which <see cref="Evaluate"/> returns the result.</typeparam>
 public sealed class CelProgram<T>
 {
-    private readonly Plan _plan;
-
     // The position at which the expression starts in its source document, from the compile options, or null.
     private readonly CelSourceLocation? _start;
 
     internal CelProgram(Plan plan, CelType resultType, CelSourceLocation? start)
     {
-        _plan = plan;
+        Plan = plan;
         ResultType = resultType;
         _start = start;
     }
@@ -42,6 +40,9 @@ public sealed class CelProgram<T>
     /// the type is known only at evaluation.
     /// </summary>
     public CelType ResultType { get; }
+
+    // The plan of the program, for the internal steps of evaluation that the tests call.
+    internal Plan Plan { get; }
 
     /// <summary>
     /// Evaluates the program on the bindings and returns the result converted to <typeparamref name="T"/>,
@@ -57,8 +58,8 @@ public sealed class CelProgram<T>
     /// </para>
     /// <para>
     /// When the token can be canceled, evaluation checks it before the first macro step or application
-    /// call and then regularly between them; after cancellation it starts no more than 1,000 such steps and
-    /// calls and throws <see cref="OperationCanceledException"/>. With <see cref="CancellationToken.None"/>
+    /// call and then every 64 of them; after cancellation it starts no more than 64 such steps and calls
+    /// and throws <see cref="OperationCanceledException"/>. With <see cref="CancellationToken.None"/>
     /// nothing is counted.
     /// </para>
     /// <para>
@@ -78,29 +79,31 @@ public sealed class CelProgram<T>
     public CelEvalResult<T> Evaluate(CelBindings bindings, CelEvalOptions? options = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(bindings);
-        if (options?.CostLimit is not null || cancellationToken.CanBeCanceled)
-        {
-            // The cost limit and cancellation are not implemented yet; they are not ignored.
-            throw new NotImplementedException();
-        }
-
-        return Run(_plan, bindings, _start);
+        return Run(Plan, ResultType, bindings, options?.CostLimit, _start, cancellationToken);
     }
 
-    // Evaluates a plan in a new frame and converts the value of the root to T: an error value of the root
-    // is the one error of the result, and a value that no result row converts is ResultConversion at the
-    // position of the root. With the start of the expression in a document the error has its position there too.
-    internal static CelEvalResult<T> Run(Plan plan, CelBindings bindings, CelSourceLocation? start)
+    // Evaluates a plan in a new frame, with a cost limit, null for none, and the token of the evaluation, whose
+    // cancellation passes through as OperationCanceledException, and converts the value of the root to T by the
+    // result rows and the static type of the root: an error value of the root is the one error of the result, and a
+    // value that does not convert is ResultConversion at the position of the root. With the start of the expression in
+    // a document the error has its position there too.
+    internal static CelEvalResult<T> Run(
+        Plan plan,
+        CelType resultType,
+        CelBindings bindings,
+        ulong? costLimit,
+        CelSourceLocation? start,
+        CancellationToken cancellationToken)
     {
-        CelValue value = plan.Evaluate(bindings.Values);
+        CelValue value = plan.Evaluate(bindings.Values, costLimit, cancellationToken);
         if (value.TryGetError(out CelError? error))
         {
             return new CelEvalResult<T>([InDocument(error, start)]);
         }
 
-        return ConversionRules.TryToClr(value, out T? result)
+        return ConversionRules.TryToResult(value, resultType, out T? result, out string? actualType)
             ? new CelEvalResult<T>(result)
-            : new CelEvalResult<T>([InDocument(ConversionRules.ResultConversionError<T>(value, plan.Lines.GetLocation(plan.Root.Offset)), start)]);
+            : new CelEvalResult<T>([InDocument(ConversionRules.ResultConversionError<T>(actualType, plan.Lines.GetLocation(plan.Root.Offset)), start)]);
     }
 
     private static CelError InDocument(CelError error, CelSourceLocation? start) =>

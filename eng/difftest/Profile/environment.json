@@ -1,6 +1,6 @@
 {
   "name": "difftest",
-  "description": "Run manifest of eng/difftest: the variables of the profile of the walking skeleton",
+  "description": "Run manifest of eng/difftest: the variables of the profile",
   "variables": [
     { "name": "i1", "type_name": "int" },
     { "name": "i2", "type_name": "int" },

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using Great.Parts.Cel.Eng.Difftest.Numbers;
 
@@ -12,9 +13,13 @@ namespace Great.Parts.Cel.Eng.Difftest.Profile;
 /// </summary>
 internal static class ExprPrinter
 {
+    // The precedence of CEL, from the conditional, the lowest, to members and primaries.
+    private const int ConditionalPrecedence = 0;
     private const int OrPrecedence = 1;
+    private const int AndPrecedence = 2;
+    private const int RelationPrecedence = 3;
     private const int AddPrecedence = 4;
-    private const int DividePrecedence = 5;
+    private const int MultiplyPrecedence = 5;
     private const int UnaryPrecedence = 6;
     private const int PrimaryPrecedence = 7;
 
@@ -117,6 +122,26 @@ internal static class ExprPrinter
             case Ident ident:
                 text.Append(ident.Name);
                 break;
+            case Select select:
+                WriteMemberOperand(text, select.Operand);
+                text.Append('.').Append(select.Field);
+                break;
+            case PresenceTest test:
+                text.Append("has(");
+                WriteMemberOperand(text, test.Operand);
+                text.Append('.').Append(test.Field).Append(')');
+                break;
+            case Comprehension comprehension:
+                WriteMemberOperand(text, comprehension.Range);
+                text.Append('.').Append(comprehension.Macro).Append('(').Append(comprehension.Variable);
+                foreach (Expr argument in comprehension.Arguments)
+                {
+                    text.Append(", ");
+                    Write(text, argument, needsParentheses: false);
+                }
+
+                text.Append(')');
+                break;
             default:
                 text.Append(LiteralText(expr));
                 break;
@@ -150,34 +175,98 @@ internal static class ExprPrinter
 
     private static void WriteCall(StringBuilder text, Call call)
     {
-        int precedence = Precedence(call);
-        if (call.Function == ProfileTables.Negate)
+        IReadOnlyList<Expr> args = call.Args;
+        if (call.Receiver)
         {
-            text.Append('-');
-            Write(text, call.Args[0], Precedence(call.Args[0]) < UnaryPrecedence);
+            WriteMemberOperand(text, args[0]);
+            text.Append('.').Append(call.Function).Append('(');
+            WriteJoined(text, [.. args.Skip(1)], (builder, arg) => Write(builder, arg, needsParentheses: false));
+            text.Append(')');
             return;
         }
 
-        // Binary operators associate to the left: a right operand of the same precedence keeps its parentheses.
-        Write(text, call.Args[0], Precedence(call.Args[0]) < precedence);
-        text.Append(call.Function switch
+        switch (call.Function)
         {
-            ProfileTables.Add => " + ",
-            ProfileTables.Divide => " / ",
-            ProfileTables.LogicalOr => " || ",
-            _ => throw Invalid("the function " + call.Function + " is not in the profile"),
-        });
-        Write(text, call.Args[1], Precedence(call.Args[1]) <= precedence);
+            case ProfileTables.Negate or ProfileTables.LogicalNot:
+                text.Append(call.Function == ProfileTables.Negate ? '-' : '!');
+                Write(text, args[0], Precedence(args[0]) < UnaryPrecedence);
+                return;
+            case ProfileTables.Conditional:
+                // The condition and the first branch are below the conditional in the grammar; the second branch may be one.
+                Write(text, args[0], Precedence(args[0]) <= ConditionalPrecedence);
+                text.Append(" ? ");
+                Write(text, args[1], Precedence(args[1]) <= ConditionalPrecedence);
+                text.Append(" : ");
+                Write(text, args[2], needsParentheses: false);
+                return;
+            case ProfileTables.Index:
+                WriteMemberOperand(text, args[0]);
+                text.Append('[');
+                Write(text, args[1], needsParentheses: false);
+                text.Append(']');
+                return;
+        }
+
+        if (Operator(call.Function) is { } symbol)
+        {
+            // Binary operators associate to the left: a right operand of the same precedence keeps its parentheses.
+            int precedence = Precedence(call);
+            Write(text, args[0], Precedence(args[0]) < precedence);
+            text.Append(' ').Append(symbol).Append(' ');
+            Write(text, args[1], Precedence(args[1]) <= precedence);
+            return;
+        }
+
+        text.Append(Named(call.Function)).Append('(');
+        WriteJoined(text, args, (builder, arg) => Write(builder, arg, needsParentheses: false));
+        text.Append(')');
     }
 
-    private static int Precedence(Expr expr) => expr is Call call
+    // The operand of a selection, a presence test, an index, a receiver call or a macro: a member or a primary. A number
+    // literal keeps parentheses too, since its sign or its dot would join the selection.
+    private static void WriteMemberOperand(StringBuilder text, Expr operand) =>
+        Write(text, operand, Precedence(operand) < PrimaryPrecedence || operand is IntLiteral or UintLiteral or DoubleLiteral);
+
+    private static string? Operator(string function) => function switch
+    {
+        ProfileTables.LogicalOr => "||",
+        ProfileTables.LogicalAnd => "&&",
+        ProfileTables.Equal => "==",
+        ProfileTables.NotEqual => "!=",
+        ProfileTables.Less => "<",
+        ProfileTables.LessEqual => "<=",
+        ProfileTables.Greater => ">",
+        ProfileTables.GreaterEqual => ">=",
+        ProfileTables.In => "in",
+        ProfileTables.Add => "+",
+        ProfileTables.Subtract => "-",
+        ProfileTables.Multiply => "*",
+        ProfileTables.Divide => "/",
+        ProfileTables.Modulo => "%",
+        _ => null,
+    };
+
+    // The name of a function called globally.
+    private static string Named(string function) => function switch
+    {
+        ProfileTables.Size or ProfileTables.TypeOf or ProfileTables.Dyn or ProfileTables.IntConversion or ProfileTables.UintConversion
+            or ProfileTables.DoubleConversion or ProfileTables.StringConversion or ProfileTables.BytesConversion
+            or ProfileTables.BoolConversion => function,
+        _ => throw Invalid("the function " + function + " is not in the profile"),
+    };
+
+    private static int Precedence(Expr expr) => expr is Call { Receiver: false } call
         ? call.Function switch
         {
+            ProfileTables.Conditional => ConditionalPrecedence,
             ProfileTables.LogicalOr => OrPrecedence,
-            ProfileTables.Add => AddPrecedence,
-            ProfileTables.Divide => DividePrecedence,
-            ProfileTables.Negate => UnaryPrecedence,
-            _ => throw Invalid("the function " + call.Function + " is not in the profile"),
+            ProfileTables.LogicalAnd => AndPrecedence,
+            ProfileTables.Equal or ProfileTables.NotEqual or ProfileTables.Less or ProfileTables.LessEqual or ProfileTables.Greater
+                or ProfileTables.GreaterEqual or ProfileTables.In => RelationPrecedence,
+            ProfileTables.Add or ProfileTables.Subtract => AddPrecedence,
+            ProfileTables.Multiply or ProfileTables.Divide or ProfileTables.Modulo => MultiplyPrecedence,
+            ProfileTables.Negate or ProfileTables.LogicalNot => UnaryPrecedence,
+            _ => PrimaryPrecedence,
         }
         : PrimaryPrecedence;
 

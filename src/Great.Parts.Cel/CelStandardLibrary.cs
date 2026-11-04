@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
@@ -30,22 +29,27 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelStandardLibrary
 {
-    private CelStandardLibrary(ImmutableArray<OverloadBinding> overloads)
+    // Tests build a version with a table of their own.
+    internal CelStandardLibrary(LibraryDeclarations declarations)
     {
-        Overloads = overloads;
+        Declarations = declarations;
     }
 
     /// <summary>
     /// Version 1: the standard definitions of the CEL language definition, including the functions on
     /// <c>timestamp</c> and <c>duration</c>.
     /// </summary>
-    public static CelStandardLibrary V1 { get; } = new(StandardLibraryV1.Overloads);
+    public static CelStandardLibrary V1 { get; } =
+        new(new LibraryDeclarations(1, StandardLibraryV1.Overloads, StandardLibraryV1.TypeIdentifiers, StandardLibraryV1.LaterTypeIdentifiers));
 
     /// <summary>
     /// The version number, which build errors show, for example "standard library v1".
     /// </summary>
-    public uint Version => throw new NotImplementedException();
+    public uint Version => Declarations.Version;
 
     // The overloads of the version, in the order of its table.
-    internal ImmutableArray<OverloadBinding> Overloads { get; }
+    internal ImmutableArray<OverloadBinding> Overloads => Declarations.Overloads;
+
+    // The declarations of the version, indexed for the build of an environment.
+    internal LibraryDeclarations Declarations { get; }
 }

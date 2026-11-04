@@ -46,12 +46,6 @@ public sealed class CompileOptionsTests
         Assert.Equal("value", exception.ParamName);
     }
 
-    // The explicit expected type comes with complete type checking; until then setting it is not ignored.
-    [Fact]
-    public static void ExpectedType_IsNotImplementedYet()
-    {
-        Assert.Throws<NotImplementedException>(() => new CelCompileOptions { ExpectedType = CelType.Int });
-    }
 
     // Every error of the stage is mapped: on the first line of the expression the columns add up, on the other lines
     // the column is that in the expression; offsets add up, lines add up less one.
@@ -96,7 +90,7 @@ public sealed class CompileOptionsTests
     public static void EvaluationErrors_HaveTheirPlaceInTheDocument()
     {
         CelProgram<long> overflow = Environment.Compile<long>("0 +\n  limit + 1", At(7, 3, 4)).GetProgramOrThrow();
-        CelProgram<long> conversion = Environment.Compile<long>("name", At(7, 3, 4)).GetProgramOrThrow();
+        CelProgram<long> conversion = Environment.Compile<long>("name", new CelCompileOptions { ExpectedType = CelType.Dyn, SourceLocation = At(7, 3, 4).SourceLocation }).GetProgramOrThrow();
         var bindings = new CelBindings().Add("limit", long.MaxValue).Add("name", "n");
 
         CelError overflowError = Assert.Single(overflow.Evaluate(bindings, cancellationToken: CancellationToken.None).Errors);

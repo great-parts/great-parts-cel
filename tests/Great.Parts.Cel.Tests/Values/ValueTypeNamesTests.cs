@@ -20,6 +20,7 @@ public sealed class ValueTypeNamesTests
         [CelValueKind.Bytes] = "bytes",
         [CelValueKind.List] = "list",
         [CelValueKind.Map] = "map",
+        [CelValueKind.Type] = "type",
         [CelValueKind.Error] = "error",
     };
 

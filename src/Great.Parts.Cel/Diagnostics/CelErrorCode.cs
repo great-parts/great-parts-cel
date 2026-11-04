@@ -285,7 +285,11 @@ public enum CelErrorCode
     /// The value of the result cannot be converted to the requested .NET type by
     /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
     /// for example a <c>dyn</c> result that is a string when <c>bool</c> was requested, or a <c>decimal</c> out of the
-    /// range of <see cref="decimal"/>. Location: the root of the expression.
+    /// range of <see cref="decimal"/>. A list or a map that does not fit the type that <c>T</c> expects, at any depth, is
+    /// refused before a lazy view of it is built; the message names the type of the first element, key or value that does
+    /// not fit, such as <c>list(int)</c>, and a <c>null</c> in a position of <c>string</c>, <c>byte[]</c>,
+    /// <see cref="Great.Parts.Cel.Values.CelList"/>, <see cref="Great.Parts.Cel.Values.CelMap"/> or
+    /// <see cref="Great.Parts.Cel.Types.CelType"/> is not a mismatch and is not in the type. Location: the root of the expression.
     /// </summary>
     ResultConversion = 3015,
 
@@ -453,7 +457,13 @@ public enum CelErrorCode
     UnusedImplementation = 4010,
 
     /// <summary>
-    /// The signature of an implementation does not fit the declaration of its overload.
+    /// The signature of an implementation does not fit the declaration of its overload: the number of parameters differs,
+    /// or the CEL type of a result or of a parameter that the type mapping gives for its .NET type is not the declared one
+    /// after the type parameters are erased, as with <c>IReadOnlyList&lt;long&gt;</c> for <c>list(int)</c>, which fits,
+    /// and <see cref="Great.Parts.Cel.Values.CelList"/> for it, which does not. A .NET type that has no CEL type as a
+    /// parameter, such as <c>Guid</c>, <c>short</c>, an array, an enumeration or a typed collection deeper than
+    /// one step, does not fit either. A declared <c>wrapper(string)</c> or <c>wrapper(bytes)</c> also takes
+    /// <c>string</c> and <c>byte[]</c>, for a parameter and for a result.
     /// </summary>
     ImplementationSignatureMismatch = 4011,
 

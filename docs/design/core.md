@@ -51,11 +51,12 @@ Code that a later part of the library adds to `Values` follows the same rule: lo
 
 | Rule file | Rules | First needed for |
 | :- | :- | :- |
-| `src/Great.Parts.Cel/Types/AssignabilityRules.cs` | assignability of CEL types | overload candidates of simple types |
+| `src/Great.Parts.Cel/Types/AssignabilityRules.cs` | assignability of CEL types, the most general of two types, the join of two types, erasure | overload candidates of simple types |
 | `src/Great.Parts.Cel/Types/SubstitutionRules.cs` | substitution of type parameters | overloads with type parameters |
 | `src/Great.Parts.Cel/Values/EqualityRules.cs` | CEL equality | keys of map literals |
-| `src/Great.Parts.Cel/Values/KeyHashRules.cs` | hash of map keys, consistent with equality across `int`, `uint` and `double` | keys of map literals |
+| `src/Great.Parts.Cel/Values/KeyHashRules.cs` | hash of map keys, consistent with equality across `int` and `uint`; lookup of a key of another numeric kind | keys of map literals |
 | `src/Great.Parts.Cel/Values/OrderingRules.cs` | CEL ordering | relations |
+| `src/Great.Parts.Cel/Values/ValueTypeRules.cs` | the runtime type of a value; whether a value fits a declared type | `type()`, bindings, results of application functions |
 | `src/Great.Parts.Cel/Values/ConversionRules.cs` | .NET values to CEL values by the input rows of the type mapping table | bindings of simple types |
 | `src/Great.Parts.Cel/Values/ConversionRules.Result.cs` | CEL values to the requested .NET type by the result rows of the type mapping table | results of simple types |
 
@@ -108,4 +109,4 @@ Moving code across the line — a new rule file outside this naming, a rule in a
 
 A change that moves `src/Great.Parts.Cel/Values/EqualityRules.cs` to `src/Great.Parts.Cel/Values/Equality.cs` prints both paths with `--no-renames`; the first one matches, so the change is a core change.
 
-Related pages: [facade](facade.md), [syntax](syntax.md), [environment description in JSON](configuration.md).
+Related pages: [facade](facade.md), [syntax](syntax.md), [types](types.md), [values](values.md), [declarations](declarations.md), [environment description in JSON](configuration.md).

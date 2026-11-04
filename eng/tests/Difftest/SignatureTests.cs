@@ -117,6 +117,9 @@ public sealed class SignatureTests
         Expr yes = new BoolLiteral(true);
         Expr k = new StringLiteral("k", new TextForm(Quote.Apostrophe, null, [Escape.Literal]));
         Expr divideByZero = new Call(ProfileTables.Divide, [one, new IntLiteral(0, IntegerForm.DecimalDigits)]);
+        Expr list = new ListLiteral([one], TrailingComma: false);
+        Expr map = new MapLiteral([new MapEntry(k, one)], TrailingComma: false);
+        Expr half = new DoubleLiteral(0.5, DoubleForm.Plain);
         SideOutcome we = SideOutcome.Of(Int(7));
         SideOutcome go = SideOutcome.EvaluationError("no such overload");
         (Expr Root, string Signature)[] roots =
@@ -129,6 +132,17 @@ public sealed class SignatureTests
             (new Ident("x2"), "ident(error) we-value"),
             (new Call(ProfileTables.Add, [x1, one]), "_+_(string, int) we-value"),
             (new Call(ProfileTables.Add, [divideByZero, one]), "_+_(error, int) we-value"),
+            (new Select(x1, "a"), "select(string) we-value"),
+            (new PresenceTest(map, "a"), "has(map) we-value"),
+            (new Comprehension(ProfileTables.All, list, "v", [yes]), "comprehension(list) we-value"),
+            (new Call(ProfileTables.Size, [s1]) { Receiver = true }, "string_size(string) we-value"),
+            (new Call(ProfileTables.Size, [s1]), "size_string(string) we-value"),
+            (new Call(ProfileTables.Equal, [one, x1]), "equals(int, string) we-value"),
+            (new Call(ProfileTables.Index, [list, one]), "index_list(list, int) we-value"),
+            (new Call(ProfileTables.Less, [one, half]), "less_int64_double(int, double) we-value"),
+            (new Call(ProfileTables.Conditional, [yes, one, s1]), "conditional(bool, int, string) we-value"),
+            (new Call(ProfileTables.In, [divideByZero, list]), "@in(error, list) we-value"),
+            (new Ident("int"), "ident(type) we-value"),
         ];
         (Expr, SideOutcome, SideOutcome)[] children =
         [
@@ -138,6 +152,9 @@ public sealed class SignatureTests
             (s1, SideOutcome.Of(Str("a")), SideOutcome.Of(Str("a"))),
             (x1, SideOutcome.Of(Str("b")), SideOutcome.Of(Str("b"))),
             (divideByZero, SideOutcome.EvaluationError("division by zero"), SideOutcome.EvaluationError("division by zero")),
+            (list, SideOutcome.Of(ListOf(Int(1))), SideOutcome.Of(ListOf(Int(1)))),
+            (map, SideOutcome.Of(Map((Str("k"), Int(1)))), SideOutcome.Of(Map((Str("k"), Int(1))))),
+            (half, SideOutcome.Of(new Value { DoubleValue = 0.5 }), SideOutcome.Of(new Value { DoubleValue = 0.5 })),
         ];
 
         foreach ((Expr root, string signature) in roots)
@@ -466,10 +483,14 @@ public sealed class SignatureTests
     internal static bool ReadsI1(string text, IReadOnlyDictionary<string, Value> bindings) =>
         bindings.ContainsKey("i1") && text.Contains("i1", StringComparison.Ordinal);
 
-    /// <summary>The number of the first generated case of a seed whose root is a call and which reads the bound variable i1.</summary>
+    /// <summary>
+    /// The number of the first generated case of a seed whose root is a call, which reads the bound variable i1, and which has
+    /// no macro and no selection, so that the descent reaches i1.
+    /// </summary>
     /// <param name="seed">The seed of the run.</param>
     internal static ulong CallReadingI1(ulong seed) => Enumerable.Range(0, 1000).Select(n => (ulong)n)
-        .First(n => CaseGenerator.Case(seed, n) is { Expression: Call } generated && ReadsI1(generated.Text, generated.Bindings));
+        .First(n => CaseGenerator.Case(seed, n) is { Expression: Call } generated && ReadsI1(generated.Text, generated.Bindings)
+            && !Nodes(generated.Expression).Any(node => node is Comprehension or Select or PresenceTest));
 
     // The nodes of a case by a walk of its own, not by Minimizer.Children: the set that bounds the descent must not come from the
     // function that the descent uses.
@@ -480,6 +501,9 @@ public sealed class SignatureTests
         Call call => call.Args,
         ListLiteral list => list.Elements,
         MapLiteral map => map.Entries.SelectMany(entry => new[] { entry.Key, entry.Value }),
+        Select select => [select.Operand],
+        PresenceTest test => [test.Operand],
+        Comprehension macro => macro.Arguments.Prepend(macro.Range),
         _ => [],
     };
 
@@ -519,6 +543,13 @@ public sealed class SignatureTests
     private static Value Bool(bool value) => new() { BoolValue = value };
 
     private static Value Str(string value) => new() { StringValue = value };
+
+    private static Value ListOf(params Value[] values)
+    {
+        ListValue list = new();
+        list.Values.AddRange(values);
+        return new Value { ListValue = list };
+    }
 
     private static Value Map(params (Value Key, Value Value)[] entries)
     {

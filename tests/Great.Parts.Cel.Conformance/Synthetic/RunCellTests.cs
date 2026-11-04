@@ -46,7 +46,7 @@ public sealed class RunCellTests
 
         Assert.Contains(cell, RunCell.Matrix);
         Assert.Equal(RuntimeFeature.IsDynamicCodeSupported ? "jit" : "native-aot", cell.Mode);
-        Assert.Equal($"net{Environment.Version.Major}.0", cell.Target);
+        Assert.Equal($"net{System.Environment.Version.Major}.0", cell.Target);
     }
 
     [Theory]

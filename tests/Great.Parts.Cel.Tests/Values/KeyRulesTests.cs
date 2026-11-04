@@ -17,7 +17,9 @@ public sealed class KeyRulesTests
         int 0; double -0 → equal
         int -1; double -1 → equal
         int -1; uint 18446744073709551615 → different
-        int -9223372036854775808; double -9223372036854775808 → equal
+        int -9223372036854775808; double -9223372036854775808 → different
+        int -9223372036854775807; double -9223372036854774784 → different
+        int -9223372036854774784; double -9223372036854774784 → equal
         int 9223372036854775807; double 9223372036854775808 → different
         uint 9223372036854775808; double 9223372036854775808 → equal
         uint 18446744073709551615; double 18446744073709551616 → different
@@ -40,7 +42,7 @@ public sealed class KeyRulesTests
         int 1; uint 1; double 1
         int -1; double -1
         int 9007199254740992; uint 9007199254740992; double 9007199254740992
-        int -9223372036854775808; double -9223372036854775808
+        int -9223372036854774784; double -9223372036854774784
         uint 9223372036854775808; double 9223372036854775808
         uint 18446744073709549568; double 18446744073709549568
         """;
@@ -83,12 +85,29 @@ public sealed class KeyRulesTests
     [InlineData("double -Infinity")]
     [InlineData("double 18446744073709551616")]
     [InlineData("double -9223372036854777856")]
+    [InlineData("double -9223372036854775808")]
     [InlineData("null")]
     [InlineData("list")]
     public static void TryGetHash_OfAValueThatEqualsNoKey_IsFalse(string sample)
     {
         Assert.False(KeyHashRules.TryGetHash(Value(sample), out int hash));
         Assert.Equal(0, hash);
+    }
+
+    // The hash of an integral value mixes in the random seed of the process: it is not the hash of its bits, which keys
+    // chosen to collide in an index would know.
+    [Fact]
+    public void Hash_OfAnIntegralValue_IsNotTheHashOfItsBits()
+    {
+        var hashes = new int[16];
+        var bitHashes = new int[16];
+        for (int value = 0; value < hashes.Length; value++)
+        {
+            Assert.True(KeyHashRules.TryGetHash(CelValue.FromInt64(value), out hashes[value]));
+            bitHashes[value] = ((ulong)value).GetHashCode();
+        }
+
+        Assert.NotEqual(bitHashes, hashes);
     }
 
     [Fact]

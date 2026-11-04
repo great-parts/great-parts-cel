@@ -16,7 +16,7 @@ namespace Great.Parts.Cel.Properties.Syntax;
 // a standard GitHub-hosted Linux x64 runner; elsewhere the time is only written to the output of the test.
 public sealed class WorstInputTests
 {
-    private const int LengthLimit = 65536;
+    internal const int LengthLimit = 65536;
     private const double TimeLimit = 1;
     private const ulong GarbageSeed = 20261105;
 
@@ -95,18 +95,18 @@ public sealed class WorstInputTests
     }
 
     // The failure of a time over 1 s on the reference machine, or null.
-    private static string? Verdict(string input, double seconds, bool referenceMachine) =>
+    internal static string? Verdict(string input, double seconds, bool referenceMachine) =>
         referenceMachine && seconds > TimeLimit ? $"{Time(input, seconds)} > 1 s" : null;
 
-    private static string Time(string input, double seconds) =>
+    internal static string Time(string input, double seconds) =>
         string.Create(CultureInfo.InvariantCulture, $"{input}: {seconds:0.000} s");
 
-    private static bool IsReferenceMachine(Func<string, string?> variable) =>
+    internal static bool IsReferenceMachine(Func<string, string?> variable) =>
         ReferenceMachine.All(expected => string.Equals(variable(expected.Name), expected.Value, StringComparison.Ordinal));
 
     // The deepest nesting allowed for each kind of nesting, chains of each binary level filling 64 KB, a text with more than 100
     // syntax errors, and 64 KB of garbage from a fixed seed.
-    private static string Input(string input) => input switch
+    internal static string Input(string input) => input switch
     {
         "parentheses 249" => Nested("(", "x", ")", 249),
         "lists 249" => Nested("[", "1", "]", 249),
@@ -137,5 +137,5 @@ public sealed class WorstInputTests
         return string.Concat(Enumerable.Range(0, LengthLimit).Select(_ => (char)(' ' + random.Next(Printable))));
     }
 
-    private static string Repeat(string unit, int count) => string.Concat(Enumerable.Repeat(unit, count));
+    internal static string Repeat(string unit, int count) => string.Concat(Enumerable.Repeat(unit, count));
 }

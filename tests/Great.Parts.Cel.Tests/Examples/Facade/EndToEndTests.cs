@@ -124,7 +124,7 @@ public sealed class EndToEndTests
         Assert.Equal("line 1\nline 2", Evaluate<string>("'''line 1\nline 2'''"));
         Assert.True(Evaluate<bool>("true"));
         Assert.Equal(new byte[] { 0x00, 0xFF, 0x61 }, Evaluate<byte[]>("b'\\000\\xffa'"));
-        Assert.Null(Evaluate<string>("null"));
+        Assert.Null(Evaluate<object>("null"));
         Assert.Equal(CelValueKind.Null, Evaluate<CelValue>("null").Kind);
     }
 

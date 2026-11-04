@@ -69,7 +69,7 @@ public sealed class EvaluationTests
     {
         ArgumentNullException.ThrowIfNull(expected);
 
-        CelError error = Plans.Error(Plans.Checked(expression).Evaluate(Bound));
+        CelError error = Plans.Error(Plans.Checked(expression).EvaluateOn(Bound));
 
         string[] parts = expected.Split(' ', 3);
         Assert.Equal(
@@ -80,7 +80,7 @@ public sealed class EvaluationTests
     [Fact]
     public static void Error_HasTheLineAndTheColumnOfItsOffset()
     {
-        CelError error = Plans.Error(Plans.Checked("1 +\n  n").Evaluate(Bound));
+        CelError error = Plans.Error(Plans.Checked("1 +\n  n").EvaluateOn(Bound));
 
         Assert.Equal((6, 2, 3), (error.Location.Offset, error.Location.Line, error.Location.Column));
     }
@@ -95,13 +95,13 @@ public sealed class EvaluationTests
     [InlineData("a || (flag || b)")]
     public static void Or_WithATrueOperand_IsTrue(string expression)
     {
-        Assert.Equal(CelValue.FromBoolean(true), Plans.Checked(expression).Evaluate(Bound));
+        Assert.Equal(CelValue.FromBoolean(true), Plans.Checked(expression).EvaluateOn(Bound));
     }
 
     [Fact]
     public static void Or_OfFalseOperands_IsFalse()
     {
-        Assert.Equal(CelValue.FromBoolean(false), Plans.Checked("a || false || a").Evaluate(Bound));
+        Assert.Equal(CelValue.FromBoolean(false), Plans.Checked("a || false || a").EvaluateOn(Bound));
     }
 
     // The operands after the first true are not evaluated, so their variables are not read.
@@ -110,7 +110,7 @@ public sealed class EvaluationTests
     {
         var bindings = new CountingBindings(new() { ["a"] = CelValue.FromBoolean(false), ["b"] = CelValue.FromBoolean(true) });
 
-        CelValue value = Plans.Checked("a || b || c || d").Evaluate(bindings);
+        CelValue value = Plans.Checked("a || b || c || d").EvaluateOn(bindings);
 
         Assert.Equal((CelValue.FromBoolean(true), 2), (value, bindings.Lookups));
     }
@@ -123,8 +123,8 @@ public sealed class EvaluationTests
         var first = new CountingBindings(new() { ["n"] = CelValue.FromInt64(3) });
         var second = new CountingBindings(new() { ["n"] = CelValue.FromInt64(5) });
 
-        Assert.Equal(CelValue.FromInt64(1), plan.Evaluate(first));
-        Assert.Equal(CelValue.FromInt64(1), plan.Evaluate(second));
+        Assert.Equal(CelValue.FromInt64(1), plan.EvaluateOn(first));
+        Assert.Equal(CelValue.FromInt64(1), plan.EvaluateOn(second));
         Assert.Equal((1, 1), (first.Lookups, second.Lookups));
     }
 
@@ -137,7 +137,7 @@ public sealed class EvaluationTests
             "[f(n), f(n / 0)]",
             Plans.Overload("f", "f_int", CelType.Int, (ReadOnlySpan<CelValue> _, in CallSite _) => CelValue.FromInt64(++calls)));
 
-        CelError error = Plans.Error(plan.Evaluate(new Dictionary<string, CelValue> { ["n"] = CelValue.FromInt64(1) }));
+        CelError error = Plans.Error(plan.EvaluateOn(new Dictionary<string, CelValue> { ["n"] = CelValue.FromInt64(1) }));
 
         Assert.Equal((CelErrorCode.DivisionByZero, 11, 1), (error.Code, error.Location.Offset, calls));
     }
@@ -149,12 +149,12 @@ public sealed class EvaluationTests
     {
         Plan plan = Plans.CheckedWith("g(any)", Plans.Overload("g", "g_int", CelType.Int, Plans.Constant));
 
-        CelError error = Plans.Error(plan.Evaluate(new Dictionary<string, CelValue> { ["any"] = CelValue.FromString("s") }));
+        CelError error = Plans.Error(plan.EvaluateOn(new Dictionary<string, CelValue> { ["any"] = CelValue.FromString("s") }));
 
         Assert.Equal(
             (CelErrorCode.EvalNoMatchingOverload, 1, "no such overload: g(string)"),
             (error.Code, error.Location.Offset, error.Message));
-        Assert.Equal(CelValue.FromInt64(42), plan.Evaluate(new Dictionary<string, CelValue> { ["any"] = CelValue.FromInt64(5) }));
+        Assert.Equal(CelValue.FromInt64(42), plan.EvaluateOn(new Dictionary<string, CelValue> { ["any"] = CelValue.FromInt64(5) }));
     }
 
     // A dispatch calls the first candidate whose parameter types fit the kinds of the values.
@@ -169,7 +169,7 @@ public sealed class EvaluationTests
             Plans.Overload("h", "h_int", CelType.Int, (ReadOnlySpan<CelValue> _, in CallSite _) => CelValue.FromString("int")),
             Plans.Overload("h", "h_dyn", CelType.Dyn, (ReadOnlySpan<CelValue> _, in CallSite _) => CelValue.FromString("dyn")));
 
-        Assert.Equal(CelValue.FromString(expected), plan.Evaluate(new Dictionary<string, CelValue> { ["any"] = Value(kind) }));
+        Assert.Equal(CelValue.FromString(expected), plan.EvaluateOn(new Dictionary<string, CelValue> { ["any"] = Value(kind) }));
     }
 
     [Fact]
@@ -180,7 +180,7 @@ public sealed class EvaluationTests
             Plans.Overload("h", "h_int", CelType.Int, Plans.Constant),
             Plans.Overload("h", "h_string", CelType.String, Plans.Constant));
 
-        CelError error = Plans.Error(plan.Evaluate(new Dictionary<string, CelValue> { ["any"] = CelValue.FromBoolean(true) }));
+        CelError error = Plans.Error(plan.EvaluateOn(new Dictionary<string, CelValue> { ["any"] = CelValue.FromBoolean(true) }));
 
         Assert.Equal(
             (CelErrorCode.EvalNoMatchingOverload, 1, "no such overload: h(bool)"),
@@ -190,7 +190,7 @@ public sealed class EvaluationTests
     [Fact]
     public static void ListLiteral_HasItsElementsInOrder()
     {
-        Assert.True(Plans.Checked("[n + 1, 'a', any]").Evaluate(new Dictionary<string, CelValue>
+        Assert.True(Plans.Checked("[n + 1, 'a', any]").EvaluateOn(new Dictionary<string, CelValue>
         {
             ["n"] = CelValue.FromInt64(1),
             ["any"] = CelValue.FromBoolean(true),
@@ -202,7 +202,7 @@ public sealed class EvaluationTests
     [Fact]
     public static void MapLiteral_HasItsEntriesInTheOrderOfTheText()
     {
-        Assert.True(Plans.Checked("{'b': 1, 2: 'x', 'a': -n}").Evaluate(new Dictionary<string, CelValue>
+        Assert.True(Plans.Checked("{'b': 1, 2: 'x', 'a': -n}").EvaluateOn(new Dictionary<string, CelValue>
         {
             ["n"] = CelValue.FromInt64(3),
         }).TryGetMap(out CelMap? map));

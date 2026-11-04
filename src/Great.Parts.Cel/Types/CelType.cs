@@ -73,6 +73,14 @@ public sealed class CelType : IEquatable<CelType>
     /// </summary>
     public static CelType Bytes { get; } = new(CelTypeKind.Bytes, "bytes", []);
 
+    // The six wrapper types, shared like the primitive types they wrap.
+    private static readonly CelType BoolWrapper = new(CelTypeKind.Wrapper, "google.protobuf.BoolValue", [Bool]);
+    private static readonly CelType BytesWrapper = new(CelTypeKind.Wrapper, "google.protobuf.BytesValue", [Bytes]);
+    private static readonly CelType DoubleWrapper = new(CelTypeKind.Wrapper, "google.protobuf.DoubleValue", [Double]);
+    private static readonly CelType IntWrapper = new(CelTypeKind.Wrapper, "google.protobuf.Int64Value", [Int]);
+    private static readonly CelType UIntWrapper = new(CelTypeKind.Wrapper, "google.protobuf.UInt64Value", [UInt]);
+    private static readonly CelType StringWrapper = new(CelTypeKind.Wrapper, "google.protobuf.StringValue", [String]);
+
     /// <summary>
     /// <c>google.protobuf.Timestamp</c>: a point in time from 0001-01-01T00:00:00Z to
     /// 9999-12-31T23:59:59.999999999Z with nanosecond precision; on .NET, <c>CelTimestamp</c>.
@@ -191,7 +199,17 @@ public sealed class CelType : IEquatable<CelType>
     /// <exception cref="ArgumentException"><paramref name="primitiveType"/> is not one of the types listed above.</exception>
     public static CelType WrapperOf(CelType primitiveType)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(primitiveType);
+        return primitiveType.Kind switch
+        {
+            CelTypeKind.Bool => BoolWrapper,
+            CelTypeKind.Bytes => BytesWrapper,
+            CelTypeKind.Double => DoubleWrapper,
+            CelTypeKind.Int => IntWrapper,
+            CelTypeKind.UInt => UIntWrapper,
+            CelTypeKind.String => StringWrapper,
+            _ => throw new ArgumentException($"CEL has no wrapper type of '{primitiveType}'.", nameof(primitiveType)),
+        };
     }
 
     /// <summary>
@@ -204,7 +222,8 @@ public sealed class CelType : IEquatable<CelType>
     /// <exception cref="ArgumentNullException"><paramref name="type"/> is <see langword="null"/>.</exception>
     public static CelType TypeOf(CelType type)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(type);
+        return new CelType(CelTypeKind.Type, "type", [type]);
     }
 
     /// <summary>
@@ -219,7 +238,8 @@ public sealed class CelType : IEquatable<CelType>
     /// <exception cref="ArgumentException"><paramref name="fullName"/> is empty.</exception>
     public static CelType ObjectNamed(string fullName)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(fullName);
+        return new CelType(CelTypeKind.Object, fullName, []);
     }
 
     /// <summary>
@@ -232,7 +252,8 @@ public sealed class CelType : IEquatable<CelType>
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
     public static CelType TypeParameter(string name)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        return new CelType(CelTypeKind.TypeParameter, name, []);
     }
 
     /// <summary>
@@ -262,7 +283,7 @@ public sealed class CelType : IEquatable<CelType>
 
     /// <summary>
     /// Formats the type in CEL notation with its parameters, as error messages show it, for example
-    /// <c>list(int)</c> or <c>map(string, dyn)</c>.
+    /// <c>list(int)</c>, <c>map(string, dyn)</c> or <c>wrapper(int)</c> for <c>google.protobuf.Int64Value</c>.
     /// </summary>
     /// <returns>The type in CEL notation.</returns>
     public override string ToString()
@@ -272,7 +293,8 @@ public sealed class CelType : IEquatable<CelType>
             return Name;
         }
 
-        var text = new StringBuilder(Name).Append('(');
+        // A wrapper is written in the notation of the language definition, as cel-go writes it, not by its full name.
+        var text = new StringBuilder(Kind == CelTypeKind.Wrapper ? "wrapper" : Name).Append('(');
         for (int i = 0; i < Parameters.Length; i++)
         {
             if (i > 0)

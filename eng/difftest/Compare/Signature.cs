@@ -27,7 +27,8 @@ internal static class Signature
     /// <summary>
     /// The signature of a divergent case. The node is <c>parse</c> without types when either side fails to parse; otherwise
     /// it follows the root: the profile overload whose parameter types fit the types of the argument values, or the function
-    /// name when none fits; <c>list</c> with the element types; <c>map</c> with key and value types entry by entry;
+    /// name when none fits; <c>select</c> and <c>has</c> with the type of the operand; <c>comprehension</c> with the type of the
+    /// range; <c>list</c> with the element types; <c>map</c> with key and value types entry by entry;
     /// <c>literal</c> with its type; <c>ident</c> with the type of its value. The arguments, elements, keys and values are
     /// evaluated on both sides to get their types.
     /// </summary>
@@ -53,7 +54,10 @@ internal static class Signature
                 Call call => Node(call, [.. call.Args.Select(Type)]),
                 ListLiteral list => Node("list", list.Elements.Select(Type)),
                 MapLiteral map => Node("map", map.Entries.SelectMany(entry => new[] { Type(entry.Key), Type(entry.Value) })),
-                Ident ident => Node("ident", [divergent.Bindings.TryGetValue(ident.Name, out Value? value) ? ValueText.TypeName(value) : ErrorType]),
+                Select select => Node("select", [Type(select.Operand)]),
+                PresenceTest test => Node("has", [Type(test.Operand)]),
+                Comprehension comprehension => Node("comprehension", [Type(comprehension.Range)]),
+                Ident ident => Node("ident", [IdentType(divergent, ident)]),
                 Expr literal => Node("literal", [LiteralType(literal)]),
             };
         return node + " " + kind.Name();
@@ -63,9 +67,22 @@ internal static class Signature
     {
         ProfileOverload? overload = ProfileTables.Overloads.FirstOrDefault(candidate =>
             candidate.Function == call.Function
-            && candidate.Parameters.Select(parameter => parameter.Name()).SequenceEqual(types, StringComparer.Ordinal));
+            && candidate.Receiver == call.Receiver
+            && candidate.Parameters.Count == types.Count
+            && candidate.Parameters.Zip(types).All(pair => Fits(pair.First, pair.Second)));
         return Node(overload?.Id ?? call.Function, types);
     }
+
+    // A parameter fits the type name of an argument value: a type parameter fits any value, list(A) and map(A, B) fit any list
+    // and map, since the names have no parameters; an error fits none.
+    private static bool Fits(ProfileType parameter, string type) =>
+        type != ErrorType && (parameter.IsParameter() || string.Equals(parameter.Name(), type, StringComparison.Ordinal));
+
+    // The type of the value of an identifier: of its binding, type for a type identifier, error for an unbound variable.
+    private static string IdentType(GeneratedCase divergent, Ident ident) =>
+        divergent.Bindings.TryGetValue(ident.Name, out Value? value) ? ValueText.TypeName(value)
+        : ProfileTables.TypeIdentifiers.Contains(ident.Name) ? ProfileType.TypeType.Name()
+        : ErrorType;
 
     private static string Node(string node, IEnumerable<string> types) => node + "(" + string.Join(", ", types) + ")";
 

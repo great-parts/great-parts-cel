@@ -162,4 +162,78 @@ public sealed class CelTypeTests
             ["int", "null_type", "dyn", "list(int)", "map(string, dyn)", "list(map(uint, list(bytes)))"],
             types.Select(type => type.ToString()));
     }
+
+    // "<primitive> → <full name of the wrapper>".
+    [Theory]
+    [InlineData("bool", "google.protobuf.BoolValue")]
+    [InlineData("bytes", "google.protobuf.BytesValue")]
+    [InlineData("double", "google.protobuf.DoubleValue")]
+    [InlineData("int", "google.protobuf.Int64Value")]
+    [InlineData("uint", "google.protobuf.UInt64Value")]
+    [InlineData("string", "google.protobuf.StringValue")]
+    public static void WrapperOf_IsTheSharedWrapperWithItsFullNameAndPrimitive(string primitive, string name)
+    {
+        CelType primitiveType = Primitive(primitive);
+
+        CelType wrapper = CelType.WrapperOf(primitiveType);
+
+        Assert.Equal((CelTypeKind.Wrapper, name), (wrapper.Kind, wrapper.Name));
+        Assert.Same(primitiveType, Assert.Single(wrapper.Parameters));
+        Assert.Same(wrapper, CelType.WrapperOf(primitiveType));
+        Assert.Equal("wrapper(" + primitive + ")", wrapper.ToString());
+    }
+
+    [Fact]
+    public void WrapperOf_ATypeWithoutAWrapper_IsArgumentException()
+    {
+        CelType[] types = [CelType.Null, CelType.Dyn, CelType.ListOf(CelType.Bool), CelType.WrapperOf(CelType.Bool), CelType.ObjectNamed("acme.Item")];
+
+        Assert.All(types, type => Assert.Equal("primitiveType", Assert.Throws<ArgumentException>(() => CelType.WrapperOf(type)).ParamName));
+        Assert.Equal("primitiveType", Assert.Throws<ArgumentNullException>(() => CelType.WrapperOf(null!)).ParamName);
+    }
+
+    [Fact]
+    public void TypeOf_HasTheDescribedTypeAsItsParameter()
+    {
+        CelType type = CelType.TypeOf(CelType.ListOf(CelType.Bytes));
+
+        Assert.Equal((CelTypeKind.Type, "type"), (type.Kind, type.Name));
+        Assert.Equal([CelType.ListOf(CelType.Bytes)], type.Parameters);
+        Assert.Equal("type(list(bytes))", type.ToString());
+        Assert.Equal(CelType.TypeOf(CelType.Dyn), CelType.TypeOf(CelType.Dyn));
+        Assert.Equal("type", Assert.Throws<ArgumentNullException>(() => CelType.TypeOf(null!)).ParamName);
+    }
+
+    [Fact]
+    public void TypeParameterAndObjectNamed_AreTheirNamesWithoutParameters()
+    {
+        CelType parameter = CelType.TypeParameter("E");
+        CelType item = CelType.ObjectNamed("acme.store.Item");
+
+        Assert.Equal((CelTypeKind.TypeParameter, "E", "E"), (parameter.Kind, parameter.Name, parameter.ToString()));
+        Assert.Equal((CelTypeKind.Object, "acme.store.Item", "acme.store.Item"), (item.Kind, item.Name, item.ToString()));
+        Assert.Empty(parameter.Parameters);
+        Assert.Empty(item.Parameters);
+        Assert.Equal("map(E, acme.store.Item)", CelType.MapOf(parameter, item).ToString());
+        Assert.NotEqual(CelType.ObjectNamed("E"), parameter);
+    }
+
+    [Fact]
+    public void TypeParameterAndObjectNamed_WithoutAName_Throw()
+    {
+        Assert.Equal("name", Assert.Throws<ArgumentNullException>(() => CelType.TypeParameter(null!)).ParamName);
+        Assert.Equal("name", Assert.Throws<ArgumentException>(() => CelType.TypeParameter("")).ParamName);
+        Assert.Equal("fullName", Assert.Throws<ArgumentNullException>(() => CelType.ObjectNamed(null!)).ParamName);
+        Assert.Equal("fullName", Assert.Throws<ArgumentException>(() => CelType.ObjectNamed("")).ParamName);
+    }
+
+    private static CelType Primitive(string name) => name switch
+    {
+        "bool" => CelType.Bool,
+        "bytes" => CelType.Bytes,
+        "double" => CelType.Double,
+        "int" => CelType.Int,
+        "uint" => CelType.UInt,
+        _ => CelType.String,
+    };
 }

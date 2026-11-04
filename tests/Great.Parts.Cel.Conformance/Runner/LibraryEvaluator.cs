@@ -5,10 +5,8 @@ using System.Linq;
 using System.Threading;
 using Cel.Expr;
 using Great.Parts.Cel.Checking;
-using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Syntax;
-using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using Type = Cel.Expr.Type;
 
@@ -35,10 +33,21 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     /// <summary>The reason why a checked case with <c>disable_macros</c> fails: only the internal <c>Parse</c> takes syntax options.</summary>
     internal const string DisableMacrosOnCheckedPath = "disable_macros needs an internal compile entry point";
 
+    /// <summary>
+    /// The reason why a case that declares functions in <c>type_env</c> fails: <c>Build</c> requires their implementations, and the
+    /// part that brings the first such file decides how the runner supplies them.
+    /// </summary>
+    internal const string FunctionDeclarationsInALaterPart = "function declarations need a later part";
+
     /// <inheritdoc/>
     public CaseOutcome Evaluate(ConformanceCase testCase)
     {
         CaseStage stage = CaseStage.Environment;
+        if (testCase.Environment.Declarations.Any(declaration => declaration.DeclKindCase == Decl.DeclKindOneofCase.Function))
+        {
+            return CaseOutcome.Failed(CaseStage.Environment, FunctionDeclarationsInALaterPart);
+        }
+
         try
         {
             CelBuildResult built = Setup(testCase.Environment).Build();
@@ -111,7 +120,7 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
             ? CaseOutcome.Evaluated(resultType, ValueConversion.ToExprValue(result.Value))
             : CaseOutcome.EvaluationFailed(resultType, Messages(result.Errors));
 
-    // The setup of all cases and what the case declares: the container, the variables and the functions of type_env.
+    // The setup of all cases and what the case declares: the container and the variables of type_env.
     private static CelEnvironmentBuilder Setup(CaseEnvironment declared)
     {
         CelEnvironmentBuilder builder = new(CelStandardLibrary.V1);
@@ -122,26 +131,10 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
 
         foreach (Decl declaration in declared.Declarations.Where(declaration => !ReservedNames.Contains(declaration.Name)))
         {
-            if (declaration.DeclKindCase == Decl.DeclKindOneofCase.Function)
-            {
-                builder.AddFunction(new CelFunctionDecl(declaration.Name, [.. declaration.Function.Overloads.Select(Overload)]));
-            }
-            else
-            {
-                builder.AddVariable(declaration.Name, TypeConversion.ToCelType(declaration.Ident.Type));
-            }
+            builder.AddVariable(declaration.Name, TypeConversion.ToCelType(declaration.Ident.Type));
         }
 
         return builder;
-    }
-
-    private static CelOverloadDecl Overload(Decl.Types.FunctionDecl.Types.Overload overload)
-    {
-        CelType[] parameters = [.. overload.Params.Select(TypeConversion.ToCelType)];
-        CelType result = TypeConversion.ToCelType(overload.ResultType);
-        return overload.IsInstanceFunction
-            ? CelOverloadDecl.Receiver(overload.OverloadId, parameters[0], parameters.AsSpan(1), result)
-            : CelOverloadDecl.Global(overload.OverloadId, parameters, result);
     }
 
     // A binding of the kind value only: the rule fails a case with other bindings.

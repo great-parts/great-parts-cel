@@ -1,21 +1,31 @@
+using System;
 using System.Collections.Generic;
+using System.Numerics;
 
 namespace Great.Parts.Cel.Values;
 
 /// <summary>
-/// A <see cref="CelMap"/> over an array of entries in the order of insertion and an index from keys to
-/// positions. Enumeration walks the array, so the order never depends on hash codes. The index is built by
-/// insertions only and finds keys by <see cref="KeyHashRules"/> and <see cref="EqualityRules"/>.
+/// A <see cref="CelMap"/> over an array of entries in the order of insertion. Enumeration walks the array, so the
+/// order never depends on hash codes. Keys compare by <see cref="EqualityRules"/>, and a key is found in constant
+/// time: the empty map is one instance for the process, a map of up to 8 entries compares the key with each entry,
+/// and a larger map has an index of positions with open addressing by <see cref="KeyHashRules"/>. A map of n entries
+/// takes 56 + 64n bytes without the index and at most 80 + 80n with it.
 /// </summary>
 internal sealed class EntryTableMap : CelMap
 {
-    private readonly KeyValuePair<CelValue, CelValue>[] _entries;
-    private readonly Dictionary<CelValue, int> _index;
+    // The most entries of a map without an index.
+    private const int UnindexedLimit = 8;
 
-    private EntryTableMap(KeyValuePair<CelValue, CelValue>[] entries, Dictionary<CelValue, int> index)
+    private readonly KeyValuePair<CelValue, CelValue>[] _entries;
+
+    // The index of a map of more than UnindexedLimit entries, null for a smaller map: a power of two of slots, at least
+    // twice the number of entries, each the position of an entry plus 1 or 0 when empty; a collision goes to the next slot.
+    private readonly int[]? _slots;
+
+    private EntryTableMap(KeyValuePair<CelValue, CelValue>[] entries, int[]? slots)
     {
         _entries = entries;
-        _index = index;
+        _slots = slots;
     }
 
     /// <summary>
@@ -33,6 +43,11 @@ internal sealed class EntryTableMap : CelMap
         DuplicateKey,
     }
 
+    /// <summary>
+    /// The empty map, one instance for the process.
+    /// </summary>
+    internal static EntryTableMap Empty { get; } = new([], null);
+
     private protected override int CountCore => _entries.Length;
 
     /// <summary>
@@ -43,7 +58,7 @@ internal sealed class EntryTableMap : CelMap
     /// <param name="entries">The entries in the order of insertion.</param>
     /// <param name="refusal">Why the map was not created; <see cref="Refusal.None"/> when it was.</param>
     /// <param name="index">The position of the refused entry; otherwise -1.</param>
-    /// <returns>The map; <see langword="null"/> when a key is refused.</returns>
+    /// <returns>The map, <see cref="Empty"/> for no entries; <see langword="null"/> when a key is refused.</returns>
     internal static EntryTableMap? TryCreate(KeyValuePair<CelValue, CelValue>[] entries, out Refusal refusal, out int index)
     {
         refusal = Refusal.KeyKind;
@@ -56,10 +71,10 @@ internal sealed class EntryTableMap : CelMap
         }
 
         refusal = Refusal.DuplicateKey;
-        var positions = new Dictionary<CelValue, int>(entries.Length, KeyComparer.Instance);
+        int[]? slots = entries.Length > UnindexedLimit ? new int[BitOperations.RoundUpToPowerOf2((uint)entries.Length * 2)] : null;
         for (index = 0; index < entries.Length; index++)
         {
-            if (!positions.TryAdd(entries[index].Key, index))
+            if (slots is null ? Find(entries, index, entries[index].Key) >= 0 : !TryInsert(entries, slots, index))
             {
                 return null;
             }
@@ -67,12 +82,13 @@ internal sealed class EntryTableMap : CelMap
 
         refusal = Refusal.None;
         index = -1;
-        return new EntryTableMap(entries, positions);
+        return entries.Length == 0 ? Empty : new EntryTableMap(entries, slots);
     }
 
     private protected override bool TryGetValueCore(CelValue key, out CelValue value)
     {
-        if (_index.TryGetValue(key, out int position))
+        int position = _slots is null ? Find(_entries, _entries.Length, key) : Find(_entries, _slots, key);
+        if (position >= 0)
         {
             value = _entries[position].Value;
             return true;
@@ -87,18 +103,59 @@ internal sealed class EntryTableMap : CelMap
         return ((IEnumerable<KeyValuePair<CelValue, CelValue>>)_entries).GetEnumerator();
     }
 
-    // The index compares keys by the key rules. A probe without a hash, such as a double with a fraction or a
-    // list, gets the hash 0 and equals no key, so a lookup by it finds nothing.
-    private sealed class KeyComparer : IEqualityComparer<CelValue>
+    // The position of the key among the first count entries, compared with each; -1 when it is not there.
+    private static int Find(KeyValuePair<CelValue, CelValue>[] entries, int count, CelValue key)
     {
-        internal static readonly KeyComparer Instance = new();
-
-        public bool Equals(CelValue x, CelValue y) => EqualityRules.KeysEqual(x, y);
-
-        public int GetHashCode(CelValue obj)
+        ReadOnlySpan<KeyValuePair<CelValue, CelValue>> span = entries.AsSpan(0, count);
+        for (int position = 0; position < span.Length; position++)
         {
-            _ = KeyHashRules.TryGetHash(obj, out int hash);
-            return hash;
+            if (EqualityRules.KeysEqual(span[position].Key, key))
+            {
+                return position;
+            }
         }
+
+        return -1;
+    }
+
+    // The position of the key by the index; -1 when it is not there. A probe without a hash, such as a double with a
+    // fraction or a list, equals no key.
+    private static int Find(KeyValuePair<CelValue, CelValue>[] entries, int[] slots, CelValue key)
+    {
+        if (!KeyHashRules.TryGetHash(key, out int hash))
+        {
+            return -1;
+        }
+
+        int mask = slots.Length - 1;
+        for (int slot = hash & mask; slots[slot] != 0; slot = (slot + 1) & mask)
+        {
+            int position = slots[slot] - 1;
+            if (EqualityRules.KeysEqual(entries[position].Key, key))
+            {
+                return position;
+            }
+        }
+
+        return -1;
+    }
+
+    // Adds the entry at the position to the index; false when its key equals the key of an earlier entry.
+    private static bool TryInsert(KeyValuePair<CelValue, CelValue>[] entries, int[] slots, int position)
+    {
+        CelValue key = entries[position].Key;
+        _ = KeyHashRules.TryGetHash(key, out int hash);
+        int mask = slots.Length - 1;
+        int slot = hash & mask;
+        for (; slots[slot] != 0; slot = (slot + 1) & mask)
+        {
+            if (EqualityRules.KeysEqual(entries[slots[slot] - 1].Key, key))
+            {
+                return false;
+            }
+        }
+
+        slots[slot] = position + 1;
+        return true;
     }
 }

@@ -1,50 +1,130 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Evaluation;
 
-// The state of one evaluation: the slots of the variables and the argument stack. A frame serves one
-// call of Plan.Evaluate on one thread.
-internal sealed class Frame
+// The state of one evaluation: the slots of the variables and of the comprehensions, the argument stack,
+// the meter of the cost limit, the event counter of cancellation and the offset of the node whose own
+// operation runs. A frame serves one call of Plan.Run on one thread.
+internal sealed class Frame : IEvaluationMeter
 {
+    // How many events begin between two checks of the token.
+    private const uint EventsPerCheck = 64;
+
     private readonly IReadOnlyDictionary<string, CelValue> _bindings;
+
     private readonly CelValue[] _slots;
+
+    // Two slots for each comprehension: its iteration variable and its accumulator.
+    private readonly CelValue[] _locals;
     private readonly bool[] _filled;
     private readonly CelValue[] _stack;
     private int _count;
 
-    internal Frame(Plan plan, IReadOnlyDictionary<string, CelValue> bindings)
+    // The meter: only with a cost limit.
+    private readonly bool _metered;
+    private readonly ulong _limit;
+    private ulong _remaining;
+
+    // The event counter: only when the token can be canceled.
+    private readonly bool _counts;
+    private readonly CancellationToken _token;
+    private uint _events;
+
+    internal Frame(Plan plan, IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken)
     {
         _bindings = bindings;
-        _slots = Allocate<CelValue>(plan.SlotCount);
-        _filled = Allocate<bool>(plan.SlotCount);
+        _slots = Allocate<CelValue>(plan.VariableCount);
+        _filled = Allocate<bool>(plan.VariableCount);
+        _locals = Allocate<CelValue>(plan.LocalCount);
         _stack = Allocate<CelValue>(plan.StackSize);
         Lines = plan.Lines;
+        if (costLimit is { } limit)
+        {
+            _metered = true;
+            _limit = limit;
+            _remaining = limit;
+        }
+
+        _counts = cancellationToken.CanBeCanceled;
+        _token = cancellationToken;
     }
 
     // The line table of the plan, which turns the offsets of nodes into the positions of errors.
     internal LineTable Lines { get; }
 
-    // Reads a variable. The first read of a slot looks the name up in the bindings and keeps the value;
-    // later reads of the slot take it from there. False when the name has no value in the bindings.
-    internal bool TryRead(int slot, string name, out CelValue value)
-    {
-        if (!_filled[slot])
-        {
-            if (!_bindings.TryGetValue(name, out value))
-            {
-                return false;
-            }
+    // Whether the evaluation has a cost limit.
+    internal bool Metered => _metered;
 
-            _slots[slot] = value;
-            _filled[slot] = true;
+    // The meter for the rules that charge, or null without a limit, so that they compute nothing.
+    internal IEvaluationMeter? Meter => _metered ? this : null;
+
+    // The limit minus the remaining units; 0 without a meter.
+    internal ulong ChargedUnits => _limit - _remaining;
+
+    internal ulong Limit => _limit;
+
+    internal CancellationToken Token => _token;
+
+    // The offset of the node whose own operation runs: the position of CostLimitExceeded and InternalError.
+    internal int Offset { get; set; }
+
+    // Charges units before the operation they pay for. More units than remain mean the operation does not
+    // run. Called only with a meter.
+    public void Charge(ulong units)
+    {
+        if (units > _remaining)
+        {
+            throw new CostLimitException();
         }
 
-        value = _slots[slot];
-        return true;
+        _remaining -= units;
     }
+
+    // Counts an event before it begins; the token is checked before the first event and then every 64.
+    public void Event()
+    {
+        if (_counts)
+        {
+            if (_events % EventsPerCheck == 0)
+            {
+                _token.ThrowIfCancellationRequested();
+            }
+
+            _events++;
+        }
+    }
+
+    // Reads a variable. The first read of a slot looks the name up in the bindings, and first is true: the
+    // caller checks the value and keeps the result with Keep. Later reads take the slot. False when the
+    // name has no value in the bindings.
+    internal bool TryRead(int slot, string name, out CelValue value, out bool first)
+    {
+        first = !_filled[slot];
+        if (!first)
+        {
+            value = _slots[slot];
+            return true;
+        }
+
+        return _bindings.TryGetValue(name, out value);
+    }
+
+    // Keeps the checked value of a variable, or its error value, for the later reads of the slot.
+    internal void Keep(int slot, CelValue value)
+    {
+        _slots[slot] = value;
+        _filled[slot] = true;
+    }
+
+    // Looks a name up in the bindings, without a slot: evaluation without type checking.
+    internal bool TryLookup(string name, out CelValue value) => _bindings.TryGetValue(name, out value);
+
+    // The slot of an iteration variable or an accumulator.
+    internal ref CelValue Local(int slot) => ref _locals[slot];
 
     internal void Push(CelValue value) => _stack[_count++] = value;
 

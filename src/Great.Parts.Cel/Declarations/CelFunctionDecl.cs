@@ -37,16 +37,28 @@ public sealed class CelFunctionDecl
     /// <exception cref="ArgumentException"><paramref name="name"/> is empty, or <paramref name="overloads"/> is empty.</exception>
     public CelFunctionDecl(string name, params ReadOnlySpan<CelOverloadDecl> overloads)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        if (overloads.IsEmpty)
+        {
+            throw new ArgumentException("A function declaration needs at least one overload.", nameof(overloads));
+        }
+
+        foreach (CelOverloadDecl overload in overloads)
+        {
+            ArgumentNullException.ThrowIfNull(overload, nameof(overloads));
+        }
+
+        Name = name;
+        Overloads = [.. overloads];
     }
 
     /// <summary>
     /// The name of the function.
     /// </summary>
-    public string Name => throw new NotImplementedException();
+    public string Name { get; }
 
     /// <summary>
     /// The overloads of the function, in the order given to the constructor.
     /// </summary>
-    public ImmutableArray<CelOverloadDecl> Overloads => throw new NotImplementedException();
+    public ImmutableArray<CelOverloadDecl> Overloads { get; }
 }

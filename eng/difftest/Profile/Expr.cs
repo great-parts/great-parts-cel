@@ -49,14 +49,35 @@ internal sealed record StringLiteral(string Value, TextForm Form) : Expr;
 /// <param name="Form">The quotes, the raw prefix and the form of each unit; see <see cref="TextForm"/>.</param>
 internal sealed record BytesLiteral(IReadOnlyList<byte> Value, char Prefix, TextForm Form) : Expr;
 
-/// <summary>An identifier: a variable of the manifest.</summary>
-/// <param name="Name">The name of the variable.</param>
+/// <summary>An identifier: a variable of the manifest, a type identifier or the iteration variable of an enclosing macro.</summary>
+/// <param name="Name">The name.</param>
 internal sealed record Ident(string Name) : Expr;
 
 /// <summary>A call of a function of the profile.</summary>
 /// <param name="Function">The function: one of the constants of <see cref="ProfileTables"/>.</param>
-/// <param name="Args">The arguments.</param>
-internal sealed record Call(string Function, IReadOnlyList<Expr> Args) : Expr;
+/// <param name="Args">The arguments, the receiver first.</param>
+internal sealed record Call(string Function, IReadOnlyList<Expr> Args) : Expr
+{
+    /// <summary>Whether the call is on its receiver, the first argument: <c>s.contains(t)</c>, <c>e.size()</c>.</summary>
+    internal bool Receiver { get; init; }
+}
+
+/// <summary>A selection <c>e.f</c>.</summary>
+/// <param name="Operand">The operand, of the static type <c>map</c> or <c>dyn</c>.</param>
+/// <param name="Field">The field: one of <see cref="ProfileTables.FieldNames"/>.</param>
+internal sealed record Select(Expr Operand, string Field) : Expr;
+
+/// <summary>A presence test <c>has(e.f)</c>.</summary>
+/// <param name="Operand">The operand, of the static type <c>map</c> or <c>dyn</c>.</param>
+/// <param name="Field">The field: one of <see cref="ProfileTables.FieldNames"/>.</param>
+internal sealed record PresenceTest(Expr Operand, string Field) : Expr;
+
+/// <summary>A macro on a range: <c>r.all(v, p)</c>, <c>r.map(v, p, e)</c>.</summary>
+/// <param name="Macro">The macro: one of <see cref="ProfileTables.Macros"/>.</param>
+/// <param name="Range">The range, of the static type <c>list</c>, <c>map</c> or <c>dyn</c>.</param>
+/// <param name="Variable">The iteration variable: one of <see cref="ProfileTables.IterationVariables"/>.</param>
+/// <param name="Arguments">The arguments after the variable: a predicate, a transform, or a predicate and a transform.</param>
+internal sealed record Comprehension(string Macro, Expr Range, string Variable, IReadOnlyList<Expr> Arguments) : Expr;
 
 /// <summary>A list literal.</summary>
 /// <param name="Elements">The elements.</param>

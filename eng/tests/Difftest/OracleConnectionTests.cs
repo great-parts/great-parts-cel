@@ -144,6 +144,31 @@ public sealed class OracleConnectionTests
         Assert.Equal(list, Google.Protobuf.JsonParser.Default.Parse<Value>(OracleConnection.BindingJson("l1", list)));
     }
 
+    // A double inside a bound list or map is written by its shortest text too, so 2^-25, which the formatter of Google.Protobuf
+    // writes as the neighbouring double, reads back bit for bit and does not fail the run.
+    [Fact]
+    public void DoubleInsideABoundListOrMap_ReadsBackBitForBit()
+    {
+        Value lossy = Double(BitConverter.Int64BitsToDouble(0x3E60000000000000));
+        Value list = new() { ListValue = new ListValue { Values = { Int(1), lossy, Double(double.NaN), Double(-0.0) } } };
+        Value map = new()
+        {
+            MapValue = new MapValue
+            {
+                Entries =
+                {
+                    new MapValue.Types.Entry { Key = new Value { StringValue = "a" }, Value = lossy },
+                    new MapValue.Types.Entry { Key = Int(2), Value = list },
+                },
+            },
+        };
+
+        foreach (Value bound in new[] { list, map })
+        {
+            Assert.Equal(bound, Google.Protobuf.JsonParser.Default.Parse<Value>(OracleConnection.BindingJson("x1", bound)));
+        }
+    }
+
     [Fact]
     public void ClosedConnectionInTheSession_ThrowsIOException()
     {
