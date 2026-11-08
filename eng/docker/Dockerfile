@@ -4,9 +4,9 @@
 # The .NET 10 runtime is taken from the .NET 10 SDK image: tests and tools of net10.0 run on it.
 FROM mcr.microsoft.com/dotnet/sdk:10.0.403 AS runtime10
 
-# The tag is the SDK version of global.json (11.0.100-rc.2.26504.105 is the build behind the tag 11.0.100-rc.2);
+# The tag is the SDK version of global.json (11.0.100-rc.3.26522.148 is the build behind the tag 11.0.100-rc.3);
 # it changes together with global.json. Floating tags are not used.
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2 AS sdk
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS sdk
 COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
 # Files of the working copy and of the git directory belong to another host user: git must not refuse them.
 RUN git config --system --add safe.directory /repo \
@@ -20,7 +20,7 @@ COPY --from=lycheeverse/lychee:0.24.2 /usr/local/bin/lychee /usr/local/bin/lyche
 
 # The -aot variant of the same SDK image adds the native toolchain that Native AOT publishing needs; the rest is as in sdk.
 # The service test runs on it (docs/design/eng-test.md). The tag changes together with global.json.
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.2-aot AS sdk-aot
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3-aot AS sdk-aot
 COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
 # Files of the working copy and of the git directory belong to another host user: git must not refuse them.
 RUN git config --system --add safe.directory /repo  && git config --system --add safe.directory /git
