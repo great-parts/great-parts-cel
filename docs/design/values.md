@@ -14,6 +14,7 @@
 | `src/Great.Parts.Cel/Values/ValueTypeRules.cs` | the runtime type of a value; whether a value fits a declared type, at any depth | yes |
 | `src/Great.Parts.Cel/Values/ConversionRules.cs` | .NET values to CEL values; the CEL type of a .NET type | yes |
 | `src/Great.Parts.Cel/Values/ConversionRules.Result.cs` | CEL values to a requested .NET type | yes |
+| `src/Great.Parts.Cel/Values/DoubleTextRules.cs` | the shortest digits of a double that read back to the same double | yes |
 
 The rule files follow the naming and the content rules of [core](core.md): rule logic is only in them, and public members that expose a rule delegate to them.
 

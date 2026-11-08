@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
@@ -181,6 +182,54 @@ public sealed class PrinterTests
 
         Assert.Throws<InvalidOperationException>(() => Printer.Print(nodes.Build(loop, lines)));
         Assert.Throws<InvalidOperationException>(() => Printer.Print(nodes.Build(presence, lines)));
+    }
+
+    // The text of 2^-25 and 2^-958 in the form "R" of .NET 10 reads back to the double below them, whose gap is half as
+    // wide as the gap above.
+    [Theory]
+    [InlineData(-25)]
+    [InlineData(-958)]
+    public static void Double_OfAPowerOfTwoWhoseNetTextReadsBelow_PrintsTextThatReadsBack(int exponent)
+    {
+        AssertDoubleReadsBack(Math.ScaleB(1.0, exponent));
+    }
+
+    // Every one of the 2098 positive powers of two, from the least subnormal number to the largest power.
+    [Fact]
+    public static void Double_OfEveryPowerOfTwo_PrintsTextThatReadsBack()
+    {
+        for (int exponent = -1074; exponent <= 1023; exponent++)
+        {
+            AssertDoubleReadsBack(Math.ScaleB(1.0, exponent));
+            AssertDoubleReadsBack(-Math.ScaleB(1.0, exponent));
+        }
+    }
+
+    // 20,000 doubles of any exponent and sign, spread over the bit patterns.
+    [Fact]
+    public static void Double_OfRandomBitPatterns_PrintsTextThatReadsBack()
+    {
+        for (int i = 0; i < 20_000; i++)
+        {
+            double value = BitConverter.UInt64BitsToDouble(unchecked((ulong)(i + 1) * 0x9E3779B97F4A7C15UL));
+            if (double.IsFinite(value))
+            {
+                AssertDoubleReadsBack(value);
+            }
+        }
+    }
+
+    private static void AssertDoubleReadsBack(double value)
+    {
+        var text = new StringBuilder();
+        Printer.AppendConstant(text, CelValue.FromDouble(value));
+        string printed = text.ToString();
+
+        ParsedExpression parsed = Parse(printed, SyntaxOptions.Standard);
+
+        var constant = Assert.IsType<ConstantNode>(parsed.Root);
+        Assert.True(constant.Value.TryGetDouble(out double readBack), printed);
+        Assert.Equal(BitConverter.DoubleToInt64Bits(value), BitConverter.DoubleToInt64Bits(readBack));
     }
 
     private static void AssertPrintsAndParsesBack(string expression, string printed, SyntaxOptions syntax)

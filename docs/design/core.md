@@ -59,6 +59,7 @@ Code that a later part of the library adds to `Values` follows the same rule: lo
 | `src/Great.Parts.Cel/Values/ValueTypeRules.cs` | the runtime type of a value; whether a value fits a declared type | `type()`, bindings, results of application functions |
 | `src/Great.Parts.Cel/Values/ConversionRules.cs` | .NET values to CEL values by the input rows of the type mapping table | bindings of simple types |
 | `src/Great.Parts.Cel/Values/ConversionRules.Result.cs` | CEL values to the requested .NET type by the result rows of the type mapping table | results of simple types |
+| `src/Great.Parts.Cel/Values/DoubleTextRules.cs` | the shortest digits of a double that read back to the same double, shared by the text form of the library and the printer of syntax trees | `string(double)` and printing of a literal |
 
 ## Core paths
 

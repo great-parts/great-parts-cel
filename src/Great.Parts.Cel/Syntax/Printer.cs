@@ -92,11 +92,40 @@ internal sealed class Printer
     private static void AppendDouble(StringBuilder text, double number)
     {
         string digits = number.ToString("R", CultureInfo.InvariantCulture);
+
+        // The text of a power of two can read back to the double below it, such as 2^-25: the gap below is half the gap
+        // above, and .NET takes the wider one on both sides.
+        if (double.IsFinite(number) && double.Parse(digits, NumberStyles.Float, CultureInfo.InvariantCulture) != number)
+        {
+            AppendShortestExponentForm(text, number);
+            return;
+        }
+
         text.Append(digits);
         if (digits.AsSpan().IndexOfAny('.', 'E') < 0)
         {
             text.Append(".0");
         }
+    }
+
+    // The shortest digits that read back, as d.dddE±XX with at least two digits of the exponent, as .NET writes it.
+    private static void AppendShortestExponentForm(StringBuilder text, double number)
+    {
+        Span<char> digits = stackalloc char[DoubleTextRules.BufferLength];
+        int count = DoubleTextRules.ShortestDigits(number, digits, out int point);
+        if (double.IsNegative(number))
+        {
+            text.Append('-');
+        }
+
+        text.Append(digits[0]);
+        if (count > 1)
+        {
+            text.Append('.').Append(digits[1..count]);
+        }
+
+        int exponent = point - 1;
+        text.Append('E').Append(exponent < 0 ? '-' : '+').Append(Math.Abs(exponent).ToString("00", CultureInfo.InvariantCulture));
     }
 
     // A string in double quotes with escapes for the backslash, the quote and the control characters.
