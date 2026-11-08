@@ -411,6 +411,130 @@ public sealed class SignatureTests
         Assert.Equal(2, calls);
     }
 
+    // ---- Minimization under a macro ----
+
+    // Case 526735 of seed 20261108: the divergence _>_(bytes, double) we-error sits in the body of a macro. When the registry
+    // knows it, the case is the body with the element in parentheses; when nobody knows it, the case stays the macro, with the
+    // signature of the macro.
+    [Theory]
+    [InlineData(true, "_>_(bytes, double) we-error", "x1 > (d1)", 0)]
+    [InlineData(false, "comprehension(list) we-error", "[d1].map(v, x1 > v)", 1)]
+    public static void Macro_WithADivergenceInItsBody_IsMinimizedToTheBodyOnlyWhenItsSignatureIsKnown(
+        bool registered, string signature, string text, int newSignatures)
+    {
+        Expr x1 = new Ident("x1");
+        Expr d1 = new Ident("d1");
+        Expr range = new ListLiteral([d1], TrailingComma: false);
+        Expr root = new Comprehension(ProfileTables.MapMacro, range, "v", [new Call(ProfileTables.Greater, [x1, new Ident("v")])]);
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.EvaluationError("no such overload: _>_(bytes, double)"), SideOutcome.Of(ListOf(Bool(false)))),
+            (new Call(ProfileTables.Greater, [x1, Parenthesized(d1)]), SideOutcome.EvaluationError("no such overload: _>_(bytes, double)"), SideOutcome.Of(Bool(false))),
+            (x1, SideOutcome.Of(Bytes(0x61)), SideOutcome.Of(Bytes(0x61))),
+            (Parenthesized(d1), SideOutcome.Of(Dbl(double.NaN)), SideOutcome.Of(Dbl(double.NaN))),
+            (range, SideOutcome.Of(ListOf(Dbl(double.NaN))), SideOutcome.Of(ListOf(Dbl(double.NaN)))));
+        string[] known = registered ? ["_>_(bytes, double) we-error"] : [];
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of(known));
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal(signature, divergence?.Signature);
+        Assert.Equal(text, divergence?.Case.Text);
+        Assert.Equal(newSignatures, search.NewSignatures.Count);
+        Assert.Equal(registered ? 1 : 0, search.KnownSignaturesFound.Count);
+    }
+
+    // Case 843970 of seed 20261108: the range is in dyn(), so the element goes in dyn() and keeps the static type of the range.
+    [Fact]
+    public void Macro_OverDynRange_IsMinimizedToABodyInstanceWithTheElementInDyn()
+    {
+        Expr x1 = new Ident("x1");
+        Expr bytes = new BytesLiteral([0x61], 'b', new TextForm(Quote.Apostrophe, null, [Escape.Literal]));
+        Expr range = new Call(ProfileTables.Dyn, [new ListLiteral([x1, I1, bytes], TrailingComma: false)]);
+        Expr transform = new IntLiteral(0, IntegerForm.DecimalDigits);
+        Expr root = new Comprehension(ProfileTables.MapMacro, range, "v", [new Call(ProfileTables.In, [new Ident("v"), x1]), transform]);
+        Expr dynBytes = new Call(ProfileTables.Dyn, [bytes]);
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.Of(ListOf()), SideOutcome.EvaluationError("hash of unhashable type types.Bytes")),
+            (new Call(ProfileTables.In, [dynBytes, x1]), SideOutcome.Of(Bool(false)), SideOutcome.EvaluationError("hash of unhashable type types.Bytes")),
+            (new Call(ProfileTables.In, [new Call(ProfileTables.Dyn, [x1]), x1]), SideOutcome.Of(Bool(false)), SideOutcome.Of(Bool(false))),
+            (new Call(ProfileTables.In, [new Call(ProfileTables.Dyn, [I1]), x1]), SideOutcome.Of(Bool(false)), SideOutcome.Of(Bool(false))),
+            (dynBytes, SideOutcome.Of(Bytes(0x61)), SideOutcome.Of(Bytes(0x61))),
+            (bytes, SideOutcome.Of(Bytes(0x61)), SideOutcome.Of(Bytes(0x61))),
+            (x1, SideOutcome.Of(Map()), SideOutcome.Of(Map())),
+            (range, SideOutcome.Of(ListOf(Map(), Int(2), Bytes(0x61))), SideOutcome.Of(ListOf(Map(), Int(2), Bytes(0x61)))));
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of("in_map(bytes, map) we-value"));
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal("in_map(bytes, map) we-value", divergence?.Signature);
+        Assert.Equal("dyn(b'a') in x1", divergence?.Case.Text);
+        Assert.Empty(search.NewSignatures);
+    }
+
+    [Fact]
+    public void BodyInstances_PutTheElementOfTheRangeInPlaceOfTheVariable()
+    {
+        Expr positive = new Call(ProfileTables.Greater, [new Ident("v"), new IntLiteral(0, IntegerForm.DecimalDigits)]);
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr two = new IntLiteral(2, IntegerForm.DecimalDigits);
+        Expr key = new StringLiteral("a", new TextForm(Quote.Apostrophe, null, [Escape.Literal]));
+        Expr list = new ListLiteral([one, two], TrailingComma: false);
+        Expr map = new MapLiteral([new MapEntry(key, one)], TrailingComma: false);
+
+        Assert.Equal(["(1) > 0", "(2) > 0"], Printed(new Comprehension(ProfileTables.All, list, "v", [positive])));
+        Assert.Equal(["dyn(1) > 0", "dyn(2) > 0"], Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [list]), "v", [positive])));
+        Assert.Equal(["('a') > 0"], Printed(new Comprehension(ProfileTables.All, map, "v", [positive])));
+        Assert.Equal(["dyn('a') > 0"], Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [map]), "v", [positive])));
+    }
+
+    [Fact]
+    public void BodyInstances_TakeEveryBodyThatReadsTheVariableInOrderAndNoOther()
+    {
+        Expr v = new Ident("v");
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr two = new IntLiteral(2, IntegerForm.DecimalDigits);
+        Expr range = new ListLiteral([one, two], TrailingComma: false);
+        Expr predicate = new Call(ProfileTables.Greater, [v, one]);
+        Expr transform = new Call(ProfileTables.Add, [v, v]);
+
+        Assert.Equal(
+            ["(1) > 1", "(2) > 1", "(1) + (1)", "(2) + (2)"],
+            Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, transform])));
+        Assert.Equal(["(1) > 1", "(2) > 1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, one])));
+        Assert.Empty(Minimizer.BodyInstances(new Comprehension(ProfileTables.All, range, "v", [one])));
+        Assert.Empty(Minimizer.BodyInstances(new Comprehension(ProfileTables.All, new Ident("x1"), "v", [predicate])));
+        Assert.Empty(Minimizer.BodyInstances(new Call(ProfileTables.Add, [v, v])));
+    }
+
+    // A macro inside the body that declares the same variable keeps its own body; its range reads the outer variable.
+    [Fact]
+    public void BodyInstances_LeaveTheBodyOfANestedMacroWithTheSameVariable()
+    {
+        Expr v = new Ident("v");
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr inner = new Comprehension(ProfileTables.All, new ListLiteral([v], TrailingComma: false), "v", [new Call(ProfileTables.Greater, [v, one])]);
+        Expr outer = new Comprehension(ProfileTables.All, new ListLiteral([one], TrailingComma: false), "v", [inner]);
+
+        Assert.Equal(["[(1)].all(v, v > 1)"], Printed(outer));
+    }
+
+    // The instances agree: the divergence is in the macro itself, and the case stays the macro.
+    [Fact]
+    public void Macro_WhoseBodyInstancesAgree_StaysTheMacro()
+    {
+        Expr range = new ListLiteral([I1], TrailingComma: false);
+        Expr root = new Comprehension(ProfileTables.All, range, "v", [new Call(ProfileTables.Greater, [new Ident("v"), new IntLiteral(0, IntegerForm.DecimalDigits)])]);
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.Of(Bool(true)), SideOutcome.Of(Bool(false))),
+            (range, SideOutcome.Of(ListOf(Int(2))), SideOutcome.Of(ListOf(Int(2)))));
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("i1", Int(2))));
+
+        Assert.Equal(root, divergence?.Case.Expression);
+        Assert.Equal("comprehension(list) value-mismatch", divergence?.Signature);
+    }
+
     // ---- ENG822 ----
 
     [Fact]
@@ -538,7 +662,15 @@ public sealed class SignatureTests
         }
     }
 
+    private static IEnumerable<string> Printed(Expr macro) => Minimizer.BodyInstances(macro).Select(ExprPrinter.Print);
+
+    private static Expr Parenthesized(Expr expr) => expr with { Parenthesized = true };
+
     private static Value Int(long value) => new() { Int64Value = value };
+
+    private static Value Dbl(double value) => new() { DoubleValue = value };
+
+    private static Value Bytes(params byte[] value) => new() { BytesValue = ByteString.CopyFrom(value) };
 
     private static Value Bool(bool value) => new() { BoolValue = value };
 

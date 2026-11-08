@@ -64,7 +64,7 @@ internal sealed class DivergenceSearch
             return null;
         }
 
-        GeneratedCase minimized = Minimizer.Minimize(generated, candidate => Outcomes(candidate).Kind is not null);
+        GeneratedCase minimized = Minimizer.Minimize(generated, candidate => Outcomes(candidate).Kind is not null, AcceptsBodyInstance);
         (SideOutcome libraryOutcome, SideOutcome oracleOutcome, DivergenceKind? kind) = Outcomes(minimized);
         if (kind is not { } divergenceKind)
         {
@@ -88,6 +88,17 @@ internal sealed class DivergenceSearch
         }
 
         return divergence;
+    }
+
+    // A minimized instance of a body of a macro replaces the macro only when its signature is the signature of the macro or a
+    // known one: a divergence under a macro that nobody knows stays the signature of the macro.
+    private bool AcceptsBodyInstance(GeneratedCase macro, GeneratedCase instance) =>
+        SignatureOf(instance) is { } signature && (known.Contains(signature) || signature == SignatureOf(macro));
+
+    private string? SignatureOf(GeneratedCase generated)
+    {
+        (SideOutcome libraryOutcome, SideOutcome oracleOutcome, DivergenceKind? kind) = Outcomes(generated);
+        return kind is { } divergenceKind ? Signature.Of(generated, libraryOutcome, oracleOutcome, divergenceKind, library, oracle) : null;
     }
 
     private (SideOutcome Library, SideOutcome Oracle, DivergenceKind? Kind) Outcomes(GeneratedCase generated)

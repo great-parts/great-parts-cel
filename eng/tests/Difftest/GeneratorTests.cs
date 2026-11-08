@@ -353,8 +353,8 @@ public sealed class GeneratorTests
         Assert.Contains(AllNodes(), node => node is Comprehension { Variable: "w" });
     }
 
-    // Minimization descends into the operand of a selection and of a presence test, and into the range of a macro only: the
-    // other arguments of a macro read the iteration variable.
+    // The children of a node for minimization are the operand of a selection and of a presence test, and the range of a macro
+    // only: the other arguments of a macro read the iteration variable; the bodies come as instances (SignatureTests).
     [Fact]
     public void ChildrenOfAMacro_AreItsRangeOnly()
     {
