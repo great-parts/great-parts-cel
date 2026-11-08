@@ -22,14 +22,17 @@ public sealed class TimeoutsTests
 
         string[] limits = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane).Select(step => $"{Kind(step)}={step.Timeout?.TotalSeconds}")];
 
-        // Stage 1: the build. Stage 2: the lane of the JIT run — three modules and the checks — and two lanes that publish and run,
-        // one for each target of the published project. Stage 3: the test count of each published target.
+        // Stage 1: the build. Stage 2: the lane of the JIT run — three modules and the checks — and two lanes that delete the
+        // unfinished outputs of an earlier publish (in this process, no limit), publish and run, one for each target of the published
+        // project. Stage 3: the test count of each published target.
         string[] expected =
         [
             "build=102",
             .. Enumerable.Repeat("jit=112", 4),
+            "clean=",
             "publish=201",
             "aot run=120",
+            "clean=",
             "publish=201",
             "aot run=120",
             .. Enumerable.Repeat("test-count=12", 2),
@@ -155,7 +158,7 @@ public sealed class TimeoutsTests
     }
 
     // The kind of a step for the table of limits.
-    private static string Kind(Step step) => step.Arguments switch
+    private static string Kind(Step step) => step.Action is not null ? "clean" : step.Arguments switch
     {
         ["build", ..] => "build",
         ["publish", ..] => "publish",

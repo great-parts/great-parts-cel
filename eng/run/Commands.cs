@@ -155,8 +155,16 @@ internal static class Commands
 
     // The restore of the build already covers the runtime identifier of the publish; the publish reuses it with --no-restore, so no
     // lock file changes.
+    //
+    // The lane starts with the deletion of what an earlier publish of the same project and target may have left unfinished: the output
+    // directory and the directory of the native compiler under obj/. A publish that was killed in the middle, by its limit or by a user,
+    // leaves a half-written object file there, and the next publish takes the file as up to date and links a program that crashes.
     private static IEnumerable<Step[]> AotLanes(TestProject project) => project.Targets.Select(target => new Step[]
     {
+        Step.InProcess(
+            $"aot: delete {Published(project, target)} {NativeDirectory(project, target)}",
+            () => StaleOutputs.Delete([Published(project, target), NativeDirectory(project, target)]),
+            stopsOnFailure: true),
         new(
             "dotnet",
             [
@@ -182,6 +190,11 @@ internal static class Commands
     private static string Report(string mode, TestProject project, string target) => $"artifacts/test-results/{mode}/{project.Name}/{target}/report.xml";
 
     private static string Published(TestProject project, string target) => $"artifacts/aot/{project.Name}/{target}";
+
+    /// <summary>The directory in which the native compiler of the publish of a project and target writes its object file.</summary>
+    /// <param name="project">The published project.</param>
+    /// <param name="target">The target framework.</param>
+    internal static string NativeDirectory(TestProject project, string target) => $"{project.Directory}/obj/Release/{target}/{AotRuntime}/native";
 
     /// <summary>
     /// <c>mutate</c>: the restore of the local tool Stryker.NET, the build of <c>eng/checks</c>, then the run of the tool with the
