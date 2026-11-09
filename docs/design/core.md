@@ -11,7 +11,7 @@ The core is the code that decides the value or the error of an expression by the
 - the standard library and the extension sets with the implementations of their functions, including `matches`, `decimal` and the time functions — `Great.Parts.Cel.Library` and its sub-namespaces;
 - the value rules that evaluation relies on: assignability of types in `Great.Parts.Cel.Types`; CEL equality, ordering, hashing of map keys and conversions of values in `Great.Parts.Cel.Values`.
 
-Not core: the parser and the macros (`Great.Parts.Cel.Syntax`), the public facade, declarations, diagnostics, the environment description in JSON (`Great.Parts.Cel.Configuration`), the value model in `Types` and `Values` outside the rule files, the text of error messages, including the names of types in it (`Values/ValueTypeNames.cs`), the source generator, the type providers, the `Great.Parts.Cel.Protobuf` package, `eng/` and the tests.
+Not core: the parser and the macros (`Great.Parts.Cel.Syntax`), the public facade, declarations, diagnostics, the environment description in JSON (`Great.Parts.Cel.Configuration`), the value model in `Types` and `Values` outside the rule files, the text of error messages, including the names of types in it (`Values/ValueTypeNames.cs`), the source generator, the type providers, the type descriptions and their builders outside the rule files, the adapters of application collections and of `JsonElement` outside the rule files, the `Great.Parts.Cel.Protobuf` package, `eng/` and the tests.
 
 A defect in the core gives a wrong value instead of a visible error. Core changes are therefore also checked against the reference implementation with `eng/difftest`.
 
@@ -59,6 +59,9 @@ Code that a later part of the library adds to `Values` follows the same rule: lo
 | `src/Great.Parts.Cel/Values/ValueTypeRules.cs` | the runtime type of a value; whether a value fits a declared type | `type()`, bindings, results of application functions |
 | `src/Great.Parts.Cel/Values/ConversionRules.cs` | .NET values to CEL values by the input rows of the type mapping table | bindings of simple types |
 | `src/Great.Parts.Cel/Values/ConversionRules.Result.cs` | CEL values to the requested .NET type by the result rows of the type mapping table | results of simple types |
+| `src/Great.Parts.Cel/Values/ConversionRules.Collections.cs` | the collections of the application: conversion of elements and keys, the lookup of a CEL key back to .NET, the order of enumeration | bindings of collections |
+| `src/Great.Parts.Cel/Values/JsonRules.cs` | `JsonElement`: kinds, numbers, the counting key lookup, repeated names | bindings of `JsonElement` |
+| `src/Great.Parts.Cel/Values/ObjectRules.cs` | the description of an object value and the place rule; the field value of a type described at run time (presence, `FieldNotSet`, `FieldTypeMismatch`); the default equality of objects | objects of the application |
 | `src/Great.Parts.Cel/Values/DoubleTextRules.cs` | the shortest digits of a double that read back to the same double, shared by the text form of the library and the printer of syntax trees | `string(double)` and printing of a literal |
 
 ## Core paths
@@ -98,6 +101,9 @@ Moving code across the line — a new rule file outside this naming, a rule in a
 | `src/Great.Parts.Cel/Values/ConversionRules.Result.cs` | yes | part of a rule file |
 | `src/Great.Parts.Cel/Values/CelValue.cs` | no | value model; `CelEquals` only delegates |
 | `src/Great.Parts.Cel/Values/CelList.cs` | no | value model |
+| `src/Great.Parts.Cel/Values/ObjectRules.cs` | yes | rule file in `Values` |
+| `src/Great.Parts.Cel/Values/CelObjectTypeBuilder.cs` | no | type description; its decisions are in `ObjectRules.cs` |
+| `src/Great.Parts.Cel/Values/JsonObjectMap.cs` | no | adapter; its decisions are in `JsonRules.cs` |
 | `src/Great.Parts.Cel/Types/CelType.cs` | no | type model |
 | `src/Great.Parts.Cel/Syntax/Parser.cs` | no | parser |
 | `src/Great.Parts.Cel/CelEnvironment.cs` | no | facade |
@@ -110,4 +116,4 @@ Moving code across the line — a new rule file outside this naming, a rule in a
 
 A change that moves `src/Great.Parts.Cel/Values/EqualityRules.cs` to `src/Great.Parts.Cel/Values/Equality.cs` prints both paths with `--no-renames`; the first one matches, so the change is a core change.
 
-Related pages: [facade](facade.md), [syntax](syntax.md), [types](types.md), [values](values.md), [declarations](declarations.md), [environment description in JSON](configuration.md).
+Related pages: [facade](facade.md), [syntax](syntax.md), [types](types.md), [values](values.md), [objects](objects.md), [declarations](declarations.md), [environment description in JSON](configuration.md).

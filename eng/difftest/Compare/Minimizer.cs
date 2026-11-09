@@ -2,39 +2,70 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
+using Cel.Expr;
 using Great.Parts.Cel.Eng.Difftest.Profile;
 using Great.Parts.Cel.Eng.Difftest.Sides;
 
 namespace Great.Parts.Cel.Eng.Difftest.Compare;
 
+/// <summary>How the outcomes of a node agree: the verdict of a classification of a node on the way down.</summary>
+internal enum NodeVerdict
+{
+    /// <summary>The outcomes agree and are not both errors.</summary>
+    Agrees,
+
+    /// <summary>The outcomes agree because both sides give an error, whatever its cause.</summary>
+    AgreesInError,
+
+    /// <summary>The outcomes diverge.</summary>
+    Diverges,
+}
+
 /// <summary>
 /// Shrinks a divergent case (docs/design/eng-difftest.md, "Outcomes and signatures", "Minimization") by a deterministic
 /// descent: while a child of the root still diverges with the same bindings, the first such child in the order of
-/// <see cref="Children"/> becomes the case; when none does and the root is a macro over a literal range, the first instance
-/// of a body of the macro that is accepted becomes the case (<see cref="BodyInstances"/>). The result depends on the case and
-/// the outcomes of the sides alone, not on time or on random choices, so the same case gives the same minimized case and the
-/// same signature. A failed side ends the minimization with its exception.
+/// <see cref="Children"/> becomes the case. When no child of the root diverges, the descent looks under each child on which
+/// both sides give an error, in the order of the source, since two errors agree whatever their causes and such a child can
+/// hide the node that diverges: under it the first child that diverges becomes the case, and when none does, the descent looks
+/// in the same way under those of its children on which both sides give an error, depth first, before the next child of the
+/// root. A node found so becomes the case without any condition. Under a macro only its range is searched, as the children
+/// are those of <see cref="Children"/>. When nothing diverges by these rules and the root is a macro, the first instance of a
+/// body of the macro that makes the case smaller and is accepted becomes the case (<see cref="BodyInstances"/>). A case is
+/// smaller than another when it has fewer macro nodes, or as many and a shorter text. Each node below the root is classified
+/// at most once by the descent from a root. The result depends on the case and the outcomes of the sides alone, not on time or
+/// on random choices, so the same case gives the same minimized case and the same signature. A failed side ends the
+/// minimization with its exception.
 /// </summary>
 internal static class Minimizer
 {
     /// <summary>Minimizes a divergent case.</summary>
     /// <param name="divergent">The divergent case.</param>
-    /// <param name="diverges">Whether the outcomes of a case diverge. Called only for children and instances on the way down.</param>
+    /// <param name="classify">
+    /// Whether the outcomes of a case diverge, agree, or agree in an error on both sides. Called only for children, nodes under
+    /// children that agree in an error, and instances on the way down; at most once for each node of the descent from a root.
+    /// </param>
     /// <param name="accepts">
     /// Whether the minimized instance of a body of the macro at the root, which diverges, replaces the root: its arguments are
     /// the root and the instance after its own minimization. <see langword="null"/> means that a macro has no body
     /// instances.
     /// </param>
-    /// <returns>The divergent case whose root has no divergent child and no accepted body instance.</returns>
-    /// <exception cref="IOException">An <see cref="IOException"/> of <paramref name="diverges"/> or <paramref name="accepts"/>, after which it is not called again.</exception>
-    /// <exception cref="SideFailureException">A <see cref="SideFailureException"/> of <paramref name="diverges"/> or <paramref name="accepts"/>, after which it is not called again.</exception>
+    /// <param name="rangeValue">
+    /// The value that the library gives for a case, <see langword="null"/> when it gives none: it is asked for the range of a
+    /// macro that is not a literal, whose elements are those of its value (<see cref="BodyInstances"/>).
+    /// <see langword="null"/> means that such a range has no body instances.
+    /// </param>
+    /// <returns>The divergent case whose root has no divergent node under it and no accepted body instance.</returns>
+    /// <exception cref="IOException">An <see cref="IOException"/> of <paramref name="classify"/>, <paramref name="accepts"/> or <paramref name="rangeValue"/>, after which it is not called again.</exception>
+    /// <exception cref="SideFailureException">A <see cref="SideFailureException"/> of <paramref name="classify"/>, <paramref name="accepts"/> or <paramref name="rangeValue"/>, after which it is not called again.</exception>
     internal static GeneratedCase Minimize(
         GeneratedCase divergent,
-        Func<GeneratedCase, bool> diverges,
-        Func<GeneratedCase, GeneratedCase, bool>? accepts = null)
+        Func<GeneratedCase, NodeVerdict> classify,
+        Func<GeneratedCase, GeneratedCase, bool>? accepts = null,
+        Func<GeneratedCase, Value?>? rangeValue = null)
     {
         GeneratedCase current = divergent;
-        while (Next(current, diverges, accepts) is { } next)
+        while (Next(current, classify, accepts, rangeValue) is { } next)
         {
             current = next;
         }
@@ -59,34 +90,67 @@ internal static class Minimizer
     };
 
     /// <summary>
-    /// The instances of the bodies of a macro whose range is a list or map literal, or a literal in <c>dyn()</c>: for each
-    /// argument that reads the iteration variable, in order, and each element of the range, in order (the key for a map), the
-    /// argument with the variable replaced by the element in parentheses, or by <c>dyn(element)</c> when the range is in
-    /// <c>dyn()</c>, so that the static types stay. Nothing for any other range or macro node.
+    /// The instances of the bodies of a macro: for each argument that reads the iteration variable, in order, and each element
+    /// of the range, in order (the key for a map), the argument with each free read of the variable replaced by a node that
+    /// stands for the element and fits wherever the variable does. For a list or map literal, or such a literal in
+    /// <c>dyn()</c>, the node is the element in parentheses, or <c>dyn(element)</c> when the range is in <c>dyn()</c>, so that
+    /// the static types stay. For any other range (a variable, <c>dyn(x1)</c>, <c>lx + []</c>, the result of <c>map</c> or
+    /// <c>filter</c>) the elements are those of its value that the library gives: for a list, the index <c>range[i]</c> for
+    /// each position <c>i</c> from 0; for a map, <c>dyn(k)</c> for each key <c>k</c> in the order the library iterates the map.
+    /// A range whose value is not a list or a map (an error, an unbound variable, a scalar) has no instances. Nothing for a node
+    /// that is not a macro.
     /// </summary>
     /// <param name="node">The node.</param>
-    internal static IEnumerable<Expr> BodyInstances(Expr node)
+    /// <param name="rangeValue">
+    /// The value of the range of the macro on the library, <see langword="null"/> when it gives none. Asked once, and only for a
+    /// range that is not a literal and only when a body reads the iteration variable.
+    /// </param>
+    internal static IEnumerable<Expr> BodyInstances(Expr node, Func<Expr, Value?> rangeValue)
     {
-        if (node is not Comprehension macro || Elements(macro.Range, out bool inDyn) is not { } elements)
+        if (node is not Comprehension macro)
         {
             yield break;
         }
 
-        foreach (Expr body in macro.Arguments.Where(argument => Reads(argument, macro.Variable)))
+        List<Expr> bodies = [.. macro.Arguments.Where(argument => Reads(argument, macro.Variable))];
+        if (bodies.Count == 0)
         {
-            foreach (Expr element in elements)
+            yield break;
+        }
+
+        IReadOnlyList<Expr> replacements = Replacements(macro, rangeValue);
+        foreach (Expr body in bodies)
+        {
+            foreach (Expr replacement in replacements)
             {
-                Expr replacement = inDyn ? new Call(ProfileTables.Dyn, [element]) : element with { Parenthesized = true };
                 yield return Replace(body, macro.Variable, replacement);
             }
         }
     }
 
-    private static GeneratedCase? Next(GeneratedCase current, Func<GeneratedCase, bool> diverges, Func<GeneratedCase, GeneratedCase, bool>? accepts)
+    /// <summary>The number of macro nodes of an expression, the first measure of how small a case is.</summary>
+    /// <param name="node">The expression.</param>
+    internal static int MacroNodes(Expr node) => node switch
     {
-        if (Children(current.Expression).Select(child => current with { Expression = child }).FirstOrDefault(diverges) is { } child)
+        Comprehension macro => 1 + MacroNodes(macro.Range) + macro.Arguments.Sum(MacroNodes),
+        _ => Children(node).Sum(MacroNodes),
+    };
+
+    /// <summary>
+    /// The next case of the descent from a root: the first node that diverges below it, found by the search under the children
+    /// on which both sides give an error (<see cref="FirstDivergent"/>), without any condition; else the first accepted instance
+    /// of a body of the macro at the root, which is asked for only if nothing was found; <see langword="null"/> when there is
+    /// none.
+    /// </summary>
+    private static GeneratedCase? Next(
+        GeneratedCase current,
+        Func<GeneratedCase, NodeVerdict> classify,
+        Func<GeneratedCase, GeneratedCase, bool>? accepts,
+        Func<GeneratedCase, Value?>? rangeValue)
+    {
+        if (FirstDivergent(current, classify) is { } found)
         {
-            return child;
+            return found;
         }
 
         if (accepts is null)
@@ -94,13 +158,16 @@ internal static class Minimizer
             return null;
         }
 
-        // An instance longer than the macro does not shrink the case: this also ends the descent.
+        // An instance is asked for only when it is smaller than the case: fewer macro nodes, or as many and a shorter text.
+        // This is what ends the descent.
+        int macros = MacroNodes(current.Expression);
         int length = current.Text.Length;
-        foreach (GeneratedCase instance in BodyInstances(current.Expression).Select(body => current with { Expression = body }))
+        Value? ValueOfRange(Expr range) => rangeValue?.Invoke(current with { Expression = range });
+        foreach (GeneratedCase instance in BodyInstances(current.Expression, ValueOfRange).Select(body => current with { Expression = body }))
         {
-            if (instance.Text.Length < length && diverges(instance))
+            if (IsSmaller(instance, macros, length) && classify(instance) == NodeVerdict.Diverges)
             {
-                GeneratedCase reduced = Minimize(instance, diverges, accepts);
+                GeneratedCase reduced = Minimize(instance, classify, accepts, rangeValue);
                 if (accepts(current, reduced))
                 {
                     return reduced;
@@ -111,17 +178,92 @@ internal static class Minimizer
         return null;
     }
 
-    // The elements of a range of fixed order: of a list literal, the keys of a map literal; null for any other range.
-    private static IReadOnlyList<Expr>? Elements(Expr range, out bool inDyn)
+    // The first node below a node that diverges: the first child that does, else the first node that does found by the same
+    // search under the children on which both sides give an error, in the order of the source, depth first. The children are
+    // classified in order and the search stops at the first that diverges; a node is classified once, and the children that
+    // agree in an error keep their verdict for the search under them.
+    private static GeneratedCase? FirstDivergent(GeneratedCase node, Func<GeneratedCase, NodeVerdict> classify)
     {
-        inDyn = range is Call { Function: ProfileTables.Dyn, Args: [_] };
-        Expr literal = range is Call { Function: ProfileTables.Dyn, Args: [{ } argument] } ? argument : range;
-        return literal switch
+        List<GeneratedCase> inError = [];
+        foreach (Expr child in Children(node.Expression))
+        {
+            GeneratedCase candidate = node with { Expression = child };
+            switch (classify(candidate))
+            {
+                case NodeVerdict.Diverges:
+                    return candidate;
+                case NodeVerdict.AgreesInError:
+                    inError.Add(candidate);
+                    break;
+            }
+        }
+
+        foreach (GeneratedCase candidate in inError)
+        {
+            if (FirstDivergent(candidate, classify) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsSmaller(GeneratedCase candidate, int macros, int length)
+    {
+        int candidateMacros = MacroNodes(candidate.Expression);
+        return candidateMacros < macros || (candidateMacros == macros && candidate.Text.Length < length);
+    }
+
+    // The nodes that stand for the elements of the range of a macro, in the order of the elements.
+    private static IReadOnlyList<Expr> Replacements(Comprehension macro, Func<Expr, Value?> rangeValue)
+    {
+        bool inDyn = macro.Range is Call { Function: ProfileTables.Dyn, Args: [_] };
+        Expr literal = macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } argument] } ? argument : macro.Range;
+        IReadOnlyList<Expr>? elements = literal switch
         {
             ListLiteral list => list.Elements,
             MapLiteral map => [.. map.Entries.Select(entry => entry.Key)],
             _ => null,
         };
+        if (elements is not null)
+        {
+            return [.. elements.Select(element => inDyn ? new Call(ProfileTables.Dyn, [element]) : element with { Parenthesized = true })];
+        }
+
+        // Any other range: the elements are those of its value, which both sides give alike since the range agrees.
+        Value? value = rangeValue(macro.Range);
+        return value?.KindCase switch
+        {
+            Value.KindOneofCase.ListValue =>
+                [.. Enumerable.Range(0, value.ListValue.Values.Count)
+                    .Select(index => new Call(ProfileTables.Index, [macro.Range, new IntLiteral(index, IntegerForm.DecimalDigits)]))],
+            Value.KindOneofCase.MapValue =>
+                [.. value.MapValue.Entries.Select(entry => KeyLiteral(entry.Key)).OfType<Expr>().Select(key => new Call(ProfileTables.Dyn, [key]))],
+            _ => [],
+        };
+    }
+
+    // The literal of a key of a map: an int, a uint, a bool or a string; null for any other value.
+    private static Expr? KeyLiteral(Value key) => key.KindCase switch
+    {
+        Value.KindOneofCase.Int64Value => new IntLiteral(key.Int64Value, IntegerForm.DecimalDigits),
+        Value.KindOneofCase.Uint64Value => new UintLiteral(key.Uint64Value, IntegerForm.DecimalDigits, 'u'),
+        Value.KindOneofCase.BoolValue => new BoolLiteral(key.BoolValue),
+        Value.KindOneofCase.StringValue => StringKey(key.StringValue),
+        _ => null,
+    };
+
+    // A string in apostrophes, each code point as itself where it may stand so, else in the first form that fits.
+    private static StringLiteral StringKey(string value)
+    {
+        List<Escape> units = [];
+        foreach (Rune rune in value.EnumerateRunes())
+        {
+            units.Add(TextUnits.StringForms(rune.Value, Quote.Apostrophe, raw: false)[0]);
+        }
+
+        return new StringLiteral(value, new TextForm(Quote.Apostrophe, null, units));
     }
 
     // Whether a node reads a variable that is not shadowed by a macro on the way.

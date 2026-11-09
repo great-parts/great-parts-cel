@@ -85,7 +85,7 @@ public sealed class GradualTypingTests
         has(counts.k.f) → 2004 3 undefined field 'f' in type 'int'
         n.unknown() → 2000 9 undeclared reference to 'unknown' (in container '')
         Message{} → 2000 7 undeclared reference to 'Message' (in container '')
-        .pkg.Message{f: missing} → 2000 12 undeclared reference to '.pkg.Message' (in container '')
+        .pkg.Message{f: n} → 2000 12 undeclared reference to '.pkg.Message' (in container '')
         """;
 
     private static readonly DeclarationIndex Declared = CheckingIndex.Create(

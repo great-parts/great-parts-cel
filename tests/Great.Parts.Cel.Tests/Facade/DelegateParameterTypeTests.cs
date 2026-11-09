@@ -131,14 +131,14 @@ public sealed class DelegateParameterTypeTests
         Assert.True(new CelEnvironmentBuilder(CelStandardLibrary.V1).AddFunction("big", (long? _) => true).Build().IsSuccess);
     }
 
-    // Collections of the application come with their part: the input rows have no IReadOnlyList<…> yet.
+    // A collection of the application is a parameter by the input rows: IReadOnlyList<long> is list(int).
     [Fact]
-    public void DelegateFormWithACollectionParameter_IsTypeNotDeclared()
+    public void DelegateFormWithACollectionParameter_IsInferredByTheInputRows()
     {
-        CelError error = Assert.Single(new CelEnvironmentBuilder(CelStandardLibrary.V1)
-            .AddFunction("sum", (IReadOnlyList<long> items) => items.Count).Build().Errors);
+        CelBuildResult built = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+            .AddFunction("sum", (IReadOnlyList<long> items) => items.Count).Build();
 
-        Assert.Equal(CelErrorCode.TypeNotDeclared, error.Code);
+        Assert.True(built.IsSuccess);
     }
 
     // A map parameter whose keys and values cannot fail is a lazy view of the argument.

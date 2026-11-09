@@ -7,8 +7,9 @@ namespace Great.Parts.Cel.Eng.Run;
 
 /// <summary>
 /// The time that a step may take, in one place so a limit is easy to raise (<c>docs/design/eng-test.md</c>, "Time limits"). A limit is
-/// the time of a cold run measured on 2026-10-30, the Native AOT publish on 2026-11-02, the build and the JIT steps on 2026-11-04, the examples and
-/// lychee of <c>docs</c> and the preparation of <c>mutate</c> on 2026-11-03, with 20 % added and rounded up to a second. A step that is still
+/// the time of a cold run measured on 2026-10-30, the lychee of <c>docs</c> and the preparation of <c>mutate</c> on 2026-11-03, with 20 %
+/// added and rounded up to a second; the build, the module of the tests of <c>eng/</c>, the Native AOT publish and the examples of <c>docs</c>
+/// are those of one cold run on 2026-11-09 with 30 % added (stakeholder, 2026-11-09), rounded up to a second. A step that is still
 /// running when its limit is over
 /// is killed with its whole process tree and fails with <c>timeout after N s in step &lt;step&gt;</c>.
 /// </summary>
@@ -16,20 +17,21 @@ internal static class Timeouts
 {
     /// <summary>
     /// The build of the solution; also the build of one project that a command builds before its run. A cold build of the solution on
-    /// 2026-11-04 took up to 85 s, next to the code of the third increment.
+    /// 2026-11-09 took 106.6 s, next to the code of the fourth increment.
     /// </summary>
-    internal static readonly TimeSpan Build = TimeSpan.FromSeconds(102);
+    internal static readonly TimeSpan Build = TimeSpan.FromSeconds(139);
 
     /// <summary>
-    /// One test module under JIT, and the source and package checks of <c>eng/checks</c>: the module of the tests of <c>eng/</c> took more than 93 s in
-    /// the runs of 2026-11-04, next to the four publishes.
+    /// One test module under JIT, and the source and package checks of <c>eng/checks</c>: the module of the tests of <c>eng/</c> took 92.1 s in
+    /// the cold run of 2026-11-09, next to the four publishes.
     /// </summary>
-    internal static readonly TimeSpan Jit = TimeSpan.FromSeconds(112);
+    internal static readonly TimeSpan Jit = TimeSpan.FromSeconds(120);
 
     /// <summary>
-    /// The Native AOT publish of one project and target: the longest of the four publishes of a cold run on 2026-11-02 took 166.7 s.
+    /// The Native AOT publish of one project and target: the longest of the four publishes of the cold run of 2026-11-09 took 233.0 s,
+    /// that of the tests of the library for <c>net10.0</c>.
     /// </summary>
-    internal static readonly TimeSpan Publish = TimeSpan.FromSeconds(201);
+    internal static readonly TimeSpan Publish = TimeSpan.FromSeconds(303);
 
     /// <summary>The run of one published executable.</summary>
     internal static readonly TimeSpan AotRun = TimeSpan.FromSeconds(120);
@@ -39,9 +41,9 @@ internal static class Timeouts
 
     /// <summary>
     /// The build and the run of all examples of the documentation in <c>eng/checks examples</c>: one <c>dotnet build</c> of all example
-    /// projects, then every program. A cold run of <c>docs</c> on 2026-11-03 took 24.1 s for the step.
+    /// projects, then every program. A cold run of <c>docs</c> on 2026-11-09 took 34.7 s for the step.
     /// </summary>
-    internal static readonly TimeSpan Examples = TimeSpan.FromSeconds(29);
+    internal static readonly TimeSpan Examples = TimeSpan.FromSeconds(46);
 
     /// <summary>
     /// lychee, offline, over <c>README.md</c>, <c>docs/</c> and the sources: it reads files and checks them against files, with no

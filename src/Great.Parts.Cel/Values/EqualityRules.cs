@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel.Values;
@@ -25,14 +26,23 @@ internal static class EqualityRules
     /// <summary>
     /// Compares two values by CEL equality, charging the cost of each pair before comparing it: 1 for scalars and for
     /// values of different kinds, 1 + ⌈(La + Lb)/10⌉ for strings and bytes, 1 for two lists or maps and then their
-    /// elements, and for each key of the left map its lookup in the right one.
+    /// elements, and for each key of the left map its lookup in the right one. Two object values compare by
+    /// <see cref="ObjectRules.AreEqual"/>; an object value and a value of another kind are unequal without a description.
     /// </summary>
     /// <param name="left">The left value.</param>
     /// <param name="right">The right value.</param>
     /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
     /// <param name="error">The error value when the result is <see cref="ValueEquality.Error"/>; otherwise <c>null</c>.</param>
+    /// <param name="types">The type index of an evaluation, which describes object values; <see langword="null"/> outside one, where a bare instance has no description.</param>
+    /// <param name="boundary">The exception boundary and the event counter of an evaluation for the reads of fields; <see langword="null"/> outside one.</param>
     /// <returns>The result.</returns>
-    internal static ValueEquality AreEqual(CelValue left, CelValue right, IEvaluationMeter? meter, out CelValue error)
+    internal static ValueEquality AreEqual(
+        CelValue left,
+        CelValue right,
+        IEvaluationMeter? meter,
+        out CelValue error,
+        TypeIndex? types = null,
+        IApplicationBoundary? boundary = null)
     {
         error = default;
         if (left.Kind == CelValueKind.Error || right.Kind == CelValueKind.Error)
@@ -53,11 +63,34 @@ internal static class EqualityRules
             return ValueEquality.NotEqual;
         }
 
-        return SameKind(left, right, meter, out error);
+        return left.Kind == CelValueKind.Object
+            ? ObjectRules.AreEqual(left, right, types, meter, out error, boundary)
+            : SameKind(left, right, meter, out error, types, boundary);
     }
 
+    /// <summary>
+    /// The result of a comparison outside an evaluation as a CEL value: a <c>bool</c>, the error value, or
+    /// <c>InsufficientStack</c> at the start of the first line.
+    /// </summary>
+    /// <param name="result">The result of the comparison.</param>
+    /// <param name="error">The error value when the result is <see cref="ValueEquality.Error"/>.</param>
+    /// <returns>A value of the kind <see cref="CelValueKind.Bool"/> or <see cref="CelValueKind.Error"/>.</returns>
+    internal static CelValue ToValue(ValueEquality result, CelValue error) => result switch
+    {
+        ValueEquality.Equal => CelValue.FromBoolean(true),
+        ValueEquality.NotEqual => CelValue.FromBoolean(false),
+        ValueEquality.Error => error,
+        _ => CelValue.FromError(new CelError(
+            CelErrorCode.InsufficientStack,
+            CelErrorStage.Evaluate,
+            InsufficientStackMessage,
+            new CelSourceLocation(0, 1, 1),
+            null,
+            null)),
+    };
+
     // Two values of one non-numeric kind.
-    private static ValueEquality SameKind(CelValue left, CelValue right, IEvaluationMeter? meter, out CelValue error)
+    private static ValueEquality SameKind(CelValue left, CelValue right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
     {
         error = default;
         switch (left.Kind)
@@ -88,13 +121,13 @@ internal static class EqualityRules
             case CelValueKind.List:
                 _ = left.TryGetList(out CelList? leftList);
                 _ = right.TryGetList(out CelList? rightList);
-                return ListsEqual(leftList!, rightList!, meter, out error);
+                return ListsEqual(leftList!, rightList!, meter, out error, types, boundary);
             case CelValueKind.Map:
                 _ = left.TryGetMap(out CelMap? leftMap);
                 _ = right.TryGetMap(out CelMap? rightMap);
-                return MapsEqual(leftMap!, rightMap!, meter, out error);
+                return MapsEqual(leftMap!, rightMap!, meter, out error, types, boundary);
             default:
-                // Time, optional values, objects and decimals come with their parts.
+                // Time, optional values and decimals come with their parts.
                 throw new NotImplementedException();
         }
     }
@@ -158,7 +191,7 @@ internal static class EqualityRules
     private static ulong LengthCost(int a, int b) => 1 + (((ulong)a + (ulong)b + 9) / 10);
 
     // The same count, then the elements pairwise up to the first unequal pair.
-    private static ValueEquality ListsEqual(CelList left, CelList right, IEvaluationMeter? meter, out CelValue error)
+    private static ValueEquality ListsEqual(CelList left, CelList right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
     {
         error = default;
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
@@ -175,7 +208,7 @@ internal static class EqualityRules
 
         for (int index = 0; index < count; index++)
         {
-            ValueEquality element = AreEqual(left[index], right[index], meter, out error);
+            ValueEquality element = AreEqual(left.Read(index, meter), right.Read(index, meter), meter, out error, types, boundary);
             if (element != ValueEquality.Equal)
             {
                 return element;
@@ -186,7 +219,7 @@ internal static class EqualityRules
     }
 
     // The same count, then each key of the left map in its order: its lookup in the right map and the two values.
-    private static ValueEquality MapsEqual(CelMap left, CelMap right, IEvaluationMeter? meter, out CelValue error)
+    private static ValueEquality MapsEqual(CelMap left, CelMap right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
     {
         error = default;
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
@@ -195,21 +228,37 @@ internal static class EqualityRules
         }
 
         meter?.Charge(1);
+
+        // A map that looks at all its keys for an error, a JSON object with a repeated name, gives it before the result.
+        if (left.TryGetKeyError(meter, out error, leadingUnit: true) || right.TryGetKeyError(meter, out error, leadingUnit: true))
+        {
+            return ValueEquality.Error;
+        }
+
         if (left.Count != right.Count)
         {
             return ValueEquality.NotEqual;
         }
 
-        foreach (KeyValuePair<CelValue, CelValue> entry in left)
+        // A view ordered by ascending key pays its sort before the first entry.
+        if (meter is not null)
         {
-            // The lookup of a string key of length L costs 1 + ⌈L/10⌉, of any other key 1.
-            meter?.Charge(entry.Key.TryGetString(out string? key) ? 1 + (((ulong)key.Length + 9) / 10) : 1);
-            if (!right.TryGetValue(entry.Key, out CelValue other))
+            left.ChargeEnumeration(meter);
+        }
+
+        using IEnumerator<KeyValuePair<CelValue, CelValue>> entries = left.EnumerateEntries(meter, readValues: true);
+        while (entries.MoveNext())
+        {
+            KeyValuePair<CelValue, CelValue> entry = entries.Current;
+            // The lookup of a string key of length L costs 1 + ⌈L/10⌉ in a map, 1 + n · (1 + ⌈L/10⌉) in a JSON object of n
+            // properties; of any other key 1.
+            meter?.Charge(entry.Key.TryGetString(out string? key) ? 1 + right.ProbeUnits((((ulong)key.Length) + 9) / 10) : 1);
+            if (!right.TryRead(entry.Key, meter, readValue: true, out CelValue other))
             {
                 return ValueEquality.NotEqual;
             }
 
-            ValueEquality value = AreEqual(entry.Value, other, meter, out error);
+            ValueEquality value = AreEqual(entry.Value, other, meter, out error, types, boundary);
             if (value != ValueEquality.Equal)
             {
                 return value;

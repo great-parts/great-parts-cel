@@ -68,8 +68,10 @@ internal sealed class OverloadBinding
 
     // Whether argument values fit the declared parameter types: the top level of every argument, and at
     // any depth each argument that the planner marked, charging the descent to the meter. An argument
-    // beyond the marks is unmarked. Type parameters fit any value.
-    internal bool Matches(ReadOnlySpan<CelValue> arguments, ReadOnlySpan<bool> marks, IEvaluationMeter? meter)
+    // beyond the marks is unmarked. Type parameters fit any value. The type index of the environment describes object
+    // values for object parameter types. An error value that an element of a marked argument is, is the outcome, the
+    // first in the order of the arguments and of the walk: it is not a mismatch, and the caller returns it.
+    internal TypeFit Matches(ReadOnlySpan<CelValue> arguments, ReadOnlySpan<bool> marks, IEvaluationMeter? meter, TypeIndex? types = null)
     {
         ImmutableArray<CelType> parameterTypes = Declaration.ParameterTypes;
         for (int i = 0; i < arguments.Length; i++)
@@ -79,20 +81,21 @@ internal sealed class OverloadBinding
             {
                 if (argument.Kind is not (CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double))
                 {
-                    return false;
+                    return TypeFit.No;
                 }
 
                 continue;
             }
 
             bool marked = i < marks.Length && marks[i];
-            if (!ValueTypeRules.Fits(argument, marked ? parameterTypes[i] : _topLevelTypes[i], marked ? meter : null))
+            TypeFit fit = ValueTypeRules.Fits(argument, marked ? parameterTypes[i] : _topLevelTypes[i], marked ? meter : null, false, types);
+            if (!fit.IsFit)
             {
-                return false;
+                return fit;
             }
         }
 
-        return true;
+        return TypeFit.Yes;
     }
 
     // list(E) and map(K, V) with dyn parameters, so that Fits does not descend; other types are their own

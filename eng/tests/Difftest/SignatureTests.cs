@@ -342,11 +342,11 @@ public sealed class SignatureTests
         HashSet<Expr> nodes = new(Nodes(original.Expression), ReferenceEqualityComparer.Instance);
         List<GeneratedCase> asked = [];
 
-        GeneratedCase minimized = Minimizer.Minimize(original, candidate =>
+        GeneratedCase minimized = Minimizer.Minimize(original, Verdicts(candidate =>
         {
             asked.Add(candidate);
             return ReadsI1(candidate.Text, candidate.Bindings);
-        });
+        }));
 
         Assert.Equal("i1", minimized.Text);
         Assert.NotEmpty(asked);
@@ -380,7 +380,7 @@ public sealed class SignatureTests
         Expr root = new Call(ProfileTables.Add, [first, second]);
         GeneratedCase divergent = Case(root, ("i1", Int(2)));
 
-        GeneratedCase minimized = Minimizer.Minimize(divergent, generated => generated.Expression is Call);
+        GeneratedCase minimized = Minimizer.Minimize(divergent, Verdicts(generated => generated.Expression is Call));
 
         Assert.Same(first, minimized.Expression);
     }
@@ -391,7 +391,7 @@ public sealed class SignatureTests
         Expr root = new Call(ProfileTables.Add, [I1, I1]);
         GeneratedCase divergent = Case(root, ("i1", Int(2)));
 
-        GeneratedCase minimized = Minimizer.Minimize(divergent, generated => generated.Text == "i1 + i1");
+        GeneratedCase minimized = Minimizer.Minimize(divergent, Verdicts(generated => generated.Text == "i1 + i1"));
 
         Assert.Same(divergent, minimized);
     }
@@ -405,10 +405,158 @@ public sealed class SignatureTests
         IOException failure = new("the oracle closed the connection");
         int calls = 0;
 
-        IOException thrown = Assert.Throws<IOException>(() => Minimizer.Minimize(divergent, _ => ++calls == 2 ? throw failure : true));
+        IOException thrown = Assert.Throws<IOException>(() => Minimizer.Minimize(divergent, Verdicts(_ => ++calls == 2 ? throw failure : true)));
 
         Assert.Same(failure, thrown);
         Assert.Equal(2, calls);
+    }
+
+    // ---- Minimization under a child that agrees in an error ----
+
+    // Case 478854 of seed 20261109: the index agrees as an error on both sides (cel-go fails in the value of the entry, the
+    // library at the missing key), and || absorbs only the error of the library. The known divergence is in the map literal
+    // under the index, and then in x2 in mx under the literal.
+    [Fact]
+    public void Minimization_UnderAnIndexThatAgreesInError_FindsTheKnownSignature()
+    {
+        Expr x2 = new Ident("x2");
+        Expr mx = new Ident("mx");
+        Expr member = new Call(ProfileTables.In, [x2, mx]);
+        Expr literal = new MapLiteral([new MapEntry(new StringLiteral("k", new TextForm(Quote.Apostrophe, null, [Escape.Literal])), member)], TrailingComma: false);
+        Expr index = new Call(ProfileTables.Index, [literal, new StringLiteral(string.Empty, new TextForm(Quote.Apostrophe, null, []))]);
+        Expr root = new Call(ProfileTables.LogicalOr, [index, new BoolLiteral(true)]);
+        SideOutcome panic = SideOutcome.EvaluationError("hash of unhashable type types.Bytes");
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.Of(Bool(true)), panic),
+            (index, SideOutcome.EvaluationError("no such key"), panic),
+            (literal, SideOutcome.Of(Map((Str("k"), Bool(false)))), panic),
+            (member, SideOutcome.Of(Bool(false)), panic),
+            Agree(x2, Bytes(0xef)),
+            Agree(mx, Map()));
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of("in_map(bytes, map) we-value"));
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root, ("x2", Bytes(0xef))));
+
+        Assert.Equal("x2 in mx", divergence?.Case.Text);
+        Assert.Equal("in_map(bytes, map) we-value", divergence?.Signature);
+        Assert.Empty(search.NewSignatures);
+    }
+
+    // The child agrees in an error and nothing diverges under it: the case stays the root.
+    [Fact]
+    public void Minimization_UnderAnErrorChildWithNoDivergentNode_KeepsTheRoot()
+    {
+        Expr child = new Call(ProfileTables.Negate, [I1]);
+        Expr root = new Call(ProfileTables.LogicalOr, [child, new BoolLiteral(true)]);
+        SideOutcome error = SideOutcome.EvaluationError("integer overflow");
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.Of(Bool(true)), error),
+            (child, error, error),
+            Agree(I1, Int(2)));
+        GeneratedCase divergent = Case(root, ("i1", Int(2)));
+
+        GeneratedCase minimized = Minimizer.Minimize(divergent, Classifier(library, oracle));
+
+        Assert.Same(divergent, minimized);
+        Assert.Equal(Texts(child, new BoolLiteral(true), I1), library.Evaluated);
+    }
+
+    // A divergent node two levels below the child, under nested nodes that agree in an error, is found.
+    [Fact]
+    public void Minimization_FindsADivergentNodeUnderNestedErrorNodes()
+    {
+        Expr deep = new Call(ProfileTables.Add, [I1, new IntLiteral(3, IntegerForm.DecimalDigits)]);
+        Expr middle = new Call(ProfileTables.Add, [deep, new IntLiteral(2, IntegerForm.DecimalDigits)]);
+        Expr top = new Call(ProfileTables.Add, [middle, new IntLiteral(1, IntegerForm.DecimalDigits)]);
+        Expr root = new Call(ProfileTables.LogicalOr, [top, new BoolLiteral(true)]);
+        SideOutcome error = SideOutcome.EvaluationError("integer overflow");
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.Of(Bool(true)), error),
+            (top, error, error),
+            (middle, error, error),
+            (deep, SideOutcome.Of(Int(5)), error),
+            Agree(I1, Int(2)));
+
+        GeneratedCase minimized = Minimizer.Minimize(Case(root, ("i1", Int(2))), Classifier(library, oracle));
+
+        Assert.Same(deep, minimized.Expression);
+    }
+
+    // Of two children that agree in an error the first in the text is searched first, and the search stops at the divergent node
+    // under it: nothing under the second is asked.
+    [Fact]
+    public void Minimization_TakesTheDivergentNodeUnderTheFirstOfTwoErrorChildren()
+    {
+        Expr firstDeep = new Call(ProfileTables.Negate, [I1]);
+        Expr secondDeep = new Call(ProfileTables.Negate, [new Ident("i2")]);
+        Expr first = new Call(ProfileTables.Add, [firstDeep, new IntLiteral(1, IntegerForm.DecimalDigits)]);
+        Expr second = new Call(ProfileTables.Add, [secondDeep, new IntLiteral(2, IntegerForm.DecimalDigits)]);
+        Expr root = new Call(ProfileTables.Equal, [first, second]);
+        SideOutcome error = SideOutcome.EvaluationError("integer overflow");
+        (FakeSide library, FakeSide oracle) = Sides(
+            (first, error, error),
+            (second, error, error),
+            (firstDeep, SideOutcome.Of(Int(-2)), error),
+            (secondDeep, SideOutcome.Of(Int(-3)), error),
+            Agree(I1, Int(2)));
+
+        GeneratedCase minimized = Minimizer.Minimize(Case(root), Classifier(library, oracle));
+
+        Assert.Same(firstDeep, minimized.Expression);
+        Assert.DoesNotContain(ExprPrinter.Print(secondDeep), library.Evaluated);
+        Assert.DoesNotContain(ExprPrinter.Print(secondDeep), oracle.Evaluated);
+    }
+
+    // Under a child that agrees in a value nothing is searched, although a node under it diverges.
+    [Fact]
+    public void Minimization_DoesNotSearchUnderAChildThatAgreesInAValue()
+    {
+        Expr hidden = new Call(ProfileTables.Negate, [I1]);
+        Expr agreeing = new Call(ProfileTables.Add, [hidden, new IntLiteral(1, IntegerForm.DecimalDigits)]);
+        Expr root = new Call(ProfileTables.Add, [agreeing, new IntLiteral(2, IntegerForm.DecimalDigits)]);
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.Of(Int(1)), SideOutcome.Of(Int(2))),
+            Agree(agreeing, Int(7)),
+            (hidden, SideOutcome.Of(Int(-2)), SideOutcome.Of(Int(2))));
+        GeneratedCase divergent = Case(root, ("i1", Int(2)));
+
+        GeneratedCase minimized = Minimizer.Minimize(divergent, Classifier(library, oracle));
+
+        Assert.Same(divergent, minimized);
+        Assert.DoesNotContain(ExprPrinter.Print(hidden), library.Evaluated);
+        Assert.DoesNotContain(ExprPrinter.Print(hidden), oracle.Evaluated);
+    }
+
+    // The search goes in the order of the text, depth first, and the sides see every node once: the children of the root, then
+    // the children of the first error child with those that agree in an error under it, then the next child of the root.
+    [Fact]
+    public void Minimization_AsksTheSidesForNoNodeTwice()
+    {
+        Expr a11 = new Call(ProfileTables.Negate, [new Ident("i2")]);
+        Expr a12 = new Call(ProfileTables.Negate, [new Ident("i3")]);
+        Expr a1 = new Call(ProfileTables.Add, [a11, a12]);
+        Expr a2 = new Call(ProfileTables.Negate, [new Ident("i4")]);
+        Expr a = new Call(ProfileTables.Add, [a1, a2]);
+        Expr b1 = new Call(ProfileTables.Negate, [I1]);
+        Expr b = new Call(ProfileTables.Add, [b1, new IntLiteral(5, IntegerForm.DecimalDigits)]);
+        Expr root = new Call(ProfileTables.Equal, [a, b]);
+        SideOutcome error = SideOutcome.EvaluationError("integer overflow");
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.Of(Bool(true)), SideOutcome.Of(Bool(false))),
+            (a, error, error),
+            (b, error, error),
+            (a1, error, error),
+            Agree(a2, Int(4)),
+            Agree(a11, Int(6)),
+            Agree(a12, Int(7)),
+            (b1, SideOutcome.Of(Int(-2)), error),
+            Agree(I1, Int(2)));
+
+        GeneratedCase minimized = Minimizer.Minimize(Case(root), Classifier(library, oracle));
+
+        Assert.Same(b1, minimized.Expression);
+        Assert.Equal(Texts(a, b, a1, a2, a11, a12, b1, I1), library.Evaluated);
+        Assert.Equal(library.Evaluated, oracle.Evaluated);
     }
 
     // ---- Minimization under a macro ----
@@ -501,9 +649,8 @@ public sealed class SignatureTests
             ["(1) > 1", "(2) > 1", "(1) + (1)", "(2) + (2)"],
             Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, transform])));
         Assert.Equal(["(1) > 1", "(2) > 1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, one])));
-        Assert.Empty(Minimizer.BodyInstances(new Comprehension(ProfileTables.All, range, "v", [one])));
-        Assert.Empty(Minimizer.BodyInstances(new Comprehension(ProfileTables.All, new Ident("x1"), "v", [predicate])));
-        Assert.Empty(Minimizer.BodyInstances(new Call(ProfileTables.Add, [v, v])));
+        Assert.Empty(Printed(new Comprehension(ProfileTables.All, range, "v", [one])));
+        Assert.Empty(Printed(new Call(ProfileTables.Add, [v, v])));
     }
 
     // A macro inside the body that declares the same variable keeps its own body; its range reads the outer variable.
@@ -533,6 +680,190 @@ public sealed class SignatureTests
 
         Assert.Equal(root, divergence?.Case.Expression);
         Assert.Equal("comprehension(list) value-mismatch", divergence?.Signature);
+    }
+
+    // ---- Minimization under a macro over a range that is not a literal ----
+
+    // Case 22910 of seed 20261108: the range is a variable, so the elements are those of its value on the library: the index
+    // instances are taken from 0 up, and the first that diverges is the case.
+    [Fact]
+    public void Macro_OverVariable_IsMinimizedToABodyInstanceWithTheFirstDivergentIndex()
+    {
+        Expr x1 = new Ident("x1");
+        Expr lx = new Ident("lx");
+        Expr root = new Comprehension(ProfileTables.Exists, lx, "v", [new Call(ProfileTables.Greater, [x1, new Ident("v")])]);
+        SideOutcome error = SideOutcome.EvaluationError("no such overload: _>_(bytes, double)");
+
+        AssertMinimizedToKnown(
+            root,
+            new Call(ProfileTables.Greater, [x1, Index(lx, 1)]),
+            error,
+            "_>_(bytes, double) we-error",
+            "x1 > lx[1]",
+            Agree(x1, Bytes(0x61)),
+            Agree(Index(lx, 0), Int(2)),
+            Agree(Index(lx, 1), Dbl(double.NaN)),
+            Agree(lx, ListOf(Int(2), Dbl(double.NaN))));
+    }
+
+    // Case 365398 of seed 20261108: the range is dyn(lx + []), so the instance is the index of the whole range in dyn().
+    [Fact]
+    public void Macro_OverDynOfSum_IsMinimizedToABodyInstanceThatIndexesTheWholeRange()
+    {
+        Expr d1 = new Ident("d1");
+        Expr range = new Call(ProfileTables.Dyn, [new Call(ProfileTables.Add, [new Ident("lx"), new ListLiteral([], TrailingComma: false)])]);
+        Expr root = new Comprehension(ProfileTables.Exists, range, "v", [new Call(ProfileTables.LessEqual, [d1, new Ident("v")])]);
+        SideOutcome error = SideOutcome.EvaluationError("no such overload: _<=_(double, bool)");
+
+        AssertMinimizedToKnown(
+            root,
+            new Call(ProfileTables.LessEqual, [d1, Index(range, 0)]),
+            error,
+            "_<=_(double, bool) we-error",
+            "d1 <= dyn(lx + [])[0]",
+            Agree(d1, Dbl(double.NaN)),
+            Agree(Index(range, 0), Bool(false)),
+            Agree(range, ListOf(Bool(false), Int(7), new Value { NullValue = NullValue.NullValue })));
+    }
+
+    // A map in a variable: the instances hold the keys in dyn() in the order the library iterates the map, not in an order of
+    // their own: both instances diverge, and the first of the library is the case.
+    [Fact]
+    public void Macro_OverMapVariable_TakesTheKeysInTheOrderOfTheLibrary()
+    {
+        Expr x1 = new Ident("x1");
+        Expr mx = new Ident("mx");
+        Expr root = new Comprehension(ProfileTables.All, mx, "v", [new Call(ProfileTables.Greater, [x1, new Ident("v")])]);
+        SideOutcome error = SideOutcome.EvaluationError("no such overload: _>_(bytes, double)");
+        Value map = Map((Int(7), Int(0)), (Int(3), Int(0)));
+        Expr seven = new Call(ProfileTables.Dyn, [new IntLiteral(7, IntegerForm.DecimalDigits)]);
+        Expr three = new Call(ProfileTables.Dyn, [new IntLiteral(3, IntegerForm.DecimalDigits)]);
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, error, SideOutcome.Of(Bool(false))),
+            (new Call(ProfileTables.Greater, [x1, seven]), error, SideOutcome.Of(Bool(false))),
+            (new Call(ProfileTables.Greater, [x1, three]), error, SideOutcome.Of(Bool(false))),
+            (x1, SideOutcome.Of(Bytes(0x61)), SideOutcome.Of(Bytes(0x61))),
+            (seven, SideOutcome.Of(Dbl(1.5)), SideOutcome.Of(Dbl(1.5))),
+            (three, SideOutcome.Of(Dbl(1.5)), SideOutcome.Of(Dbl(1.5))),
+            (mx, SideOutcome.Of(map), SideOutcome.Of(map)));
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of("_>_(bytes, double) we-error"));
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal("x1 > dyn(7)", divergence?.Case.Text);
+    }
+
+    // The keys of a map are literals of the profile: int, uint, bool and string, a negative int and a quote included.
+    [Fact]
+    public void BodyInstances_OverAMapValue_PutTheKeysAsLiteralsInDyn()
+    {
+        Expr v = new Ident("v");
+        Expr body = new Call(ProfileTables.Equal, [v, new IntLiteral(1, IntegerForm.DecimalDigits)]);
+        Value map = Map((Int(-1), Int(0)), (new Value { Uint64Value = 2 }, Int(0)), (Bool(true), Int(0)), (Str("it's"), Int(0)));
+
+        Assert.Equal(
+            ["dyn(-1) == 1", "dyn(2u) == 1", "dyn(true) == 1", "dyn('it\\'s') == 1"],
+            Printed(new Comprehension(ProfileTables.All, new Ident("mx"), "v", [body]), map));
+    }
+
+    [Fact]
+    public void BodyInstances_OverAListValue_IndexTheRangeFromZero()
+    {
+        Expr v = new Ident("v");
+        Expr body = new Call(ProfileTables.Add, [v, v]);
+        Value list = ListOf(Int(5), Dbl(double.NaN), new Value { NullValue = NullValue.NullValue });
+        Expr sum = new Call(ProfileTables.Add, [new Ident("lx"), new ListLiteral([], TrailingComma: false)]);
+
+        Assert.Equal(
+            ["lx[0] + lx[0]", "lx[1] + lx[1]", "lx[2] + lx[2]"],
+            Printed(new Comprehension(ProfileTables.MapMacro, new Ident("lx"), "v", [body]), list));
+        Assert.Equal(
+            ["(lx + [])[0] + (lx + [])[0]"],
+            Printed(new Comprehension(ProfileTables.MapMacro, sum, "v", [body]), ListOf(Int(5))));
+    }
+
+    // A range whose value is an error, is unbound or is a scalar has no instances; the library is asked for it once.
+    [Fact]
+    public void Macro_WhoseRangeIsNeitherAListNorAMap_HasNoBodyInstances()
+    {
+        Expr lx = new Ident("lx");
+        Expr root = new Comprehension(ProfileTables.All, lx, "v", [new Call(ProfileTables.Greater, [new Ident("v"), new IntLiteral(0, IntegerForm.DecimalDigits)])]);
+        GeneratedCase divergent = Case(root);
+
+        foreach (Value? value in new Value?[] { null, Int(3), Str("abc"), Bool(true), Bytes(0x61), new Value { NullValue = NullValue.NullValue } })
+        {
+            List<string> asked = [];
+            int rangeCalls = 0;
+
+            GeneratedCase minimized = Minimizer.Minimize(
+                divergent,
+                Verdicts(candidate =>
+                {
+                    asked.Add(candidate.Text);
+                    return candidate.Text != "lx";
+                }),
+                (_, _) => true,
+                candidate =>
+                {
+                    rangeCalls++;
+                    Assert.Equal("lx", candidate.Text);
+                    return value;
+                });
+
+            Assert.Same(divergent, minimized);
+            Assert.Equal(["lx"], asked);
+            Assert.Equal(1, rangeCalls);
+        }
+    }
+
+    // An instance without a macro is smaller than the macro even when its text is longer: the variable read twice is the range
+    // read twice.
+    [Fact]
+    public void BodyInstance_WithoutAMacro_IsAcceptedAlthoughItsTextIsLongerThanTheMacro()
+    {
+        Expr v = new Ident("v");
+        Expr range = new Call(ProfileTables.Dyn, [new Call(ProfileTables.Add, [new Ident("lx"), new ListLiteral([], TrailingComma: false)])]);
+        Expr root = new Comprehension(ProfileTables.All, range, "v", [new Call(ProfileTables.Equal, [v, v])]);
+        GeneratedCase divergent = Case(root);
+        const string instance = "dyn(lx + [])[0] == dyn(lx + [])[0]";
+
+        GeneratedCase minimized = Minimizer.Minimize(
+            divergent,
+            Verdicts(candidate => candidate.Text == divergent.Text || candidate.Text == instance),
+            (_, _) => true,
+            _ => ListOf(Int(1)));
+
+        Assert.Equal(instance, minimized.Text);
+        Assert.True(minimized.Text.Length > divergent.Text.Length);
+        Assert.Equal(0, Minimizer.MacroNodes(minimized.Expression));
+        Assert.Equal(1, Minimizer.MacroNodes(divergent.Expression));
+    }
+
+    // An instance that copies a range with a macro into two places has as many macros and a longer text, so it is not smaller:
+    // it is dropped without asking the sides, although it would diverge.
+    [Fact]
+    public void BodyInstance_ThatCopiesARangeWithAMacroAndIsNotSmaller_IsDropped()
+    {
+        Expr v = new Ident("v");
+        Expr range = new Comprehension(ProfileTables.Filter, new Ident("lx"), "w", [new Ident("w")]);
+        Expr root = new Comprehension(ProfileTables.All, range, "v", [new Call(ProfileTables.Equal, [v, v])]);
+        GeneratedCase divergent = Case(root);
+        List<string> asked = [];
+
+        GeneratedCase minimized = Minimizer.Minimize(
+            divergent,
+            Verdicts(candidate =>
+            {
+                asked.Add(candidate.Text);
+                return candidate.Text == divergent.Text || candidate.Text.Contains("[0]", StringComparison.Ordinal);
+            }),
+            (_, _) => true,
+            _ => ListOf(Int(1)));
+
+        Assert.Same(divergent, minimized);
+        Assert.Equal(["lx.filter(w, w)"], asked);
+        Assert.Equal(2, Minimizer.MacroNodes(root));
+        Assert.Equal(2, Minimizer.MacroNodes(Minimizer.BodyInstances(root, _ => ListOf(Int(1))).Single()));
     }
 
     // ---- ENG822 ----
@@ -631,6 +962,36 @@ public sealed class SignatureTests
         _ => [],
     };
 
+    // A macro whose library gives the error and the oracle the value false, as does its body instance `body`, is minimized to the
+    // text, and its signature is the known one; `agreed` are the nodes on which the sides agree.
+    private static void AssertMinimizedToKnown(
+        Expr root, Expr body, SideOutcome error, string known, string text, params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] agreed)
+    {
+        (FakeSide library, FakeSide oracle) = Sides([(root, error, SideOutcome.Of(Bool(false))), (body, error, SideOutcome.Of(Bool(false))), .. agreed]);
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of(known));
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal(known, divergence?.Signature);
+        Assert.Equal(text, divergence?.Case.Text);
+        Assert.Empty(search.NewSignatures);
+    }
+
+    // The delegate of the minimizer that takes a case that a test names for divergent and any other for agreeing.
+    private static Func<GeneratedCase, NodeVerdict> Verdicts(Func<GeneratedCase, bool> diverges) =>
+        generated => diverges(generated) ? NodeVerdict.Diverges : NodeVerdict.Agrees;
+
+    // The delegate of the minimizer on fake sides, with the verdict that the search of eng/difftest gives.
+    private static Func<GeneratedCase, NodeVerdict> Classifier(FakeSide library, FakeSide oracle) => generated =>
+        DivergenceSearch.VerdictOf(library.Evaluate(generated.Text, generated.Bindings), oracle.Evaluate(generated.Text, generated.Bindings));
+
+    // The texts of nodes, as the fake sides are asked for them.
+    private static IEnumerable<string> Texts(params Expr[] nodes) => nodes.Select(ExprPrinter.Print);
+
+    // The outcome of a node that both fake sides give alike.
+    private static (Expr Node, SideOutcome Library, SideOutcome Oracle) Agree(Expr node, Value value) =>
+        (node, SideOutcome.Of(value), SideOutcome.Of(value));
+
     // A fixed case.
     private static GeneratedCase Case(Expr root, params (string Name, Value Value)[] bindings) =>
         new(root, bindings.ToDictionary(binding => binding.Name, binding => binding.Value));
@@ -662,7 +1023,10 @@ public sealed class SignatureTests
         }
     }
 
-    private static IEnumerable<string> Printed(Expr macro) => Minimizer.BodyInstances(macro).Select(ExprPrinter.Print);
+    private static IEnumerable<string> Printed(Expr macro, Value? range = null) => Minimizer.BodyInstances(macro, _ => range).Select(ExprPrinter.Print);
+
+    // The index of a range, as the minimizer builds it.
+    private static Call Index(Expr range, int index) => new Call(ProfileTables.Index, [range, new IntLiteral(index, IntegerForm.DecimalDigits)]);
 
     private static Expr Parenthesized(Expr expr) => expr with { Parenthesized = true };
 
@@ -695,7 +1059,14 @@ public sealed class SignatureTests
         Func<string, IReadOnlyDictionary<string, Value>, SideOutcome> evaluate,
         Func<string, DateTimeOffset, TimeSpan>? zoneOffset = null) : ICaseSide
     {
-        public SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings) => evaluate(expression, bindings);
+        // The expressions that the side was asked for, in order.
+        public List<string> Evaluated { get; } = [];
+
+        public SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings)
+        {
+            Evaluated.Add(expression);
+            return evaluate(expression, bindings);
+        }
 
         public TimeSpan ZoneOffset(string zone, DateTimeOffset instant) =>
             zoneOffset is null ? throw new NotSupportedException("no time zones") : zoneOffset(zone, instant);

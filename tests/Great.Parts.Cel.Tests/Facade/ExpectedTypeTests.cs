@@ -50,7 +50,7 @@ public sealed class ExpectedTypeTests
         Assert.Throws<ArgumentException>(() => Environment.Compile<float?>("1"));
         Assert.Throws<ArgumentException>(() => Environment.Compile<IReadOnlyList<short>>("[1]"));
         Assert.Throws<ArgumentException>(() => Environment.Compile<long[]>("[1]"));
-        Assert.Throws<ArgumentException>(() => Environment.Compile<ExpectedTypeTests>("1"));
+        Assert.Throws<ArgumentException>(() => Environment.Compile<System.IO.Stream>("1"));
 
         // Typed nesting is one step: a list of a typed list is outside the tables.
         Assert.Throws<ArgumentException>(() => Environment.Compile<IReadOnlyList<IReadOnlyList<long>>>("[[1]]"));

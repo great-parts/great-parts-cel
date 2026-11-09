@@ -114,6 +114,22 @@ internal static class ProfileValues
     }
 
     /// <summary>
+    /// A binding of a variable of the manifest. A typed list gets 0–3 elements of its element type, <c>list&lt;dyn&gt;</c> scalars
+    /// and <c>null</c>; a typed map gets 0–3 entries with distinct keys — <c>map&lt;string, …&gt;</c> the names of
+    /// <see cref="ProfileTables.FieldNames"/>, so selections and presence tests find them — and values of its value type; a
+    /// wrapper gets a value or, one time in four, <c>null</c>. Other variables are bound as by <see cref="Binding(PCG, ProfileType)"/>.
+    /// </summary>
+    /// <param name="pcg">The random source.</param>
+    /// <param name="variable">The variable.</param>
+    internal static Value Binding(PCG pcg, ProfileVariable variable) => variable switch
+    {
+        { Wrapper: true } when pcg.OneIn(4) => new Value { NullValue = NullValue.NullValue },
+        { Type: ProfileType.ListType, Declared.Element: { } element } => TypedListBinding(pcg, element),
+        { Type: ProfileType.MapType, Declared: { Key: { } key, Value: { } value } } => TypedMapBinding(pcg, key, value),
+        _ => Binding(pcg, variable.Type),
+    };
+
+    /// <summary>
     /// A binding of a variable: a value of its type; for <c>dyn</c> a scalar, <c>null</c>, a list of 0–3 scalars or a map of
     /// 0–3 entries whose keys are as in map literals and whose values are scalars.
     /// </summary>
@@ -165,6 +181,43 @@ internal static class ProfileValues
             _ => digits,
         };
         return text.EnumerateRunes().Count() <= ProfileTables.MaxCodePoints ? text : digits;
+    }
+
+    // A value of the element type of a typed collection: a value of its kind, a scalar or null for dyn.
+    private static Value ElementBinding(PCG pcg, StaticType type) =>
+        Binding(pcg, type.IsDyn ? pcg.Pick(ProfileTables.ScalarKinds) : type.Kind);
+
+    // A bound list of 0–3 elements of one type.
+    private static Value TypedListBinding(PCG pcg, StaticType element)
+    {
+        ListValue list = new();
+        int count = pcg.Below(ProfileTables.MaxElements + 1);
+        for (int i = 0; i < count; i++)
+        {
+            list.Values.Add(ElementBinding(pcg, element));
+        }
+
+        return new Value { ListValue = list };
+    }
+
+    // A bound map of 0–3 entries with distinct keys of one type: the names of the fields for string keys.
+    private static Value TypedMapBinding(PCG pcg, StaticType key, StaticType value)
+    {
+        MapValue map = new();
+        HashSet<string> keys = new(StringComparer.Ordinal);
+        int count = pcg.Below(ProfileTables.MaxElements + 1);
+        for (int i = 0; i < count; i++)
+        {
+            Value entryKey = key.Kind == ProfileType.StringType
+                ? new Value { StringValue = pcg.Pick(ProfileTables.FieldNames) }
+                : new Value { Int64Value = IntValue(pcg) };
+            if (keys.Add(entryKey.KindCase == Value.KindOneofCase.StringValue ? entryKey.StringValue : entryKey.Int64Value.ToString(CultureInfo.InvariantCulture)))
+            {
+                map.Entries.Add(new MapValue.Types.Entry { Key = entryKey, Value = ElementBinding(pcg, value) });
+            }
+        }
+
+        return new Value { MapValue = map };
     }
 
     // A bound list of 0–3 scalars or null.

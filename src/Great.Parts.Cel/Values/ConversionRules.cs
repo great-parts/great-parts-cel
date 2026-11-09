@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 
@@ -28,6 +29,14 @@ internal static partial class ConversionRules
     /// <typeparam name="T">The .NET type.</typeparam>
     /// <returns>The CEL type; <see langword="null"/> when <typeparamref name="T"/> is not an input type yet.</returns>
     internal static CelType? InputType<T>() => InputType(typeof(T));
+
+    /// <summary>
+    /// The CEL type that the input rows give a result of .NET type <typeparamref name="T"/>: as <see cref="InputType{T}"/>, except
+    /// that a list of a class of the application has no CEL type until Build, when the type index gives the object type.
+    /// </summary>
+    /// <typeparam name="T">The .NET type of the result.</typeparam>
+    /// <returns>The CEL type; <see langword="null"/> when <typeparamref name="T"/> is not an input type yet or a list of a class of the application.</returns>
+    internal static CelType? ResultInputType<T>() => ApplicationElementOf(typeof(T)) is null ? InputType<T>() : null;
 
     /// <summary>
     /// Converts a .NET value by its static type <typeparamref name="T"/>. A <see langword="null"/> reference or
@@ -65,17 +74,25 @@ internal static partial class ConversionRules
             return true;
         }
 
-        return TryFromOther(value, out result) || TryFromCelValueOrObject(value, out result) || TryFromNullable(value, out result);
+        return TryFromOther(value, out result)
+            || TryFromCelValueOrObject(value, out result)
+            || TryFromNullable(value, out result)
+            || TryFromJson(value, out result)
+            || TryFromCollection(value, out result);
     }
 
-    private static CelType? InputType(Type type)
+    private static CelType? InputType(Type type) => LeafInputType(type) ?? CollectionInputType(type);
+
+    // The CEL type of the rows that are not collections: the scalars, CelValue, object, JsonElement, CelList and CelMap,
+    // and Nullable<X> of a scalar.
+    private static CelType? LeafInputType(Type type)
     {
         if (ScalarInputType(type) is CelType scalar)
         {
             return scalar;
         }
 
-        if (type == typeof(CelValue) || type == typeof(object))
+        if (type == typeof(CelValue) || type == typeof(object) || type == typeof(JsonElement))
         {
             return CelType.Dyn;
         }
@@ -326,6 +343,11 @@ internal static partial class ConversionRules
             return FromNullable(Unsafe.As<T, Guid?>(ref value), out result);
         }
 
+        if (typeof(T) == typeof(ReadOnlyMemory<byte>?))
+        {
+            return FromNullable(Unsafe.As<T, ReadOnlyMemory<byte>?>(ref value), out result);
+        }
+
         // A nullable enumeration boxes to its enumeration or to null.
         if (Nullable.GetUnderlyingType(typeof(T)) is { IsEnum: true })
         {
@@ -402,13 +424,36 @@ internal static partial class ConversionRules
 
     private static CelValue FromGuid(Guid value) => CelValue.FromString(value.ToString("D", CultureInfo.InvariantCulture));
 
-    // A value in the place of dyn, by the row of its runtime type.
-    private static CelValue FromObject(object? value) =>
-        TryFromObject(value, out CelValue result)
-            ? result
+    /// <summary>
+    /// Tells whether a value is a .NET collection that the <c>object</c> row does not read: an enumerable other than a
+    /// string, bytes, <see cref="CelList"/> and <see cref="CelMap"/>.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <returns><see langword="true"/> for a .NET collection.</returns>
+    internal static bool IsClrCollection(object? value) =>
+        value is System.Collections.IEnumerable and not (string or byte[] or CelList or CelMap);
 
-            // Objects, collections, JSON, time and decimals come with their parts.
-            : throw new NotImplementedException();
+    // A value in the place of dyn, by the row of its runtime type: a .NET collection is TypeNotAccessible without a
+    // place; any other instance outside the rows is an object value without a description.
+    private static CelValue FromObject(object? value)
+    {
+        if (TryFromObject(value, out CelValue result))
+        {
+            return result;
+        }
+
+        // Time and decimals come with their parts. Any other instance, a .NET collection included, is a bare object value
+        // that the node which reads it decides with the type index.
+        return IsOfLaterPart(value!) ? throw new NotImplementedException() : CelValue.FromBareObject(value!);
+    }
+
+    // The instances of the input rows that later parts read: JSON, time and decimals.
+    private static bool IsOfLaterPart(object value) =>
+        value is CelTimestamp or DateTimeOffset or DateTime or CelDuration or TimeSpan or decimal
+#if NET11_0_OR_GREATER
+            or System.Numerics.Decimal128
+#endif
+        ;
 
     // The same, false for a .NET type outside the rows.
     private static bool TryFromObject(object? value, out CelValue result)
@@ -437,6 +482,7 @@ internal static partial class ConversionRules
             float number => CelValue.FromDouble(number),
             Half number => CelValue.FromDouble((double)number),
             Guid guid => FromGuid(guid),
+            JsonElement element => JsonRules.FromElement(element),
             Enum number => FromBoxedEnum(number),
             _ => null,
         };

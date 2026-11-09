@@ -16,6 +16,8 @@
 `CelEnvironmentBuilder.Build` creates one `DeclarationIndex` per environment, after the build checks of [declarations](declarations.md), and keeps it in the immutable `CelEnvironment`. It merges the table of the standard library version (see [library](library.md)) with the declarations of the application:
 
 - **identifiers** by full name — variables, and the type identifiers of the standard library version: `bool`, `bytes`, `double`, `int`, `uint`, `string`, `null_type` and `type` have the static type `type(T)` of their type, `list` has `type(list(dyn))` and `map` `type(map(dyn, dyn))`; each holds its type value, which the planner turns into a constant. `google.protobuf.Timestamp` and `google.protobuf.Duration` join with time. `dyn` is not an identifier: it is a function;
+- **types of the application**, from the type index of [objects](objects.md): each object type by its full name, an identifier of the static type `type(T)` that holds its type value, and each enumeration constant by its full name, an identifier of the type `int` that holds its value. The name of an enumeration type is no identifier. One candidate name is tried as a variable first, then as an object type, then as a constant, as cel-go v0.32.0 `Env.LookupIdent` does; a variable may have the name of a type;
+- **fields** of each object type, by `CelObjectType.TryGetField`;
 - **functions** by name — a frozen set of function names, so that the checker tells an unknown function from a known one whose overloads do not fit;
 - **overloads** by function name, call style and argument count; a receiver counts as an argument. Overloads of the standard library come first, in the order of its table; overloads of the application follow, ordered by overload identifier (ordinal). So the order of candidates, which evaluation uses to dispatch, does not depend on the order of the builder calls.
 
@@ -41,14 +43,24 @@ The checker visits the tree depth first, children before the node, except that a
 | constant | by the kind of the value: `null_type`, `bool`, `int`, `uint`, `double`, `string`, `bytes` | — |
 | identifier | the type of the declaration or of the comprehension variable | the declaration or the local |
 | selection resolved as a name | the type of the declaration | the declaration |
-| selection `e.f` | `map(K, V)`: `V`; `dyn`, `error` or a type parameter: `dyn` (a parameter is bound to `dyn`); any other type: `NoSuchField` at the selection, type `error` | — |
-| presence test `has(e.f)` | `bool`, after the same check of `e` | — |
+| selection `e.f` | `map(K, V)`: `V`; an object type `T`: the type of the field `f` of `T`; `dyn`, `error` or a type parameter: `dyn` (a parameter is bound to `dyn`); any other type: `NoSuchField` at the selection, type `error` | on an object type, the field: the description of `T` and the number of `f` |
+| presence test `has(e.f)` | `bool`, after the same check of `e` and `f` | the same |
 | call | by its candidates, below | the candidates |
 | list, map literal | the join of the element, key and value types ([types](types.md)); empty: free type variables | — |
-| message literal `T{…}` | message literals come with object types; until then no name is an object type, so the name is `UndeclaredReference` | — |
+| message literal `T{…}` | below; type `error` in this part | the type, when the name resolves |
 | comprehension | the type of the result | — |
 
 The key types of a map literal are not checked: a key that cannot be a map key is an evaluation error (see [evaluation](evaluation.md)).
+
+**Fields of objects.** For `e.f` and `has(e.f)` where `e` has an object type `T` after the substitution, the field is looked up in the description of `T` by its name, ordinally. Found: the type of the selection is the declared type of the field, and the reference map records the description and the field number, which the planner binds ([evaluation](evaluation.md)); `has(e.f)` is `bool`. Not found: when `GetExcludedFieldReason(f)` gives a reason, `FieldNotAccessible` (2007), which only descriptions of the generator give; otherwise `NoSuchField` (2004) with the field and the full name of `T`, at the selection, type `error`. Selection chains resolve by the longest declared prefix, as in "Name resolution", with type names and constants among the identifiers: `acme.crm.Deal` is the type identifier, `acme.sales.Status.Approved` the constant, and `deal.amount` with the variable `deal` the field `amount`.
+
+**Message literals** `T{f: v, …}`. The name resolves by the container like an identifier, with the order of the declaration index; the field values are checked in order, as expressions, whatever the literal gives:
+
+1. no candidate is declared — `UndeclaredReference` (2000) at the literal;
+2. the name resolves to a variable, a constant or a type identifier that is not an object type (`int`, `list`) — `NotAType` (2006) `'{name}' is not a type`, `{name}` the resolved full name, at the literal. The literal node is the position: the name has no node of its own, and cel-go reports there too;
+3. an object type whose description is not constructible — all types of this part: types described at run time, and .NET types — `TypeNotConstructible` (2008) `type '{type}' cannot be created by an expression: object literals are supported only for protobuf messages`, at the literal. Its field names are not looked up.
+
+The literal has the type `error` after each of these. Literals of constructible types — protobuf messages — check their fields with their part.
 
 **Optional elements and entries** `[?e]`, `{?k: v}` (syntax option `OptionalSyntax`). The element or the value, after the substitution, must have the type `optional_type(T)`, which gives `T` to the join, or `dyn`, which gives `dyn`. Any other type, a free type variable included, is `TypeMismatch` at the element or the value with the expected type `optional_type` of the found type — `[?1]` and `{?'a': 1}` are `expected type 'optional_type(int)' but found 'int'` — and the list or map gets the type `error`; an element of the type `error` gives no second error. cel-go v0.32.0 checks the same, but goes on with `T`, so `[?1] + 1` gives it a second error at `_+_`: the outcome is the same, the number of errors differs. In this part no expression has an `optional_type`: a declaration with it is `TypeNotDeclared`, the functions of `optional` come with their part, and the syntax option is set only through the internal syntax options; so only `dyn` passes.
 
@@ -72,12 +84,14 @@ A node with an error gets the type `error`, assignable to every type, and produc
 
 | Code | Message | Position |
 | :- | :- | :- |
-| `UndeclaredReference` (2000) | `undeclared reference to '{name}' (in container '{container}')` | the identifier or the message literal; for an unknown function, the call |
+| `UndeclaredReference` (2000) | `undeclared reference to '{name}' (in container '{container}')`, `{name}` as written | the identifier or the message literal; for an unknown function, the call |
 | `NoMatchingOverload` (2001) | `found no matching overload for '{function}' applied to '({argumentTypes})'` | the call |
 | `TypeMismatch` (2002) | `expected type '{expected}' but found '{actual}'` | the operand of `&&` or `\|\|`, the loop condition or the loop step |
 | `ExpectedTypeMismatch` (2003) | `expression of type '{actual}' is not assignable to the expected type '{expected}'` | the root |
-| `NoSuchField` (2004) | `undefined field '{field}' in type '{type}'` | the selection; here only for a type without fields, object fields come with object types |
+| `NoSuchField` (2004) | `undefined field '{field}' in type '{type}'`, `{type}` the text form of the type: the full name of an object type, `int`, `list(int)` | the selection: a type without fields, or an object type without the field |
 | `InvalidComprehensionRange` (2005) | `expression of type '{type}' cannot be the range of a comprehension (must be list, map, or dyn)` | the range |
+| `NotAType` (2006) | `'{name}' is not a type` | the message literal |
+| `TypeNotConstructible` (2008) | `type '{type}' cannot be created by an expression: object literals are supported only for protobuf messages` | the message literal |
 | `InsufficientStack` (9000) | `insufficient execution stack to continue type checking` | the node not checked |
 | `InternalError` (9001) | `internal error during type checking; the original exception is in CelError.Exception` | the node being checked |
 
@@ -97,6 +111,6 @@ Before each recursive step the checker calls `RuntimeHelpers.TryEnsureSufficient
 
 ## Not in this part
 
-Object types, their fields and message literals, with `NotAType` (2006); the presence test on objects; `optional` selections and indexes; the second iteration variable; constant arguments prepared at planning (`matches`). Each comes with its part.
+Literals of protobuf messages and their fields; `FieldNotAccessible` (2007), with the generator and `decimal`; `optional` selections and indexes; the second iteration variable; constant arguments prepared at planning (`matches`). Each comes with its part.
 
-Related pages: [types](types.md), [declarations](declarations.md), [library](library.md), [evaluation](evaluation.md), [values](values.md), [facade](facade.md).
+Related pages: [types](types.md), [declarations](declarations.md), [objects](objects.md), [library](library.md), [evaluation](evaluation.md), [values](values.md), [facade](facade.md).

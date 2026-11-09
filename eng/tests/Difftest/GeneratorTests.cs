@@ -112,8 +112,9 @@ public sealed class GeneratorTests
             resultKinds.Add(compiled.Program!.ResultType.Kind);
         }
 
+        // A root that is the variable of the type int_wrapper has the type wrapper(int).
         Assert.Equal(
-            new[] { CelTypeKind.Dyn, CelTypeKind.Null, CelTypeKind.Bool, CelTypeKind.Int, CelTypeKind.UInt, CelTypeKind.Double, CelTypeKind.String, CelTypeKind.Bytes, CelTypeKind.List, CelTypeKind.Map, CelTypeKind.Type },
+            new[] { CelTypeKind.Dyn, CelTypeKind.Null, CelTypeKind.Bool, CelTypeKind.Int, CelTypeKind.UInt, CelTypeKind.Double, CelTypeKind.String, CelTypeKind.Bytes, CelTypeKind.List, CelTypeKind.Map, CelTypeKind.Wrapper, CelTypeKind.Type },
             resultKinds.Order());
     }
 
@@ -151,8 +152,15 @@ public sealed class GeneratorTests
             ProfileTables.TypeIdentifiers.Order(StringComparer.Ordinal),
             nodes.OfType<Ident>().Select(ident => ident.Name).Where(ProfileTables.TypeIdentifiers.Contains).Distinct().Order(StringComparer.Ordinal));
         Assert.Equal(
-            ProfileTables.Variables.Select(variable => variable.Name).Concat(ProfileTables.IterationVariables).Order(StringComparer.Ordinal),
-            nodes.OfType<Ident>().Select(ident => ident.Name).Where(name => !ProfileTables.TypeIdentifiers.Contains(name)).Distinct().Order(StringComparer.Ordinal));
+            ProfileTables.Variables.Select(variable => variable.Name).Order(StringComparer.Ordinal),
+            nodes.OfType<Ident>().Select(ident => ident.Name).Where(name => ProfileTables.Variables.Any(variable => variable.Name == name)).Distinct().Order(StringComparer.Ordinal));
+        // The variable of a macro inside another macro is read in a rare form, so its sample is the larger one.
+        Assert.Equal(
+            [.. ProfileTables.IterationVariables],
+            Sample(ConversionCases).SelectMany(generated => Nodes(generated.Expression)).OfType<Ident>().Select(ident => ident.Name)
+                .Where(ProfileTables.IterationVariables.Contains).Distinct().Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(nodes.OfType<Ident>().Select(ident => ident.Name), name =>
+            !ProfileTables.TypeIdentifiers.Contains(name) && !ProfileTables.IterationVariables.Contains(name) && ProfileTables.Variables.All(variable => variable.Name != name));
     }
 
     // A dyn operand stands wherever a function takes one: as an argument of the functions of the profile, as the operand of a
@@ -238,11 +246,15 @@ public sealed class GeneratorTests
     public void Bindings_HaveTheTypesOfTheVariablesAndSomeStayUnbound()
     {
         List<GeneratedCase> cases = [.. Sample()];
+        Dictionary<string, ProfileVariable> variables = ProfileTables.Variables.ToDictionary(variable => variable.Name);
         Dictionary<string, ProfileType> types = ProfileTables.Variables.ToDictionary(variable => variable.Name, variable => variable.Type);
         List<Value> dynValues = [.. cases.SelectMany(generated => generated.Bindings.Where(binding => types[binding.Key] == ProfileType.DynType)).Select(binding => binding.Value)];
 
+        // A wrapper is bound to its kind or to null; the parts of a typed collection are checked by the next test.
         Assert.All(cases.SelectMany(generated => generated.Bindings), binding => Assert.True(
-            types[binding.Key] == ProfileType.DynType || KindOf(binding.Value) == types[binding.Key],
+            types[binding.Key] == ProfileType.DynType
+                || KindOf(binding.Value) == types[binding.Key]
+                || (variables[binding.Key].Wrapper && KindOf(binding.Value) == ProfileType.NullType),
             binding.Key + " = " + binding.Value));
         Assert.Contains(cases, generated => generated.Bindings.Count < ProfileTables.Variables.Count);
         Assert.Equal(
@@ -262,6 +274,107 @@ public sealed class GeneratorTests
             Assert.Equal(keys.Count, keys.Distinct().Count());
             Assert.All(value.MapValue.Entries, entry => Assert.Contains(KindOf(entry.Key), ProfileTables.KeyTypes));
         });
+    }
+
+    // A typed list has 0–3 elements of its element type, and list<dyn> scalars and null; a typed map has 0–3 entries with
+    // distinct keys of its key type — the names of the fields for string keys — and values of its value type; a wrapper is
+    // a value of its kind or null.
+    [Fact]
+    public void TypedVariables_AreBoundToValuesOfTheirTypeParameters()
+    {
+        List<GeneratedCase> cases = [.. Sample()];
+        List<Value> Bound(string name) => [.. cases.Where(generated => generated.Bindings.ContainsKey(name)).Select(generated => generated.Bindings[name])];
+        IEnumerable<Value> PartsOf(Value bound) => bound.KindCase == Value.KindOneofCase.ListValue
+            ? bound.ListValue.Values
+            : bound.MapValue.Entries.Select(entry => entry.Value);
+        List<Value> Parts(string name) => [.. Bound(name).SelectMany(PartsOf)];
+
+        foreach (string name in new[] { "li", "ls", "lx" })
+        {
+            Assert.All(Bound(name), bound => Assert.InRange(bound.ListValue.Values.Count, 0, ProfileTables.MaxElements));
+            Assert.Contains(Bound(name), bound => bound.ListValue.Values.Count == ProfileTables.MaxElements);
+        }
+
+        Assert.All(Parts("li"), element => Assert.Equal(ProfileType.IntType, KindOf(element)));
+        Assert.All(Parts("ls"), element => Assert.Equal(ProfileType.StringType, KindOf(element)));
+        Assert.All(Parts("lx"), element => Assert.Contains(KindOf(element), ProfileTables.ScalarKinds));
+        Assert.Equal(ProfileTables.ScalarKinds.Order(), Parts("lx").Select(KindOf).Distinct().Order());
+
+        foreach (string name in new[] { "ms", "mx" })
+        {
+            Assert.All(Bound(name), bound =>
+            {
+                Assert.InRange(bound.MapValue.Entries.Count, 0, ProfileTables.MaxElements);
+                List<object> keys = [.. bound.MapValue.Entries.Select(entry => CelKey(entry.Key))];
+                Assert.Equal(keys.Count, keys.Distinct().Count());
+            });
+            Assert.Contains(Bound(name), bound => bound.MapValue.Entries.Count > 1);
+        }
+
+        Assert.All(Bound("ms").SelectMany(bound => bound.MapValue.Entries), entry =>
+        {
+            Assert.Contains(entry.Key.StringValue, ProfileTables.FieldNames);
+            Assert.Equal(ProfileType.IntType, KindOf(entry.Value));
+        });
+        Assert.All(Bound("mx").SelectMany(bound => bound.MapValue.Entries), entry =>
+        {
+            Assert.Equal(ProfileType.IntType, KindOf(entry.Key));
+            Assert.Contains(KindOf(entry.Value), ProfileTables.ScalarKinds);
+        });
+        Assert.Equal([ProfileType.IntType, ProfileType.NullType], Bound("wi").Select(KindOf).Distinct().Order());
+    }
+
+    // A variable with a qualified name is written through the container: fewer names, or all of them, with or without a leading
+    // dot; the identifier keeps the declared name, which is the key of the binding.
+    [Fact]
+    public void QualifiedVariables_AreWrittenInEveryFormTheContainerResolves()
+    {
+        List<Ident> idents = [.. AllNodes().OfType<Ident>()];
+
+        foreach (ProfileVariable variable in ProfileTables.Variables)
+        {
+            Assert.Equal(
+                variable.Spellings.Order(StringComparer.Ordinal),
+                idents.Where(ident => ident.Name == variable.Name).Select(ident => ident.Spelling ?? ident.Name).Distinct().Order(StringComparer.Ordinal));
+        }
+
+        Assert.Equal(["q", "gp.q", ".gp.q"], ProfileTables.Variables.Single(variable => variable.Name == "gp.q").Spellings);
+        Assert.Equal(["r", "test.r", "gp.test.r", ".gp.test.r"], ProfileTables.Variables.Single(variable => variable.Name == "gp.test.r").Spellings);
+        Assert.Equal(
+            ".gp.q + 1|q - 1|test.r.size()|.gp.test.r + 'a'",
+            string.Join('|', new Expr[]
+            {
+                new Call(ProfileTables.Add, [new Ident("gp.q") { Spelling = ".gp.q" }, new IntLiteral(1, IntegerForm.DecimalDigits)]),
+                new Call(ProfileTables.Subtract, [new Ident("gp.q") { Spelling = "q" }, new IntLiteral(1, IntegerForm.DecimalDigits)]),
+                new Call(ProfileTables.Size, [new Ident("gp.test.r") { Spelling = "test.r" }]) { Receiver = true },
+                new Call(ProfileTables.Add, [new Ident("gp.test.r") { Spelling = ".gp.test.r" }, new StringLiteral("a", new TextForm(Quote.Apostrophe, null, [Escape.Literal]))]),
+            }.Select(ExprPrinter.Print)));
+    }
+
+    // The typed variables are operands of the forms whose parameter types they fit: indexes, size, in, + on lists, selections
+    // and presence tests on a map with string keys, macros. Each form occurs; map and filter never take a map variable as
+    // the range, since cel-go iterates a map in no fixed order. That each case type checks is the test of the first group.
+    [Fact]
+    public void TypedVariables_StandWhereTheirTypeFits()
+    {
+        List<Expr> nodes = [.. AllNodes()];
+        List<Comprehension> macros = [.. nodes.OfType<Comprehension>()];
+        string[] lists = ["li", "ls", "lx"];
+        string[] maps = ["ms", "mx"];
+
+        Assert.Contains(nodes, node => node is Call { Function: ProfileTables.Index, Args: [var container, _] } && IsVariable(container, lists));
+        Assert.Contains(nodes, node => node is Call { Function: ProfileTables.Index, Args: [var container, _] } && IsVariable(container, maps));
+        Assert.Contains(nodes, node => node is Call { Function: ProfileTables.Size, Args: [var operand] } && IsVariable(operand, [.. lists, .. maps]));
+        Assert.Contains(nodes, node => node is Call { Function: ProfileTables.In, Args: [_, var container] } && IsVariable(container, lists));
+        Assert.Contains(nodes, node => node is Call { Function: ProfileTables.In, Args: [_, var container] } && IsVariable(container, maps));
+        Assert.Contains(nodes, node => node is Call { Function: ProfileTables.Add, Args: [var left, _] } && IsVariable(left, lists));
+        Assert.Contains(nodes, node => node is Select { Operand: var operand } && IsVariable(operand, "ms"));
+        Assert.Contains(nodes, node => node is PresenceTest { Operand: var operand } && IsVariable(operand, "ms"));
+        Assert.Contains(macros, macro => IsVariable(macro.Range, lists));
+        Assert.Contains(macros, macro => IsVariable(macro.Range, maps));
+        Assert.Contains(macros, macro => macro.Macro is ProfileTables.MapMacro or ProfileTables.Filter && IsVariable(macro.Range, lists));
+        Assert.DoesNotContain(macros, macro => macro.Macro is ProfileTables.MapMacro or ProfileTables.Filter && IsVariable(macro.Range, maps));
+        Assert.Contains(nodes, node => node is Ident { Name: "wi" });
     }
 
     [Fact]
@@ -291,14 +404,15 @@ public sealed class GeneratorTests
     }
 
     // map and filter list the elements in the order of their range, and cel-go iterates a map in no fixed order: their range
-    // is a list literal, a map literal of at most one entry, either of them in dyn(), never a dyn variable.
+    // is a list literal, a typed list variable, a map literal of at most one entry, either literal in dyn(), never a dyn variable
+    // or a map variable.
     [Fact]
     public void RangeOfMapAndFilter_HasAFixedOrder()
     {
         List<Comprehension> transforms = [.. AllNodes().OfType<Comprehension>().Where(macro => macro.Macro is ProfileTables.MapMacro or ProfileTables.Filter)];
 
         Assert.All(transforms, macro => Assert.True(
-            macro.Range is ListLiteral or MapLiteral { Entries.Count: <= 1 }
+            macro.Range is ListLiteral or MapLiteral { Entries.Count: <= 1 } or Ident { Name: "li" or "ls" or "lx" }
                 or Call { Function: ProfileTables.Dyn, Args: [ListLiteral or MapLiteral { Entries.Count: <= 1 }] },
             ExprPrinter.Print(macro)));
         Assert.Contains(transforms, macro => macro.Range is Call { Function: ProfileTables.Dyn });
@@ -655,6 +769,9 @@ public sealed class GeneratorTests
         Call { Function: ProfileTables.Conditional, Args: [_, var first, var second] } => IsTypeValued(first) && IsTypeValued(second),
         _ => false,
     };
+
+    // Whether a node is a variable of the manifest with one of the names.
+    private static bool IsVariable(Expr expr, params string[] names) => expr is Ident ident && names.Contains(ident.Name);
 
     // A node whose static type is dyn by its form: a dyn variable or a call of dyn().
     private static bool IsDyn(Expr expr) => expr is Ident { Name: "x1" or "x2" } or Call { Function: ProfileTables.Dyn };

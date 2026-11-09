@@ -22,10 +22,10 @@ public sealed class OverloadBindingTests
     {
         var meter = new RecordingMeter();
 
-        Assert.True(ListOfInt.Matches([Mixed, CelValue.FromString("a")], [], meter));
-        Assert.True(ListOfInt.Matches([Mixed, CelValue.FromString("a")], [false, false], meter));
-        Assert.False(ListOfInt.Matches([CelValue.FromInt64(1), CelValue.FromString("a")], [], meter));
-        Assert.False(ListOfInt.Matches([Ints, CelValue.FromInt64(1)], [], meter));
+        Assert.True(ListOfInt.Matches([Mixed, CelValue.FromString("a")], [], meter).IsFit);
+        Assert.True(ListOfInt.Matches([Mixed, CelValue.FromString("a")], [false, false], meter).IsFit);
+        Assert.False(ListOfInt.Matches([CelValue.FromInt64(1), CelValue.FromString("a")], [], meter).IsFit);
+        Assert.False(ListOfInt.Matches([Ints, CelValue.FromInt64(1)], [], meter).IsFit);
         Assert.Empty(meter.Charges);
     }
 
@@ -34,10 +34,10 @@ public sealed class OverloadBindingTests
     {
         var meter = new RecordingMeter();
 
-        Assert.True(ListOfInt.Matches([Ints, CelValue.FromString("a")], [true, true], meter));
+        Assert.True(ListOfInt.Matches([Ints, CelValue.FromString("a")], [true, true], meter).IsFit);
         Assert.Equal("2", string.Join(' ', meter.Charges));
-        Assert.False(ListOfInt.Matches([Mixed, CelValue.FromString("a")], [true, false], meter));
-        Assert.False(ListOfInt.Matches([Mixed, CelValue.FromString("a")], [true, true], null));
+        Assert.False(ListOfInt.Matches([Mixed, CelValue.FromString("a")], [true, false], meter).IsFit);
+        Assert.False(ListOfInt.Matches([Mixed, CelValue.FromString("a")], [true, true], null).IsFit);
     }
 
     [Fact]
@@ -46,8 +46,8 @@ public sealed class OverloadBindingTests
         OverloadBinding generic = Binding("pick_list", CelType.ListOf(CelType.TypeParameter("A")), CelType.Dyn);
         CelValue error = CelValue.FromError(new CelError(CelErrorCode.Overflow, CelErrorStage.Evaluate, "overflow", default, null, null));
 
-        Assert.True(generic.Matches([Mixed, CelValue.Null], [true, true], null));
-        Assert.False(generic.Matches([Mixed, error], [true, true], null));
+        Assert.True(generic.Matches([Mixed, CelValue.Null], [true, true], null).IsFit);
+        Assert.False(generic.Matches([Mixed, error], [true, true], null).IsFit);
     }
 
     // index_list of the library also takes an index of the kinds uint and double; an application overload
@@ -71,11 +71,11 @@ public sealed class OverloadBindingTests
             "application",
             isApplication: true);
 
-        Assert.True(index.Matches([Ints, CelValue.FromUInt64(1)], [true, true], null));
-        Assert.True(index.Matches([Ints, CelValue.FromDouble(1.5)], [true, true], null));
-        Assert.True(index.Matches([Ints, CelValue.FromInt64(0)], [], null));
-        Assert.False(index.Matches([Ints, CelValue.FromString("0")], [true, true], null));
-        Assert.False(application.Matches([Ints, CelValue.FromUInt64(1)], [true, true], null));
+        Assert.True(index.Matches([Ints, CelValue.FromUInt64(1)], [true, true], null).IsFit);
+        Assert.True(index.Matches([Ints, CelValue.FromDouble(1.5)], [true, true], null).IsFit);
+        Assert.True(index.Matches([Ints, CelValue.FromInt64(0)], [], null).IsFit);
+        Assert.False(index.Matches([Ints, CelValue.FromString("0")], [true, true], null).IsFit);
+        Assert.False(application.Matches([Ints, CelValue.FromUInt64(1)], [true, true], null).IsFit);
     }
 
     [Fact]

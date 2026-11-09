@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Types;
+using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Checking;
 
@@ -42,7 +43,8 @@ internal sealed class DeclarationIndex
         FrozenDictionary<string, CelType> typeIdentifiers,
         FrozenSet<string> functions,
         FrozenDictionary<(string Function, bool IsReceiverStyle, int ArgumentCount), ImmutableArray<OverloadBinding>> overloads,
-        string container)
+        string container,
+        TypeIndex types)
     {
         _variables = variables;
         _variablesBySpan = variables.GetAlternateLookup<ReadOnlySpan<char>>();
@@ -52,24 +54,42 @@ internal sealed class DeclarationIndex
         _functionsBySpan = functions.GetAlternateLookup<ReadOnlySpan<char>>();
         _overloads = overloads;
         Container = container;
+        Types = types;
     }
 
     // The name resolution container; empty without one.
     internal string Container { get; }
 
+    // The type index of the type sources: object types, enumeration constants and descriptions by .NET type.
+    internal TypeIndex Types { get; }
+
     // An index without type identifiers and container, for the tests of checking and evaluation.
     internal static DeclarationIndex Create(ImmutableArray<OverloadBinding> overloads, ImmutableArray<CelVariableDecl> variables) =>
-        Create(overloads, variables, NoTypeIdentifiers, string.Empty);
+        Create(overloads, variables, NoTypeIdentifiers, string.Empty, TypeIndex.Empty);
 
     // The overloads come in the order of their candidates: the standard library in the order of its
     // table, then the application by overload identifier. The variables have distinct names. The type
-    // identifiers are keyed by ordinal comparison.
+    // identifiers are keyed by ordinal comparison; the object types of the type index join them, each the
+    // identifier of its type, and their names differ from those of the version.
     internal static DeclarationIndex Create(
         ImmutableArray<OverloadBinding> overloads,
         ImmutableArray<CelVariableDecl> variables,
         FrozenDictionary<string, CelType> typeIdentifiers,
-        string container)
+        string container,
+        TypeIndex? types = null)
     {
+        types ??= TypeIndex.Empty;
+        if (types.ObjectTypes.Count != 0)
+        {
+            var merged = new Dictionary<string, CelType>(typeIdentifiers, StringComparer.Ordinal);
+            foreach (KeyValuePair<string, CelObjectType> objectType in types.ObjectTypes)
+            {
+                merged.Add(objectType.Key, objectType.Value.Type);
+            }
+
+            typeIdentifiers = merged.ToFrozenDictionary(StringComparer.Ordinal);
+        }
+
         var variablesByName = new Dictionary<string, CelVariableDecl>(StringComparer.Ordinal);
         foreach (CelVariableDecl variable in variables)
         {
@@ -91,7 +111,8 @@ internal sealed class DeclarationIndex
             typeIdentifiers,
             functions.ToFrozenSet(StringComparer.Ordinal),
             overloadsByCall.ToFrozenDictionary(entry => entry.Key, entry => entry.Value.ToImmutable()),
-            container);
+            container,
+            types);
     }
 
     internal bool TryGetVariable(string name, [NotNullWhen(true)] out CelVariableDecl? variable) =>

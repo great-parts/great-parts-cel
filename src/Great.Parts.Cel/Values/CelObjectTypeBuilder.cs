@@ -22,14 +22,18 @@ namespace Great.Parts.Cel.Values;
 /// <para>
 /// The values are boxed in the dictionary and checked at each read; the generic builder over a typed
 /// carrier avoids both. The builder is not thread-safe; the descriptions it builds are immutable and can
-/// be shared between threads.
+/// be shared between threads. The rules of reading a field, of presence and of <c>null</c> are on the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/runtime-types.md">Types described at run time</see>.
 /// </para>
 /// </remarks>
 public sealed class CelObjectTypeBuilder
 {
+    private readonly string _name;
+    private readonly FieldList _fields = new();
+
     internal CelObjectTypeBuilder(string name)
     {
-        throw new NotImplementedException();
+        _name = FieldList.CheckTypeName(name);
     }
 
     /// <summary>
@@ -39,10 +43,7 @@ public sealed class CelObjectTypeBuilder
     /// <returns>The builder.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="name"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="name"/> is not a full CEL name.</exception>
-    public static CelObjectTypeBuilder ForDictionary(string name)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelObjectTypeBuilder ForDictionary(string name) => new(name);
 
     /// <summary>
     /// Adds a field read from the dictionary entry whose key is <paramref name="name"/>. Its number is the
@@ -58,7 +59,8 @@ public sealed class CelObjectTypeBuilder
     /// </exception>
     public CelObjectTypeBuilder AddField(string name, CelType type)
     {
-        throw new NotImplementedException();
+        _fields.Add(name, type);
+        return this;
     }
 
     /// <summary>
@@ -66,8 +68,22 @@ public sealed class CelObjectTypeBuilder
     /// fields do not change descriptions built before.
     /// </summary>
     /// <returns>The description, with <see cref="CelObjectType.ClrType"/> <see langword="null"/>.</returns>
-    public CelObjectType Build()
+    public CelObjectType Build() => new DictionaryObjectType(_name, _fields.ToArray());
+
+    // A type described at run time over the dictionary carrier: a field is the entry with the field name as its key.
+    private sealed class DictionaryObjectType(string name, ReadOnlySpan<CelObjectField> fields) : CelObjectType(name, fields)
     {
-        throw new NotImplementedException();
+        internal override bool Belongs(object instance) => instance is IReadOnlyDictionary<string, object?>;
+
+        internal override bool IsDictionaryCarrier => true;
+
+        protected internal override CelValue GetField(object instance, int number) =>
+            TryReadField(instance, number, out CelValue value) ? value : ObjectRules.FieldNotSet(this, number);
+
+        protected internal override bool HasField(object instance, int number) =>
+            ((IReadOnlyDictionary<string, object?>)instance).ContainsKey(Fields[number].Name);
+
+        internal override bool TryReadField(object instance, int number, out CelValue value) =>
+            ObjectRules.TryReadDictionaryField(this, number, (IReadOnlyDictionary<string, object?>)instance, out value);
     }
 }

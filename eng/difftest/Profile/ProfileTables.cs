@@ -3,9 +3,25 @@ using System.Collections.Generic;
 namespace Great.Parts.Cel.Eng.Difftest.Profile;
 
 /// <summary>A variable of the run manifest.</summary>
-/// <param name="Name">The name.</param>
-/// <param name="Type">The declared type.</param>
-internal sealed record ProfileVariable(string Name, ProfileType Type);
+/// <param name="Name">The name as the manifest declares it; it is also the key of a binding.</param>
+/// <param name="Type">
+/// The kind of the type the generator treats the variable as: <c>int</c> for an <c>int_wrapper</c>, <c>list</c> for every
+/// <c>list&lt;E&gt;</c>, <c>map</c> for every <c>map&lt;K, V&gt;</c>.
+/// </param>
+internal sealed record ProfileVariable(string Name, ProfileType Type)
+{
+    /// <summary>The type record of the manifest: <c>int</c>, <c>list&lt;int&gt;</c>, <c>map&lt;string, int&gt;</c>, <c>int_wrapper</c>.</summary>
+    internal string TypeRecord { get; init; } = Type.Name();
+
+    /// <summary>The static type the generator knows: the parameters of a collection, <c>int</c> for <c>int_wrapper</c>.</summary>
+    internal StaticType Declared { get; init; } = StaticType.Of(Type);
+
+    /// <summary>Whether the variable is a wrapper: its binding is a value or <c>null</c>.</summary>
+    internal bool Wrapper { get; init; }
+
+    /// <summary>The ways to write the variable in an expression: the declared name, or a name the container resolves to it.</summary>
+    internal IReadOnlyList<string> Spellings { get; init; } = [Name];
+}
 
 /// <summary>An overload of the profile.</summary>
 /// <param name="Id">The overload identifier of cel-go, for example <c>add_int64</c>.</param>
@@ -167,6 +183,9 @@ internal static class ProfileTables
     /// <summary>The largest number of operands of a chain of <c>&amp;&amp;</c> or <c>||</c>.</summary>
     internal const int MaxChain = 4;
 
+    /// <summary>The container of the manifest: an identifier <c>q</c> is tried as <c>gp.test.q</c>, <c>gp.q</c> and <c>q</c>.</summary>
+    internal const string Container = "gp.test";
+
     /// <summary>The variables of the manifest, in its order.</summary>
     internal static IReadOnlyList<ProfileVariable> Variables { get; } =
     [
@@ -180,6 +199,14 @@ internal static class ProfileTables
         new("y1", ProfileType.BytesType),
         new("x1", ProfileType.DynType),
         new("x2", ProfileType.DynType),
+        new("li", ProfileType.ListType) { TypeRecord = "list<int>", Declared = StaticType.ListOf(StaticType.Of(ProfileType.IntType)) },
+        new("ls", ProfileType.ListType) { TypeRecord = "list<string>", Declared = StaticType.ListOf(StaticType.Of(ProfileType.StringType)) },
+        new("lx", ProfileType.ListType) { TypeRecord = "list<dyn>", Declared = StaticType.ListOf(StaticType.Dyn) },
+        new("ms", ProfileType.MapType) { TypeRecord = "map<string, int>", Declared = StaticType.MapOf(StaticType.Of(ProfileType.StringType), StaticType.Of(ProfileType.IntType)) },
+        new("mx", ProfileType.MapType) { TypeRecord = "map<int, dyn>", Declared = StaticType.MapOf(StaticType.Of(ProfileType.IntType), StaticType.Dyn) },
+        new("wi", ProfileType.IntType) { TypeRecord = "int_wrapper", Wrapper = true },
+        new("gp.q", ProfileType.IntType) { Spellings = ["q", "gp.q", ".gp.q"] },
+        new("gp.test.r", ProfileType.StringType) { Spellings = ["r", "test.r", "gp.test.r", ".gp.test.r"] },
     ];
 
     /// <summary>The type identifiers of the standard library version 1; each is a value of the type <c>type</c>.</summary>

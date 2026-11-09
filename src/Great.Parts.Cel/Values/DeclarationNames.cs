@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Frozen;
 
-namespace Great.Parts.Cel.Declarations;
+namespace Great.Parts.Cel.Values;
 
 // The names that declarations may have: an identifier or a qualified name by the grammar of the language
 // definition — segments separated by ".", the first an IDENT, the others SELECTORs. A SELECTOR is a word
@@ -43,6 +43,31 @@ internal static class DeclarationNames
             first = false;
         }
     }
+
+    // The name of a field of an object type: a word, a keyword and a reserved word included, which an expression
+    // writes in backquotes; with dots, the full name of a protobuf extension field.
+    internal static bool IsFieldName(string name)
+    {
+        ReadOnlySpan<char> rest = name;
+        while (true)
+        {
+            int dot = rest.IndexOf('.');
+            if (!IsWord(dot < 0 ? rest : rest[..dot]))
+            {
+                return false;
+            }
+
+            if (dot < 0)
+            {
+                return true;
+            }
+
+            rest = rest[(dot + 1)..];
+        }
+    }
+
+    // The name of a field that a builder adds: one word, a keyword and a reserved word included.
+    internal static bool IsWordName(string name) => IsWord(name);
 
     // [_a-zA-Z][_a-zA-Z0-9]*
     private static bool IsWord(ReadOnlySpan<char> segment)

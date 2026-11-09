@@ -37,18 +37,40 @@ public sealed class CelEnumType
     /// </exception>
     public CelEnumType(string name, ReadOnlySpan<KeyValuePair<string, long>> constants)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(name);
+        if (!DeclarationNames.IsQualifiedIdentifier(name))
+        {
+            throw new ArgumentException("The type name '" + name + "' is not a full CEL name.", nameof(name));
+        }
+
+        var names = new HashSet<string>(constants.Length, StringComparer.Ordinal);
+        foreach (KeyValuePair<string, long> constant in constants)
+        {
+            ArgumentNullException.ThrowIfNull(constant.Key, nameof(constants));
+            if (!DeclarationNames.IsWordName(constant.Key) || !DeclarationNames.IsQualifiedIdentifier(name + "." + constant.Key))
+            {
+                throw new ArgumentException("The constant name '" + constant.Key + "' of '" + name + "' is not an identifier.", nameof(constants));
+            }
+
+            if (!names.Add(constant.Key))
+            {
+                throw new ArgumentException("The constant '" + constant.Key + "' of '" + name + "' is given twice.", nameof(constants));
+            }
+        }
+
+        Name = name;
+        Constants = [.. constants];
     }
 
     /// <summary>
     /// The full CEL name of the type, such as <c>acme.sales.Status</c>: the prefix of the full names of its
     /// constants.
     /// </summary>
-    public string Name => throw new NotImplementedException();
+    public string Name { get; }
 
     /// <summary>
     /// The constants in the order of the constructor: the name relative to the type and the <c>int</c>
     /// value an expression gets for it.
     /// </summary>
-    public ImmutableArray<KeyValuePair<string, long>> Constants => throw new NotImplementedException();
+    public ImmutableArray<KeyValuePair<string, long>> Constants { get; }
 }

@@ -38,12 +38,16 @@ internal static class TypedExpressions
     internal static readonly CelType MapIntDyn = CelType.MapOf(CelType.Int, CelType.Dyn);
     internal static readonly CelType TypeType = CelType.TypeOf(CelType.Dyn);
 
-    /// <summary>The variables of the fixed environment: one of each type and two of type <c>dyn</c>.</summary>
+    /// <summary>
+    /// The variables of the fixed environment: one of each type, two of type <c>dyn</c>, and the variables of application data —
+    /// <c>o</c> of <c>gen.Item</c>, <c>g</c> of <c>gen.Bag</c> and <c>j</c> of type <c>dyn</c>, bound to a <see cref="System.Text.Json.JsonElement"/>.
+    /// </summary>
     internal static readonly (string Name, CelType Type)[] Variables =
     [
         ("i", CelType.Int), ("u", CelType.UInt), ("d", CelType.Double), ("b", CelType.Bool), ("s", CelType.String),
         ("y", CelType.Bytes), ("li", ListInt), ("ld", ListDyn), ("msi", MapStringInt), ("mid", MapIntDyn), ("t", TypeType),
         ("x1", CelType.Dyn), ("x2", CelType.Dyn),
+        ("o", GeneratedTypes.ItemName), ("g", GeneratedTypes.BagName), ("j", CelType.Dyn),
     ];
 
     /// <summary>The target types of the generator.</summary>
@@ -68,11 +72,12 @@ internal static class TypedExpressions
     internal static Gen<TypedCase> Of(CelType target) =>
         Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => Create(new PCG(stream, seed), target, damaged: false));
 
-    /// <summary>Declares the variables of the generator.</summary>
+    /// <summary>Declares the type source and the variables of the generator.</summary>
     /// <param name="builder">The builder.</param>
     /// <returns>The builder.</returns>
     internal static CelEnvironmentBuilder Declare(CelEnvironmentBuilder builder)
     {
+        builder.AddTypes(GeneratedTypes.Provider);
         foreach ((string name, CelType type) in Variables)
         {
             builder.AddVariable(name, type);
@@ -104,15 +109,29 @@ internal static class TypedExpressions
                 continue;
             }
 
-            CelValue value = Value(random, type, 0);
-            bindings.Add(name, value);
             if (text.Length > 1)
             {
                 text.Append(", ");
             }
 
             text.Append(name).Append(": ");
-            Print(text, value);
+            switch (name)
+            {
+                case "o":
+                    text.Append(GeneratedTypes.BindItem(random, bindings));
+                    break;
+                case "g":
+                    text.Append(GeneratedTypes.BindBag(random, bindings));
+                    break;
+                case "j":
+                    text.Append(GeneratedTypes.BindJson(random, bindings));
+                    break;
+                default:
+                    CelValue value = Value(random, type, 0);
+                    bindings.Add(name, value);
+                    Print(text, value);
+                    break;
+            }
         }
 
         return (bindings, text.Append('}').ToString());
@@ -161,6 +180,10 @@ internal static class TypedExpressions
             case CelValueKind.Type:
                 _ = value.TryGetType(out CelType? type);
                 text.Append(type!.Name);
+                break;
+            case CelValueKind.Object:
+                _ = value.TryGetObject(out object? instance);
+                text.Append("object ").Append(instance);
                 break;
             default:
                 text.Append(value.Kind.ToString());
@@ -435,6 +458,11 @@ internal static class TypedExpressions
                 return $"({Expression(CelType.Bool, depth)} ? {Expression(type, depth)} : {Expression(type, depth)})";
             }
 
+            if (random.Next(6) == 0 && ApplicationData(type, depth) is { } data)
+            {
+                return data;
+            }
+
             if (type.Equals(CelType.Int))
             {
                 return IntCompound(depth);
@@ -520,6 +548,66 @@ internal static class TypedExpressions
             }
 
             return DynCompound(depth);
+        }
+
+        // An expression of application data: the types and carriers of the generator, a JsonElement. Selections go two levels deep
+        // at most; the fields of a type described at run time are absent, null or of another type in some bindings. A type
+        // without such an expression gets none.
+        private string? ApplicationData(CelType type, int depth)
+        {
+            if (type.Equals(CelType.Int))
+            {
+                return random.Next(4) switch
+                {
+                    0 => Pick("o.n", "o.c.n", "g.n", "g.c.n"),
+                    1 => Pick("size(o.l)", "size(o.c.l)", "size(j)", "size(j.c)", "size(j.e)", "size(j.b)"),
+                    2 => $"size(j.c[{Expression(CelType.Int, depth)}])",
+                    _ => Pick("int(j.a)", "int(j.c[0])", "int(j.n)"),
+                };
+            }
+
+            if (type.Equals(CelType.Bool))
+            {
+                return random.Next(8) switch
+                {
+                    0 => Pick("has(o.n)", "has(o.w)", "has(o.c)", "has(o.c.w)", "has(o.c.c)", "has(o.c.l)"),
+                    1 => Pick("has(g.n)", "has(g.s)", "has(g.c)", "has(g.c.n)", "has(g.c.c)"),
+                    2 => Pick("(o == o.c)", "(o != o.c)", "(o.c == o.c.c)", "(o == o)", "(o.c == null)", "(o.c.c != null)"),
+                    3 => Pick("(g == g.c)", "(g != g.c)", "(g.c == g.c.c)", "(g == g)", "(g.c == null)"),
+                    4 => Pick("(type(o) == gen.Item)", "(type(g) == gen.Bag)", "(type(o.c) == gen.Item)", "(type(g.c) != gen.Bag)", "(type(j) == map)"),
+                    5 => Pick("has(j.a)", "has(j.e.f)", "has(j.e.h)", "has(j.zz)", "has(j.e.f.g)"),
+                    6 => $"({Expression(CelType.String, depth)} in j)",
+                    _ => $"({Expression(CelType.Int, depth)} in j.c)",
+                };
+            }
+
+            if (type.Equals(CelType.String))
+            {
+                return Pick("o.s", "o.c.s", "g.s", "g.c.s", "string(j.b)", "string(j.c[1])");
+            }
+
+            if (type.Equals(ListInt))
+            {
+                return Pick("o.l", "o.c.l");
+            }
+
+            if (type.Kind == CelTypeKind.Type)
+            {
+                return Pick("type(o)", "type(g)", "type(o.c)", "type(g.c)", "type(j)", "type(j.a)", "type(j.c)");
+            }
+
+            if (type.Equals(CelType.Dyn))
+            {
+                return random.Next(4) switch
+                {
+                    0 => Pick("j", "j.a", "j.c", "j.e", "j.e.f", "j.e.h", "j.zz"),
+                    1 => $"j.c[{Expression(CelType.Int, depth)}]",
+                    2 => Pick("dyn(o)", "dyn(o.w)", "dyn(o.c)", "dyn(g)", "dyn(g.c)", "dyn(o.l)"),
+                    _ => $"j[{Expression(CelType.String, depth)}]",
+                };
+            }
+
+            return null;
         }
 
         private string IntCompound(int depth) => random.Next(9) switch

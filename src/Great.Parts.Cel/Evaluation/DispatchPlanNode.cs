@@ -8,7 +8,8 @@ namespace Great.Parts.Cel.Evaluation;
 // A call with several candidates, or with none: evaluates the arguments and calls the first candidate,
 // in the order of the reference map, that Matches the values — the top level of every argument and the
 // arguments the planner marked for that candidate at any depth. When none matches, and so always without
-// candidates, the call is EvalNoMatchingOverload at its position. The cost is that of the chosen
+// candidates, the call is EvalNoMatchingOverload at its position. An error value that an element of a marked
+// argument is ends the search: it is the result, with the place of the call. The cost is that of the chosen
 // overload, so planning knows none of it.
 internal sealed class DispatchPlanNode : PlanNode
 {
@@ -57,12 +58,19 @@ internal sealed class DispatchPlanNode : PlanNode
         for (int i = 0; i < Candidates.Length; i++)
         {
             OverloadBinding candidate = Candidates[i];
-            if (candidate.Matches(values, _marks[i].AsSpan(), frame.Meter))
+            TypeFit fit = candidate.Matches(values, _marks[i].AsSpan(), frame.Meter, frame.Types);
+            if (fit.IsFit)
             {
                 return Invocation.Call(frame, candidate, values, Offset, _charges);
             }
+
+            // An error value of an element is the result of the call: no later candidate is tried.
+            if (fit.ElementError is not null)
+            {
+                return EvaluationErrors.NotMatched(fit, _function, values, frame, Offset);
+            }
         }
 
-        return new CallSite(_function, Offset, frame.Lines).NoMatchingOverload(values);
+        return EvaluationErrors.NotMatched(TypeFit.No, _function, values, frame, Offset);
     }
 }

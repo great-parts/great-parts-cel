@@ -132,8 +132,8 @@ public sealed class CelEnvironmentJsonApplyTests
     [InlineData("""^{"name": "x", "type": "int", "params": []}""", "a variable has 'params' without 'type_name'")]
     [InlineData("""{"name": "x", "type_name": ^"list<int>"}""", "'list<int>' is not a type name")]
     [InlineData("""{"name": "x", "type_name": ^" int"}""", "' int' is not a type name")]
-    [InlineData("""{"name": "x", "type_name": ^"acme.Order"}""", "the type 'acme.Order' is not supported")]
-    [InlineData("""{"name": "x", "type_name": ^"list", "params": ["int"]}""", "the type 'list<int>' is not supported")]
+    [InlineData("""{"name": "x", "type_name": ^"timestamp"}""", "the type 'timestamp' is not supported")]
+    [InlineData("""{"name": "x", "type_name": ^"map", "params": ["int"]}""", "the type 'map' takes 2 type parameters, but 'map<int>' gives 1")]
     [InlineData("""{"name": "x", "type_name": ^"int", "params": ["int", "dyn"]}""", "the type 'int' has no type parameters: 'int<int, dyn>'")]
     [InlineData("""{"name": "x", "type_name": "list", "params": ^"int"}""", "'params' must be an array")]
     [InlineData("""{"name": "x", "type_name": "list", "params": [^1]}""", "an element of 'params' must be a string")]
@@ -145,9 +145,9 @@ public sealed class CelEnvironmentJsonApplyTests
 
     [Theory]
     [InlineData("""{"variables": [{"name": "x", "type": ^"list<"}]}""", "'list<' is not a valid type record")]
-    [InlineData("""{"variables": [{"name": "x", "type": ^"~T"}]}""", "the type parameter '~T' cannot be the type of a variable")]
-    [InlineData("""{"variables": [{"name": "x", "type": ^"acme.Order"}]}""", "the type 'acme.Order' is not supported")]
-    [InlineData("""{"variables": [{"name": "x", "type": ^"map<string, int>"}]}""", "the type 'map<string, int>' is not supported")]
+    [InlineData("""{"variables": [{"name": "x", "type": ^"~T"}]}""", "a type parameter cannot be used in a variable: '~T'")]
+    [InlineData("""{"variables": [{"name": "x", "type": ^"list<~T>"}]}""", "a type parameter cannot be used in a variable: 'list<~T>'")]
+    [InlineData("""{"variables": [{"name": "x", "type": ^"map<string>"}]}""", "the type 'map' takes 2 type parameters, but 'map<string>' gives 1")]
     [InlineData("""{"variables": [{"name": "x", "type": ^"int<int>"}]}""", "the type 'int' has no type parameters: 'int<int>'")]
     public void TypeError_IsReportedAtTheValue(string markedJson, string detail)
     {
@@ -211,10 +211,6 @@ public sealed class CelEnvironmentJsonApplyTests
     }
 
     [Theory]
-    [InlineData("container")]
-    [InlineData("extensions")]
-    [InlineData("functions")]
-    [InlineData("greatPartsCel")]
     [InlineData("imports")]
     [InlineData("stdlib")]
     [InlineData("context_variable")]
@@ -266,7 +262,7 @@ public sealed class CelEnvironmentJsonApplyTests
 
     [Theory]
     [InlineData("""{"variables": [{"name": "x", "type": "int"}], "nme": 1}""")]
-    [InlineData("""{"variables": [{"name": "x", "type": "int"}, {"name": "y", "type": "list<int>"}]}""")]
+    [InlineData("""{"variables": [{"name": "x", "type": "int"}, {"name": "y", "type": "list<int"}]}""")]
     [InlineData("""{"variables": [{"name": "x", "type": "int"}], "variables": []}""")]
     [InlineData("""{"variables": [{"name": "x", "type": "int"}]""")]
     [InlineData("""{"variables": [{"name": "x", "type": "int"}]} {}""")]
@@ -344,7 +340,7 @@ public sealed class CelEnvironmentJsonApplyTests
     [Theory]
     [InlineData("""{"name": "", "nme": 1}""", "environment JSON ''")]
     [InlineData("""{"nme": 1, "name": "m"}""", "environment JSON 'm'")]
-    [InlineData("""{"name": "a", "name": "b"}""", "environment JSON 'a'")]
+    [InlineData("""{"name": "a", "name": "b"}""", "environment JSON")]
     [InlineData("""{"name": 1}""", "environment JSON")]
     [InlineData("""{"x": tru, "name": "m"}""", "environment JSON")]
     public void Errors_NameTheDescriptionByTheValueOfName(string json, string sourceName)

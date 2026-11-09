@@ -160,7 +160,7 @@ All have the stage `Parse`.
 
 ## Printing and tree equality
 
-Both serve the property "parse, print, parse gives the same tree" ([tests](tests.md#properties-of-the-parser)). They are internal classes of `Syntax`, as `parser/unparser.go` belongs to the cel-go parser, and use the grammar table of the parser. Both recurse without the stack check: they serve tests on trees within the limits.
+Both serve the property "parse, print, parse gives the same tree" ([tests](tests.md#properties-of-the-parser-and-the-checker)). They are internal classes of `Syntax`, as `parser/unparser.go` belongs to the cel-go parser, and use the grammar table of the parser. Both recurse without the stack check: they serve tests on trees within the limits.
 
 `Printer.Print(ParsedExpression)` gives a text that parses, with the same options, into an equal tree:
 

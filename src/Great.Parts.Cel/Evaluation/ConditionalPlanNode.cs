@@ -38,6 +38,6 @@ internal sealed class ConditionalPlanNode : PlanNode
         Begin(frame);
         return condition.Kind == CelValueKind.Error
             ? condition
-            : new CallSite(Function, Offset, frame.Lines).NoMatchingOverload([condition]);
+            : new CallSite(Function, Offset, frame.Lines, types: frame.Types).NoMatchingOverload([condition]);
     }
 }

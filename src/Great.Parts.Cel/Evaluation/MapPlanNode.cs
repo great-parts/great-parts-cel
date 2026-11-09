@@ -80,7 +80,7 @@ internal sealed class MapPlanNode : PlanNode
 
         CelValue refused = entries[index].Key;
         return refusal == EntryTableMap.Refusal.KeyKind
-            ? EvaluationErrors.UnsupportedMapKeyType(refused.Kind, frame.Lines, Keys[index].Offset)
+            ? EvaluationErrors.UnsupportedMapKeyType(refused, frame.Types, frame.Lines, Keys[index].Offset)
             : EvaluationErrors.DuplicateMapKey(refused, frame.Lines, Offset);
     }
 }

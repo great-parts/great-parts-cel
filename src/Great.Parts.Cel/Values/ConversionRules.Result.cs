@@ -22,6 +22,10 @@ internal static partial class ConversionRules
     /// <typeparam name="T">The requested .NET type.</typeparam>
     /// <param name="explicitType">The explicit expected type, or <see langword="null"/> for none.</param>
     /// <param name="parameterName">The name of the parameter that holds the explicit type, for the exception.</param>
+    /// <param name="types">
+    /// The type index of the environment: a class, struct or interface outside <c>System</c> whose exact .NET type it
+    /// describes expects its object type; another such type expects <c>dyn</c>, and its instance is tested at evaluation.
+    /// </param>
     /// <returns>The expected type.</returns>
     /// <exception cref="ArgumentException">
     /// <typeparamref name="T"/> is outside the tables, or it does not hold the values of the explicit type.
@@ -29,8 +33,13 @@ internal static partial class ConversionRules
     /// <exception cref="NotImplementedException">
     /// <typeparamref name="T"/> or the explicit type is not supported yet: time, <c>optional</c>, <c>decimal</c>.
     /// </exception>
-    internal static CelType ExpectedType<T>(CelType? explicitType, string parameterName)
+    internal static CelType ExpectedType<T>(CelType? explicitType, string parameterName, TypeIndex? types = null)
     {
+        if (IsApplicationType<T>())
+        {
+            return ApplicationExpectedType<T>(explicitType, parameterName, types);
+        }
+
         ClrRow<T> row = ResultRow<T>();
         if (explicitType is null)
         {
@@ -83,13 +92,22 @@ internal static partial class ConversionRules
     /// When the method returns <see langword="false"/>, the CEL type that the error names: the type that the check
     /// before a lazy view found, or the name of the type of the value.
     /// </param>
+    /// <param name="types">The type index of the environment, which names the description of an object value.</param>
+    /// <param name="elementError">
+    /// When the method returns <see langword="false"/> because the check met an error value as an element, a key or a value
+    /// of a collection of the application, that error, the first in the order of the check — a list by index, a map in the
+    /// order of iteration; it is no mismatch, and the caller returns it as the value read; otherwise <see langword="null"/>.
+    /// </param>
     /// <returns><see langword="false"/> when the value does not convert.</returns>
     internal static bool TryToResult<T>(
         CelValue value,
         CelType resultType,
         [MaybeNull] out T result,
-        [NotNullWhen(false)] out string? actualType)
+        [NotNullWhen(false)] out string? actualType,
+        out CelError? elementError,
+        TypeIndex? types = null)
     {
+        elementError = null;
         if (typeof(T) == typeof(CelValue))
         {
             result = Unsafe.As<CelValue, T>(ref value);
@@ -97,12 +115,22 @@ internal static partial class ConversionRules
             return true;
         }
 
-        ClrRow<T> row = RowOf<T>.Row!;
-        if (row.IsCheckedView(resultType) && !ValueTypeRules.Fits(value, row.ExpectedType, null, row.NullElements))
+        if (IsApplicationType<T>())
         {
-            result = default;
-            actualType = ValueTypeRules.MismatchType(value, row.ExpectedType, row.NullElements) ?? ValueTypeNames.Of(value.Kind);
-            return false;
+            return TryToApplicationType(value, out result, out actualType, types);
+        }
+
+        ClrRow<T> row = RowOf<T>.Row!;
+        if (row.IsCheckedView(resultType))
+        {
+            TypeFit fit = ValueTypeRules.Fits(value, row.ExpectedType, null, row.NullElements);
+            if (!fit.IsFit)
+            {
+                result = default;
+                elementError = fit.ElementError;
+                actualType = ValueTypeRules.MismatchType(value, row.ExpectedType, row.NullElements, types) ?? TypeName(value, types);
+                return false;
+            }
         }
 
         if (row.TryConvert(value, resultType, null, out result))
@@ -111,9 +139,69 @@ internal static partial class ConversionRules
             return true;
         }
 
-        actualType = ValueTypeNames.Of(value.Kind);
+        // A copy fails at an element that does not convert; an error value among the elements is the outcome when the
+        // check of the expected type reaches it first. The walk runs only on this path, so a result that converts pays nothing.
+        elementError = value.Kind is CelValueKind.List or CelValueKind.Map
+            ? ValueTypeRules.Fits(value, row.ExpectedType, null, row.NullElements, types).ElementError
+            : null;
+        actualType = TypeName(value, types);
         return false;
     }
+
+    // Whether T is a class, record, struct or interface outside System and outside the library: a result type of the
+    // row of object values.
+    private static bool IsApplicationType<T>() => RowOf<T>.Row is null && IsApplicationObject(typeof(T));
+
+    // The expected type of an application type: its object type when a source describes exactly this .NET type, else
+    // dyn. An explicit type must be dyn, a type parameter or an object type.
+    private static CelType ApplicationExpectedType<T>(CelType? explicitType, string parameterName, TypeIndex? types)
+    {
+        if (explicitType is null)
+        {
+            return types is not null && types.TryGetByClrType(typeof(T), out CelObjectType? described) ? described.Type : CelType.Dyn;
+        }
+
+        if (MentionsLaterPart(explicitType))
+        {
+            throw new NotImplementedException();
+        }
+
+        if (explicitType.Kind is not (CelTypeKind.Dyn or CelTypeKind.TypeParameter or CelTypeKind.Object))
+        {
+            throw new ArgumentException(
+                "The expected type '" + explicitType + "' cannot be converted to the result type '" + typeof(T) + "'.",
+                parameterName);
+        }
+
+        return explicitType;
+    }
+
+    // The row of object values, a type described at run time included: the instance itself when it is a T, by an
+    // instance test, without reading the description; null for a T that takes null. A refusal names the description of
+    // an object value, or the .NET type of an instance without one, never TypeNotAccessible.
+    private static bool TryToApplicationType<T>(CelValue value, [MaybeNull] out T result, [NotNullWhen(false)] out string? actualType, TypeIndex? types)
+    {
+        actualType = null;
+        result = default;
+        if (value.TryGetObject(out object? instance) && instance is T converted)
+        {
+            result = converted;
+            return true;
+        }
+
+        if (value.Kind == CelValueKind.Null && !typeof(T).IsValueType)
+        {
+            return true;
+        }
+
+        actualType = TypeName(value, types);
+        return false;
+    }
+
+    // The name of the type of a value in the message of ResultConversion: of an object value its description, or the
+    // .NET type of an instance without one.
+    private static string TypeName(CelValue value, TypeIndex? types) =>
+        value.Kind == CelValueKind.Object ? ObjectRules.TypeName(value, types) : ValueTypeNames.Of(value.Kind);
 
     /// <summary>
     /// Converts an argument of a typed delegate to its parameter type <typeparamref name="T"/>. The argument fits the
@@ -143,9 +231,9 @@ internal static partial class ConversionRules
         ClrRow<T>? row = RowOf<T>.Row;
         if (row is null)
         {
-            // The build accepts only parameter types of the table.
-            result = default;
-            return false;
+            // The build accepts only parameter types of the table and the types of the application that a type source
+            // describes: the instance itself, by an instance test.
+            return TryToApplicationType(value, out result, out _, null);
         }
 
         return row.TryConvert(value, row.ExpectedType, meter, out result);

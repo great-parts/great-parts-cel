@@ -7,9 +7,9 @@ using Great.Parts.Cel.Values;
 namespace Great.Parts.Cel.Evaluation;
 
 // The state of one evaluation: the slots of the variables and of the comprehensions, the argument stack,
-// the meter of the cost limit, the event counter of cancellation and the offset of the node whose own
-// operation runs. A frame serves one call of Plan.Run on one thread.
-internal sealed class Frame : IEvaluationMeter
+// the meter of the cost limit, the event counter of cancellation, the type index of the environment and the offset of
+// the node whose own operation runs. A frame serves one call of Plan.Run on one thread.
+internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
 {
     // How many events begin between two checks of the token.
     private const uint EventsPerCheck = 64;
@@ -42,6 +42,7 @@ internal sealed class Frame : IEvaluationMeter
         _locals = Allocate<CelValue>(plan.LocalCount);
         _stack = Allocate<CelValue>(plan.StackSize);
         Lines = plan.Lines;
+        Types = plan.Types;
         if (costLimit is { } limit)
         {
             _metered = true;
@@ -55,6 +56,9 @@ internal sealed class Frame : IEvaluationMeter
 
     // The line table of the plan, which turns the offsets of nodes into the positions of errors.
     internal LineTable Lines { get; }
+
+    // The type index of the environment of the plan, which describes object values.
+    internal TypeIndex Types { get; }
 
     // Whether the evaluation has a cost limit.
     internal bool Metered => _metered;
@@ -97,6 +101,15 @@ internal sealed class Frame : IEvaluationMeter
             _events++;
         }
     }
+
+    // An exception of application code becomes ApplicationException, except OutOfMemoryException, the internal
+    // CostLimitException and the OperationCanceledException of the canceled token.
+    public bool IsApplicationException(Exception exception) =>
+        exception is not CostLimitException && Plan.IsInternal(exception, _token);
+
+    // ApplicationException of a field read during the operation of the recorded node.
+    public CelValue FieldException(Exception exception, CelObjectType owner, int number) =>
+        EvaluationErrors.FieldException(exception, owner, number, false, Lines, Offset);
 
     // Reads a variable. The first read of a slot looks the name up in the bindings, and first is true: the
     // caller checks the value and keeps the result with Keep. Later reads take the slot. False when the

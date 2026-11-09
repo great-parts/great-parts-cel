@@ -153,7 +153,8 @@ public sealed class ConversionRulesTests
         Assert.False(ConversionRules.TryFromClr<DateTime?>(null, out _));
         Assert.Equal(CelErrorCode.TypeNotDeclared, Assert.Single(new CelEnvironmentBuilder(CelStandardLibrary.V1).AddVariable<DateTime>("v").Build().Errors).Code);
         Assert.Throws<NotImplementedException>(() => ConversionRules.TryFromClr<object>(DateTime.UnixEpoch, out _));
-        Assert.Throws<NotImplementedException>(() => ConversionRules.TryFromClr<object>(new List<int>(), out _));
+        Assert.True(ConversionRules.TryFromClr<object>(new List<int>(), out CelValue collection));
+        Assert.Equal(CelValueKind.Object, collection.Kind);
     }
 
     // An enumeration is int by its underlying value of any width, [Flags] included.

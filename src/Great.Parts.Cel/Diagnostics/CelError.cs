@@ -189,7 +189,7 @@ public sealed class CelError
     /// <see cref="OutOfMemoryException"/> are never turned into errors: they propagate to the caller.
     /// </para>
     /// </remarks>
-    public Exception? Exception => _source is Given given ? given.Exception : _first as Exception;
+    public Exception? Exception => _source is Given given ? given.Exception : _first as Exception ?? (_first as CelError)?.Exception;
 
     /// <summary>
     /// Gives this error with its position in the document that holds the expression, from the position at which the

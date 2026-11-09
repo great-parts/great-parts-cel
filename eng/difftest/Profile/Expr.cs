@@ -50,8 +50,15 @@ internal sealed record StringLiteral(string Value, TextForm Form) : Expr;
 internal sealed record BytesLiteral(IReadOnlyList<byte> Value, char Prefix, TextForm Form) : Expr;
 
 /// <summary>An identifier: a variable of the manifest, a type identifier or the iteration variable of an enclosing macro.</summary>
-/// <param name="Name">The name.</param>
-internal sealed record Ident(string Name) : Expr;
+/// <param name="Name">The name: the name a variable is declared with, which is the key of its binding.</param>
+internal sealed record Ident(string Name) : Expr
+{
+    /// <summary>
+    /// How the identifier is written when it is not its name: a qualified variable is written through the container, with
+    /// fewer names, or with a leading dot (<c>q</c>, <c>test.r</c>, <c>.gp.q</c>). <see langword="null"/> for the name itself.
+    /// </summary>
+    internal string? Spelling { get; init; }
+}
 
 /// <summary>A call of a function of the profile.</summary>
 /// <param name="Function">The function: one of the constants of <see cref="ProfileTables"/>.</param>

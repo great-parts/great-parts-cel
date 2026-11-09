@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using Great.Parts.Cel.Eng.Difftest;
 using Great.Parts.Cel.Eng.Difftest.Profile;
+using Great.Parts.Cel.Eng.Difftest.Sides;
 using Great.Parts.Cel.Eng.Tests.Support;
 using Xunit;
 
@@ -60,9 +61,34 @@ public sealed class ManifestTests
 
         Assert.True(RunManifest.TryRead(root, out string problem), problem);
         Assert.Equal(
-            ProfileTables.Variables.Select(variable => variable.Name + ": " + variable.Type.Name()),
+            ProfileTables.Variables.Select(variable => variable.Name + ": " + variable.TypeRecord),
             manifest.RootElement.GetProperty("variables").EnumerateArray()
-                .Select(variable => variable.GetProperty("name").GetString() + ": " + variable.GetProperty("type_name").GetString()));
+                .Select(variable => variable.GetProperty("name").GetString() + ": "
+                    + (variable.TryGetProperty("type", out JsonElement record) ? record : variable.GetProperty("type_name")).GetString()));
+        Assert.Equal(ProfileTables.Container, manifest.RootElement.GetProperty("container").GetString());
+    }
+
+    // The manifest holds the keys that both sides read — the library with Apply, the oracle with cel.FromConfig — and no other.
+    [Fact]
+    public void ManifestOfTheRepository_HoldsOnlyTheKeysOfTheProfile()
+    {
+        using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot.Find(), ProfileTables.ManifestPath)));
+
+        Assert.Equal(
+            ["container", "description", "name", "variables"],
+            manifest.RootElement.EnumerateObject().Select(member => member.Name).Order(StringComparer.Ordinal));
+        Assert.DoesNotContain(manifest.RootElement.EnumerateObject(), member => RunManifest.RefusedMembers.Contains(member.Name));
+    }
+
+    // The library side reads the very file that the oracle reads: its bytes go to Apply, its path to the oracle.
+    [Fact]
+    public void ManifestOfTheRepository_BuildsTheEnvironmentOfTheLibrarySide()
+    {
+        byte[] manifest = File.ReadAllBytes(Path.Combine(RepositoryRoot.Find(), ProfileTables.ManifestPath));
+
+        Assert.True(LibrarySide.TryBuild(manifest, out LibrarySide? side, out string problem), problem);
+        Assert.NotNull(side);
+        Assert.Equal(string.Empty, problem);
     }
 
     [Fact]

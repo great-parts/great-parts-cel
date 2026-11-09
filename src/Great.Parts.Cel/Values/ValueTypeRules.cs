@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel.Values;
@@ -40,7 +41,9 @@ internal static class ValueTypeRules
     /// Tells whether a value fits a declared type, at any depth: <c>dyn</c> and type parameters take any value,
     /// a primitive type a value of its kind, <c>wrapper(P)</c> <c>null</c> or a value of <c>P</c>, <c>null_type</c>
     /// <c>null</c>, <c>type(…)</c> any type value, <c>list(E)</c> a list whose every element fits <c>E</c>, and
-    /// <c>map(K, V)</c> a map whose every key fits <c>K</c> and every value <c>V</c>. An error value fits nothing.
+    /// <c>map(K, V)</c> a map whose every key fits <c>K</c> and every value <c>V</c>. An error value fits nothing at the
+    /// top; an error value that an element, a key or a value of a collection of the application is, is not a mismatch of
+    /// type: the outcome is that error, the first one in the order of the walk.
     /// </summary>
     /// <remarks>
     /// The check descends only into a parameter that is neither <c>dyn</c> nor a type parameter. Before it descends
@@ -49,8 +52,8 @@ internal static class ValueTypeRules
     /// <param name="value">The value.</param>
     /// <param name="type">The declared type.</param>
     /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
-    /// <returns><see langword="true"/> when the value fits.</returns>
-    internal static bool Fits(CelValue value, CelType type, IEvaluationMeter? meter) => Fits(value, type, meter, nullElements: false);
+    /// <returns>The outcome: fits, does not fit, or an error element.</returns>
+    internal static TypeFit Fits(CelValue value, CelType type, IEvaluationMeter? meter) => Fits(value, type, meter, nullElements: false);
 
     /// <summary>
     /// Tells whether a value fits a declared type as <see cref="Fits(CelValue, CelType, IEvaluationMeter?)"/> does, and
@@ -61,20 +64,24 @@ internal static class ValueTypeRules
     /// <param name="type">The declared type.</param>
     /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
     /// <param name="nullElements">Whether the elements and the values at the top take <c>null</c>.</param>
-    /// <returns><see langword="true"/> when the value fits.</returns>
-    internal static bool Fits(CelValue value, CelType type, IEvaluationMeter? meter, bool nullElements)
+    /// <param name="types">
+    /// The type index of the environment for object types: <c>null</c> or an object value whose description is the
+    /// description of the type in the index fits; without the index no object value fits.
+    /// </param>
+    /// <returns>The outcome: fits, does not fit, or an error element.</returns>
+    internal static TypeFit Fits(CelValue value, CelType type, IEvaluationMeter? meter, bool nullElements, TypeIndex? types = null)
     {
-        if (!FitsTopLevel(value, type))
+        if (!FitsTopLevel(value, type, types))
         {
-            return false;
+            return TypeFit.No;
         }
 
         return type.Kind switch
         {
-            CelTypeKind.List when value.TryGetList(out CelList? list) => ElementsFit(list, type.Parameters[0], meter, nullElements),
+            CelTypeKind.List when value.TryGetList(out CelList? list) => ElementsFit(list, type.Parameters[0], meter, nullElements, types),
             CelTypeKind.Map when value.TryGetMap(out CelMap? map) =>
-                EntriesFit(map, type.Parameters[0], type.Parameters[1], meter, nullElements),
-            _ => true,
+                EntriesFit(map, type.Parameters[0], type.Parameters[1], meter, nullElements, types),
+            _ => TypeFit.Yes,
         };
     }
 
@@ -90,37 +97,38 @@ internal static class ValueTypeRules
 
     /// <summary>
     /// The actual type that the messages of a mismatch name, as <see cref="MismatchType(CelValue, CelType)"/>, for the check
-    /// <see cref="Fits(CelValue, CelType, IEvaluationMeter?, bool)"/>: with <paramref name="nullElements"/> set, a <c>null</c>
+    /// <see cref="Fits(CelValue, CelType, IEvaluationMeter?, bool, TypeIndex?)"/>: with <paramref name="nullElements"/> set, a <c>null</c>
     /// element or value at the top fits and is not named.
     /// </summary>
     /// <param name="value">The value.</param>
     /// <param name="type">The declared type.</param>
     /// <param name="nullElements">Whether the elements and the values at the top take <c>null</c>.</param>
+    /// <param name="types">The type index of the environment, which names the description of an object value.</param>
     /// <returns>The actual type; <see langword="null"/> when the value fits.</returns>
-    internal static string? MismatchType(CelValue value, CelType type, bool nullElements)
+    internal static string? MismatchType(CelValue value, CelType type, bool nullElements, TypeIndex? types = null)
     {
-        if (!FitsTopLevel(value, type))
+        if (!FitsTopLevel(value, type, types))
         {
-            return ValueTypeNames.Of(value.Kind);
+            return value.Kind == CelValueKind.Object ? ObjectRules.TypeName(value, types) : ValueTypeNames.Of(value.Kind);
         }
 
         if (value.TryGetList(out CelList? list) && !type.Parameters.IsEmpty && Descends(type.Parameters[0]))
         {
-            return ElementMismatch(list, type.Parameters[0], nullElements);
+            return ElementMismatch(list, type.Parameters[0], nullElements, types);
         }
 
         return value.TryGetMap(out CelMap? map) && !type.Parameters.IsEmpty
-            ? EntryMismatch(map, type.Parameters[0], type.Parameters[1], nullElements)
+            ? EntryMismatch(map, type.Parameters[0], type.Parameters[1], nullElements, types)
             : null;
     }
 
     // The mismatch type of the first element that does not fit list(E), as list(…); with nullElements a null element fits.
-    private static string? ElementMismatch(CelList list, CelType element, bool nullElements)
+    private static string? ElementMismatch(CelList list, CelType element, bool nullElements, TypeIndex? types)
     {
         for (int index = 0; index < list.Count; index++)
         {
             CelValue item = list[index];
-            string? itemType = nullElements && item.Kind == CelValueKind.Null ? null : MismatchType(item, element);
+            string? itemType = nullElements && item.Kind == CelValueKind.Null ? null : MismatchType(item, element, false, types);
             if (itemType is not null)
             {
                 return "list(" + itemType + ")";
@@ -132,19 +140,19 @@ internal static class ValueTypeRules
 
     // The mismatch type of the first key or value that does not fit map(K, V), as map(…, …); with nullElements a null
     // value fits, a null key never.
-    private static string? EntryMismatch(CelMap map, CelType key, CelType value, bool nullElements)
+    private static string? EntryMismatch(CelMap map, CelType key, CelType value, bool nullElements, TypeIndex? types)
     {
         bool keys = Descends(key);
         bool values = Descends(value);
         foreach (KeyValuePair<CelValue, CelValue> entry in map)
         {
-            string? keyType = keys ? MismatchType(entry.Key, key) : null;
+            string? keyType = keys ? MismatchType(entry.Key, key, false, types) : null;
             if (keyType is not null)
             {
                 return "map(" + keyType + ", " + value + ")";
             }
 
-            string? valueType = values && !(nullElements && entry.Value.Kind == CelValueKind.Null) ? MismatchType(entry.Value, value) : null;
+            string? valueType = values && !(nullElements && entry.Value.Kind == CelValueKind.Null) ? MismatchType(entry.Value, value, false, types) : null;
             if (valueType is not null)
             {
                 return "map(" + key + ", " + valueType + ")";
@@ -155,12 +163,12 @@ internal static class ValueTypeRules
     }
 
     // The elements of a list against list(E): n units before the descent into n elements; with nullElements a null
-    // element fits.
-    private static bool ElementsFit(CelList list, CelType element, IEvaluationMeter? meter, bool nullElements)
+    // element fits. An element that is an error value ends the walk with that error, as a mismatch ends it.
+    private static TypeFit ElementsFit(CelList list, CelType element, IEvaluationMeter? meter, bool nullElements, TypeIndex? types)
     {
-        if (!Descends(element))
+        if (!Descends(element) || (list.RecordedType is { Kind: CelTypeKind.List } recorded && Covers(recorded.Parameters[0], element)))
         {
-            return true;
+            return TypeFit.Yes;
         }
 
         int count = list.Count;
@@ -168,31 +176,93 @@ internal static class ValueTypeRules
         for (int index = 0; index < count; index++)
         {
             CelValue item = list[index];
-            if (!(nullElements && item.Kind == CelValueKind.Null) && !Fits(item, element, meter))
+            if (nullElements && item.Kind == CelValueKind.Null)
             {
-                return false;
+                continue;
+            }
+
+            TypeFit fit = FitsItem(item, element, meter, types);
+            if (!fit.IsFit)
+            {
+                return fit;
             }
         }
 
-        return true;
+        return TypeFit.Yes;
     }
 
     // The entries of a map against map(K, V): n units before the descent into n entries; with nullElements a null
-    // value fits, a null key never.
-    private static bool EntriesFit(CelMap map, CelType key, CelType value, IEvaluationMeter? meter, bool nullElements)
+    // value fits, a null key never. Each entry is walked key first; the first error value ends the walk with that error.
+    private static TypeFit EntriesFit(CelMap map, CelType key, CelType value, IEvaluationMeter? meter, bool nullElements, TypeIndex? types)
     {
         bool keys = Descends(key);
         bool values = Descends(value);
-        if (!keys && !values)
+        if ((!keys && !values)
+            || (map.RecordedType is { Kind: CelTypeKind.Map } recorded && Covers(recorded.Parameters[0], key) && Covers(recorded.Parameters[1], value)))
+        {
+            return TypeFit.Yes;
+        }
+
+        if (meter is not null)
+        {
+            meter.Charge((ulong)map.Count);
+            map.ChargeEnumeration(meter);
+        }
+
+        foreach (KeyValuePair<CelValue, CelValue> entry in map)
+        {
+            if (keys)
+            {
+                TypeFit keyFit = FitsItem(entry.Key, key, meter, types);
+                if (!keyFit.IsFit)
+                {
+                    return keyFit;
+                }
+            }
+
+            if (values && !(nullElements && entry.Value.Kind == CelValueKind.Null))
+            {
+                TypeFit valueFit = FitsItem(entry.Value, value, meter, types);
+                if (!valueFit.IsFit)
+                {
+                    return valueFit;
+                }
+            }
+        }
+
+        return TypeFit.Yes;
+    }
+
+    // An element, a key or a value of a collection against the declared type of its position: an error value is the
+    // outcome, anything else is checked as a value.
+    private static TypeFit FitsItem(CelValue item, CelType type, IEvaluationMeter? meter, TypeIndex? types) =>
+        item.TryGetError(out CelError? error) ? TypeFit.OfElementError(error) : Fits(item, type, meter, false, types);
+
+    // Whether every value of the recorded type of a view that the input rows made fits the declared type without `dyn`: the
+    // view then needs no descent. A wrapper takes null and its parameter, so a view of nullable elements does not fit a
+    // declared primitive.
+    private static bool Covers(CelType recorded, CelType declared)
+    {
+        if (declared.Kind is CelTypeKind.Dyn or CelTypeKind.TypeParameter)
         {
             return true;
         }
 
-        meter?.Charge((ulong)map.Count);
-        foreach (KeyValuePair<CelValue, CelValue> entry in map)
+        if (declared.Kind == CelTypeKind.Wrapper)
         {
-            if ((keys && !Fits(entry.Key, key, meter))
-                || (values && !(nullElements && entry.Value.Kind == CelValueKind.Null) && !Fits(entry.Value, value, meter)))
+            return recorded.Kind == CelTypeKind.Wrapper
+                ? Covers(recorded.Parameters[0], declared.Parameters[0])
+                : Covers(recorded, declared.Parameters[0]);
+        }
+
+        if (recorded.Kind != declared.Kind)
+        {
+            return false;
+        }
+
+        for (int index = 0; index < recorded.Parameters.Length && index < declared.Parameters.Length; index++)
+        {
+            if (!Covers(recorded.Parameters[index], declared.Parameters[index]))
             {
                 return false;
             }
@@ -204,8 +274,16 @@ internal static class ValueTypeRules
     // Whether the check goes into values of a parameter of the declared type.
     private static bool Descends(CelType parameter) => parameter.Kind is not (CelTypeKind.Dyn or CelTypeKind.TypeParameter);
 
-    // The top level of the value against the top level of the type.
-    private static bool FitsTopLevel(CelValue value, CelType type)
+    /// <summary>
+    /// Tells whether the top level of a value fits the top level of a type: the kind for a primitive, <c>list(…)</c>,
+    /// <c>map(…)</c> and <c>type(…)</c>; <c>null</c> or the primitive for <c>wrapper(P)</c>; <c>null</c> for
+    /// <c>null_type</c>; for an object type, <see cref="ObjectRules.Fits"/>; anything for <c>dyn</c>. An error value fits nothing.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    /// <param name="type">The type.</param>
+    /// <param name="types">The type index of the environment for object types, or <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> when the top level fits.</returns>
+    internal static bool FitsTopLevel(CelValue value, CelType type, TypeIndex? types = null)
     {
         CelValueKind kind = value.Kind;
         if (kind == CelValueKind.Error)
@@ -224,11 +302,12 @@ internal static class ValueTypeRules
             CelTypeKind.String => kind == CelValueKind.String,
             CelTypeKind.Bytes => kind == CelValueKind.Bytes,
             CelTypeKind.Wrapper => kind == CelValueKind.Null || FitsTopLevel(value, type.Parameters[0]),
+            CelTypeKind.Object => ObjectRules.Fits(value, type, types),
             CelTypeKind.List => kind == CelValueKind.List,
             CelTypeKind.Map => kind == CelValueKind.Map,
             CelTypeKind.Type => kind == CelValueKind.Type,
 
-            // Time, optional values, objects and decimals come with their parts.
+            // Time, optional values and decimals come with their parts.
             _ => throw new NotImplementedException(),
         };
     }

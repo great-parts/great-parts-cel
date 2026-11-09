@@ -6,69 +6,95 @@
 public static ImmutableArray<CelError> CelEnvironmentJson.Apply(CelEnvironmentBuilder builder, ReadOnlySpan<byte> utf8Json)
 ```
 
-The format is a subset of the JSON form of the environment configuration of cel-go, the CEL implementation in Go, so that the library and the oracle of the differential run read one file with one meaning. `Apply` maps the description one to one onto calls of the builder and makes no decisions of its own: an environment from JSON is the environment that the same calls in code build.
-
-The walking skeleton reads the top-level keys `name`, `description` and `variables`, and variables of simple types and `dyn`. The rest of the format comes later; until then its keys are errors (see below).
+The format is a subset of the JSON form of the environment configuration of cel-go, the CEL implementation in Go, so that the library and the oracle of the differential run read one file with one meaning. `Apply` maps the description one to one onto calls of the builder and makes no decisions of its own: an environment from JSON is the environment that the same calls in code build, and its build errors are those of the same calls.
 
 | File | Content |
 | :- | :- |
 | `src/Great.Parts.Cel/Configuration/CelEnvironmentJson.cs` | the public entry point |
-| `src/Great.Parts.Cel/Configuration/EnvironmentReader.cs` | reading the document into pending builder calls |
+| `src/Great.Parts.Cel/Configuration/EnvironmentReader.cs` | reading the document into pending builder calls; a key section with many keys may move to a file of its own |
 | `src/Great.Parts.Cel/Configuration/TypeRecordParser.cs` | the type record grammar |
 | `src/Great.Parts.Cel/Configuration/JsonPositions.cs` | positions in the JSON text |
 
 ## Mapping onto builder calls
 
+An empty array, an empty object and a missing key are the same: no call. Every key not listed is an unknown key.
+
 | Key | Value | Builder call |
 | :- | :- | :- |
-| `name` | string, optional | none: metadata; it names the description in errors |
-| `description` | string, optional | none: metadata |
-| `variables` | array of objects, optional | `AddVariable(name, type)` for each element, in the order of the array |
-| `variables[].name` | non-empty string, required | the name of the variable |
-| `variables[].type` | type record, a string | the `CelType` of the variable |
-| `variables[].type_name` | type name, a string | the `CelType` of the variable, with `params` |
-| `variables[].params` | array of type records, only with `type_name` | the type parameters |
-| `variables[].description` | string, optional | none: metadata |
+| `name`, `description` | string, optional | none: metadata; `name` labels the description |
+| `container` | a qualified name, or the empty string | `UseContainer(value)`; the empty string is no call |
+| `extensions[]` | objects of `name`, `version`, both required | `AddExtension` of the set of that name and version — see [Extension sets](#extension-sets) |
+| `variables[]` | objects of `name`, `type` or `type_name` with `params`, `description` | `AddVariable(name, type)` |
+| `functions[]` | objects of `name`, `description`, `overloads` (a non-empty array, required) | `AddFunction(CelFunctionDecl)`: one declaration with its overloads in the order of the array, without implementations |
+| `functions[].overloads[]` | objects of `id` (non-empty, required), `target`, `args`, `return` (required), `examples` (strings) | `CelOverloadDecl.Receiver(id, target, args, return)` with `target`, else `Global(id, args, return)`; `examples` are metadata |
+| `greatPartsCel.objectTypes[]` | objects of `name` (required), `fields` | all types of the array form one provider: `AddTypes(CelTypeProvider.Create(label, …))`, each type `CelObjectTypeBuilder.ForDictionary(name)` |
+| `objectTypes[].fields[]` | objects of `name`, `type`, both required | `AddField(name, type)` in the order of the array, which gives the field numbers |
 
-An empty array is the same as a missing key. A variable has exactly one of `type` and `type_name`.
+`description` of a variable and of a function, and `examples` of an overload are metadata: the kind of their value is checked, nothing else. Implementations of the overloads are registered in code with `AddFunctionImplementation(id, …)`, before or after `Apply`; a description cannot carry them, nor the standard library version, the time zone database, type sources of .NET types or the `decimal` literal flag.
 
-The type record grammar is the one of cel-go, read in full: a name, optionally with parameters in angle brackets, or `~` and one letter for a type parameter. The walking skeleton maps the six simple names and `dyn`: `int` to `CelType.Int`, `uint` to `CelType.UInt`, `double` to `CelType.Double`, `bool` to `CelType.Bool`, `string` to `CelType.String`, `bytes` to `CelType.Bytes` and `dyn` to `CelType.Dyn`; `params` must then be missing or empty. Any other well-formed record is an error that names the type until the reader supports it. A type parameter as the type of a variable is always an error.
+**Keys of cel-go outside the format** — `imports`, `stdlib`, `context_variable`, `validators`, `features` and `limits` at the top level, `is_type_param` in a variable — are errors that name the key. They stay errors: the format is complete with this part.
 
-The value of `type_name` is a type name alone — identifiers separated by dots, optionally after a leading dot — with no white space anywhere: cel-go looks the name up as it is, without parsing it, so ` int` is not `int` there. White space between lexemes is allowed only in type records: in `type` and in the elements of `params`.
+**A variable** has exactly one of `type` and `type_name`; `params` only with `type_name`. A name that is not an identifier or a qualified name passes to the builder, which reports `InvalidVariableName` at `Build`, as for code; only an empty name is an error of the description. The same for the name of a function and `InvalidFunctionName`.
 
-**Same state as code.** For a description with the variables `v1` … `vn`, the builder holds the same declarations as after `AddVariable(v1.name, v1.type)` … `AddVariable(vn.name, vn.type)` in code: the same names with equal types. Declarations are a set, so the order of the calls does not matter. Tests compare the states through the internal member `CelEnvironmentBuilder.VariableDeclarations`, an `ImmutableArray<CelVariableDecl>` of the declarations collected so far, by the pairs of name and type.
+## Type records
 
-The source of a declaration — the label of the description and the position of the element in the JSON text — reaches the builder together with the build errors that name sources. In the walking skeleton `Build` reports no errors about declarations, so `Apply` calls the public method.
+The grammar of cel-go, read in full: a name, optionally with parameters in angle brackets, or `~` and one letter. White space between lexemes is allowed in `type`, `params`, `target`, `args`, `return` and the `type` of a field; the value of `type_name` is a type name alone, without white space, since cel-go looks it up as it is. A record names its type exactly: the container does not apply to it.
+
+| Record | `CelType` |
+| :- | :- |
+| `int`, `uint`, `double`, `bool`, `string`, `bytes`, `dyn` | the simple types and `dyn` |
+| `null_type`, `null` | `Null` |
+| `int_wrapper`, `uint_wrapper`, `double_wrapper`, `bool_wrapper`, `string_wrapper`, `bytes_wrapper` | `WrapperOf(P)` |
+| `list<E>`, `map<K, V>` | `ListOf(E)`, `MapOf(K, V)` |
+| `type`, `type<E>` | `TypeOf(Dyn)`, `TypeOf(E)` |
+| `~A` … `~Z`, `~a` … `~z` | a type parameter; only in a record of an overload |
+| `any` | as the name `google.protobuf.Any` |
+| another name; a leading `.` is dropped | `ObjectNamed(name)`, resolved at `Build`; a name no source declares is `TypeNotDeclared` |
+
+The parameter count of `list`, `map` and `type`, and parameters of any other name, are checked; a wrong count is an error. `timestamp`, `duration`, `google.protobuf.Timestamp`, `google.protobuf.Duration` and `optional_type<E>` are errors that name the type until their part brings the type. A type parameter as the type of a variable or a field is an error.
+
+## Extension sets
+
+The name of a set is looked up in a table of the sets that the library implements: the short names of cel-go, such as `strings`, each with its factory in `CelExtensions`. `version` is a string of decimal digits whose value fits `uint` (`latest`, the empty string and a JSON number are errors); the set is `AddExtension(CelExtensions.<Set>(version))`, and an unknown version is `UnknownExtensionVersion` at `Build`. The name and the version are checked independently, so both can be errors.
+
+In this part the table is empty: every name is an error at the value of `name`, and no description reaches `AddExtension`. Each part that brings a set adds its row. Names outside the catalog of the library stay errors in every part: `regex`, the full names `cel.lib.ext.*`, and `block`, the internal set of the runner, which has no name in a description.
+
+## Sources of declarations
+
+Every call of `Apply` passes the source of each declaration through internal overloads of the builder methods: the label of the description — `environment JSON '<name>'` with the value of the `name` key, or `environment JSON` without it — and the position in the JSON text of the `{` of the element that declared it: a variable, a function, an overload, an object type, a field; for the container, the value. The provider of `greatPartsCel` gets the label as its `SourceName`, and its types and fields the positions of their elements.
+
+A build error names a JSON declaration by its label, the provider of `greatPartsCel` included (not as `type source '…'`), in the order of sources of [declarations](declarations.md); where that order ties — two declarations of one label with one name or identifier — the one earlier in the text comes first. Its `CelError.SourceLocation` is the position of the JSON declaration it names first; an error that names no JSON declaration has none, except that `MissingImplementation` (4007) and `ImplementationSignatureMismatch` (4011) carry the position of the overload from the JSON that has no implementation or that the implementation does not fit, and `TypeNotDeclared` (4008) that of the variable, overload or field from the JSON whose type no source declares, with the label as the source name although their text names no source; `TypeNotDeclared` of a declaration in code, `UnusedImplementation` (4010) and `DuplicateImplementation` (4014) have none (the error texts do not change). So `ContainerConflict` between `UseContainer("a")` and `"container": "b"` is `name resolution container 'a' of application conflicts with container 'b' of environment JSON 'm'` at the value `"b"`, and `DuplicateType` of two object types of one description names the label twice. `ToBuilder` keeps the sources.
+
+**Same state as code.** After `Apply` the builder holds the same declarations as after the equal calls in code: tests compare them through the internal members `VariableDeclarations`, `FunctionDeclarations` (`ImmutableArray<CelFunctionDecl>`), `TypeProviders` (`ImmutableArray<CelTypeProvider>`) and `Container` (the empty string without one) of `CelEnvironmentBuilder` — variables by name and type, functions by name and overload declarations, providers by source name and the name, number and type of each field. Declarations are sets, so the order of the calls does not matter.
 
 ## Reading
 
-`Apply` reads in two phases. The first phase reads the whole document with `Utf8JsonReader` and turns it into a list of pending builder calls; it never touches the builder. The second phase runs only when the first one found no errors, and makes the calls. So when the description has an error, the builder does not change at all.
+`Apply` reads in two phases. The first phase reads the whole document with `Utf8JsonReader` into a list of pending calls and never touches the builder; it checks every condition of the builder methods and of the constructors it will call, so the second phase, which runs only when the first found no errors and makes the calls, cannot throw. When the description has an error, the builder does not change at all.
 
-- The reader uses the default options of `Utf8JsonReader`: JSON as RFC 8259 defines it, without comments or trailing commas, nested no deeper than 64 levels. One UTF-8 byte order mark at the start is skipped. Before reading, the whole text is checked to be UTF-8, as RFC 8259 requires: text that is not UTF-8 is a single error at the first byte that does not start a well-formed UTF-8 sequence, and nothing else is read or reported. cel-go rejects such text too.
-- The reader keeps the key names of each object it reads. An unknown key, a repeated key, a value of the wrong kind, a missing required key, `type` together with `type_name`, and `params` without `type_name` are errors.
-- Keys of the format that the walking skeleton does not read yet — `container`, `extensions`, `functions` and `greatPartsCel` — are errors that name the key until the reader supports them. Keys of cel-go that the library does not support at all — `imports`, `stdlib`, `context_variable`, `validators`, `features` and `limits` at the top level, `is_type_param` in a variable — are always errors that name the key.
-- Every schema error is reported, and reading goes on with the next key or element. A document that is not well-formed JSON ends reading at the first malformed token.
-- A value that a builder method would reject as an invalid argument, such as an empty variable name, is an error of the description, not an exception.
-- A string — a key or a value — with an escaped lone surrogate (`\uD800` to `\uDFFF` without its pair) is an error at the string, as in cel-go, which rejects such a document. `Utf8JsonReader` reads past such a string but cannot decode it, so the reader reports the error, skips the value of such a key, and goes on. An escaped surrogate pair is not an error.
+- JSON as RFC 8259 defines it: the default options of `Utf8JsonReader`, no comments or trailing commas, nested no deeper than 64 levels. One UTF-8 byte order mark at the start is skipped. Text that is not UTF-8 is a single error at the first byte that does not start a well-formed UTF-8 sequence, and nothing else is read.
+- The reader keeps the key names of each object. An unknown key, a repeated key, a value of the wrong kind — a JSON number for `version`, an object as a type record — and a missing required key are errors.
+- A value that a builder method or a constructor would reject as an invalid argument is an error of the description: an empty variable or function name, an empty overload `id`, a `container` or an object type name that is not a qualified name, a field name that is not an identifier or that repeats one of the same type, an overload that `CelOverloadDecl` or a function that `CelFunctionDecl` rejects.
+- A string — a key or a value — with an escaped lone surrogate is an error at the string; the value of such a key is skipped. An escaped surrogate pair is not an error.
+- Every schema error is reported, and reading goes on with the next key or element. Malformed JSON ends reading at the first malformed token.
 
 ## Errors and positions
 
-Every error has the code `InvalidConfiguration` (4009), the stage `Build` and the message `invalid environment description at line {line}, column {column}: {detail}`. `CelError.Location` is `default`: the error has no position in an expression. `CelError.SourceLocation` is the position in the JSON text, and its source name is the label of the description: `environment JSON '<name>'` with the value of the `name` key, or `environment JSON` when the key is missing. Schema errors get the label after the first phase, so all of them carry the same label; only text that is not UTF-8 and malformed JSON that ends reading before the `name` key get `environment JSON`.
+Every error of the description has the code `InvalidConfiguration` (4009), the stage `Build` and the message `invalid environment description at line {line}, column {column}: {detail}`; the detail is English text that names the key, the value or the type. `CelError.Location` is `default`. `CelError.SourceLocation` is the position in the JSON text, with the label as its source name. Schema errors get the label after the first phase; only text that is not UTF-8 and malformed JSON that ends reading before the `name` key get `environment JSON`.
 
-Positions use the units of positions in an expression: the offset, the line and the column count UTF-16 code units of the decoded JSON text, the line and the column start at 1, the line breaks are `\n`, `\r\n` and `\r`, and the byte order mark is not counted.
+Positions count UTF-16 code units of the decoded text; the line and the column start at 1; the line breaks are `\n`, `\r\n` and `\r`; the byte order mark is not counted. `JsonPositions` turns a byte index of `Utf8JsonReader` into a position with the `LineTable` of the parser ([syntax](syntax.md)), in the same pass for an element that declares something, since a build error needs the position later, and when the error is found for an error of the description.
 
 | Error | Position of |
 | :- | :- |
-| unknown, repeated, unsupported or not yet supported key; key with an escaped lone surrogate | the key |
-| value of the wrong kind, empty name, invalid or unsupported type record, string value with an escaped lone surrogate | the value |
-| missing required key; `type` with `type_name`; `params` without `type_name` | the `{` of the object |
+| unknown, repeated or unsupported key; key with an escaped lone surrogate | the key |
+| value of the wrong kind; empty name or `id`; invalid container, type name, field name or version; unknown extension name; invalid, unsupported or misplaced type record; repeated field name; string value with an escaped lone surrogate | the value |
+| missing required key; `type` with `type_name`; `params` without `type_name`; an overload or a function that its constructor rejects | the `{` of the object |
 | text that is not UTF-8 | the first byte that does not start a well-formed UTF-8 sequence |
 | malformed JSON, too deep nesting | the place where `Utf8JsonReader` stopped |
 
-`Utf8JsonReader` gives byte indexes. `JsonPositions` turns a byte index into a position: it decodes the bytes before the index, after the byte order mark, and computes the line and the column with the same `LineTable` as the parser (see [syntax](syntax.md)). For malformed JSON the exception of the reader gives a line counted by `\n` and a byte position in that line; `JsonPositions` turns them into a byte index first. Positions are computed only when there is an error.
+Build errors of the declarations — `DuplicateVariable`, `DuplicateType`, `ContainerConflict`, `TypeNotDeclared`, `MissingImplementation` and the rest — are not errors of the description: `Apply` returns no error for them, and `Build` reports them with their sources as above.
 
 ## Run manifest of the differential run
 
-`eng/difftest` describes the environment of a run in this format, and both sides read the same file: the oracle with `cel.FromConfig` of cel-go, the library with `Apply`. On the library side the stand creates `new CelEnvironmentBuilder(CelStandardLibrary.V1)` — the latest version of the standard library, since the manifest carries no version — calls `Apply` and then `Build`. A manifest has neither `greatPartsCel` nor `validators`; the stand rejects such a manifest itself, before `Apply`, because the oracle would read it differently. In the walking skeleton a manifest holds `name`, `description` and `variables` of simple types and `dyn`.
+`eng/difftest` describes the environment of a run in this format, and both sides read the same file: the oracle with `cel.FromConfig` of cel-go, the library with `Apply`. On the library side the stand creates `new CelEnvironmentBuilder(CelStandardLibrary.V1)` — the latest version, since the manifest carries none — calls `Apply` and then `Build`. A manifest has neither `greatPartsCel`, which cel-go would skip, nor `validators`; the stand rejects such a manifest itself, before `Apply`. The oracle adds in code the flags and the validator of the cel-go conformance runner ([eng-oracle.md](eng-oracle.md)), and its own factory for the set `network`. A manifest holds `name`, `description`, `container`, `variables` and, from the part of extension sets on, `extensions`; `functions` would need the same implementations on both sides, so the profile has none ([eng-difftest.md](eng-difftest.md#profile)).
 
-Related pages: [facade](facade.md), [core](core.md).
+Related pages: [facade](facade.md), [declarations](declarations.md), [objects](objects.md), [core](core.md).

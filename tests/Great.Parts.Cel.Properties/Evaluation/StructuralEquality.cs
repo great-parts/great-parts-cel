@@ -7,7 +7,7 @@ namespace Great.Parts.Cel.Properties.Evaluation;
 
 /// <summary>
 /// The structural comparison of two values that the properties of evaluation use (docs/design/tests.md, "Properties of
-/// evaluation"): the same kind, lists element by element, maps as sets of entries, NaN equal to NaN, type values by name. It
+/// evaluation"): the same kind, lists element by element, maps as sets of entries, NaN equal to NaN, type values by name, object values by the instance. It
 /// does not use the equality of the library, which the properties check.
 /// </summary>
 internal static class StructuralEquality
@@ -60,6 +60,11 @@ internal static class StructuralEquality
                 _ = left.TryGetMap(out CelMap? leftMap);
                 _ = right.TryGetMap(out CelMap? rightMap);
                 return MapsEqual(leftMap!, rightMap!);
+            case CelValueKind.Object:
+                // Object values are the same instance; their descriptions are checked by the properties that compare them.
+                _ = left.TryGetObject(out object? leftObject);
+                _ = right.TryGetObject(out object? rightObject);
+                return ReferenceEquals(leftObject, rightObject);
             default:
                 throw new NotSupportedException($"The comparison has no rule for the kind {left.Kind}.");
         }

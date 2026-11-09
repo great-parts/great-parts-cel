@@ -39,25 +39,40 @@ public sealed class CelObjectField
     /// </exception>
     public CelObjectField(int number, string name, CelType type)
     {
-        throw new NotImplementedException();
+        ArgumentOutOfRangeException.ThrowIfNegative(number);
+        ArgumentNullException.ThrowIfNull(name);
+        ArgumentNullException.ThrowIfNull(type);
+        if (!DeclarationNames.IsFieldName(name))
+        {
+            throw new ArgumentException("The field name '" + name + "' is neither an identifier nor a dotted name of identifiers.", nameof(name));
+        }
+
+        if (type.Kind == CelTypeKind.TypeParameter)
+        {
+            throw new ArgumentException("The field '" + name + "' has the type parameter " + type + ", which no value has.", nameof(type));
+        }
+
+        Number = number;
+        Name = name;
+        Type = type;
     }
 
     /// <summary>
     /// The number of the field, its position in <see cref="CelObjectType.Fields"/>; the argument that
     /// <c>CelObjectType.GetField</c> and <c>CelObjectType.HasField</c> receive.
     /// </summary>
-    public int Number => throw new NotImplementedException();
+    public int Number { get; }
 
     /// <summary>
     /// The name an expression selects, such as <c>total</c> in <c>order.total</c>. For a .NET member it is
     /// the name after <see cref="CelNameAttribute"/>, the System.Text.Json attributes and the naming policy
     /// of the type context, so it can differ from the name of the member in C#.
     /// </summary>
-    public string Name => throw new NotImplementedException();
+    public string Name { get; }
 
     /// <summary>
     /// The CEL type of the values of the field, which type checking uses for <c>e.f</c>, such as
     /// <c>double</c>, <c>list(acme.sales.Line)</c> or <c>dyn</c>.
     /// </summary>
-    public CelType Type => throw new NotImplementedException();
+    public CelType Type { get; }
 }

@@ -43,7 +43,7 @@ internal static class CheckErrors
             "expression of type '" + actual + "' is not assignable to the expected type '" + expected + "'",
             location);
 
-    // NoSuchField (2004): a selection on a type without fields.
+    // NoSuchField (2004): a selection on a type without fields, or on an object type without the field.
     internal static CelError NoSuchField(string field, CelType type, CelSourceLocation location) =>
         Create(CelErrorCode.NoSuchField, "undefined field '" + field + "' in type '" + type + "'", location);
 
@@ -52,6 +52,18 @@ internal static class CheckErrors
         Create(
             CelErrorCode.InvalidComprehensionRange,
             "expression of type '" + type + "' cannot be the range of a comprehension (must be list, map, or dyn)",
+            location);
+
+    // NotAType (2006): the name of a message literal resolves to a declaration that is not an object type, at the literal.
+    internal static CelError NotAType(string name, CelSourceLocation location) =>
+        Create(CelErrorCode.NotAType, "'" + name + "' is not a type", location);
+
+    // TypeNotConstructible (2008): a message literal of an object type whose description is not constructible, at the
+    // literal.
+    internal static CelError TypeNotConstructible(string type, CelSourceLocation location) =>
+        Create(
+            CelErrorCode.TypeNotConstructible,
+            "type '" + type + "' cannot be created by an expression: object literals are supported only for protobuf messages",
             location);
 
     // InsufficientStack (9000): the node that checking did not go into.

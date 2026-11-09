@@ -38,15 +38,21 @@ namespace Great.Parts.Cel;
 public sealed class CelEnvironmentBuilder
 {
     private readonly CelStandardLibrary _standardLibrary;
-    private readonly List<CelVariableDecl> _variables = [];
-    private readonly List<CelFunctionDecl> _functions = [];
+    // A declaration repeated by a call is one declaration: it keeps the source that comes first by the source text and the
+    // position, so the order of the calls changes no message.
+    private readonly List<SourcedDeclaration<CelVariableDecl>> _variables = [];
+    private readonly List<SourcedDeclaration<CelFunctionDecl>> _functions = [];
     private readonly List<ImplementationEntry> _implementations = [];
 
     // The non-empty containers, each once.
-    private readonly List<string> _containers = [];
+    private readonly List<SourcedDeclaration<string>> _containers = [];
 
-    // Declarations whose .NET type is outside the input rows, which Build reports as TypeNotDeclared.
+    // Declarations whose .NET type is outside the input rows, which Build reports as TypeNotDeclared, unless a type of the
+    // application is among them that a type source describes.
     private readonly List<UnmappedDeclaration> _unmapped = [];
+
+    // The type sources, each provider once.
+    private readonly List<TypeSource> _typeSources = [];
 
     /// <summary>
     /// Creates a builder for an environment with the given version of the standard library.
@@ -98,11 +104,7 @@ public sealed class CelEnvironmentBuilder
             throw new ArgumentException("The container '" + container + "' is not a qualified name.", nameof(container));
         }
 
-        if (!_containers.Contains(container))
-        {
-            _containers.Add(container);
-        }
-
+        Keep(_containers, SourcedDeclaration<string>.InApplication(container), static (kept, added) => string.Equals(kept, added, StringComparison.Ordinal));
         return this;
     }
 
@@ -164,12 +166,7 @@ public sealed class CelEnvironmentBuilder
     public CelEnvironmentBuilder AddVariable(CelVariableDecl declaration)
     {
         ArgumentNullException.ThrowIfNull(declaration);
-        if (!_variables.Exists(declaration.SameAs))
-        {
-            _variables.Add(declaration);
-        }
-
-        return this;
+        return AddVariable(SourcedDeclaration<CelVariableDecl>.InApplication(declaration));
     }
 
     /// <summary>
@@ -208,7 +205,7 @@ public sealed class CelEnvironmentBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(implementation);
-        return AddDelegate(name, implementation, [], Clr<TResult>(), _ => TypedImplementation.Of(implementation));
+        return AddDelegate(name, implementation, [], ClrResult<TResult>(), _ => TypedImplementation.Of(implementation));
     }
 
     /// <summary>
@@ -249,7 +246,7 @@ public sealed class CelEnvironmentBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(implementation);
-        return AddDelegate(name, implementation, [Clr<T1>()], Clr<TResult>(), id => TypedImplementation.Of(id, implementation));
+        return AddDelegate(name, implementation, [Clr<T1>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation));
     }
 
     /// <summary>
@@ -289,7 +286,7 @@ public sealed class CelEnvironmentBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(implementation);
-        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>()], Clr<TResult>(), id => TypedImplementation.Of(id, implementation));
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation));
     }
 
     /// <summary>
@@ -330,7 +327,7 @@ public sealed class CelEnvironmentBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(implementation);
-        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>(), Clr<T3>()], Clr<TResult>(), id => TypedImplementation.Of(id, implementation));
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>(), Clr<T3>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation));
     }
 
     /// <summary>
@@ -372,7 +369,7 @@ public sealed class CelEnvironmentBuilder
     {
         ArgumentException.ThrowIfNullOrEmpty(name);
         ArgumentNullException.ThrowIfNull(implementation);
-        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>(), Clr<T3>(), Clr<T4>()], Clr<TResult>(), id => TypedImplementation.Of(id, implementation));
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>(), Clr<T3>(), Clr<T4>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation));
     }
 
     /// <summary>
@@ -402,12 +399,7 @@ public sealed class CelEnvironmentBuilder
     public CelEnvironmentBuilder AddFunction(CelFunctionDecl declaration)
     {
         ArgumentNullException.ThrowIfNull(declaration);
-        if (!_functions.Contains(declaration))
-        {
-            _functions.Add(declaration);
-        }
-
-        return this;
+        return AddFunction(SourcedDeclaration<CelFunctionDecl>.InApplication(declaration));
     }
 
     /// <summary>
@@ -447,7 +439,9 @@ public sealed class CelEnvironmentBuilder
     /// The CEL types of the delegate, by
     /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
     /// must fit the declared overload; otherwise it is a build error
-    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An implementation whose identifier no declared
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. A class, record, struct or interface of the
+    /// application among the types is the object type that a type source describes for exactly that .NET type, found at
+    /// <c>Build</c>; when no source does, it is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. An implementation whose identifier no declared
     /// overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two implementations with one
     /// identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
     /// </para>
@@ -474,9 +468,11 @@ public sealed class CelEnvironmentBuilder
             implementation,
             TypedImplementation.Of(implementation),
             [],
-            ConversionRules.InputType<TResult>(),
+            ConversionRules.ResultInputType<TResult>(),
             [],
-            ConversionRules.TakesNullReference<TResult>());
+            ConversionRules.TakesNullReference<TResult>(),
+            [],
+            typeof(TResult));
     }
 
     /// <summary>
@@ -489,7 +485,9 @@ public sealed class CelEnvironmentBuilder
     /// The CEL types of the delegate, by
     /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
     /// must fit the declared overload; otherwise it is a build error
-    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An argument that does not convert to the parameter
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. A class, record, struct or interface of the
+    /// application among the types is the object type that a type source describes for exactly that .NET type, found at
+    /// <c>Build</c>; when no source does, it is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. An argument that does not convert to the parameter
     /// type at evaluation is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. An implementation
     /// whose identifier no declared overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two
     /// implementations with one identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
@@ -518,9 +516,11 @@ public sealed class CelEnvironmentBuilder
             implementation,
             TypedImplementation.Of(overloadId, implementation),
             [ConversionRules.ParameterType<T1>()],
-            ConversionRules.InputType<TResult>(),
+            ConversionRules.ResultInputType<TResult>(),
             [ConversionRules.TakesNullReference<T1>()],
-            ConversionRules.TakesNullReference<TResult>());
+            ConversionRules.TakesNullReference<TResult>(),
+            [typeof(T1)],
+            typeof(TResult));
     }
 
     /// <summary>
@@ -532,7 +532,9 @@ public sealed class CelEnvironmentBuilder
     /// The CEL types of the delegate, by
     /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
     /// must fit the declared overload; otherwise it is a build error
-    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An argument that does not convert to the parameter
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. A class, record, struct or interface of the
+    /// application among the types is the object type that a type source describes for exactly that .NET type, found at
+    /// <c>Build</c>; when no source does, it is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. An argument that does not convert to the parameter
     /// type at evaluation is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. An implementation
     /// whose identifier no declared overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two
     /// implementations with one identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
@@ -562,9 +564,11 @@ public sealed class CelEnvironmentBuilder
             implementation,
             TypedImplementation.Of(overloadId, implementation),
             [ConversionRules.ParameterType<T1>(), ConversionRules.ParameterType<T2>()],
-            ConversionRules.InputType<TResult>(),
+            ConversionRules.ResultInputType<TResult>(),
             [ConversionRules.TakesNullReference<T1>(), ConversionRules.TakesNullReference<T2>()],
-            ConversionRules.TakesNullReference<TResult>());
+            ConversionRules.TakesNullReference<TResult>(),
+            [typeof(T1), typeof(T2)],
+            typeof(TResult));
     }
 
     /// <summary>
@@ -576,7 +580,9 @@ public sealed class CelEnvironmentBuilder
     /// The CEL types of the delegate, by
     /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
     /// must fit the declared overload; otherwise it is a build error
-    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An argument that does not convert to the parameter
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. A class, record, struct or interface of the
+    /// application among the types is the object type that a type source describes for exactly that .NET type, found at
+    /// <c>Build</c>; when no source does, it is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. An argument that does not convert to the parameter
     /// type at evaluation is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. An implementation
     /// whose identifier no declared overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two
     /// implementations with one identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
@@ -607,9 +613,11 @@ public sealed class CelEnvironmentBuilder
             implementation,
             TypedImplementation.Of(overloadId, implementation),
             [ConversionRules.ParameterType<T1>(), ConversionRules.ParameterType<T2>(), ConversionRules.ParameterType<T3>()],
-            ConversionRules.InputType<TResult>(),
+            ConversionRules.ResultInputType<TResult>(),
             [ConversionRules.TakesNullReference<T1>(), ConversionRules.TakesNullReference<T2>(), ConversionRules.TakesNullReference<T3>()],
-            ConversionRules.TakesNullReference<TResult>());
+            ConversionRules.TakesNullReference<TResult>(),
+            [typeof(T1), typeof(T2), typeof(T3)],
+            typeof(TResult));
     }
 
     /// <summary>
@@ -621,7 +629,9 @@ public sealed class CelEnvironmentBuilder
     /// The CEL types of the delegate, by
     /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
     /// must fit the declared overload; otherwise it is a build error
-    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. An argument that does not convert to the parameter
+    /// <see cref="CelErrorCode.ImplementationSignatureMismatch"/>. A class, record, struct or interface of the
+    /// application among the types is the object type that a type source describes for exactly that .NET type, found at
+    /// <c>Build</c>; when no source does, it is a build error <see cref="CelErrorCode.TypeNotDeclared"/>. An argument that does not convert to the parameter
     /// type at evaluation is the evaluation error <see cref="CelErrorCode.ArgumentConversion"/>. An implementation
     /// whose identifier no declared overload has is a build error <see cref="CelErrorCode.UnusedImplementation"/>; two
     /// implementations with one identifier are a build error <see cref="CelErrorCode.DuplicateImplementation"/>.
@@ -653,14 +663,16 @@ public sealed class CelEnvironmentBuilder
             implementation,
             TypedImplementation.Of(overloadId, implementation),
             [ConversionRules.ParameterType<T1>(), ConversionRules.ParameterType<T2>(), ConversionRules.ParameterType<T3>(), ConversionRules.ParameterType<T4>()],
-            ConversionRules.InputType<TResult>(),
+            ConversionRules.ResultInputType<TResult>(),
             [
                 ConversionRules.TakesNullReference<T1>(),
                 ConversionRules.TakesNullReference<T2>(),
                 ConversionRules.TakesNullReference<T3>(),
                 ConversionRules.TakesNullReference<T4>(),
             ],
-            ConversionRules.TakesNullReference<TResult>());
+            ConversionRules.TakesNullReference<TResult>(),
+            [typeof(T1), typeof(T2), typeof(T3), typeof(T4)],
+            typeof(TResult));
     }
 
     /// <summary>
@@ -671,14 +683,16 @@ public sealed class CelEnvironmentBuilder
     /// Expressions can read only the types of the sources added to the environment. All sources are checked
     /// together when the environment is built, and build errors name a source by
     /// <see cref="CelTypeProvider.SourceName"/>; the rules and build errors are on
-    /// <see cref="CelTypeProvider"/>.
+    /// <see cref="CelTypeProvider"/> and on the page
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/runtime-types.md">Types described at run time</see>.
     /// </remarks>
     /// <param name="provider">The type source, for example the <c>Default</c> instance of a type context.</param>
     /// <returns>This builder.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="provider"/> is <see langword="null"/>.</exception>
     public CelEnvironmentBuilder AddTypes(CelTypeProvider provider)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(provider);
+        return AddTypeSource(provider, "type source '" + provider.SourceName + "'", null);
     }
 
     /// <summary>
@@ -752,20 +766,21 @@ public sealed class CelEnvironmentBuilder
     /// <returns>The environment or the build errors.</returns>
     public CelBuildResult Build()
     {
-        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped]);
+        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped], [.. _typeSources]);
         LibraryDeclarations library = _standardLibrary.Declarations;
         ImmutableArray<CelError> errors = DeclarationChecks.Check(
             declarations,
             library,
             out ImmutableArray<CelVariableDecl> variables,
             out ImmutableArray<OverloadBinding> overloads,
-            out string container);
+            out string container,
+            out TypeIndex types);
         if (!errors.IsEmpty)
         {
             return new(errors);
         }
 
-        DeclarationIndex index = DeclarationIndex.Create([.. library.Overloads, .. overloads], variables, library.TypeIdentifiers, container);
+        DeclarationIndex index = DeclarationIndex.Create([.. library.Overloads, .. overloads], variables, library.TypeIdentifiers, container, types);
         return new(new CelEnvironment(_standardLibrary, declarations, index));
     }
 
@@ -778,55 +793,148 @@ public sealed class CelEnvironmentBuilder
         _implementations.AddRange(declarations.Implementations);
         _containers.AddRange(declarations.Containers);
         _unmapped.AddRange(declarations.Unmapped);
+        _typeSources.AddRange(declarations.TypeSources);
     }
 
     // The declarations of variables collected so far, in the order of the calls, each once.
-    internal ImmutableArray<CelVariableDecl> VariableDeclarations => [.. _variables];
-
-    // The CEL type that the input rows give a .NET type, or null outside them, with the .NET type; for a parameter also
-    // the CEL type that the expected-type table gives it, which the build compares with the inferred one.
-    private static (CelType? Type, Type ClrType, CelType? ParameterType) Clr<T>() =>
-        (ConversionRules.InputType<T>(), typeof(T), ConversionRules.ParameterType<T>());
-
-    // The global overload of a delegate: its identifier from the name and the CEL types of the parameters,
-    // and the delegate as its implementation.
-    private CelEnvironmentBuilder AddDelegate(
-        string name,
-        Delegate original,
-        ReadOnlySpan<(CelType? Type, Type ClrType, CelType? ParameterType)> parameters,
-        (CelType? Type, Type ClrType, CelType? ParameterType) result,
-        Func<string, OverloadImplementation> implementation)
+    internal ImmutableArray<CelVariableDecl> VariableDeclarations
     {
-        var parameterTypes = new CelType[parameters.Length];
-        var parts = new string[parameters.Length];
-        var expectedTypes = new CelType?[parameters.Length];
-        Type? unmapped = null;
-        for (int i = 0; i < parameters.Length; i++)
+        get
         {
-            (CelType? type, Type clrType, expectedTypes[i]) = parameters[i];
-            if (type is null)
+            ImmutableArray<CelVariableDecl>.Builder variables = ImmutableArray.CreateBuilder<CelVariableDecl>(_variables.Count);
+            foreach (SourcedDeclaration<CelVariableDecl> variable in _variables)
             {
-                parts[i] = clrType.ToString();
-                unmapped ??= clrType;
+                variables.Add(variable.Value);
             }
-            else
+
+            return variables.MoveToImmutable();
+        }
+    }
+
+    // The declarations of functions collected so far, in the order of the calls.
+    internal ImmutableArray<CelFunctionDecl> FunctionDeclarations
+    {
+        get
+        {
+            ImmutableArray<CelFunctionDecl>.Builder functions = ImmutableArray.CreateBuilder<CelFunctionDecl>(_functions.Count);
+            foreach (SourcedDeclaration<CelFunctionDecl> function in _functions)
             {
-                parts[i] = DeclarationText.Json(type);
-                parameterTypes[i] = type;
+                functions.Add(function.Value);
+            }
+
+            return functions.MoveToImmutable();
+        }
+    }
+
+    // The type sources collected so far, in the order of the calls, each provider once.
+    internal ImmutableArray<CelTypeProvider> TypeProviders
+    {
+        get
+        {
+            ImmutableArray<CelTypeProvider>.Builder providers = ImmutableArray.CreateBuilder<CelTypeProvider>(_typeSources.Count);
+            foreach (TypeSource source in _typeSources)
+            {
+                providers.Add(source.Provider);
+            }
+
+            return providers.MoveToImmutable();
+        }
+    }
+
+    // The name resolution container: the first non-empty one declared, or the empty string without one.
+    internal string Container => _containers.Count == 0 ? string.Empty : _containers[0].Value;
+
+    // Declares a container, a variable or a function that an environment description in JSON declares: the label of the
+    // description, which build errors name, and the position of the declaration in the JSON text. A function also takes
+    // the positions of its overloads, keyed by instance.
+    internal CelEnvironmentBuilder UseContainer(string container, string source, CelSourceLocation position)
+    {
+        Keep(_containers, new SourcedDeclaration<string>(container, source, position), static (kept, added) => string.Equals(kept, added, StringComparison.Ordinal));
+        return this;
+    }
+
+    internal CelEnvironmentBuilder AddVariable(CelVariableDecl declaration, string source, CelSourceLocation position) =>
+        AddVariable(new SourcedDeclaration<CelVariableDecl>(declaration, source, position));
+
+    internal CelEnvironmentBuilder AddFunction(CelFunctionDecl declaration, string source, CelSourceLocation position, IReadOnlyDictionary<object, CelSourceLocation> overloads) =>
+        AddFunction(new SourcedDeclaration<CelFunctionDecl>(declaration, source, position, overloads));
+
+    // Adds a type source with the text by which build errors name it and, for an environment description in JSON, the
+    // positions of its object types and fields in the JSON text, keyed by the description or field instance. The same
+    // provider added twice is one source, with the text of the first call.
+    internal CelEnvironmentBuilder AddTypeSource(CelTypeProvider provider, string sourceText, IReadOnlyDictionary<object, CelSourceLocation>? positions)
+    {
+        foreach (TypeSource source in _typeSources)
+        {
+            if (ReferenceEquals(source.Provider, provider))
+            {
+                return this;
             }
         }
 
-        string overloadId = DeclarationText.DerivedOverloadId(name, parts);
-        if (unmapped is not null || result.Type is not CelType resultType)
+        _typeSources.Add(new TypeSource(provider, sourceText, positions));
+        return this;
+    }
+
+    // The CEL type that the input rows give a .NET type, or null outside them, with the .NET type; for a parameter also
+    // the CEL type that the expected-type table gives it, which the build compares with the inferred one.
+    private static ClrMapping Clr<T>() => new(ConversionRules.InputType<T>(), typeof(T), ConversionRules.ParameterType<T>());
+
+    // The same for a result: a list of a class of the application has its CEL type only at Build, from the type index.
+    private static ClrMapping ClrResult<T>() => new(ConversionRules.ResultInputType<T>(), typeof(T), ConversionRules.ParameterType<T>());
+
+    // The global overload of a delegate: its identifier from the name and the CEL types of the parameters,
+    // and the delegate as its implementation. A type of the application among the .NET types has its CEL type only at
+    // Build, from the type index: the declaration waits unmapped until then.
+    private CelEnvironmentBuilder AddDelegate(
+        string name,
+        Delegate original,
+        ReadOnlySpan<ClrMapping> parameters,
+        ClrMapping result,
+        Func<string, OverloadImplementation> implementation)
+    {
+        var declaration = new DelegateDeclaration(name, original, [.. parameters], result, implementation);
+        if (!declaration.TryResolve(null, out string overloadId, out CelFunctionDecl? function, out ImplementationEntry? entry, out Type? unresolved))
         {
-            AddUnmapped(new UnmappedDeclaration(overloadId, name, unmapped ?? result.ClrType));
+            AddUnmapped(new UnmappedDeclaration(overloadId, name, unresolved!, declaration.HasApplicationType ? declaration : null));
             return this;
         }
 
         // The typed delegate is checked against the inferred overload like a typed implementation.
-        _functions.Add(new CelFunctionDecl(name, CelOverloadDecl.Global(overloadId, parameterTypes, resultType)));
-        return AddImplementation(
-            new ImplementationEntry(overloadId, original, implementation(overloadId), [.. expectedTypes], resultType, default, false));
+        _functions.Add(SourcedDeclaration<CelFunctionDecl>.InApplication(function!));
+        return AddImplementation(entry!);
+    }
+
+    private CelEnvironmentBuilder AddVariable(SourcedDeclaration<CelVariableDecl> declaration)
+    {
+        Keep(_variables, declaration, static (kept, added) => kept.SameAs(added));
+        return this;
+    }
+
+    private CelEnvironmentBuilder AddFunction(SourcedDeclaration<CelFunctionDecl> declaration)
+    {
+        Keep(_functions, declaration, static (kept, added) => ReferenceEquals(kept, added));
+        return this;
+    }
+
+    // Adds a declaration unless the same one is there; the one that comes first by its source stays.
+    private static void Keep<T>(List<SourcedDeclaration<T>> declarations, SourcedDeclaration<T> added, Func<T, T, bool> same)
+        where T : notnull
+    {
+        for (int i = 0; i < declarations.Count; i++)
+        {
+            if (same(declarations[i].Value, added.Value))
+            {
+                if (added.CompareTo(declarations[i]) < 0)
+                {
+                    declarations[i] = added;
+                }
+
+                return;
+            }
+        }
+
+        declarations.Add(added);
     }
 
     private CelEnvironmentBuilder AddTyped(
@@ -836,8 +944,11 @@ public sealed class CelEnvironmentBuilder
         ImmutableArray<CelType?> parameterTypes,
         CelType? resultType,
         ImmutableArray<bool> parameterTakesNull,
-        bool resultTakesNull) =>
-        AddImplementation(new ImplementationEntry(overloadId, original, implementation, parameterTypes, resultType, parameterTakesNull, resultTakesNull));
+        bool resultTakesNull,
+        ImmutableArray<Type> parameterClrTypes,
+        Type resultClrType) =>
+        AddImplementation(new ImplementationEntry(
+            overloadId, original, implementation, parameterTypes, resultType, parameterTakesNull, resultTakesNull, parameterClrTypes, resultClrType));
 
     private CelEnvironmentBuilder AddImplementation(ImplementationEntry implementation)
     {

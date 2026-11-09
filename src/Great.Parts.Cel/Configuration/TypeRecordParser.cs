@@ -1,7 +1,16 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Text;
 
 namespace Great.Parts.Cel.Configuration;
+
+/// <summary>
+/// One type of a type record in the order of the text, and the number of lists whose closing angle bracket follows it.
+/// </summary>
+/// <param name="Type">The type, its name and whether it has parameters.</param>
+/// <param name="Closed">The number of closing angle brackets after the type; zero for a type that has parameters.</param>
+internal readonly record struct TypeToken(TypeRecord Type, int Closed);
 
 /// <summary>
 /// The outermost type of a well-formed type record: a type name, with or without type parameters in angle brackets,
@@ -29,7 +38,23 @@ internal static class TypeRecordParser
     /// </summary>
     /// <param name="text">The text of the record, such as <c>map&lt;string, int&gt;</c>.</param>
     /// <returns>The outermost type of the record, or <see langword="null"/> when the text breaks the grammar.</returns>
-    internal static TypeRecord? Parse(string text)
+    internal static TypeRecord? Parse(string text) => Parse(text, null);
+
+    /// <summary>
+    /// Parses a type record in full and lists its types in the order of the text.
+    /// </summary>
+    /// <param name="text">The text of the record, such as <c>map&lt;string, int&gt;</c>.</param>
+    /// <returns>
+    /// The types of the record in the order of the text, each with the number of lists that end after it, or
+    /// <see langword="null"/> when the text breaks the grammar.
+    /// </returns>
+    internal static ImmutableArray<TypeToken>? ParseTokens(string text)
+    {
+        List<TypeToken> tokens = [];
+        return Parse(text, tokens) is null ? null : tokens.ToImmutableArray();
+    }
+
+    private static TypeRecord? Parse(string text, List<TypeToken>? tokens)
     {
         ReadOnlySpan<char> span = text;
         int position = 0;
@@ -43,14 +68,17 @@ internal static class TypeRecordParser
             }
 
             outermost ??= type;
+            int closed = 0;
             if (type.HasParameters)
             {
                 openLists++;
             }
-            else if (!TryEndType(span, ref position, ref openLists))
+            else if (!TryEndType(span, ref position, ref openLists, out closed))
             {
                 return null;
             }
+
+            tokens?.Add(new TypeToken(type, closed));
         }
         while (openLists > 0);
 
@@ -99,8 +127,9 @@ internal static class TypeRecordParser
 
     // After a type without parameters: takes the ">" of each list the type ends, up to the "," before the next type
     // of a list that stays open. False when neither comes where one must.
-    private static bool TryEndType(ReadOnlySpan<char> text, ref int position, ref int openLists)
+    private static bool TryEndType(ReadOnlySpan<char> text, ref int position, ref int openLists, out int closed)
     {
+        closed = 0;
         while (openLists > 0 && !TryTake(text, ref position, ','))
         {
             if (!TryTake(text, ref position, '>'))
@@ -109,6 +138,7 @@ internal static class TypeRecordParser
             }
 
             openLists--;
+            closed++;
         }
 
         return true;

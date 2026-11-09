@@ -33,11 +33,11 @@ internal static class Comparisons
         new OrderingOverload(relation, left, right).Compare;
 
     private static CelValue Equality(ReadOnlySpan<CelValue> arguments, in CallSite site, bool equal) =>
-        EqualityRules.AreEqual(arguments[0], arguments[1], site.Meter, out CelValue error) switch
+        EqualityRules.AreEqual(arguments[0], arguments[1], site.Meter, out CelValue error, site.Types, site.Boundary) switch
         {
             ValueEquality.Equal => CelValue.FromBoolean(equal),
             ValueEquality.NotEqual => CelValue.FromBoolean(!equal),
-            ValueEquality.Error => error,
+            ValueEquality.Error => site.Placed(error),
             _ => site.Error(CelErrorCode.InsufficientStack, EqualityRules.InsufficientStackMessage),
         };
 

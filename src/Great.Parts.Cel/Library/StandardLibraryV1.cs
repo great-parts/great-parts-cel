@@ -113,8 +113,8 @@ internal static class StandardLibraryV1
         AddRelation(table, "_>=_", OverloadIds.GreaterEquals, Relation.GreaterEquals);
 
         // Index, in and size. A string key costs ⌈L/10⌉ more; in_list charges eq pair by pair.
-        table.Add(Global("_[_]", OverloadIds.IndexList, [ListOfA, @int], A, Collections.IndexList, 1));
-        table.Add(Global("_[_]", OverloadIds.IndexMap, [MapOfAB, A], B, Collections.IndexMap, 1, Costs.StringKey));
+        table.Add(Global("_[_]", OverloadIds.IndexList, [ListOfA, @int], A, Collections.IndexList, 1, Costs.IndexList));
+        table.Add(Global("_[_]", OverloadIds.IndexMap, [MapOfAB, A], B, Collections.IndexMap, 1, Costs.IndexKey));
         table.Add(Global("@in", OverloadIds.InList, [A, ListOfA], @bool, Collections.InList, 1));
         table.Add(Global("@in", OverloadIds.InMap, [A, MapOfAB], @bool, Collections.InMap, 1, Costs.StringKey));
         table.Add(Global("size", OverloadIds.SizeBytes, [bytes], @int, Strings.BytesSize, 1));

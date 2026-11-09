@@ -58,7 +58,7 @@ public sealed class ValueTypeRulesTests
     {
         (CelValue value, CelType type) = TopLevel(name);
 
-        Assert.Equal(expected, ValueTypeRules.Fits(value, type, null));
+        Assert.Equal(expected, ValueTypeRules.Fits(value, type, null).IsFit);
         Assert.Equal(expected, ValueTypeRules.MismatchType(value, type) is null);
     }
 
@@ -69,15 +69,15 @@ public sealed class ValueTypeRulesTests
         CelValue mixed = List(CelValue.FromInt64(4), CelValue.FromBoolean(true));
         CelValue nested = Map((CelValue.FromString("k"), List(CelValue.FromUInt64(1), CelValue.FromInt64(2))));
 
-        Assert.True(ValueTypeRules.Fits(numbers, CelType.ListOf(CelType.Int), null));
-        Assert.False(ValueTypeRules.Fits(mixed, CelType.ListOf(CelType.Int), null));
-        Assert.True(ValueTypeRules.Fits(mixed, CelType.ListOf(CelType.Dyn), null));
-        Assert.True(ValueTypeRules.Fits(mixed, CelType.ListOf(A), null));
-        Assert.True(ValueTypeRules.Fits(nested, CelType.MapOf(CelType.String, CelType.ListOf(CelType.Dyn)), null));
-        Assert.False(ValueTypeRules.Fits(nested, CelType.MapOf(CelType.String, CelType.ListOf(CelType.UInt)), null));
-        Assert.False(ValueTypeRules.Fits(nested, CelType.MapOf(CelType.Int, CelType.Dyn), null));
-        Assert.True(ValueTypeRules.Fits(List(CelValue.FromType(CelType.Int)), CelType.ListOf(CelType.TypeOf(CelType.String)), null));
-        Assert.True(ValueTypeRules.Fits(List(CelValue.Null, CelValue.FromDouble(1)), CelType.ListOf(CelType.WrapperOf(CelType.Double)), null));
+        Assert.True(ValueTypeRules.Fits(numbers, CelType.ListOf(CelType.Int), null).IsFit);
+        Assert.False(ValueTypeRules.Fits(mixed, CelType.ListOf(CelType.Int), null).IsFit);
+        Assert.True(ValueTypeRules.Fits(mixed, CelType.ListOf(CelType.Dyn), null).IsFit);
+        Assert.True(ValueTypeRules.Fits(mixed, CelType.ListOf(A), null).IsFit);
+        Assert.True(ValueTypeRules.Fits(nested, CelType.MapOf(CelType.String, CelType.ListOf(CelType.Dyn)), null).IsFit);
+        Assert.False(ValueTypeRules.Fits(nested, CelType.MapOf(CelType.String, CelType.ListOf(CelType.UInt)), null).IsFit);
+        Assert.False(ValueTypeRules.Fits(nested, CelType.MapOf(CelType.Int, CelType.Dyn), null).IsFit);
+        Assert.True(ValueTypeRules.Fits(List(CelValue.FromType(CelType.Int)), CelType.ListOf(CelType.TypeOf(CelType.String)), null).IsFit);
+        Assert.True(ValueTypeRules.Fits(List(CelValue.Null, CelValue.FromDouble(1)), CelType.ListOf(CelType.WrapperOf(CelType.Double)), null).IsFit);
     }
 
     // "<declared type> → <units>": the units charged for the list [[1, 2], [3]], or the map {'a': [1], 'b': []}.
@@ -97,7 +97,7 @@ public sealed class ValueTypeRulesTests
             : List(List(CelValue.FromInt64(1), CelValue.FromInt64(2)), List(CelValue.FromInt64(3)));
         var meter = new RecordingMeter();
 
-        Assert.True(ValueTypeRules.Fits(value, type, meter));
+        Assert.True(ValueTypeRules.Fits(value, type, meter).IsFit);
 
         Assert.Equal(units, meter.Total);
     }
@@ -108,7 +108,7 @@ public sealed class ValueTypeRulesTests
         var meter = new RecordingMeter();
         CelValue value = List(List(CelValue.FromString("x")), List(CelValue.FromInt64(1), CelValue.FromInt64(2)));
 
-        Assert.False(ValueTypeRules.Fits(value, CelType.ListOf(CelType.ListOf(CelType.Int)), meter));
+        Assert.False(ValueTypeRules.Fits(value, CelType.ListOf(CelType.ListOf(CelType.Int)), meter).IsFit);
 
         Assert.Equal([2UL, 1UL], meter.Charges);
     }
@@ -132,7 +132,7 @@ public sealed class ValueTypeRulesTests
     {
         (CelValue value, CelType type) = Mismatch(name);
 
-        Assert.False(ValueTypeRules.Fits(value, type, null));
+        Assert.False(ValueTypeRules.Fits(value, type, null).IsFit);
         Assert.Equal(expected, ValueTypeRules.MismatchType(value, type));
     }
 
@@ -153,17 +153,17 @@ public sealed class ValueTypeRulesTests
         foreach (CelType type in declared)
         {
             CelValue value = List(CelValue.Null);
-            Assert.True(ValueTypeRules.Fits(value, type, null, nullElements: true));
+            Assert.True(ValueTypeRules.Fits(value, type, null, nullElements: true).IsFit);
             Assert.Null(ValueTypeRules.MismatchType(value, type, nullElements: true));
-            Assert.False(ValueTypeRules.Fits(value, type, null));
+            Assert.False(ValueTypeRules.Fits(value, type, null).IsFit);
             Assert.Equal("list(null_type)", ValueTypeRules.MismatchType(value, type));
         }
 
         CelType mapType = CelType.MapOf(CelType.String, CelType.String);
         CelValue map = Map((CelValue.FromString("b"), CelValue.Null));
-        Assert.True(ValueTypeRules.Fits(map, mapType, null, nullElements: true));
+        Assert.True(ValueTypeRules.Fits(map, mapType, null, nullElements: true).IsFit);
         Assert.Null(ValueTypeRules.MismatchType(map, mapType, nullElements: true));
-        Assert.False(ValueTypeRules.Fits(map, mapType, null));
+        Assert.False(ValueTypeRules.Fits(map, mapType, null).IsFit);
         Assert.Equal("map(string, null_type)", ValueTypeRules.MismatchType(map, mapType));
     }
 
@@ -175,9 +175,9 @@ public sealed class ValueTypeRulesTests
         CelValue deep = List(List(CelValue.Null));
         CelValue mixed = List(CelValue.Null, CelValue.FromInt64(1));
 
-        Assert.False(ValueTypeRules.Fits(deep, nested, null, nullElements: true));
+        Assert.False(ValueTypeRules.Fits(deep, nested, null, nullElements: true).IsFit);
         Assert.Equal("list(list(null_type))", ValueTypeRules.MismatchType(deep, nested, nullElements: true));
-        Assert.False(ValueTypeRules.Fits(mixed, CelType.ListOf(CelType.String), null, nullElements: true));
+        Assert.False(ValueTypeRules.Fits(mixed, CelType.ListOf(CelType.String), null, nullElements: true).IsFit);
         Assert.Equal("list(int)", ValueTypeRules.MismatchType(mixed, CelType.ListOf(CelType.String), nullElements: true));
     }
 

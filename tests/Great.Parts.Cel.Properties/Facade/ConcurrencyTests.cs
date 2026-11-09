@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Threading;
 using CsCheck;
 using Great.Parts.Cel.Declarations;
@@ -16,8 +17,10 @@ namespace Great.Parts.Cel.Properties.Facade;
 // One environment and one program called from many threads at once give the results of sequential calls
 // (docs/design/tests.md, "Properties of evaluation"). 64 threads, started together, each run every item of four scenarios in
 // an order of their own: the evaluation of one program per text on its bindings, Compile of the texts, the one-step call, and
-// GetOrCompile with Evaluate of one compilation cache whose capacities hold 16 entries.
-public sealed class ConcurrencyTests
+// GetOrCompile with Evaluate of one compilation cache whose capacities hold 16 entries. The texts read the application data of
+// the generator — objects of the application with their descriptions, carriers of types described at run time, JsonElement — so
+// the threads read the same instances, descriptions and documents at once.
+public sealed partial class ConcurrencyTests
 {
     private const ulong Seed = 20261110;
     private const int Cases = 2;
@@ -34,6 +37,9 @@ public sealed class ConcurrencyTests
         .AddFunctionImplementation("pick_dyn_int", Pick)
         .Build()
         .GetEnvironmentOrThrow();
+
+    [GeneratedRegex(@"(?<![\w.'])[ogj](?![\w'])")]
+    private static partial Regex ApplicationVariable();
 
     private enum Scenario
     {
@@ -63,6 +69,11 @@ public sealed class ConcurrencyTests
     // Runs the items on 64 threads and compares each result with its reference; the first difference, with its thread and item.
     private static string? Violation(Workload workload)
     {
+        if (!workload.ReadsApplicationData())
+        {
+            return "no text reads the objects or the JsonElement of the generator";
+        }
+
         Item[] items = workload.Items();
         var references = new Result[items.Length];
         for (int index = 0; index < items.Length; index++)
@@ -213,6 +224,20 @@ public sealed class ConcurrencyTests
 
                 _programs[k] = Environment.Compile<CelValue>(_texts[k]).Program;
             }
+        }
+
+        // Whether some text reads o, g or j, the variables of application data of the generator.
+        internal bool ReadsApplicationData()
+        {
+            foreach (string text in _texts)
+            {
+                if (ApplicationVariable().IsMatch(text))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         internal Item[] Items()

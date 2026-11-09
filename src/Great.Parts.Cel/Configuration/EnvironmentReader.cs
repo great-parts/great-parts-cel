@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Types;
+using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Configuration;
 
@@ -18,14 +19,42 @@ namespace Great.Parts.Cel.Configuration;
 internal readonly record struct JsonError(int ByteIndex, string Detail);
 
 /// <summary>
+/// A container that the key <c>container</c> declares, and the byte index of its value.
+/// </summary>
+internal readonly record struct PendingContainer(string Name, int ByteIndex);
+
+/// <summary>
+/// A variable of the array <c>variables</c>, and the byte index of the <c>{</c> of its element.
+/// </summary>
+internal readonly record struct PendingVariable(CelVariableDecl Declaration, int ByteIndex);
+
+/// <summary>
+/// A function of the array <c>functions</c>, the byte index of the <c>{</c> of its element and those of its overloads, in the
+/// order of the overloads of the declaration.
+/// </summary>
+internal sealed record PendingFunction(CelFunctionDecl Declaration, int ByteIndex, ImmutableArray<int> OverloadIndexes);
+
+/// <summary>
+/// An object type of <c>greatPartsCel.objectTypes</c>, the byte index of the <c>{</c> of its element and those of its
+/// fields, in the order of the fields of the description.
+/// </summary>
+internal sealed record PendingObjectType(CelObjectType Type, int ByteIndex, ImmutableArray<int> FieldIndexes);
+
+/// <summary>
 /// What the first phase of <see cref="CelEnvironmentJson.Apply"/> read from an environment description.
 /// </summary>
 /// <param name="Name">The value of the key <c>name</c>, or <see langword="null"/> when the description has no such string.</param>
+/// <param name="Container">The pending call <c>UseContainer</c>, or <see langword="null"/> without one.</param>
 /// <param name="Variables">The pending builder calls <c>AddVariable(name, type)</c>, in the order of the array <c>variables</c>.</param>
+/// <param name="Functions">The pending builder calls <c>AddFunction(declaration)</c>, in the order of the array <c>functions</c>.</param>
+/// <param name="ObjectTypes">The object types that form one provider, in the order of the array <c>objectTypes</c>.</param>
 /// <param name="Errors">The errors, in the order of their places in the text; the calls are made only when there are none.</param>
 internal sealed record EnvironmentDescription(
     string? Name,
-    ImmutableArray<CelVariableDecl> Variables,
+    PendingContainer? Container,
+    ImmutableArray<PendingVariable> Variables,
+    ImmutableArray<PendingFunction> Functions,
+    ImmutableArray<PendingObjectType> ObjectTypes,
     ImmutableArray<JsonError> Errors);
 
 /// <summary>
@@ -34,13 +63,21 @@ internal sealed record EnvironmentDescription(
 /// </summary>
 /// <remarks>
 /// Every schema error is reported, and reading goes on with the next key or element. Text that is not UTF-8 or not
-/// well-formed JSON ends reading at the first malformed place.
+/// well-formed JSON ends reading at the first malformed place. The reader checks every condition of the builder methods and
+/// of the constructors that the second phase calls, so that phase cannot throw.
 /// </remarks>
-internal sealed class EnvironmentReader
+internal sealed partial class EnvironmentReader
 {
     private readonly List<JsonError> _errors = [];
-    private readonly ImmutableArray<CelVariableDecl>.Builder _variables = ImmutableArray.CreateBuilder<CelVariableDecl>();
+    private readonly ImmutableArray<PendingVariable>.Builder _variables = ImmutableArray.CreateBuilder<PendingVariable>();
+    private readonly ImmutableArray<PendingFunction>.Builder _functions = ImmutableArray.CreateBuilder<PendingFunction>();
+    private readonly ImmutableArray<PendingObjectType>.Builder _objectTypes = ImmutableArray.CreateBuilder<PendingObjectType>();
     private string? _name;
+
+    // The keys of the description itself, and whether its key `name` is repeated: a repeated name names no source.
+    private HashSet<string>? _descriptionKeys;
+    private bool _nameIsRepeated;
+    private PendingContainer? _container;
 
     private EnvironmentReader()
     {
@@ -56,8 +93,11 @@ internal sealed class EnvironmentReader
         EnvironmentReader reader = new();
         reader.ReadText(json);
         return new EnvironmentDescription(
-            reader._name,
+            reader._nameIsRepeated ? null : reader._name,
+            reader._container,
             reader._variables.ToImmutable(),
+            reader._functions.ToImmutable(),
+            reader._objectTypes.ToImmutable(),
             [.. reader._errors.OrderBy(error => error.ByteIndex)]);
     }
 
@@ -110,6 +150,7 @@ internal sealed class EnvironmentReader
         }
 
         HashSet<string> keys = new(StringComparer.Ordinal);
+        _descriptionKeys = keys;
         while (NextKey(ref reader, keys, out string key, out int keyIndex))
         {
             switch (key)
@@ -120,235 +161,63 @@ internal sealed class EnvironmentReader
                 case "description":
                     ReadString(ref reader, "'description'");
                     break;
+                case "container":
+                    ReadContainer(ref reader);
+                    break;
+                case "extensions":
+                    ReadExtensions(ref reader);
+                    break;
                 case "variables":
                     ReadVariables(ref reader);
                     break;
+                case "functions":
+                    ReadFunctions(ref reader);
+                    break;
+                case "greatPartsCel":
+                    ReadGreatPartsCel(ref reader);
+                    break;
                 default:
-                    KeyError(ref reader, key, keyIndex, IsSupportedLater(key) || IsUnsupportedTopLevelKey(key));
+                    KeyError(ref reader, key, keyIndex, IsUnsupportedTopLevelKey(key));
                     break;
             }
         }
     }
-
-    // Keys of the format that the reader does not read yet.
-    private static bool IsSupportedLater(string key) =>
-        key is "container" or "extensions" or "functions" or "greatPartsCel";
 
     // Keys of cel-go that the library does not support.
     private static bool IsUnsupportedTopLevelKey(string key) =>
         key is "imports" or "stdlib" or "context_variable" or "validators" or "features" or "limits";
 
-    private void ReadVariables(ref Utf8JsonReader reader)
+    // The container: a qualified name, or the empty string, which declares nothing.
+    private void ReadContainer(ref Utf8JsonReader reader)
     {
-        if (reader.TokenType != JsonTokenType.StartArray)
+        int index = TokenIndex(ref reader);
+        string? container = ReadString(ref reader, "'container'");
+        if (string.IsNullOrEmpty(container))
         {
-            WrongKind(ref reader, "'variables'", "an array");
             return;
         }
 
-        while (Advance(ref reader) != JsonTokenType.EndArray)
+        if (DeclarationNames.IsQualifiedIdentifier(container))
         {
-            ReadVariable(ref reader);
+            _container = new PendingContainer(container, index);
+        }
+        else
+        {
+            AddError(index, $"the container '{container}' is not a qualified name");
         }
     }
 
-    private void ReadVariable(ref Utf8JsonReader reader)
+    // The type of a record, or null with an error at the value.
+    private CelType? ResolveType(string text, int index, bool allowTypeParameters, string subject)
     {
-        if (reader.TokenType != JsonTokenType.StartObject)
-        {
-            WrongKind(ref reader, "an element of 'variables'", "an object");
-            return;
-        }
-
-        int objectIndex = TokenIndex(ref reader);
-        Variable variable = new();
-        HashSet<string> keys = new(StringComparer.Ordinal);
-        while (NextKey(ref reader, keys, out string key, out int keyIndex))
-        {
-            ReadVariableValue(ref reader, variable, key, keyIndex);
-        }
-
-        CompleteVariable(variable, keys, objectIndex);
-    }
-
-    private void ReadVariableValue(ref Utf8JsonReader reader, Variable variable, string key, int keyIndex)
-    {
-        switch (key)
-        {
-            case "name":
-                variable.Name = ReadVariableName(ref reader);
-                break;
-            case "type":
-                variable.Type = ReadType(ref reader);
-                break;
-            case "type_name":
-                variable.TypeNameIndex = TokenIndex(ref reader);
-                variable.TypeName = ReadTypeName(ref reader);
-                break;
-            case "params":
-                variable.Parameters = ReadParameters(ref reader);
-                break;
-            case "description":
-                ReadString(ref reader, "'description'");
-                break;
-            default:
-                KeyError(ref reader, key, keyIndex, key == "is_type_param");
-                break;
-        }
-    }
-
-    private void CompleteVariable(Variable variable, HashSet<string> keys, int objectIndex)
-    {
-        bool hasType = keys.Contains("type");
-        bool hasTypeName = keys.Contains("type_name");
-        if (!keys.Contains("name"))
-        {
-            AddError(objectIndex, "a variable has no 'name'");
-        }
-
-        if (hasType == hasTypeName)
-        {
-            AddError(objectIndex, hasType ? "a variable has both 'type' and 'type_name'" : "a variable has neither 'type' nor 'type_name'");
-        }
-
-        if (keys.Contains("params") && !hasTypeName)
-        {
-            AddError(objectIndex, "a variable has 'params' without 'type_name'");
-        }
-
-        if (variable.TypeName is not null && (variable.Parameters is not null || !keys.Contains("params")))
-        {
-            variable.Type = TypeNameType(variable.TypeName, variable.Parameters ?? [], variable.TypeNameIndex);
-        }
-
-        if (variable.Name is not null && variable.Type is not null)
-        {
-            _variables.Add(new CelVariableDecl(variable.Name, variable.Type));
-        }
-    }
-
-    private string? ReadVariableName(ref Utf8JsonReader reader)
-    {
-        int index = TokenIndex(ref reader);
-        string? name = ReadString(ref reader, "'name'");
-        if (name?.Length == 0)
-        {
-            AddError(index, "the name of a variable is empty");
-            return null;
-        }
-
-        return name;
-    }
-
-    private CelType? ReadType(ref Utf8JsonReader reader)
-    {
-        int index = TokenIndex(ref reader);
-        string? text = ReadString(ref reader, "'type'");
-        if (text is null)
-        {
-            return null;
-        }
-
-        TypeRecord? record = ParseRecord(text, index);
-        return record is null ? null : VariableType(record.Value, text, index);
-    }
-
-    private string? ReadTypeName(ref Utf8JsonReader reader)
-    {
-        int index = TokenIndex(ref reader);
-        string? text = ReadString(ref reader, "'type_name'");
-        if (text is not null && !TypeRecordParser.IsTypeName(text))
-        {
-            AddError(index, $"'{text}' is not a type name");
-            return null;
-        }
-
-        return text;
-    }
-
-    // The type records of "params", or null when the value or one of its elements has an error.
-    private ImmutableArray<string>? ReadParameters(ref Utf8JsonReader reader)
-    {
-        if (reader.TokenType != JsonTokenType.StartArray)
-        {
-            WrongKind(ref reader, "'params'", "an array");
-            return null;
-        }
-
-        ImmutableArray<string>.Builder parameters = ImmutableArray.CreateBuilder<string>();
-        bool valid = true;
-        while (Advance(ref reader) != JsonTokenType.EndArray)
-        {
-            int index = TokenIndex(ref reader);
-            string? text = ReadString(ref reader, "an element of 'params'");
-            if (text is not null && ParseRecord(text, index) is not null)
-            {
-                parameters.Add(text);
-            }
-            else
-            {
-                valid = false;
-            }
-        }
-
-        return valid ? parameters.ToImmutable() : null;
-    }
-
-    // The type record of a text, or null with an error at the value when the text breaks the grammar.
-    private TypeRecord? ParseRecord(string text, int index)
-    {
-        TypeRecord? record = TypeRecordParser.Parse(text);
-        if (record is null)
-        {
-            AddError(index, $"'{text}' is not a valid type record");
-        }
-
-        return record;
-    }
-
-    // The CEL type of "type_name" with "params", the record name<params>, or null with an error at "type_name".
-    private CelType? TypeNameType(string typeName, ImmutableArray<string> parameters, int index)
-    {
-        string text = parameters.IsEmpty ? typeName : $"{typeName}<{string.Join(", ", parameters)}>";
-        return VariableType(new TypeRecord(typeName, IsTypeParameter: false, HasParameters: !parameters.IsEmpty), text, index);
-    }
-
-    // The CEL type of a variable of a well-formed type record, or null with an error at the value.
-    private CelType? VariableType(TypeRecord record, string text, int index)
-    {
-        if (record.IsTypeParameter)
-        {
-            AddError(index, $"the type parameter '{text}' cannot be the type of a variable");
-            return null;
-        }
-
-        CelType? type = SimpleType(record.Name);
+        CelType? type = TypeRecordResolver.Resolve(text, allowTypeParameters, subject, out string detail);
         if (type is null)
         {
-            AddError(index, $"the type '{text}' is not supported");
-            return null;
-        }
-
-        if (record.HasParameters)
-        {
-            AddError(index, $"the type '{record.Name}' has no type parameters: '{text}'");
-            return null;
+            AddError(index, detail);
         }
 
         return type;
     }
-
-    private static CelType? SimpleType(string name) => name switch
-    {
-        "int" => CelType.Int,
-        "uint" => CelType.UInt,
-        "double" => CelType.Double,
-        "bool" => CelType.Bool,
-        "string" => CelType.String,
-        "bytes" => CelType.Bytes,
-        "dyn" => CelType.Dyn,
-        _ => null,
-    };
 
     // Moves to the value of the next key of the object that can be decoded and is not a repeat, and reports the other
     // keys on the way and skips their values.
@@ -367,6 +236,7 @@ internal sealed class EnvironmentReader
                     return true;
                 }
 
+                _nameIsRepeated |= text == "name" && ReferenceEquals(keys, _descriptionKeys);
                 AddError(keyIndex, $"the key '{text}' is repeated");
             }
 
@@ -426,18 +296,4 @@ internal sealed class EnvironmentReader
     }
 
     private static int TokenIndex(ref Utf8JsonReader reader) => (int)reader.TokenStartIndex;
-
-    // What the keys of one element of "variables" gave.
-    private sealed class Variable
-    {
-        internal string? Name { get; set; }
-
-        internal CelType? Type { get; set; }
-
-        internal string? TypeName { get; set; }
-
-        internal int TypeNameIndex { get; set; }
-
-        internal ImmutableArray<string>? Parameters { get; set; }
-    }
 }

@@ -50,11 +50,15 @@ public sealed class CelBindings
     /// <remarks>
     /// <para>
     /// The conversion follows the declared type, not the run-time type: a <c>List&lt;int&gt;</c> is a
-    /// <c>list(int)</c> read through a view, a <c>Dictionary&lt;string, Order&gt;</c> is a map whose values
-    /// are objects described for <c>Order</c>, a <see cref="DateTimeOffset"/> is a <c>timestamp</c>, and a
-    /// <see cref="CelValue"/> is taken as it is. Only a value of the static type <see cref="object"/> is
-    /// converted by its run-time type, as a <c>dyn</c> value. An object type is found at evaluation in the
-    /// type sources of the environment by the declared type of the variable.
+    /// <c>list(int)</c> read through a view, an <c>IReadOnlyDictionary&lt;string, long&gt;</c> is a
+    /// <c>map(string, int)</c> read through a view, a set is copied and sorted in the order of CEL, a
+    /// <see cref="DateTimeOffset"/> is a <c>timestamp</c>, and a <see cref="CelValue"/> is taken as it is. A class of
+    /// the application is a bare object that evaluation describes by the type sources of the environment (see
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md#objects-and-collections">Objects and collections</see>), and a
+    /// <see cref="System.Text.Json.JsonElement"/> is <c>dyn</c> (see
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md#jsonelement">JsonElement</see>). Only a value of the static type <see cref="object"/>
+    /// is converted by its run-time type, as a <c>dyn</c> value; a .NET collection in that place is an object that no
+    /// source describes, and the node that reads it decides what it is.
     /// </para>
     /// <para>
     /// Values that a row of the type mapping rejects outright are rejected here, before any evaluation: a
@@ -68,9 +72,10 @@ public sealed class CelBindings
     /// <returns>These bindings.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="name"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException">
-    /// <paramref name="name"/> is empty or already bound, or <paramref name="value"/> is a value
-    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>
-    /// rejects, as listed in the remarks.
+    /// <paramref name="name"/> is empty or already bound, <typeparamref name="T"/> has no row of the
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// a set has elements that CEL cannot sort, or <paramref name="value"/> is a value the type mapping rejects, as
+    /// listed in the remarks.
     /// </exception>
     public CelBindings Add<T>(string name, T value)
     {
@@ -82,7 +87,17 @@ public sealed class CelBindings
         }
         else if (!ConversionRules.TryFromClr(value, out converted))
         {
-            throw new NotImplementedException();
+            // Time, optional values and decimals come with their parts.
+            throw ConversionRules.IsOfLaterPart<T>()
+                ? new NotImplementedException()
+                : new ArgumentException(
+                    "A value of the .NET type " + typeof(T) + " has no row in the input table of the type mapping, or its elements have no CEL order.",
+                    nameof(value));
+        }
+
+        if (ConversionRules.IsRefusedByBindings(converted))
+        {
+            throw new ArgumentException("The value is an undefined JsonElement, which has no CEL value.", nameof(value));
         }
 
         if (!_values.TryAdd(name, converted))

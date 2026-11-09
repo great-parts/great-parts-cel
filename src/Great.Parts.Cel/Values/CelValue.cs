@@ -41,8 +41,8 @@ namespace Great.Parts.Cel.Values;
 public readonly partial struct CelValue : IEquatable<CelValue>
 {
     // The layout with an explicit kind, 32 bytes: a reference, 16 bytes of payload and the kind. Numbers and bool
-    // live in _p0; a string is _ref; bytes are the array or the memory manager in _ref, the offset in _p0 and the
-    // length in _p1. default(CelValue) is null.
+    // live in _p0; a string is _ref, and _p0 of a string that a JSON element gave to a binding holds the units of its read;
+    // bytes are the array or the memory manager in _ref, the offset in _p0 and the length in _p1. default(CelValue) is null.
     private readonly object? _ref;
     private readonly ulong _p0;
     private readonly ulong _p1;
@@ -140,6 +140,21 @@ public readonly partial struct CelValue : IEquatable<CelValue>
         ArgumentNullException.ThrowIfNull(value);
         return new CelValue(CelValueKind.String, value, 0, 0);
     }
+
+    /// <summary>
+    /// Creates the <c>string</c> value of a JSON string that a binding holds: the units that each read of the identifier
+    /// charges ride in the unused payload, because the length of the raw token is not known once the string is created.
+    /// </summary>
+    /// <param name="value">The string.</param>
+    /// <param name="readUnits">The units of a read, 1 + ⌈L/10⌉.</param>
+    /// <returns>The CEL value.</returns>
+    internal static CelValue FromJsonString(string value, ulong readUnits) => new(CelValueKind.String, value, readUnits, 0);
+
+    /// <summary>
+    /// The units that a read of this value charges beyond the unit of the node: those of a JSON string that a binding holds,
+    /// and 0 for any other value.
+    /// </summary>
+    internal ulong ReadUnits => _kind == CelValueKind.String ? _p0 : 0;
 
     /// <summary>
     /// Creates a <c>bytes</c> value that refers to <paramref name="value"/> without copying it. The
@@ -443,22 +458,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <param name="left">The first value.</param>
     /// <param name="right">The second value.</param>
     /// <returns>A value of the kind <see cref="CelValueKind.Bool"/> or <see cref="CelValueKind.Error"/>.</returns>
-    public static CelValue CelEquals(CelValue left, CelValue right)
-    {
-        return EqualityRules.AreEqual(left, right, null, out CelValue error) switch
-        {
-            ValueEquality.Equal => FromBoolean(true),
-            ValueEquality.NotEqual => FromBoolean(false),
-            ValueEquality.Error => error,
-            _ => FromError(new CelError(
-                CelErrorCode.InsufficientStack,
-                CelErrorStage.Evaluate,
-                EqualityRules.InsufficientStackMessage,
-                new CelSourceLocation(0, 1, 1),
-                null,
-                null)),
-        };
-    }
+    public static CelValue CelEquals(CelValue left, CelValue right) =>
+        EqualityRules.ToValue(EqualityRules.AreEqual(left, right, null, out CelValue error), error);
 
     /// <summary>
     /// Compares two values by .NET equality: the same kind and the same content. Numbers, booleans,
@@ -488,6 +489,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.Bytes => BytesOf(this).Span.SequenceEqual(BytesOf(other).Span),
             CelValueKind.Type => ((CelType)_ref!).Equals((CelType?)other._ref),
             CelValueKind.List or CelValueKind.Map or CelValueKind.Error => ReferenceEquals(_ref, other._ref),
+            CelValueKind.Object => ObjectEquals(other),
 
             // No factory creates values of the other kinds yet.
             _ => throw new NotImplementedException(),
@@ -519,6 +521,9 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.Bytes => BytesHash(BytesOf(this).Span),
             CelValueKind.Type => ((CelType)_ref!).GetHashCode(),
             CelValueKind.List or CelValueKind.Map or CelValueKind.Error => RuntimeHelpers.GetHashCode(_ref),
+            CelValueKind.Object => _ref is ObjectPair pair
+                ? HashCode.Combine(RuntimeHelpers.GetHashCode(pair.Instance), RuntimeHelpers.GetHashCode(pair.Type))
+                : RuntimeHelpers.GetHashCode(_ref),
 
             // No factory creates values of the other kinds yet.
             _ => throw new NotImplementedException(),
@@ -546,6 +551,19 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     public static bool operator !=(CelValue left, CelValue right)
     {
         return !left.Equals(right);
+    }
+
+    // The same instance, and for a pair the same description; a bare instance never equals a pair.
+    private bool ObjectEquals(CelValue other)
+    {
+        if (_ref is ObjectPair pair)
+        {
+            return other._ref is ObjectPair otherPair
+                && ReferenceEquals(pair.Instance, otherPair.Instance)
+                && ReferenceEquals(pair.Type, otherPair.Type);
+        }
+
+        return other._ref is not ObjectPair && ReferenceEquals(_ref, other._ref);
     }
 
     private static ReadOnlyMemory<byte> BytesOf(CelValue value)

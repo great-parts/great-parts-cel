@@ -21,7 +21,6 @@ remap = [
 # pattern of such a page, /docs/<page>.md with any anchor, matches both a relative link and a remapped address.
 exclude = [
   "/docs/extensions\\.md(#.*)?$", # the extension sets page is not written yet; the XML documentation links it already
-  "/docs/environment-json\\.md(#.*)?$", # the environment JSON page is not written yet; the XML documentation links it already
 ]
 
 exclude_path = [

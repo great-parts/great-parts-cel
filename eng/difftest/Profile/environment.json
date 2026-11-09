@@ -1,6 +1,7 @@
 {
   "name": "difftest",
   "description": "Run manifest of eng/difftest: the variables of the profile",
+  "container": "gp.test",
   "variables": [
     { "name": "i1", "type_name": "int" },
     { "name": "i2", "type_name": "int" },
@@ -11,6 +12,14 @@
     { "name": "s1", "type_name": "string" },
     { "name": "y1", "type_name": "bytes" },
     { "name": "x1", "type_name": "dyn" },
-    { "name": "x2", "type_name": "dyn" }
+    { "name": "x2", "type_name": "dyn" },
+    { "name": "li", "type": "list<int>" },
+    { "name": "ls", "type": "list<string>" },
+    { "name": "lx", "type": "list<dyn>" },
+    { "name": "ms", "type": "map<string, int>" },
+    { "name": "mx", "type": "map<int, dyn>" },
+    { "name": "wi", "type_name": "int_wrapper" },
+    { "name": "gp.q", "type_name": "int" },
+    { "name": "gp.test.r", "type_name": "string" }
   ]
 }

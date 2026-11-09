@@ -75,7 +75,7 @@ internal sealed class Planner
     private Plan Build()
     {
         PlanNode root = Visit(_parsed.Root, out int stackSize);
-        return new Plan(root, _variables.Count, _localCount, stackSize, _parsed.Lines);
+        return new Plan(root, _variables.Count, _localCount, stackSize, _parsed.Lines, _declarations.Types);
     }
 
     // The node of a syntax node, and the most argument values on the stack at one time while it is
@@ -143,8 +143,8 @@ internal sealed class Planner
             : VisitName(identifier, [], offset);
     }
 
-    // A name that type checking resolved: a variable of a comprehension, a declared variable or a type
-    // identifier, whose type value costs 1 as a name read.
+    // A name that type checking resolved: a variable of a comprehension, a declared variable, a type identifier, whose
+    // type value costs 1 as a name read, or an enumeration constant, whose int value costs the same.
     private PlanNode VisitReference(Reference reference, int offset)
     {
         if (reference.Local is { } local)
@@ -155,7 +155,12 @@ internal sealed class Planner
 
         if (reference.Variable is { } variable)
         {
-            return new VariablePlanNode(offset, VariableSlot(variable.Name), variable.Name, variable.Type);
+            return new VariablePlanNode(offset, VariableSlot(variable.Name), variable.Name, variable.Type, _declarations.Types);
+        }
+
+        if (reference.Constant is { } constant)
+        {
+            return new ConstantPlanNode(offset, CelValue.FromInt64(constant), 1);
         }
 
         return new ConstantPlanNode(offset, CelValue.FromType(reference.TypeValue!), 1);
@@ -168,6 +173,11 @@ internal sealed class Planner
         stackSize = 0;
         if (_checked is not null && _checked.References.TryGetValue(select.Id, out Reference? reference))
         {
+            if (reference.ObjectType is { } objectType)
+            {
+                return new FieldPlanNode(offset, Visit(select.Operand, out stackSize), objectType, reference.FieldNumber, select.IsPresenceTest);
+            }
+
             return VisitReference(reference, offset);
         }
 
@@ -215,7 +225,10 @@ internal sealed class Planner
             foreach (string name in Qualified(prefixes[selections], leadingDot))
             {
                 CelType? typeValue = _declarations.TryGetTypeIdentifier(name, out CelType? type) ? type : null;
-                candidates.Add(new NamePlanNode.Candidate(name, selections, typeValue));
+                CelType? objectType = _declarations.TryGetVariable(name, out CelVariableDecl? variable) && variable.Type.Kind == CelTypeKind.Object
+                    ? variable.Type
+                    : null;
+                candidates.Add(new NamePlanNode.Candidate(name, selections, typeValue, objectType));
             }
         }
 

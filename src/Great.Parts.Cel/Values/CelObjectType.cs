@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Frozen;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 #if NET11_0_OR_GREATER
@@ -33,15 +35,19 @@ namespace Great.Parts.Cel.Values;
 /// created by <see cref="FieldError"/> or by one of the conversion helpers, not an exception.
 /// </para>
 /// <para>
-/// Which description applies to a value is decided by the place where the value enters the expression:
-/// the declared type of a variable, field or collection element. In a <c>dyn</c> place it is the
-/// description of the exact .NET type of the instance, then of its base classes; interfaces are not
-/// considered. A description is immutable, and every member can be called from any number of threads at
-/// once.
+/// An instance passed without a description takes it from the declared object type of the variable or
+/// field it enters at the top level. Everywhere else — in a <c>dyn</c> place, as an element of a
+/// collection, as an argument or a result of a function — it is the description of the exact .NET type
+/// of the instance, then of its base classes; interfaces are not considered. A value created by
+/// <see cref="CelValue.FromObject(CelObjectType, object)"/> carries its description. A description is
+/// immutable, and every member can be called from any number of threads at once.
 /// </para>
 /// </remarks>
 public abstract class CelObjectType
 {
+    // The fields by name; the names come from the description, never from an expression.
+    private readonly FrozenDictionary<string, CelObjectField> _fieldsByName;
+
     /// <summary>
     /// Initializes a description of a .NET type: a type the source generator describes, or a protobuf
     /// message class.
@@ -65,8 +71,45 @@ public abstract class CelObjectType
     /// or two fields have the same name.
     /// </exception>
     protected CelObjectType(string name, Type clrType, ReadOnlySpan<CelObjectField> fields)
+        : this(name, fields, clrType ?? throw new ArgumentNullException(nameof(clrType)))
     {
-        throw new NotImplementedException();
+    }
+
+    // A description of a type described at run time, without a .NET type: the builders create it.
+    private protected CelObjectType(string name, ReadOnlySpan<CelObjectField> fields)
+        : this(name, fields, null)
+    {
+    }
+
+    private CelObjectType(string name, ReadOnlySpan<CelObjectField> fields, Type? clrType)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        if (!DeclarationNames.IsQualifiedIdentifier(name))
+        {
+            throw new ArgumentException("The type name '" + name + "' is not a full CEL name.", nameof(name));
+        }
+
+        var byName = new Dictionary<string, CelObjectField>(fields.Length, StringComparer.Ordinal);
+        for (int number = 0; number < fields.Length; number++)
+        {
+            CelObjectField field = fields[number];
+            ArgumentNullException.ThrowIfNull(field, nameof(fields));
+            if (field.Number != number)
+            {
+                throw new ArgumentException("The number of the field '" + field.Name + "' differs from its position.", nameof(fields));
+            }
+
+            if (!byName.TryAdd(field.Name, field))
+            {
+                throw new ArgumentException("The type '" + name + "' has two fields named '" + field.Name + "'.", nameof(fields));
+            }
+        }
+
+        Name = name;
+        ClrType = clrType;
+        Type = CelType.ObjectNamed(name);
+        Fields = [.. fields];
+        _fieldsByName = byName.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
     /// <summary>
@@ -74,7 +117,7 @@ public abstract class CelObjectType
     /// message. Expressions refer to the type by this name, error messages show it, and two descriptions
     /// with one name in one environment are a build error <see cref="CelErrorCode.DuplicateType"/>.
     /// </summary>
-    public string Name => throw new NotImplementedException();
+    public string Name { get; }
 
     /// <summary>
     /// The .NET type of the instances, or <see langword="null"/> for a type described at run time.
@@ -82,22 +125,22 @@ public abstract class CelObjectType
     /// <remarks>
     /// A type described at run time has no .NET type of its own: its values are instances of a carrier
     /// class that many CEL types can share, so such a description is never found by the .NET type of a
-    /// value. Its values enter an expression only through a variable or field declared with
-    /// <see cref="Type"/>.
+    /// value. Its values enter an expression through a variable or field declared with <see cref="Type"/>,
+    /// or elsewhere as values created by <see cref="CelValue.FromObject(CelObjectType, object)"/>.
     /// </remarks>
-    public Type? ClrType => throw new NotImplementedException();
+    public Type? ClrType { get; }
 
     /// <summary>
     /// The CEL type of the instances, an object type with the name <see cref="Name"/>. Use it to declare a
     /// variable, a field of a type described at run time, or an overload parameter of this type.
     /// </summary>
-    public CelType Type => throw new NotImplementedException();
+    public CelType Type { get; }
 
     /// <summary>
     /// The fields expressions can select, in the order of their numbers. Members that the source generator
     /// excluded are not fields.
     /// </summary>
-    public ImmutableArray<CelObjectField> Fields => throw new NotImplementedException();
+    public ImmutableArray<CelObjectField> Fields { get; }
 
     /// <summary>
     /// Finds a field by the name an expression uses for it. The comparison is ordinal and case-sensitive.
@@ -108,7 +151,8 @@ public abstract class CelObjectType
     /// <exception cref="ArgumentNullException"><paramref name="name"/> is <see langword="null"/>.</exception>
     public bool TryGetField(string name, [NotNullWhen(true)] out CelObjectField? field)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(name);
+        return _fieldsByName.TryGetValue(name, out field);
     }
 
     /// <summary>
@@ -173,10 +217,8 @@ public abstract class CelObjectType
     /// A value of the kind <see cref="CelValueKind.Bool"/>, or the first error value met while reading the
     /// fields, of the kind <see cref="CelValueKind.Error"/>.
     /// </returns>
-    protected internal virtual CelValue CelEquals(object left, object right)
-    {
-        throw new NotImplementedException();
-    }
+    protected internal virtual CelValue CelEquals(object left, object right) =>
+        EqualityRules.ToValue(ObjectRules.InstancesEqual(this, left, right, null, null, out CelValue error), error);
 
     /// <summary>
     /// Tells why a member that the source generator excluded is not available to expressions.
@@ -190,10 +232,7 @@ public abstract class CelObjectType
     /// </remarks>
     /// <param name="fieldName">The name the expression selects.</param>
     /// <returns>The reason in English, or <see langword="null"/> when no member with this field name was excluded.</returns>
-    protected internal virtual string? GetExcludedFieldReason(string fieldName)
-    {
-        throw new NotImplementedException();
-    }
+    protected internal virtual string? GetExcludedFieldReason(string fieldName) => null;
 
     /// <summary>
     /// Whether an expression can create an instance with an object literal such as <c>M{f: 1}</c>.
@@ -203,7 +242,7 @@ public abstract class CelObjectType
     /// and a literal of another type is a type checking error <see cref="CelErrorCode.TypeNotConstructible"/>.
     /// A derived class that returns <see langword="true"/> overrides <see cref="CreateInstance"/>.
     /// </remarks>
-    protected internal virtual bool IsConstructible => throw new NotImplementedException();
+    protected internal virtual bool IsConstructible => false;
 
     /// <summary>
     /// Creates an instance for an object literal from the fields it sets.
@@ -230,22 +269,24 @@ public abstract class CelObjectType
     /// message field.
     /// </summary>
     /// <remarks>
-    /// The value allocates no memory beyond the instance itself. Its description is decided by the place
-    /// where it enters the expression: the declared type of the field or collection element, or in a
-    /// <c>dyn</c> place the exact .NET type of the instance, then its base classes. To attach a
-    /// description explicitly, use <see cref="CelValue.FromObject(CelObjectType, object)"/>.
+    /// The value allocates no memory beyond the instance itself. In a field declared with an object type
+    /// it takes the description of that type; elsewhere its description is found by the exact .NET type
+    /// of the instance, then its base classes. To attach a description explicitly, use
+    /// <see cref="CelValue.FromObject(CelObjectType, object)"/>.
     /// </remarks>
     /// <param name="instance">The instance; a value of a kind that has its own CEL type, such as a string or a number, must be converted by its factory instead.</param>
     /// <returns>The object value.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="instance"/> is <see langword="null"/>; use <see cref="CelValue.Null"/> or <see cref="FieldError"/>.</exception>
     protected static CelValue FromInstance(object instance)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(instance);
+        return CelValue.FromBareObject(instance);
     }
 
     /// <summary>
-    /// Creates an error value for a field of this type that cannot be read or set. The error names this
-    /// type and the field.
+    /// Creates an error value for a field of this type that cannot be read or set. Its text is the template of
+    /// the code, nothing more: this type and the field stand in it only where the template names them, and the
+    /// position of the field selection names the field.
     /// </summary>
     /// <remarks>
     /// Generated code uses it when a member of a reference type annotated as not nullable is
@@ -257,12 +298,19 @@ public abstract class CelObjectType
     /// </remarks>
     /// <param name="number">The number of the field.</param>
     /// <param name="code">An evaluation code, from 3000 to 3999, that tells why the value cannot be read or set.</param>
-    /// <param name="detail">What the code needs besides the names of the type and the field, such as the value that is out of range; <see langword="null"/> when nothing.</param>
+    /// <param name="detail">What the template of the code needs: the whole text for <see cref="CelErrorCode.ConversionRange"/>, such as <c>300 is out of the range of int</c>; the free part for <see cref="CelErrorCode.InvalidArgument"/>; the .NET type for <see cref="CelErrorCode.TypeNotAccessible"/>; <see langword="null"/> when nothing.</param>
     /// <returns>A value of the kind <see cref="CelValueKind.Error"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="number"/> is not the number of one of <see cref="Fields"/>, or <paramref name="code"/> is not an evaluation code.</exception>
     protected CelValue FieldError(int number, CelErrorCode code, string? detail)
     {
-        throw new NotImplementedException();
+        ArgumentOutOfRangeException.ThrowIfNegative(number);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(number, Fields.Length);
+        if (code is < (CelErrorCode)3000 or > (CelErrorCode)3999)
+        {
+            throw new ArgumentOutOfRangeException(nameof(code), code, "The code is not an evaluation code.");
+        }
+
+        return ObjectRules.FieldError(this, number, code, detail);
     }
 
     /// <summary>
@@ -305,7 +353,8 @@ public abstract class CelObjectType
     /// <remarks>
     /// Any underlying type converts exactly, except a value of an enumeration over <see cref="ulong"/> that
     /// exceeds <see cref="long.MaxValue"/>: it gives an error value with the code
-    /// <see cref="CelErrorCode.ConversionRange"/> that names the type and the field. The names of the
+    /// <see cref="CelErrorCode.ConversionRange"/> and the text <c>18446744073709551615 is out of the range of int</c>, with
+    /// the number of the value. The names of the
     /// constants are described by <see cref="CelEnumType"/>, not by the value.
     /// </remarks>
     /// <typeparam name="TEnum">The enumeration type of the member.</typeparam>
@@ -315,7 +364,8 @@ public abstract class CelObjectType
     protected CelValue FromEnum<TEnum>(int number, TEnum value)
         where TEnum : struct, Enum
     {
-        throw new NotImplementedException();
+        _ = ConversionRules.TryFromClr(value, out CelValue result);
+        return Named(number, result);
     }
 
     /// <summary>
@@ -334,8 +384,7 @@ public abstract class CelObjectType
     /// the value is an error <see cref="CelErrorCode.TypeNotAccessible"/>.
     /// </para>
     /// <para>
-    /// A value that a row of the type mapping rejects gives an error value that names the type and the field, with the
-    /// code of that row: <see cref="CelErrorCode.InvalidArgument"/> for a <see cref="DateTime"/> whose kind is not
+    /// A value that a row of the type mapping rejects gives an error value with the code of that row and its template: <see cref="CelErrorCode.InvalidArgument"/> for a <see cref="DateTime"/> whose kind is not
     /// <see cref="DateTimeKind.Utc"/> or for an undefined <see cref="System.Text.Json.JsonElement"/>,
     /// <see cref="CelErrorCode.ConversionRange"/> for a value out of the range of its CEL type.
     /// </para>
@@ -345,8 +394,50 @@ public abstract class CelObjectType
     /// <returns>The value, possibly of the kind <see cref="CelValueKind.Error"/>.</returns>
     protected CelValue FromDynamic(int number, object? value)
     {
-        throw new NotImplementedException();
+        _ = ConversionRules.TryFromClr(value, out CelValue result);
+        return Named(number, result);
     }
+
+    /// <summary>
+    /// Tells whether an instance belongs to the description: an instance of <see cref="ClrType"/>, or of the carrier
+    /// class of a type described at run time.
+    /// </summary>
+    /// <param name="instance">The instance.</param>
+    /// <returns><see langword="true"/> when the instance belongs to the description.</returns>
+    internal virtual bool Belongs(object instance) => ClrType!.IsInstanceOfType(instance);
+
+    /// <summary>
+    /// Whether the carrier class of a type described at run time is <c>IReadOnlyDictionary&lt;string, object?&gt;</c>, which
+    /// decides the code of a .NET collection in a field: a field of a dictionary carrier refuses it with
+    /// <c>FieldTypeMismatch</c>.
+    /// </summary>
+    internal virtual bool IsDictionaryCarrier => false;
+
+    /// <summary>
+    /// Reads a field when it is present, for the equality of two instances: by <see cref="HasField"/>, then
+    /// <see cref="GetField"/>. The descriptions of types described at run time read their carrier once.
+    /// </summary>
+    /// <param name="instance">An instance that belongs to the description.</param>
+    /// <param name="number">The number of the field.</param>
+    /// <param name="value">The value of a present field.</param>
+    /// <returns><see langword="true"/> when the field is present.</returns>
+    internal virtual bool TryReadField(object instance, int number, out CelValue value)
+    {
+        if (!HasField(instance, number))
+        {
+            value = default;
+            return false;
+        }
+
+        value = GetField(instance, number);
+        return true;
+    }
+
+    // A value that a row of the type mapping rejects, as an error value that names this type and the field.
+    private CelValue Named(int number, CelValue value) =>
+        value.TryGetError(out CelError? error) && error.Code is CelErrorCode.ConversionRange or CelErrorCode.InvalidArgument
+            ? ObjectRules.FieldError(this, number, error.Code, error.Message)
+            : value;
 
 #if NET11_0_OR_GREATER
     /// <summary>

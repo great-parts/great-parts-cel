@@ -281,8 +281,8 @@ internal sealed class Checker
     // The node of the chain that the identifier and its first selections form: the identifier for none.
     private ExprNode ChainNode(IdentNode root, int selects) => selects == 0 ? root : _chain[_chain.Count - selects];
 
-    // The field of a map, or dyn for an operand of the type dyn, error or a type parameter, which is bound to
-    // dyn; any other type has no fields. A presence test has the type bool.
+    // The field of a map or of an object type, or dyn for an operand of the type dyn, error or a type parameter,
+    // which is bound to dyn; any other type has no fields. A presence test has the type bool.
     private CelType? SelectField(SelectNode select, CelType? operandType)
     {
         if (operandType is not null)
@@ -295,6 +295,8 @@ internal sealed class Checker
                     break;
                 case CelTypeKind.Dyn:
                     break;
+                case CelTypeKind.Object:
+                    return ObjectField(select, head);
                 case CelTypeKind.TypeParameter:
                     _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
                     operandType = CelType.Dyn;
@@ -306,6 +308,22 @@ internal sealed class Checker
         }
 
         return select.IsPresenceTest ? CelType.Bool : operandType ?? CelType.Dyn;
+    }
+
+    // The field of an object type, looked up by its name in the description of the type: the reference map records the
+    // description and the field number, which the planner binds. No such field is NoSuchField with the full name of
+    // the type, at the selection.
+    private CelType? ObjectField(SelectNode select, CelType objectType)
+    {
+        if (_declarations.Types.TryGetObjectType(objectType.Name, out CelObjectType? description)
+            && description.TryGetField(select.Field, out CelObjectField? field))
+        {
+            _references.Add(select.Id, Reference.ToField(description, field.Number));
+            return select.IsPresenceTest ? CelType.Bool : field.Type;
+        }
+
+        _errors.Add(CheckErrors.NoSuchField(select.Field, objectType, Location(select)));
+        return null;
     }
 
     private CelType? VisitCall(CallNode call)
@@ -661,10 +679,45 @@ internal sealed class Checker
         return null;
     }
 
-    // Message literals come with object types; until then no name is an object type.
+    // A message literal: the field values are checked in order, whatever the literal gives; then its name resolves by
+    // the container with the order of the declaration index. No candidate is UndeclaredReference; a variable, a
+    // constant or a type identifier that is not an object type is NotAType with the resolved name; an object type
+    // whose description is not constructible is TypeNotConstructible, its field names not looked up. All at the literal,
+    // whose type is the type error. Literals of constructible types, protobuf messages, come with their part.
     private CelType? VisitMessage(StructNode message)
     {
-        _errors.Add(CheckErrors.UndeclaredReference(message.MessageName, _declarations.Container, Location(message)));
+        foreach (StructEntry entry in message.Entries)
+        {
+            _ = Visit(entry.Value);
+        }
+
+        string name = message.MessageName;
+        bool leadingDot = name[0] == '.';
+        ReadOnlySpan<char> written = leadingDot ? name.AsSpan(1) : name;
+        written.CopyTo(NameRoom(written.Length));
+        var candidates = new NameCandidates(_names, _declarations.Container, written.Length, leadingDot);
+        while (candidates.MoveNext(out ReadOnlySpan<char> candidate))
+        {
+            bool variable = _declarations.TryGetVariable(candidate, out _);
+            if (!variable && _declarations.TryGetTypeIdentifier(candidate, out CelType? typeValue) && typeValue.Kind == CelTypeKind.Object)
+            {
+                if (_declarations.Types.TryGetObjectType(typeValue.Name, out CelObjectType? description) && description.IsConstructible)
+                {
+                    throw new NotImplementedException();
+                }
+
+                _errors.Add(CheckErrors.TypeNotConstructible(typeValue.Name, Location(message)));
+                return null;
+            }
+
+            if (variable || _declarations.TryGetTypeIdentifier(candidate, out _) || _declarations.Types.TryGetEnumConstant(candidate, out _))
+            {
+                _errors.Add(CheckErrors.NotAType(candidate.ToString(), Location(message)));
+                return null;
+            }
+        }
+
+        _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Location(message)));
         return null;
     }
 
@@ -802,8 +855,8 @@ internal sealed class Checker
         return _names.AsSpan(start, length);
     }
 
-    // The variable or the type identifier that the name in the name buffer refers to, by the candidates of
-    // the container.
+    // The variable, the type identifier or the enumeration constant that the name in the name buffer refers to, by the
+    // candidates of the container; for each candidate in this order, as cel-go v0.32.0 Env.LookupIdent does.
     private bool TryResolveName(int length, bool asWritten, [NotNullWhen(true)] out Reference? reference, [NotNullWhen(true)] out CelType? type)
     {
         var candidates = new NameCandidates(_names, _declarations.Container, length, asWritten);
@@ -820,6 +873,13 @@ internal sealed class Checker
             {
                 reference = Reference.ToTypeIdentifier(typeValue);
                 type = CelType.TypeOf(typeValue);
+                return true;
+            }
+
+            if (_declarations.Types.TryGetEnumConstant(candidate, out long constant))
+            {
+                reference = Reference.ToConstant(constant);
+                type = CelType.Int;
                 return true;
             }
         }

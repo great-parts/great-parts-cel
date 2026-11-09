@@ -53,7 +53,7 @@ internal sealed class CaseGenerator : Gen<GeneratedCase>
         {
             if (!pcg.OneIn(UnboundOneIn))
             {
-                bindings[variable.Name] = ProfileValues.Binding(pcg, variable.Type);
+                bindings[variable.Name] = ProfileValues.Binding(pcg, variable);
             }
         }
 

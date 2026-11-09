@@ -38,12 +38,12 @@ internal static class Collections
         int count = list.Count;
         if (index.TryGetInt64(out long signed))
         {
-            return signed >= 0 && signed < count ? list[(int)signed] : OutOfRange(in site, index, list);
+            return signed >= 0 && signed < count ? site.Placed(list.Read((int)signed, site.Meter)) : OutOfRange(in site, index, list);
         }
 
         if (index.TryGetUInt64(out ulong unsigned))
         {
-            return unsigned < (ulong)count ? list[(int)unsigned] : OutOfRange(in site, index, list);
+            return unsigned < (ulong)count ? site.Placed(list.Read((int)unsigned, site.Meter)) : OutOfRange(in site, index, list);
         }
 
         if (index.TryGetDouble(out double number))
@@ -54,7 +54,7 @@ internal static class Collections
                 return site.Error(CelErrorCode.InvalidArgument, NotAnIntegerText, site.Function, number: BitConverter.DoubleToInt64Bits(number));
             }
 
-            return number >= 0 && number < count ? list[(int)number] : OutOfRange(in site, index, list);
+            return number >= 0 && number < count ? site.Placed(list.Read((int)number, site.Meter)) : OutOfRange(in site, index, list);
         }
 
         return site.NoMatchingOverload(arguments);
@@ -68,7 +68,7 @@ internal static class Collections
             return site.NoMatchingOverload(arguments);
         }
 
-        return map.TryGetValue(arguments[1], out CelValue value) ? value : site.ErrorWithValue(CelErrorCode.NoSuchKey, NoSuchKeyText, null, arguments[1]);
+        return map.TryRead(arguments[1], site.Meter, readValue: true, out CelValue value) ? site.Placed(value) : NoSuchKey(in site, arguments[1]);
     }
 
     // in_list, (A, list(A)) -> bool: whether an element equals the value, comparing in order up to the first
@@ -83,12 +83,12 @@ internal static class Collections
         CelValue value = arguments[0];
         for (int i = 0; i < list.Count; i++)
         {
-            switch (EqualityRules.AreEqual(value, list[i], site.Meter, out CelValue error))
+            switch (EqualityRules.AreEqual(value, list.Read(i, site.Meter), site.Meter, out CelValue error, site.Types, site.Boundary))
             {
                 case ValueEquality.Equal:
                     return CelValue.FromBoolean(true);
                 case ValueEquality.Error:
-                    return error;
+                    return site.Placed(error);
                 case ValueEquality.NotEqual:
                     break;
                 default:
@@ -100,18 +100,30 @@ internal static class Collections
     }
 
     // in_map, (A, map(A, B)) -> bool: whether the map has the key, by the key lookup.
-    internal static CelValue InMap(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
-        arguments[1].TryGetMap(out CelMap? map)
-            ? CelValue.FromBoolean(map.TryGetValue(arguments[0], out _))
-            : site.NoMatchingOverload(arguments);
+    internal static CelValue InMap(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        if (!arguments[1].TryGetMap(out CelMap? map))
+        {
+            return site.NoMatchingOverload(arguments);
+        }
+
+        return map.TryGetKeyError(site.Meter, out CelValue keyError) ? site.Placed(keyError) : CelValue.FromBoolean(map.TryRead(arguments[0], null, readValue: false, out _));
+    }
 
     // size_list and list_size, (list(A)) -> int.
     internal static CelValue ListSize(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
         arguments[0].TryGetList(out CelList? list) ? CelValue.FromInt64(list.Count) : site.NoMatchingOverload(arguments);
 
     // size_map and map_size, (map(A, B)) -> int.
-    internal static CelValue MapSize(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
-        arguments[0].TryGetMap(out CelMap? map) ? CelValue.FromInt64(map.Count) : site.NoMatchingOverload(arguments);
+    internal static CelValue MapSize(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        if (!arguments[0].TryGetMap(out CelMap? map))
+        {
+            return site.NoMatchingOverload(arguments);
+        }
+
+        return map.TryGetKeyError(site.Meter, out CelValue keyError) ? site.Placed(keyError) : CelValue.FromInt64(map.Count);
+    }
 
     // add_list, (list(A), list(A)) -> list(A): a new list of both, the elements in order.
     internal static CelValue AddList(ReadOnlySpan<CelValue> arguments, in CallSite site)
@@ -145,6 +157,12 @@ internal static class Collections
 
         return CelValue.FromList(new ValueArrayList(items));
     }
+
+    // The key that a map does not have; an object key is named by its description or its .NET type.
+    private static CelValue NoSuchKey(in CallSite site, CelValue key) =>
+        key.Kind == CelValueKind.Object
+            ? site.Error(CelErrorCode.NoSuchKey, "no such key: " + ObjectRules.TypeName(key, site.Types))
+            : site.ErrorWithValue(CelErrorCode.NoSuchKey, NoSuchKeyText, null, key);
 
     private static CelValue OutOfRange(in CallSite site, CelValue index, CelList list) =>
         site.ErrorWithValue(CelErrorCode.IndexOutOfRange, OutOfRangeText, list, index);

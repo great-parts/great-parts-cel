@@ -6,12 +6,13 @@ using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Evaluation;
 
-// A planned expression: the root node, the number of slots, the size of the argument stack and the line
-// table of the text. It never changes, so it can be evaluated from any number of threads at once.
+// A planned expression: the root node, the number of slots, the size of the argument stack, the line
+// table of the text and the type index of the environment. It never changes, so it can be evaluated from any number of threads at once.
 internal sealed class Plan
 {
-    internal Plan(PlanNode root, int variableCount, int localCount, int stackSize, LineTable lines)
+    internal Plan(PlanNode root, int variableCount, int localCount, int stackSize, LineTable lines, TypeIndex types)
     {
+        Types = types;
         Root = root;
         VariableCount = variableCount;
         LocalCount = localCount;
@@ -31,6 +32,9 @@ internal sealed class Plan
     internal int StackSize { get; }
 
     internal LineTable Lines { get; }
+
+    // The type index of the environment the plan was planned with: the descriptions of object values.
+    internal TypeIndex Types { get; }
 
     // Evaluates the plan on the values of the bindings by name: the value of the root, or its error value.
     // Without a cost limit nothing is counted; with a token that cannot be canceled no event is counted.

@@ -31,6 +31,22 @@ internal static class Costs
         return Tenths(length);
     };
 
+    // ⌈L/10⌉ for a string key of length L of a map, which a lookup hashes and compares; for a JSON object, which the lookup walks
+    // whole, n · (1 + ⌈L/10⌉) for n properties, and nothing for a key that is not a string, which finds nothing without a walk.
+    internal static readonly CelCostFunction IndexKey = static arguments =>
+    {
+        if (arguments.Length != 2 || !arguments[0].TryGetMap(out CelMap? map))
+        {
+            return StringKey(arguments);
+        }
+
+        return arguments[1].TryGetString(out string? key) ? map.ProbeUnits(Tenths((ulong)key.Length)) : 0;
+    };
+
+    // n for an index of a JSON array of n elements, instead of the unit of the index of a list.
+    internal static readonly CelCostFunction IndexList = static arguments =>
+        arguments.Length > 0 && arguments[0].TryGetList(out CelList? list) ? list.IndexUnits : 0;
+
     // n, the size of the result of a concatenation of lists.
     internal static readonly CelCostFunction ListSizes = static arguments =>
     {

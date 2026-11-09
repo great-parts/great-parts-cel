@@ -22,7 +22,7 @@ internal static partial class ConversionRules
     // A .NET type of time, optional or decimal, directly or as an argument of Nullable<X>, IReadOnlyList<X> or IReadOnlyDictionary<XK, XV>.
     private static bool MentionsLaterPart(Type type)
     {
-        if (type == typeof(CelTimestamp) || type == typeof(DateTimeOffset) || type == typeof(CelDuration)
+        if (type == typeof(CelTimestamp) || type == typeof(DateTimeOffset) || type == typeof(DateTime) || type == typeof(CelDuration)
             || type == typeof(TimeSpan) || type == typeof(decimal)
 #if NET11_0_OR_GREATER
             || type == typeof(System.Numerics.Decimal128)
@@ -319,6 +319,9 @@ internal static partial class ConversionRules
                     return true;
                 case CelValueKind.Type when value.TryGetType(out CelType? celType):
                     result = celType;
+                    return true;
+                case CelValueKind.Object when value.TryGetObject(out object? instance):
+                    result = instance;
                     return true;
                 default:
                     return false;

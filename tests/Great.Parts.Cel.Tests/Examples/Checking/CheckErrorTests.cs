@@ -31,7 +31,7 @@ public sealed class CheckErrorTests
         AssertSingleError(expression, CelErrorCode.TypeMismatch, offset, message);
     }
 
-    // Only maps, dyn and type parameters have fields in this part: a selection on any other type is
+    // Only maps, objects, dyn and type parameters have fields: a selection on any other type is
     // NoSuchField at the selection, the "." — for a presence test, the node of has at its "(".
     [Theory]
     [Trait("Requirement", "F-4")]

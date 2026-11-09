@@ -16,7 +16,7 @@ internal static class Invocation
     internal static CelValue Call(Frame frame, OverloadBinding overload, ReadOnlySpan<CelValue> arguments, int offset, bool charges)
     {
         // A call that the expansion of a standard macro adds charges nothing, also inside its implementation.
-        var site = new CallSite(overload.Function, offset, frame.Lines, charges ? frame.Meter : null);
+        var site = new CallSite(overload.Function, offset, frame.Lines, charges ? frame.Meter : null, frame.Types, frame);
         if (overload.IsApplication)
         {
             return CallApplication(frame, overload, arguments, in site, offset);
@@ -68,9 +68,22 @@ internal static class Invocation
             return result;
         }
 
+        // A .NET collection that no source describes is TypeNotAccessible at the call, before the check of the result.
+        if (result.Kind == CelValueKind.Object && ObjectRules.TryRejectCollection(result, null, frame.Types, out CelValue rejected))
+        {
+            return EvaluationErrors.Placed(rejected, frame.Lines, offset);
+        }
+
         CelType resultType = overload.Declaration.ResultType;
-        return ValueTypeRules.Fits(result, resultType, frame.Meter)
-            ? result
-            : EvaluationErrors.ImplementationResultMismatch(overload, result, frame.Lines, offset);
+        TypeFit fit = ValueTypeRules.Fits(result, resultType, frame.Meter, false, frame.Types);
+        if (fit.IsFit)
+        {
+            return result;
+        }
+
+        // An error value that an element of the result is, is the value read: the call gives it its place.
+        return fit.ElementError is { } elementError
+            ? EvaluationErrors.Placed(CelValue.FromError(elementError), frame.Lines, offset)
+            : EvaluationErrors.ImplementationResultMismatch(overload, result, frame.Types, frame.Lines, offset);
     }
 }

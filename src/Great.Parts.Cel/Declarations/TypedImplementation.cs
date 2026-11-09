@@ -15,19 +15,19 @@ internal static class TypedImplementation
         (ReadOnlySpan<CelValue> arguments, in CallSite _) => implementation(arguments);
 
     internal static OverloadImplementation Of<TResult>(Func<TResult> implementation) =>
-        (ReadOnlySpan<CelValue> _, in CallSite _) => Result(implementation());
+        (ReadOnlySpan<CelValue> _, in CallSite site) => Result(implementation(), site.Function, site);
 
     internal static OverloadImplementation Of<T1, TResult>(string overloadId, Func<T1, TResult> implementation) =>
         (ReadOnlySpan<CelValue> arguments, in CallSite site) =>
             TryArgument(arguments, 0, overloadId, site, out T1 first, out CelValue error)
-                ? Result(implementation(first))
+                ? Result(implementation(first), overloadId, site)
                 : error;
 
     internal static OverloadImplementation Of<T1, T2, TResult>(string overloadId, Func<T1, T2, TResult> implementation) =>
         (ReadOnlySpan<CelValue> arguments, in CallSite site) =>
             TryArgument(arguments, 0, overloadId, site, out T1 first, out CelValue error)
             && TryArgument(arguments, 1, overloadId, site, out T2 second, out error)
-                ? Result(implementation(first, second))
+                ? Result(implementation(first, second), overloadId, site)
                 : error;
 
     internal static OverloadImplementation Of<T1, T2, T3, TResult>(string overloadId, Func<T1, T2, T3, TResult> implementation) =>
@@ -35,7 +35,7 @@ internal static class TypedImplementation
             TryArgument(arguments, 0, overloadId, site, out T1 first, out CelValue error)
             && TryArgument(arguments, 1, overloadId, site, out T2 second, out error)
             && TryArgument(arguments, 2, overloadId, site, out T3 third, out error)
-                ? Result(implementation(first, second, third))
+                ? Result(implementation(first, second, third), overloadId, site)
                 : error;
 
     internal static OverloadImplementation Of<T1, T2, T3, T4, TResult>(string overloadId, Func<T1, T2, T3, T4, TResult> implementation) =>
@@ -44,7 +44,7 @@ internal static class TypedImplementation
             && TryArgument(arguments, 1, overloadId, site, out T2 second, out error)
             && TryArgument(arguments, 2, overloadId, site, out T3 third, out error)
             && TryArgument(arguments, 3, overloadId, site, out T4 fourth, out error)
-                ? Result(implementation(first, second, third, fourth))
+                ? Result(implementation(first, second, third, fourth), overloadId, site)
                 : error;
 
     // The argument at the index converted to T, or the error ArgumentConversion at the call. A CEL null
@@ -68,16 +68,23 @@ internal static class TypedImplementation
 
         // Not read when the method returns false.
         value = default!;
-        error = site.Error(CelErrorCode.ArgumentConversion, ArgumentConversionText<T>.Format, overloadId, site.Function, index + 1, (byte)argument.Kind);
+        // An object argument is named by its description or its .NET type, resolved now: only an object that no declared
+        // parameter type took gets here.
+        error = argument.Kind == CelValueKind.Object
+            ? site.Error(
+                CelErrorCode.ArgumentConversion,
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"argument '{index + 1}' of overload '{overloadId}' of function '{site.Function}' cannot be converted from '{ObjectRules.TypeName(argument, site.Types)}' to .NET type '{typeof(T)}'"))
+            : site.Error(CelErrorCode.ArgumentConversion, ArgumentConversionText<T>.Format, overloadId, site.Function, index + 1, (byte)argument.Kind);
         return false;
     }
 
     // The build checks that the result type is an input type, so the conversion always has a row.
-    private static CelValue Result<T>(T value)
-    {
-        _ = ConversionRules.TryFromClr(value, out CelValue result);
-        return result;
-    }
+    // A set is sorted and a collection without an index copied, charged to the meter of the call; an error value that the
+    // conversion makes — a set whose elements CEL cannot sort, an undefined JSON element — has the place of the call.
+    private static CelValue Result<T>(T value, string overloadId, in CallSite site) =>
+        site.Placed(ConversionRules.FromResult(value, overloadId, site.Meter));
 
     // The message of ArgumentConversion to T: the overload identifier is the first part, the function name the
     // second, the number of the argument the number and the kind of its value the byte.

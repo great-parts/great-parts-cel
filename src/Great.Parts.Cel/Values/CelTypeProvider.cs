@@ -21,7 +21,9 @@ namespace Great.Parts.Cel.Values;
 /// <see cref="CelErrorCode.TypeNotDeclared"/>.
 /// </para>
 /// <para>
-/// A provider is immutable and can be shared between threads and environments.
+/// A provider is immutable and can be shared between threads and environments. The rules of types described
+/// at run time and the build errors of the sources are on the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/runtime-types.md">Types described at run time</see>.
 /// </para>
 /// </remarks>
 public abstract class CelTypeProvider
@@ -36,25 +38,38 @@ public abstract class CelTypeProvider
     /// <exception cref="ArgumentException"><paramref name="sourceName"/> is empty.</exception>
     protected CelTypeProvider(string sourceName, ReadOnlySpan<CelObjectType> objectTypes, ReadOnlySpan<CelEnumType> enumTypes)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(sourceName);
+        foreach (CelObjectType objectType in objectTypes)
+        {
+            ArgumentNullException.ThrowIfNull(objectType, nameof(objectTypes));
+        }
+
+        foreach (CelEnumType enumType in enumTypes)
+        {
+            ArgumentNullException.ThrowIfNull(enumType, nameof(enumTypes));
+        }
+
+        SourceName = sourceName;
+        ObjectTypes = [.. objectTypes];
+        EnumTypes = [.. enumTypes];
     }
 
     /// <summary>
     /// The name by which build errors refer to this source, for example the name of a type context class
     /// or the name given to <see cref="Create"/>.
     /// </summary>
-    public string SourceName => throw new NotImplementedException();
+    public string SourceName { get; }
 
     /// <summary>
     /// The descriptions of object types this source contributes to an environment.
     /// </summary>
-    public ImmutableArray<CelObjectType> ObjectTypes => throw new NotImplementedException();
+    public ImmutableArray<CelObjectType> ObjectTypes { get; }
 
     /// <summary>
     /// The descriptions of enumeration types this source contributes to an environment; their constants
     /// become identifiers of the environment.
     /// </summary>
-    public ImmutableArray<CelEnumType> EnumTypes => throw new NotImplementedException();
+    public ImmutableArray<CelEnumType> EnumTypes { get; }
 
     /// <summary>
     /// Creates a source of types described at run time, for example with
@@ -70,8 +85,10 @@ public abstract class CelTypeProvider
     /// <returns>The provider.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="sourceName"/> or an element of <paramref name="objectTypes"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="sourceName"/> is empty.</exception>
-    public static CelTypeProvider Create(string sourceName, params ReadOnlySpan<CelObjectType> objectTypes)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelTypeProvider Create(string sourceName, params ReadOnlySpan<CelObjectType> objectTypes) =>
+        new RuntimeTypeProvider(sourceName, objectTypes);
+
+    // A source of types described at run time, without enumerations.
+    private sealed class RuntimeTypeProvider(string sourceName, ReadOnlySpan<CelObjectType> objectTypes)
+        : CelTypeProvider(sourceName, objectTypes, []);
 }

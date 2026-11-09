@@ -60,7 +60,7 @@ internal sealed class ComprehensionPlanNode : PlanNode
             Initialize(frame, list.Count);
             for (int i = 0; i < list.Count; i++)
             {
-                if (!Step(frame, list[i]))
+                if (!Step(frame, list.Read(i, frame.Meter)))
                 {
                     break;
                 }
@@ -68,10 +68,25 @@ internal sealed class ComprehensionPlanNode : PlanNode
         }
         else if (range.TryGetMap(out CelMap? map))
         {
-            Initialize(frame, map.Count);
-            foreach (KeyValuePair<CelValue, CelValue> entry in map)
+            // A map that looks at all its keys for an error — a JSON object with a repeated name — fails at the range.
+            // The check charges a JSON object by its properties, before each is processed.
+            if (map.TryGetKeyError(frame.Meter, out CelValue keyError, leadingUnit: true))
             {
-                if (!Step(frame, entry.Key))
+                return EvaluationErrors.Placed(keyError, frame.Lines, _range.Offset);
+            }
+
+            // A view ordered by ascending key pays its sort before the first entry.
+            if (frame.Metered)
+            {
+                map.ChargeEnumeration(frame.Meter!);
+            }
+
+            Initialize(frame, map.Count);
+            // Only the keys are read: a map over a JSON object creates no value.
+            using IEnumerator<KeyValuePair<CelValue, CelValue>> entries = map.EnumerateEntries(frame.Meter, readValues: false);
+            while (entries.MoveNext())
+            {
+                if (!Step(frame, entries.Current.Key))
                 {
                     break;
                 }
@@ -79,7 +94,7 @@ internal sealed class ComprehensionPlanNode : PlanNode
         }
         else
         {
-            return EvaluationErrors.InvalidComprehensionRange(range.Kind, frame.Lines, _range.Offset);
+            return EvaluationErrors.InvalidComprehensionRange(range, frame.Types, frame.Lines, _range.Offset);
         }
 
         CelValue result = _result.Evaluate(frame);

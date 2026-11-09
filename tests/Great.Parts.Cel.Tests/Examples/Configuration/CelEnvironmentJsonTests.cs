@@ -10,9 +10,11 @@ using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Configuration;
 
-// The subset of the environment description in JSON of the walking skeleton: the keys name, description
-// and variables, with variables of simple types and dyn. Positions in the JSON text count UTF-16 code units of
-// the decoded text; the line and the column start at 1; a byte order mark is not counted.
+// The first examples of the environment description in JSON: the keys name, description and variables with
+// variables of simple types and dyn, the errors of unknown, repeated and unsupported keys, of values of the
+// wrong kind and of a type record that is wrong. The other keys, the type records and the rules of reading
+// have examples of their own in this directory. Positions in the JSON text count UTF-16 code units of the
+// decoded text; the line and the column start at 1; a byte order mark is not counted.
 [Trait("Requirement", "F-7")]
 public sealed class CelEnvironmentJsonTests
 {
@@ -92,12 +94,12 @@ public sealed class CelEnvironmentJsonTests
         AssertInvalidConfiguration(error, "environment JSON", offset, line, column);
     }
 
-    // A value of the wrong kind, an empty name and a type outside the subset are reported at the value;
+    // A value of the wrong kind, an empty name and a wrong type record are reported at the value;
     // a missing required key, "type" with "type_name" and "params" without "type_name" at the "{" of the object.
     [Theory]
     [InlineData(14, """{"variables": {}}""")]
     [InlineData(24, """{"variables": [{"name": "", "type": "int"}]}""")]
-    [InlineData(37, """{"variables": [{"name": "x", "type": "list<int>"}]}""")]
+    [InlineData(37, """{"variables": [{"name": "x", "type": "list<int, int>"}]}""")]
     [InlineData(37, """{"variables": [{"name": "x", "type": "~T"}]}""")]
     [InlineData(15, """{"variables": [{"type": "int"}]}""")]
     [InlineData(15, """{"variables": [{"name": "x", "type": "int", "type_name": "int"}]}""")]
@@ -120,21 +122,13 @@ public sealed class CelEnvironmentJsonTests
     }
 
     [Fact]
-    public void KeyOfALaterPart_IsAnErrorUntilItIsSupported()
-    {
-        CelError error = Assert.Single(Apply("""{"name": "m", "container": "a"}"""));
-
-        AssertInvalidConfiguration(error, "environment JSON 'm'", 14, 1, 15);
-    }
-
-    [Fact]
     public void EverySchemaError_IsReportedInTheOrderOfTheText()
     {
-        const string json = """{"nme": 1, "variables": [{"name": "x", "type": "list<int>"}], "stdlib": {}}""";
+        const string json = """{"nme": 1, "variables": [{"name": "x", "type": "list<int, int>"}], "stdlib": {}}""";
 
         ImmutableArray<CelError> errors = Apply(json);
 
-        Assert.Equal(new int?[] { 1, 47, 62 }, errors.Select(error => error.SourceLocation?.Offset));
+        Assert.Equal(new int?[] { 1, 47, 67 }, errors.Select(error => error.SourceLocation?.Offset));
     }
 
     [Theory]

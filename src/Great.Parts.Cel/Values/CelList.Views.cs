@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel.Values;
 
@@ -37,7 +38,9 @@ public abstract partial class CelList
     /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="elementConverter"/> is <see langword="null"/>.</exception>
     public static CelList CreateView<T>(IReadOnlyList<T> source, Func<T, CelValue> elementConverter)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(elementConverter);
+        return new ApplicationList<T>(source, elementConverter, recordedType: null, rowsSource: null);
     }
 
     /// <summary>
@@ -60,7 +63,9 @@ public abstract partial class CelList
     /// <exception cref="ArgumentNullException"><paramref name="source"/> or <paramref name="elementConverter"/> is <see langword="null"/>.</exception>
     public static CelList CreateCopy<T>(IReadOnlyCollection<T> source, Func<T, CelValue> elementConverter)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(elementConverter);
+        return ConversionRules.CopyList(source, elementConverter);
     }
 
     /// <summary>
@@ -102,6 +107,36 @@ public abstract partial class CelList
     /// </exception>
     public static CelList CreateSorted<T>(IReadOnlyCollection<T> source, Func<T, CelValue> elementConverter)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(elementConverter);
+        return ConversionRules.SortList(source, elementConverter);
     }
+
+    /// <summary>
+    /// The CEL type that the input rows recorded for a view they made from a typed .NET collection, so that the check
+    /// against a declared type does not descend into a view that already fits it; <see langword="null"/> for any other
+    /// list.
+    /// </summary>
+    internal virtual CelType? RecordedType => null;
+
+    /// <summary>
+    /// The value that the input rows converted to this view, which the place rule looks through; <see langword="null"/>
+    /// for a view that the application created and for any other list.
+    /// </summary>
+    internal virtual object? RowsSource => null;
+
+    /// <summary>
+    /// The units that an index of this list charges beyond the constant unit: n for a view over a JSON array, which the document
+    /// may walk to the element; 0 for any other list.
+    /// </summary>
+    internal virtual ulong IndexUnits => 0;
+
+    /// <summary>
+    /// The element at an index for an operation of an evaluation: a list over a JSON array charges the string of the element
+    /// before it creates it.
+    /// </summary>
+    /// <param name="index">The index, already checked against the size.</param>
+    /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
+    /// <returns>The element.</returns>
+    internal virtual CelValue Read(int index, IEvaluationMeter? meter) => this[index];
 }

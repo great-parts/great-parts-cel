@@ -88,6 +88,8 @@ internal sealed class ExprBuilder
         Map,
         TypeOf,
         DynIndex,
+        IndexVariable,
+        SelectVariable,
     }
 
     /// <summary>Builds an expression.</summary>
@@ -181,20 +183,79 @@ internal sealed class ExprBuilder
         {
             case ProfileType.DynType:
                 return pcg.OneIn(3) ? DynVariable() : Atom(pcg.Pick(ConcreteTargets));
-            case ProfileType.ListType:
-                return new Built(new ListLiteral([], TrailingComma()), 1, StaticType.ListOf(null));
-            case ProfileType.MapType:
-                return new Built(new MapLiteral([], TrailingComma()), 1, StaticType.MapOf(null, null));
             case ProfileType.TypeType:
                 return new Built(new Ident(pcg.Pick(ProfileTables.TypeIdentifiers)), 1, StaticType.Of(ProfileType.TypeType));
             case ProfileType.NullType:
                 return new Built(new NullLiteral(), 1, StaticType.Of(ProfileType.NullType));
             default:
-                List<ProfileVariable> variables = [.. ProfileTables.Variables.Where(variable => variable.Type == target)];
-                Expr atom = variables.Count > 0 && pcg.OneIn(2) ? new Ident(pcg.Pick(variables).Name) : Literal(target);
-                return new Built(atom, 1, StaticType.Of(target));
+                return pcg.OneIn(2) && VariableOf(target) is { } variable ? variable : EmptyOrLiteral(target);
         }
     }
+
+    // A literal of a scalar type, or an empty list or map literal.
+    private Built EmptyOrLiteral(ProfileType target) => target switch
+    {
+        ProfileType.ListType => new Built(new ListLiteral([], TrailingComma()), 1, StaticType.ListOf(null)),
+        ProfileType.MapType => new Built(new MapLiteral([], TrailingComma()), 1, StaticType.MapOf(null, null)),
+        _ => new Built(Literal(target), 1, StaticType.Of(target)),
+    };
+
+    // A variable of the manifest of a kind — a typed one included — written in one of its spellings, or null when there is none.
+    private Built? VariableOf(ProfileType kind)
+    {
+        List<ProfileVariable> variables = [.. ProfileTables.Variables.Where(variable => variable.Type == kind)];
+        return variables.Count == 0 ? null : VariableNode(pcg.Pick(variables));
+    }
+
+    // The node of a variable: its declared name, or a name through the container, with the static type of its declaration.
+    private Built VariableNode(ProfileVariable variable)
+    {
+        string spelling = pcg.Pick(variable.Spellings);
+        return new Built(new Ident(variable.Name) { Spelling = spelling == variable.Name ? null : spelling }, 1, variable.Declared);
+    }
+
+    // The type of the element of a list variable or of the value of a map variable.
+    private static StaticType ElementOf(ProfileVariable variable) =>
+        (variable.Type == ProfileType.ListType ? variable.Declared.Element : variable.Declared.Value)!;
+
+    // v[i] on a typed list variable, v[k] on a typed map variable, whose element or value fits the target.
+    private Built? IndexVariable(ProfileType target, int depth, int limit)
+    {
+        List<ProfileVariable> fitting =
+        [
+            .. ProfileTables.Variables.Where(candidate => candidate.Type is ProfileType.ListType or ProfileType.MapType
+                && StaticType.Fits(ElementOf(candidate), target)),
+        ];
+        if (limit < 3 || fitting.Count == 0)
+        {
+            return null;
+        }
+
+        ProfileVariable variable = pcg.Pick(fitting);
+        Built container = VariableNode(variable);
+        Built index = variable.Type == ProfileType.ListType
+            ? pcg.OneIn(2)
+                ? new Built(new IntLiteral(pcg.Below(5) - 1, IntegerForm.DecimalDigits), 1, StaticType.Of(ProfileType.IntType))
+                : Make(ProfileType.IntType, depth + 1, limit - 2)
+            : Key(null, variable.Declared, depth + 1, limit - 2);
+        return new Built(new Call(ProfileTables.Index, [container.Expr, index.Expr]), 1 + container.Nodes + index.Nodes, ElementOf(variable));
+    }
+
+    // m.f on a map variable with string keys, whose value type fits the target.
+    private Built? SelectVariable(ProfileType target, int limit)
+    {
+        ProfileVariable? variable = StringMapVariable();
+        if (limit < 2 || variable is null || !StaticType.Fits(ElementOf(variable), target))
+        {
+            return null;
+        }
+
+        Built container = VariableNode(variable);
+        return new Built(new Select(container.Expr, pcg.Pick(ProfileTables.FieldNames)), 1 + container.Nodes, ElementOf(variable));
+    }
+
+    private static ProfileVariable? StringMapVariable() =>
+        ProfileTables.Variables.FirstOrDefault(variable => variable.Type == ProfileType.MapType && variable.Declared.Key is { Kind: ProfileType.StringType });
 
     private Built DynVariable() => new(new Ident(pcg.OneIn(2) ? "x1" : "x2"), 1, StaticType.Dyn);
 
@@ -226,6 +287,7 @@ internal sealed class ExprBuilder
         List<(Form Form, int Weight)> forms =
         [
             (Form.Conditional, 1), (Form.IndexList, 1), (Form.IndexMap, 1), (Form.SelectMap, 1), (Form.SelectDyn, 1), (Form.DynWrap, 1),
+            (Form.IndexVariable, 1), (Form.SelectVariable, 1),
         ];
         forms.AddRange(target switch
         {
@@ -261,6 +323,8 @@ internal sealed class ExprBuilder
             Form.SelectMap => SelectMap(target, depth, limit),
             Form.SelectDyn => SelectDyn(depth, limit),
             Form.DynWrap => DynWrap(target, depth, limit),
+            Form.IndexVariable => IndexVariable(target, depth, limit),
+            Form.SelectVariable => SelectVariable(target, limit),
             Form.Simple => Simple(target, depth, limit),
             Form.Chain => Chain(depth, limit),
             Form.Equality => Equality(depth, limit),
@@ -574,14 +638,16 @@ internal sealed class ExprBuilder
         return new Built(new Call(ProfileTables.In, [element.Expr, container.Expr]), 1 + container.Nodes + element.Nodes, StaticType.Of(ProfileType.BoolType));
     }
 
-    // has(e.f) on a map literal that often has the field as a key, on any node of the type map, or on a node of the type dyn.
+    // has(e.f) on a map literal that often has the field as a key, on any node of the type map, on a map variable with string
+    // keys, or on a node of the type dyn.
     private Built? Has(int depth, int limit)
     {
         string field = pcg.Pick(ProfileTables.FieldNames);
-        Built operand = pcg.Below(3) switch
+        Built operand = pcg.Below(4) switch
         {
             0 when limit >= 4 && depth + 2 <= ProfileTables.MaxDepth => ValueMap(Target(), field, depth + 1, limit - 1).Map,
             1 => Make(ProfileType.MapType, depth + 1, limit - 1),
+            2 when StringMapVariable() is { } variable => VariableNode(variable),
             _ => DynExpr(depth + 1, limit - 1),
         };
         return new Built(new PresenceTest(operand.Expr, field), 1 + operand.Nodes, StaticType.Of(ProfileType.BoolType));
@@ -645,7 +711,7 @@ internal sealed class ExprBuilder
     }
 
     // The range of map and filter, whose result lists the elements in the order of the range: a list literal, a list literal
-    // in dyn(), or a map literal of at most one entry. cel-go iterates a map in no fixed order, so a map of more entries, and a
+    // in dyn(), a typed list variable, or a map literal of at most one entry. cel-go iterates a map in no fixed order, so a map of more entries, and a
     // dyn variable, which may be bound to one, would give results that differ from run to run. The range is built a level deeper
     // and a node smaller, as an operand is, so that dyn() always fits around it (the caller checks the room). A range whose
     // iteration variable has no static type — an empty literal, whose element is a free type variable that the body may bind to
@@ -659,6 +725,9 @@ internal sealed class ExprBuilder
             case 1:
                 Built map = MapOfAny(depth + 1, limit - 1, most: 1);
                 return map.Type?.Key is null or { Kind: ProfileType.TypeType } ? (Wrap(map), StaticType.Dyn) : (map, map.Type.Key);
+            case 2 when pcg.OneIn(2) && VariableOf(ProfileType.ListType) is { } listVariable:
+                // A list variable has a fixed order too: li.map(v, …), lx.filter(v, …); a map variable has none.
+                return (listVariable, listVariable.Type!.Element);
             default:
                 Built list = ListOfAny(depth + 1, limit - 1);
                 return list.Type?.Element is null or { Kind: ProfileType.TypeType }

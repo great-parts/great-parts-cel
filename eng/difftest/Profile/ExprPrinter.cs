@@ -120,7 +120,7 @@ internal static class ExprPrinter
                 WriteMap(text, map);
                 break;
             case Ident ident:
-                text.Append(ident.Name);
+                text.Append(ident.Spelling ?? ident.Name);
                 break;
             case Select select:
                 WriteMemberOperand(text, select.Operand);

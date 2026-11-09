@@ -254,10 +254,21 @@ public enum CelErrorCode
     BindingTypeMismatch = 3011,
 
     /// <summary>
-    /// A value in a <c>dyn</c> position has a .NET type that no type source of the environment
-    /// describes. This includes a <c>System.Decimal</c> or <c>Decimal128</c> value when the environment has
-    /// no <c>decimal</c> extension: on .NET 11 without the extension and on .NET 10. The message names the
-    /// .NET type. Location: the node that read the value.
+    /// A value has a .NET type that no type source of the environment describes, where the type is
+    /// needed: an operation needs the description of an object — to select a field or test its presence
+    /// by name, for <c>type</c>, or to compare two objects with <c>==</c>, <c>!=</c> or <c>in</c> — or a
+    /// <c>dyn</c> position holds a .NET collection — an instance of a type that implements
+    /// <c>IEnumerable</c>, other than <c>string</c>, a byte array,
+    /// <c>CelList</c> and <c>CelMap</c>, which no type source describes by its
+    /// type or a base class; an instance that a source describes is an object even if it is enumerable, and
+    /// an element of a collection of the application is described only where its description is needed — or
+    /// a <c>System.Decimal</c> or <c>Decimal128</c> value
+    /// when the environment has no <c>decimal</c> extension: on .NET 11 without the extension and on
+    /// .NET 10. Reading or passing an object on needs no description, and checking a value against a
+    /// declared type never gives this code: an instance without a description that does not belong to
+    /// the declared type is a mismatch of that place, such as <see cref="BindingTypeMismatch"/>. The
+    /// message names the .NET type. Location: for an object, the node that needs its description; for a
+    /// collection or a decimal value, the node that read the value.
     /// </summary>
     TypeNotAccessible = 3012,
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 
@@ -25,7 +26,9 @@ namespace Great.Parts.Cel.Values;
 /// would hide missing data. An expression tests presence with <c>has()</c> first. A read delegate that
 /// returns a value not of the declared type of the field gives an error
 /// <see cref="CelErrorCode.FieldTypeMismatch"/>; an exception of a delegate becomes an error
-/// <see cref="CelErrorCode.ApplicationException"/>. Object literals of such types are not supported.
+/// <see cref="CelErrorCode.ApplicationException"/>. Object literals of such types are not supported. The rules
+/// of reading a field, of presence and of <c>null</c> are on the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/runtime-types.md">Types described at run time</see>.
 /// </para>
 /// <para>
 /// The builder is not thread-safe; the descriptions it builds are immutable and can be shared between
@@ -35,6 +38,11 @@ namespace Great.Parts.Cel.Values;
 public sealed class CelObjectTypeBuilder<TCarrier>
     where TCarrier : class
 {
+    private readonly string _name;
+    private readonly FieldList _fields = new();
+    private readonly List<Func<TCarrier, CelValue>> _reads = [];
+    private readonly List<Func<TCarrier, bool>?> _has = [];
+
     /// <summary>
     /// Starts the description of a type.
     /// </summary>
@@ -43,7 +51,7 @@ public sealed class CelObjectTypeBuilder<TCarrier>
     /// <exception cref="ArgumentException"><paramref name="name"/> is not a full CEL name.</exception>
     public CelObjectTypeBuilder(string name)
     {
-        throw new NotImplementedException();
+        _name = FieldList.CheckTypeName(name);
     }
 
     /// <summary>
@@ -65,7 +73,11 @@ public sealed class CelObjectTypeBuilder<TCarrier>
     /// </exception>
     public CelObjectTypeBuilder<TCarrier> AddField(string name, CelType type, Func<TCarrier, CelValue> read, Func<TCarrier, bool>? has = null)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(read);
+        _fields.Add(name, type);
+        _reads.Add(read);
+        _has.Add(has);
+        return this;
     }
 
     /// <summary>
@@ -73,8 +85,30 @@ public sealed class CelObjectTypeBuilder<TCarrier>
     /// fields do not change descriptions built before.
     /// </summary>
     /// <returns>The description, with <see cref="CelObjectType.ClrType"/> <see langword="null"/>.</returns>
-    public CelObjectType Build()
+    public CelObjectType Build() => new CarrierObjectType(_name, _fields.ToArray(), [.. _reads], [.. _has]);
+
+    // A type described at run time over the carrier class: each field is read and tested by its delegates.
+    private sealed class CarrierObjectType(
+        string name,
+        ReadOnlySpan<CelObjectField> fields,
+        Func<TCarrier, CelValue>[] reads,
+        Func<TCarrier, bool>?[] has)
+        : CelObjectType(name, fields)
     {
-        throw new NotImplementedException();
+        internal override bool Belongs(object instance) => instance is TCarrier;
+
+        internal override bool IsDictionaryCarrier => typeof(TCarrier) == typeof(IReadOnlyDictionary<string, object?>);
+
+        protected internal override CelValue GetField(object instance, int number) =>
+            TryReadField(instance, number, out CelValue value) ? value : ObjectRules.FieldNotSet(this, number);
+
+        protected internal override bool HasField(object instance, int number)
+        {
+            var carrier = (TCarrier)instance;
+            return has[number] is Func<TCarrier, bool> present ? present(carrier) : reads[number](carrier).Kind != CelValueKind.Null;
+        }
+
+        internal override bool TryReadField(object instance, int number, out CelValue value) =>
+            ObjectRules.TryReadCarrierField(this, number, (TCarrier)instance, reads[number], has[number], out value);
     }
 }

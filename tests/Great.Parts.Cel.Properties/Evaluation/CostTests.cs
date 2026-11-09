@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text.Json;
 using System.Threading;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
@@ -36,6 +38,14 @@ public sealed class CostTests
     // depth of the nodes) and the error value. A program that allocates nothing from data, size(x) + size(x) + size(x) + size(x)
     // with the limits 1 and 2, allocates 1 376 bytes; the largest count in a row below is 1 408.
     private const ulong StopBytes = 2048;
+
+    // The bytes of the error value that ends an evaluation, over the units charged: its text, which names the variable, the field
+    // or the types, and the error itself. They do not depend on the data, and an evaluation ends with one error at most. The
+    // largest excess measured on 6 000 cases of the generator is 128.
+    private const ulong ErrorBytes = 256;
+
+    // The documents of the rows of JSON objects, by size.
+    private static readonly ConcurrentDictionary<int, JsonDocument> JsonObjects = new();
 
     // The variables of the rows are of type dyn, so that the check of a binding charges nothing. The application functions
     // of the rows of copies return the count or the length of their argument without reading its elements.
@@ -82,6 +92,8 @@ public sealed class CostTests
     [InlineData("copy, list(int)")]
     [InlineData("copy, map(string, int)")]
     [InlineData("copy, bytes")]
+    [InlineData("size, JSON object")]
+    [InlineData("in, JSON object")]
     public static void Row_AllocatesWithinCost(string row)
     {
         double largest = 0;
@@ -138,8 +150,8 @@ public sealed class CostTests
             return $"compile error {compiled.Errors[0].Code}: {compiled.Errors[0].Message}";
         }
 
-        (long bytes, ulong units, _) = Measure(compiled.Program, testCase.Bindings, ulong.MaxValue);
-        return (ulong)bytes <= units * B ? null : Failure("case", bytes, units);
+        (long bytes, ulong units, CelValue result) = Measure(compiled.Program, testCase.Bindings, ulong.MaxValue);
+        return (ulong)bytes <= units * B + (result.Kind == CelValueKind.Error ? ErrorBytes : 0) ? null : Failure("case", bytes, units);
     }
 
     // The smallest bytes allocated by Run in the evaluations after the first, the units it charged (at the stop, when the limit
@@ -200,6 +212,10 @@ public sealed class CostTests
             "copy, list(int)" => Bound(bindings, "count_list(x)", IntList(size)),
             "copy, map(string, int)" => Bound(bindings, "count_map(x)", StringKeyMap(size)),
             "copy, bytes" => Bound(bindings, "length(x)", CelValue.FromBytes(new byte[size])),
+
+            // The names of a JSON object are checked for repeats by a set that grows with the names charged, each name 1 + ⌈L/10⌉.
+            "size, JSON object" => BoundJson(bindings, "size(x)", size),
+            "in, JSON object" => BoundJson(bindings, "'k0' in x", size),
             _ => throw new ArgumentException($"No row {row}.", nameof(row)),
         };
 
@@ -209,6 +225,13 @@ public sealed class CostTests
     private static string Bound(CelBindings bindings, string text, CelValue value)
     {
         bindings.Add("x", value);
+        return text;
+    }
+
+    // A JSON object of the size with the names k0, k1, …, parsed once for each size and kept to the end of the run.
+    private static string BoundJson(CelBindings bindings, string text, int size)
+    {
+        bindings.Add("x", JsonObjects.GetOrAdd(size, static count => JsonDocument.Parse("{" + Join(index => "\"k" + index.ToString(CultureInfo.InvariantCulture) + "\": 1", count) + "}")).RootElement);
         return text;
     }
 

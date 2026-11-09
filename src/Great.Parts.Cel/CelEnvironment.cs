@@ -92,7 +92,7 @@ public sealed class CelEnvironment
         ArgumentNullException.ThrowIfNull(expression);
 
         // The expected type is derived before the text is read, so the same T and options throw for every text.
-        CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options));
+        CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
         CelSourceLocation? start = options?.SourceLocation;
         ParseResult parsed = Parse(expression);
         if (!parsed.IsSuccess)
@@ -183,7 +183,19 @@ public sealed class CelEnvironment
     public CelEnvironmentBuilder ToBuilder() => new(_standardLibrary, _declarationSet);
 
     // The declarations of variables as the builder collected them.
-    internal ImmutableArray<CelVariableDecl> VariableDeclarations => _declarationSet.Variables;
+    internal ImmutableArray<CelVariableDecl> VariableDeclarations
+    {
+        get
+        {
+            ImmutableArray<CelVariableDecl>.Builder variables = ImmutableArray.CreateBuilder<CelVariableDecl>(_declarationSet.Variables.Length);
+            foreach (SourcedDeclaration<CelVariableDecl> variable in _declarationSet.Variables)
+            {
+                variables.Add(variable.Value);
+            }
+
+            return variables.MoveToImmutable();
+        }
+    }
 
     // The declarations of the standard library version and of the application, indexed for checking
     // and evaluation.

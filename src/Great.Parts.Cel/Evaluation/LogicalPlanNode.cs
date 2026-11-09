@@ -59,7 +59,7 @@ internal abstract class LogicalPlanNode : PlanNode
             ? CelValue.FromBoolean(!_decisive)
             : values[failed].Kind == CelValueKind.Error
                 ? values[failed]
-                : new CallSite(_function, Offset, frame.Lines).NoMatchingOverload(values);
+                : new CallSite(_function, Offset, frame.Lines, types: frame.Types).NoMatchingOverload(values);
         frame.Pop(Operands.Length);
         return result;
     }

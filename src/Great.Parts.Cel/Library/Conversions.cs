@@ -36,9 +36,19 @@ internal static class Conversions
     private static readonly Func<CelError, string> InvalidUtf8Text = static error =>
         "invalid argument to '" + (string)error.First! + "': invalid UTF-8 at byte " + error.Number.ToString(CultureInfo.InvariantCulture);
 
-    // type, (A) -> type(A): the runtime type with its parameters erased.
-    internal static CelValue Type(ReadOnlySpan<CelValue> arguments, in CallSite _) =>
-        CelValue.FromType(ValueTypeRules.TypeOf(arguments[0]));
+    // type, (A) -> type(A): the runtime type with its parameters erased; of an object value its object type, and an
+    // instance without a description is TypeNotAccessible at the call.
+    internal static CelValue Type(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        if (arguments[0].Kind != CelValueKind.Object)
+        {
+            return CelValue.FromType(ValueTypeRules.TypeOf(arguments[0]));
+        }
+
+        return ObjectRules.TryDescribe(arguments[0], site.Types, out CelObjectType? description, out CelValue error)
+            ? CelValue.FromType(description!.Type)
+            : site.Placed(error);
+    }
 
     // to_dyn, (A) -> dyn.
     internal static CelValue ToDyn(ReadOnlySpan<CelValue> arguments, in CallSite _) => arguments[0];

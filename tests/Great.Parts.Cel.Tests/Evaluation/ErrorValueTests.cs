@@ -185,7 +185,7 @@ public sealed class ErrorValueTests
         seventeen[16] = CelValue.FromBoolean(true);
         CelValue elements = CelValue.FromList(CelList.Create(CelValue.FromInt64(4), CelValue.FromBoolean(true)));
         CelValue mixed = CelValue.FromList(CelList.Create(CelValue.FromInt64(1), CelValue.FromString("z")));
-        var variable = new VariablePlanNode(Offset, 0, "ys", CelType.ListOf(CelType.Int));
+        var variable = new VariablePlanNode(Offset, 0, "ys", CelType.ListOf(CelType.Int), TypeIndex.Empty);
         var unplaced = new CelError(CelErrorCode.ConversionRange, CelErrorStage.Evaluate, "18446744073709551615 is out of the range of int", default, null, null);
         OverloadImplementation narrow = TypedImplementation.Of<int, int>("narrow_int", value => value);
         return name switch
@@ -197,15 +197,15 @@ public sealed class ErrorValueTests
             "CostLimitExceeded" => (() => EvaluationErrors.CostLimitExceeded(ulong.MaxValue, Lines, Offset), 0),
             "ApplicationException" => (() => EvaluationErrors.ApplicationException(Thrown, Application, false, Lines, Offset), 0),
             "ApplicationException, cost function" => (() => EvaluationErrors.ApplicationException(Thrown, Application, true, Lines, Offset), 0),
-            "ImplementationResultMismatch" => (() => EvaluationErrors.ImplementationResultMismatch(ListResult, mixed, Lines, Offset), 0),
+            "ImplementationResultMismatch" => (() => EvaluationErrors.ImplementationResultMismatch(ListResult, mixed, TypeIndex.Empty, Lines, Offset), 0),
             "NoSuchField" => (() => EvaluationErrors.NoSuchField("g", CelValueKind.Map, Lines, Offset), 0),
             "FieldSelectionNotSupported" => (() => EvaluationErrors.FieldSelectionNotSupported(CelValueKind.Int, "g", Lines, Offset), 0),
-            "InvalidComprehensionRange" => (() => EvaluationErrors.InvalidComprehensionRange(CelValueKind.Int, Lines, Offset), 0),
+            "InvalidComprehensionRange" => (() => EvaluationErrors.InvalidComprehensionRange(CelValue.FromInt64(1), TypeIndex.Empty, Lines, Offset), 0),
             "DuplicateMapKey, string" => (() => EvaluationErrors.DuplicateMapKey(CelValue.FromString("a\"b\n"), Lines, Offset), 0),
             "DuplicateMapKey, int" => (() => EvaluationErrors.DuplicateMapKey(CelValue.FromInt64(-3), Lines, Offset), 0),
             "DuplicateMapKey, uint" => (() => EvaluationErrors.DuplicateMapKey(CelValue.FromUInt64(7), Lines, Offset), 0),
             "DuplicateMapKey, bool" => (() => EvaluationErrors.DuplicateMapKey(CelValue.FromBoolean(true), Lines, Offset), 0),
-            "UnsupportedMapKeyType" => (() => EvaluationErrors.UnsupportedMapKeyType(CelValueKind.Double, Lines, Offset), 0),
+            "UnsupportedMapKeyType" => (() => EvaluationErrors.UnsupportedMapKeyType(CelValue.FromDouble(1.5), TypeIndex.Empty, Lines, Offset), 0),
             "InsufficientStack" => (() => EvaluationErrors.InsufficientStack(Lines, Offset), 0),
             "InternalError" => (() => EvaluationErrors.InternalError(Thrown, Lines, Offset), 0),
             "Given message" => (() => site.Error(CelErrorCode.DivisionByZero, "division by zero"), 0),

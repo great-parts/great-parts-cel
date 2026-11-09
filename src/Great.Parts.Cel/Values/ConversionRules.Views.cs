@@ -57,6 +57,13 @@ internal static partial class ConversionRules
         [MaybeNull] out IReadOnlyDictionary<TKey, TValue> result)
         where TKey : notnull
     {
+        // A map with a key error, a JSON object with a repeated name, has no copy: its keys are not distinct.
+        if (map.TryGetKeyError(null, out _))
+        {
+            result = null;
+            return false;
+        }
+
         int count = map.Count;
         meter?.Charge(1 + (2 * (ulong)count));
         if (count == 0)

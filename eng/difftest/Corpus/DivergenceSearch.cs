@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Cel.Expr;
 using Great.Parts.Cel.Eng.Difftest.Compare;
 using Great.Parts.Cel.Eng.Difftest.Profile;
 using Great.Parts.Cel.Eng.Difftest.Sides;
@@ -64,7 +65,7 @@ internal sealed class DivergenceSearch
             return null;
         }
 
-        GeneratedCase minimized = Minimizer.Minimize(generated, candidate => Outcomes(candidate).Kind is not null, AcceptsBodyInstance);
+        GeneratedCase minimized = Minimizer.Minimize(generated, Classify, AcceptsBodyInstance, LibraryValue);
         (SideOutcome libraryOutcome, SideOutcome oracleOutcome, DivergenceKind? kind) = Outcomes(minimized);
         if (kind is not { } divergenceKind)
         {
@@ -90,10 +91,31 @@ internal sealed class DivergenceSearch
         return divergence;
     }
 
+    // How the outcomes of a node on the way down agree: they diverge, or agree because both sides give an error, or agree
+    // otherwise. A node is evaluated once on each side, whatever the verdict is used for.
+    private NodeVerdict Classify(GeneratedCase generated)
+    {
+        (SideOutcome libraryOutcome, SideOutcome oracleOutcome, _) = Outcomes(generated);
+        return VerdictOf(libraryOutcome, oracleOutcome);
+    }
+
+    /// <summary>
+    /// The verdict on a node of the descent: the outcomes diverge, or agree because both sides give an error, whatever its
+    /// cause, or agree otherwise.
+    /// </summary>
+    /// <param name="library">The outcome of the node on the library.</param>
+    /// <param name="oracle">The outcome of the node on cel-go.</param>
+    internal static NodeVerdict VerdictOf(SideOutcome library, SideOutcome oracle) =>
+        DivergenceKinds.Compare(library, oracle) is not null ? NodeVerdict.Diverges : library.IsError ? NodeVerdict.AgreesInError : NodeVerdict.Agrees;
+
     // A minimized instance of a body of a macro replaces the macro only when its signature is the signature of the macro or a
     // known one: a divergence under a macro that nobody knows stays the signature of the macro.
     private bool AcceptsBodyInstance(GeneratedCase macro, GeneratedCase instance) =>
         SignatureOf(instance) is { } signature && (known.Contains(signature) || signature == SignatureOf(macro));
+
+    // The value of a case on the library, which gives the elements of a macro range that is not a literal; the range agrees on
+    // both sides, since the descent has compared it as a child before.
+    private Value? LibraryValue(GeneratedCase generated) => library.Evaluate(generated.Text, generated.Bindings).Result;
 
     private string? SignatureOf(GeneratedCase generated)
     {

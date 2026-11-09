@@ -63,7 +63,8 @@ The charge of every pair is made before the pair is compared, so a comparison th
 | two strings | 1 + ⌈(La + Lb)/10⌉, with the lengths of the two strings |
 | two `bytes` | 1 + ⌈(Ba + Bb)/10⌉, with the lengths of the two in bytes |
 | two lists | 1 when the sizes differ; otherwise 1 + Σ eq(aᵢ, bᵢ) by index, in order, up to the first unequal pair |
-| two maps | 1 when the sizes differ; otherwise 1 + Σ over the keys k of a in its order: the lookup of k in b (the classes Read and Read with a string key) + eq(a[k], b[k]), up to the first unequal pair |
+| two maps | 1 when the sizes differ; otherwise 1 + Σ over the keys k of a in its order: the lookup of k in b (the classes Read and Read with a string key) + eq(a[k], b[k]), up to the first unequal pair. For a JSON object the lookup is the row "key lookup in a JSON object" of [Data of the application](#data-of-the-application), and its size and enumeration are the row "`size`, enumeration of a JSON object" |
+| two objects of the application | 1 + Σ over the fields compared, in the order of the description: the reads of the field on both sides (1 each) + eq of the two values, up to the first unequal pair. Two objects of different descriptions are 1 |
 
 Ordering (`<`, `<=`, `>`, `>=`) of numbers and `bool` is 1, of strings 1 + ⌈(La + Lb)/10⌉, of `bytes` 1 + ⌈(Ba + Bb)/10⌉.
 
@@ -113,6 +114,29 @@ Everything else that the expansion adds is part of the step and costs 0: the rea
 | `all`, `exists` | 1 for each executed step; the steps after a short circuit are not executed |
 | `exists_one` | 1 for each step, without a short circuit |
 | `map` (2 and 3 arguments), `filter` | 1 for each step; the result is a list: 1 for the empty list and 1 for each element added |
+
+## Data of the application
+
+The rows below are charged by the node or the implementation that does the work, before it, as the rows of the sections above. The rows for a JSON object replace the cost of the same operations on a map, they are not added to it: the key lookup (an index, a selection, `has()`) instead of the class Read with a string key and the index of a map, `in` instead of `in` on a map, and "`size`, enumeration" instead of the `size` of a map. The row for the index of a JSON array replaces the unit that the index of a list costs.
+
+| Operation | Units |
+| :- | :- |
+| `e.f` and `has(e.f)` on an object of the application: the read of a field | 1, whatever the field holds |
+| the enumeration of a map view of an application dictionary that is ordered by ascending key ([Objects and collections](type-mapping.md#objects-and-collections)), n entries | 1 + c · n · ⌈log₂(n + 1)⌉ before the first entry, at each enumeration, also when the view keeps its sorted keys; c is 1 for integer, `bool` and enumeration keys, and 1 + ⌈2 · Lmax/10⌉ for `string` and `Guid` keys (a `Guid` key is a string of 36 characters), Lmax the length of the longest key. The conversion of a result to a .NET type enumerates without this charge, as it is not charged |
+| the key lookup of a key of length L in a JSON object of n properties: an index, a selection, `has()` | 1 + n · (1 + ⌈L/10⌉). The lookup passes over all n properties and counts the matches, so that a repeated name is found |
+| `size` and the enumeration of a JSON object of n properties | 1 + Σ (1 + ⌈Lᵢ/10⌉) over the properties, the 1 being the unit of the call for `size` and charged by the enumeration itself for a comprehension and for an equality, Lᵢ the length of the name of the property as it is written in the document, in UTF-8 bytes; the term of a property is charged before the property is processed. The operation checks the names for a repeat, and an escaped name is decoded for it |
+| `in` on a JSON object, a key of length L | the row above for `size` + ⌈L/10⌉ |
+| the equality of two JSON objects | the row of two maps in [Equality and order](#equality-and-order): the lookup in the second object is the row of the key lookup, after the check of both objects for repeated names |
+| the index of a JSON array of n elements | 1 + n, instead of the unit of the index of a list: the array finds an element in constant time only when it has no nested values, otherwise it walks to the index |
+| a string of JSON, at each read | 1 + ⌈L/10⌉, charged before the string is created. L is the length in UTF-8 bytes of the string as it is written in the document, without its quotes and with its escape sequences; for a string without escape sequences and without characters outside ASCII it is the length of the string. The node that reads the string charges it: a selection or an index that finds it, the index of an array, the element of a range or of a comparison, and the identifier of a variable bound to a JSON string. The names of an enumeration are inside the row above and are not charged again; `has()` and `in` read no value |
+| the equality of two objects of the application | the row of two objects in [Equality and order](#equality-and-order) |
+| a set that an application function returns, read as a list, n elements | 1 + c · n · ⌈log₂(n + 1)⌉, charged by the call after the implementation and before the sort; c is as above for `string` and `bytes` elements (Lmax the longest) and 1 for the others |
+| a collection without an index that an application function returns, n elements | 1 + n, charged by the call after the implementation and before the copy |
+| the check of a value against a declared type | the section [Values checked against their declared type](#values-checked-against-their-declared-type); a typed view that already fits costs 0 |
+
+A set and a collection without an index that are bound to a variable are converted by `CelBindings.Add` before the evaluation and cost nothing at the evaluation.
+
+Not in this version of the page: the rows of the members of the types of .NET that the source generator reads (a structure member, a set or a collection as a member) and of the unpacking of `google.protobuf.Any` and a protobuf message literal. They come with their parts.
 
 ## Values checked against their declared type
 

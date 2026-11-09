@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel.Values;
 
@@ -66,6 +67,79 @@ public abstract partial class CelMap
         Func<TValue, CelValue> valueConverter,
         bool keepSourceOrder)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueConverter);
+        if (!ConversionRules.IsMapKeyType<TKey>())
+        {
+            throw new ArgumentException("The key type " + typeof(TKey) + " is not a type of a CEL map key.", nameof(source));
+        }
+
+        return new ApplicationMap<TKey, TValue>(source, valueConverter, keepSourceOrder, recordedType: null, rowsSource: null);
     }
+
+    /// <summary>
+    /// The CEL type that the input rows recorded for a view they made from a typed .NET dictionary; <see langword="null"/>
+    /// for any other map.
+    /// </summary>
+    internal virtual CelType? RecordedType => null;
+
+    /// <summary>
+    /// The value that the input rows converted to this view, which the place rule looks through; <see langword="null"/>
+    /// for a view that the application created and for any other map.
+    /// </summary>
+    internal virtual object? RowsSource => null;
+
+    /// <summary>
+    /// Checks the map for an error that any operation which looks at all its keys — <c>size</c>, enumeration, `in` and
+    /// equality — gives before its result: a repeated name of a JSON object.
+    /// </summary>
+    /// <param name="meter">The meter of an evaluation with a cost limit, which the check charges property by property before each is processed; <see langword="null"/> charges nothing.</param>
+    /// <param name="error">The error value, without a place, when the map has one.</param>
+    /// <param name="leadingUnit">
+    /// Whether the check charges the leading 1 of the row of its cost, <c>1 + Σ</c>: an operation that has no unit of its own for it,
+    /// such as the range of a comprehension and the two sides of an equality; <c>size</c> and <c>in</c> have it in the unit of the call.
+    /// </param>
+    /// <returns><see langword="true"/> when the map has the error.</returns>
+    internal virtual bool TryGetKeyError(IEvaluationMeter? meter, out CelValue error, bool leadingUnit = false)
+    {
+        error = default;
+        return false;
+    }
+
+    /// <summary>
+    /// The units of a lookup of a string key beyond the constant unit of the operation: ⌈L/10⌉ for L the length of the key,
+    /// and for a JSON object, which the lookup walks whole, n · (1 + ⌈L/10⌉) for n properties.
+    /// </summary>
+    /// <param name="keyTenths">⌈L/10⌉ of the key.</param>
+    /// <returns>The units.</returns>
+    internal virtual ulong ProbeUnits(ulong keyTenths) => keyTenths;
+
+    /// <summary>
+    /// Charges the start of an enumeration that the operation makes, before its first entry: the sort of a view that is
+    /// ordered by ascending key; nothing for any other map.
+    /// </summary>
+    /// <param name="meter">The meter of an evaluation with a cost limit.</param>
+    internal virtual void ChargeEnumeration(IEvaluationMeter meter)
+    {
+    }
+
+    /// <summary>
+    /// The lookup of a key by an operation of an evaluation: a map over a JSON object charges the string of the value it
+    /// finds before it creates it.
+    /// </summary>
+    /// <param name="key">The key.</param>
+    /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
+    /// <param name="readValue"><see langword="false"/> for an operation that only asks whether the key is present, such as <c>has</c> and <c>in</c>: a map over a JSON object then creates no value.</param>
+    /// <param name="value">The value of the key.</param>
+    /// <returns><see langword="true"/> when the map has the key.</returns>
+    internal virtual bool TryRead(CelValue key, IEvaluationMeter? meter, bool readValue, out CelValue value) => TryGetValue(key, out value);
+
+    /// <summary>
+    /// The enumerator of the entries for an operation of an evaluation, as <see cref="GetEnumerator"/> gives it, with the
+    /// string of a value of a JSON object charged before it is created.
+    /// </summary>
+    /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
+    /// <param name="readValues"><see langword="false"/> for an operation that reads only the keys: a map over a JSON object then creates no value.</param>
+    /// <returns>The enumerator.</returns>
+    internal virtual IEnumerator<KeyValuePair<CelValue, CelValue>> EnumerateEntries(IEvaluationMeter? meter, bool readValues) => GetEnumerator();
 }

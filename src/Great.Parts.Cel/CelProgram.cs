@@ -101,9 +101,18 @@ public sealed class CelProgram<T>
             return new CelEvalResult<T>([InDocument(error, start)]);
         }
 
-        return ConversionRules.TryToResult(value, resultType, out T? result, out string? actualType)
-            ? new CelEvalResult<T>(result)
-            : new CelEvalResult<T>([InDocument(ConversionRules.ResultConversionError<T>(actualType, plan.Lines.GetLocation(plan.Root.Offset)), start)]);
+        if (ConversionRules.TryToResult(value, resultType, out T? result, out string? actualType, out CelError? elementError, plan.Types))
+        {
+            return new CelEvalResult<T>(result);
+        }
+
+        // An error value that an element of the result is, is the one error of the result, with the place of the root.
+        if (elementError is not null && EvaluationErrors.Placed(CelValue.FromError(elementError), plan.Lines, plan.Root.Offset).TryGetError(out CelError? placed))
+        {
+            return new CelEvalResult<T>([InDocument(placed, start)]);
+        }
+
+        return new CelEvalResult<T>([InDocument(ConversionRules.ResultConversionError<T>(actualType, plan.Lines.GetLocation(plan.Root.Offset)), start)]);
     }
 
     private static CelError InDocument(CelError error, CelSourceLocation? start) =>

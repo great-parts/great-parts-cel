@@ -27,13 +27,13 @@ public sealed class TimeoutsTests
         // project. Stage 3: the test count of each published target.
         string[] expected =
         [
-            "build=102",
-            .. Enumerable.Repeat("jit=112", 4),
+            "build=139",
+            .. Enumerable.Repeat("jit=120", 4),
             "clean=",
-            "publish=201",
+            "publish=303",
             "aot run=120",
             "clean=",
-            "publish=201",
+            "publish=303",
             "aot run=120",
             .. Enumerable.Repeat("test-count=12", 2),
         ];
@@ -47,14 +47,14 @@ public sealed class TimeoutsTests
 
         Step[] steps = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
 
-        // The build of eng/checks and of the library: 102 s; the examples: 29 s; the error codes page: 12 s; the directory of the
+        // The build of eng/checks and of the library: 139 s; the examples: 46 s; the error codes page: 12 s; the directory of the
         // report: in this process, no limit; lychee: 2 s; the links of the report: 12 s. Literals, not the constants of Timeouts,
         // so a changed constant fails the test.
         Assert.Equal(
             [
-                "dotnet build eng/checks -c Release=102",
-                "dotnet build src/Great.Parts.Cel -c Release=102",
-                "dotnet run --project eng/checks -c Release --no-build -- examples=29",
+                "dotnet build eng/checks -c Release=139",
+                "dotnet build src/Great.Parts.Cel -c Release=139",
+                "dotnet run --project eng/checks -c Release --no-build -- examples=46",
                 "dotnet run --project eng/checks -c Release --no-build -- error-codes --page docs/error-codes.md=12",
                 "docs: create artifacts/docs=",
                 "lychee --offline --include-fragments --format json --output artifacts/docs/lychee.json --config lychee.toml README.md docs src/**/*.cs=3",
@@ -83,10 +83,10 @@ public sealed class TimeoutsTests
 
         Step[] steps = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
 
-        // The restore of the tool and the preparation of the tool: 241 s; the build of eng/checks: 102 s; the reading of the
+        // The restore of the tool and the preparation of the tool: 241 s; the build of eng/checks: 139 s; the reading of the
         // report by eng/checks mutation: 12 s. Literals, not the constants of Timeouts, so a changed constant fails the test.
         Assert.Equal(
-            ["tool=241", "build=102", "stryker=241", "run=12"],
+            ["tool=241", "build=139", "stryker=241", "run=12"],
             steps.Select(step => $"{step.Arguments[0]}={step.Timeout?.TotalSeconds}"));
         Assert.Equal(["stryker"], steps.Where(step => step.Extend is not null).Select(step => step.Arguments[0]));
     }
