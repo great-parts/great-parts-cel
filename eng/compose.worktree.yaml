@@ -1,10 +1,16 @@
 # Second Compose file for a run from a linked git worktree (docs/design/eng-test.md, "Linked worktrees"):
 #   ENG_GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir)" \
+#   ENG_WORKTREE_NAME="$(basename "$(git rev-parse --show-toplevel)")" \
 #     docker compose -f eng/compose.yaml -f eng/compose.worktree.yaml run --rm test
 # /repo/.git of a linked worktree is a file with a host path that the container cannot reach. The two read-only
 # mounts give git the common git directory at /git and the file artifacts/worktree/gitdir in place of /repo/.git;
 # the host file stays unchanged. A missing source stops the run instead of creating a host directory. Every service
 # that runs eng/run gets them: test, mutate, docs, difftest and min-sdk.
+# The project name carries the name of the working copy, so runs from different working copies never share containers, networks
+# or the service oracle (docs/design/eng-test.md, "Linked worktrees"); the main working copy keeps the name of eng/compose.yaml.
+# Compose lowercases the name. The named volumes keep their names in every project.
+name: great-parts-cel-eng-${ENG_WORKTREE_NAME:?set ENG_WORKTREE_NAME to the name of the working copy directory}
+
 x-git: &git
   - type: bind
     source: ${ENG_GIT_COMMON_DIR:?set ENG_GIT_COMMON_DIR to the common git directory of the repository}

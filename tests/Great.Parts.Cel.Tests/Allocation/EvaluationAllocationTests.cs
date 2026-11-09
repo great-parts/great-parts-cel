@@ -23,6 +23,9 @@ public sealed class EvaluationAllocationTests
 
     private const int Counted = 3;
 
+    // The moment of every order of the scenarios.
+    private static readonly DateTimeOffset Created = new(2026, 11, 1, 12, 0, 0, TimeSpan.Zero);
+
     // The order of the scenario of `lines` lines, without the discount or with only the last SKU starting with `SKU-`.
     private static readonly CelObjectType LineType = new CelObjectTypeBuilder<OrderLine>("shop.OrderLine")
         .AddField("sku", CelType.String, static line => CelValue.FromString(line.Sku))
@@ -37,11 +40,13 @@ public sealed class EvaluationAllocationTests
         .AddField("total", CelType.Double, static order => CelValue.FromDouble(order.Total))
         .AddField("discount", CelType.Double, static order => CelValue.FromDouble(order.Discount.GetValueOrDefault()), static order => order.Discount is not null)
         .AddField("lines", CelType.ListOf(LineType.Type), static order => order.LineValues)
+        .AddField("created", CelType.Timestamp, static order => CelValue.FromTimestamp(CelTimestamp.FromDateTimeOffset(order.Created)))
         .Build();
 
     private static readonly CelEnvironment Environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
         .AddTypes(CelTypeProvider.Create("shop", OrderType, LineType))
         .AddVariable("order", OrderType.Type)
+        .AddVariable("now", CelType.Timestamp)
         .Build()
         .GetEnvironmentOrThrow();
 
@@ -103,6 +108,11 @@ public sealed class EvaluationAllocationTests
         // E6: a presence test and subtraction of doubles: no new value, with the discount and without it.
         Add(table, "E6", 10, Scenario.Of<double>("has(order.discount) ? order.total - order.discount : order.total", _ => 1400.0, _ => 0));
         Add(table, "E6, without the discount", 10, Scenario.Of<double>("has(order.discount) ? order.total - order.discount : order.total", _ => 1500.0, _ => 0), discount: false);
+
+        // E7: the moment of the order is in the payload of the value and the constant duration('72h') is folded at planning, so the sum,
+        // the comparison and the read of a field of time create nothing: the budget is 0 on 10 and on 100 lines.
+        Add(table, "E7, 10 lines", 10, Scenario.Of<bool>("order.created + duration('72h') > now", _ => true, _ => 0));
+        Add(table, "E7, 100 lines", 100, Scenario.Of<bool>("order.created + duration('72h') > now", _ => true, _ => 0));
 
         // E8: the size of a list and a membership test in a literal list of constants; the plan builds the literal at each evaluation,
         // so the budget is that one list.
@@ -270,10 +280,15 @@ public sealed class EvaluationAllocationTests
                 Currency = "RUB",
                 Total = 1500,
                 Discount = discount ? 100 : null,
+                Created = Created,
                 Lines = items,
                 LineValues = CelValue.FromList(CelList.Create(pairs)),
             };
-            return new Fixture(order, new CelBindings().Add("order", CelValue.FromObject(OrderType, order)), passing);
+            // The variable now is one hour after the moment of the order.
+            CelBindings bindings = new CelBindings()
+                .Add("order", CelValue.FromObject(OrderType, order))
+                .Add("now", CelTimestamp.FromDateTimeOffset(Created.AddHours(1)));
+            return new Fixture(order, bindings, passing);
         }
     }
 
@@ -297,6 +312,8 @@ public sealed class EvaluationAllocationTests
         public double Total { get; init; }
 
         public double? Discount { get; init; }
+
+        public DateTimeOffset Created { get; init; }
 
         public OrderLine[] Lines { get; init; } = [];
 

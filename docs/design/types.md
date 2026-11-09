@@ -16,6 +16,7 @@ The rule files follow the naming and the content rules of [core](core.md).
 | Type | Factory | `Kind` | `Name` | `Parameters` | Text form |
 | :- | :- | :- | :- | :- | :- |
 | `dyn`, `null_type`, `bool`, `int`, `uint`, `double`, `string`, `bytes` | static properties | the kind | the CEL name | — | the name |
+| timestamp, duration | static properties `Timestamp`, `Duration` | `Timestamp`, `Duration` | `google.protobuf.Timestamp`, `google.protobuf.Duration` | — | `timestamp`, `duration`: the short names, as the messages of errors and the signatures of the standard library page write them |
 | list | `ListOf(E)` | `List` | `list` | `E` | `list(E)` |
 | map | `MapOf(K, V)` | `Map` | `map` | `K`, `V` | `map(K, V)` |
 | wrapper | `WrapperOf(P)` | `Wrapper` | `google.protobuf.BoolValue`, `BytesValue`, `DoubleValue`, `Int64Value`, `UInt64Value`, `StringValue` | `P` | `wrapper(P)` |
@@ -25,7 +26,7 @@ The rule files follow the naming and the content rules of [core](core.md).
 
 `WrapperOf` takes `bool`, `bytes`, `double`, `int`, `uint` and `string`; any other type is `ArgumentException`. `TypeOf(Dyn)` is the type of any type value; the identifier `type` has the static type `type(type(dyn))`. `ObjectNamed` only creates the reference: the environment rejects it as `TypeNotDeclared` while no type source describes it (see [declarations](declarations.md)). The text form is what error messages show; it is the notation of the language definition, and cel-go writes wrappers the same way.
 
-`Timestamp` and `Duration` arrive with time, `Any` with protobuf messages, `OptionalOf` with the `optional` set and `Decimal` with `decimal`; until then they throw `NotImplementedException`.
+`Any` arrives with protobuf messages, `OptionalOf` with the `optional` set and `Decimal` with `decimal`; until then they throw `NotImplementedException`.
 
 Inside type checking two more forms exist and never leave it:
 
@@ -49,7 +50,7 @@ A trial against a substitution works on a copy: a failed trial leaves the substi
 1. `to` is a type parameter: when it is bound to `B`, the result is that of `from` against `B`, and on success the binding becomes `MostGeneral(from, B)` (below) if the occurs check allows; when it is free, it is bound to `from` if the occurs check allows, otherwise the rules below decide.
 2. `from` is a type parameter: the same with the roles swapped, except that when the occurs check fails the answer is no.
 3. Either is `dyn` or `error`: yes.
-4. Either is `null_type`: yes when the other is `null_type`, a wrapper, an object type, or a type that the later parts add as nullable — `timestamp`, `duration`, `google.protobuf.Any`, `optional_type(T)`. `list`, `map`, `type` and the primitive types do not take `null`.
+4. Either is `null_type`: yes when the other is `null_type`, a wrapper, an object type, `timestamp`, `duration`, or a type that the later parts add as nullable — `google.protobuf.Any`, `optional_type(T)` and `decimal`: cel-go takes every abstract (opaque) type as nullable, `isLegacyNullable` of `checker/types.go` in v0.32.0, together with object types, `Any`, `timestamp` and `duration`. This is the static rule, as in cel-go; at run time a `null` value fits neither `timestamp` nor `duration` ([values](values.md), "Fits a type"). `list`, `map`, `type` and the primitive types do not take `null`.
 5. Primitive types: yes when they are equal. A wrapper and its primitive are assignable both ways: `wrapper(int)` takes `int`, and `int` takes `wrapper(int)`; a mismatch at evaluation is a value of the wrong kind, not a type error.
 6. `type(A)` and `type(B)`: always yes — every type value is compatible where a type value is expected (language definition, "Type-Checking Type Values"). The parameters are tried too, `A` against `B` by these rules, as a trial that may bind only the variables in `deducible`. Any other type variable — of an empty literal, of an iteration variable, of an earlier call — is neither bound nor bound again in that trial: a bound one stands for its binding, a free one matches only itself, `dyn`, `error` and a free deducible variable, which rule 1 or 2 binds to it. When the trial succeeds its bindings are kept; when it fails nothing is bound, and the answer is still yes. In the join of a literal and in the check against the binding of a bound variable (rules 1 and 2) nothing is deducible, so a trial there binds nothing.
 

@@ -13,7 +13,7 @@ using Xunit;
 
 namespace Great.Parts.Cel.Tests.Library;
 
-// The table of the standard library, version 1, without time and matches: each overload with its function,
+// The table of the standard library, version 1, without matches: each overload with its function,
 // identifier, signature and cost, in the order of cel-go.
 public sealed class StandardLibraryV1Tests
 {
@@ -30,6 +30,9 @@ public sealed class StandardLibraryV1Tests
         _!=_ | not_equals | (A, A) -> bool | eq(a, b)
         _+_ | add_bytes | (bytes, bytes) -> bytes | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, Lᵣ = Lₐ
         _+_ | add_double | (double, double) -> double | 1
+        _+_ | add_duration_duration | (duration, duration) -> duration | 1
+        _+_ | add_duration_timestamp | (duration, timestamp) -> timestamp | 1
+        _+_ | add_timestamp_duration | (timestamp, duration) -> timestamp | 1
         _+_ | add_int64 | (int, int) -> int | 1
         _+_ | add_list | (list(A), list(A)) -> list(A) | 1 + n
         _+_ | add_string | (string, string) -> string | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, Lᵣ = Lₐ
@@ -45,7 +48,10 @@ public sealed class StandardLibraryV1Tests
         -_ | negate_double | (double) -> double | 1
         -_ | negate_int64 | (int) -> int | 1
         _-_ | subtract_double | (double, double) -> double | 1
+        _-_ | subtract_duration_duration | (duration, duration) -> duration | 1
         _-_ | subtract_int64 | (int, int) -> int | 1
+        _-_ | subtract_timestamp_duration | (timestamp, duration) -> timestamp | 1
+        _-_ | subtract_timestamp_timestamp | (timestamp, timestamp) -> duration | 1
         _-_ | subtract_uint64 | (uint, uint) -> uint | 1
         _<_ | less_bool | (bool, bool) -> bool | 1
         _<_ | less_int64 | (int, int) -> bool | 1
@@ -59,6 +65,8 @@ public sealed class StandardLibraryV1Tests
         _<_ | less_double_uint64 | (double, uint) -> bool | 1 | dyn
         _<_ | less_string | (string, string) -> bool | 1 + ⌈Lₐ/10⌉
         _<_ | less_bytes | (bytes, bytes) -> bool | 1 + ⌈Lₐ/10⌉
+        _<_ | less_timestamp | (timestamp, timestamp) -> bool | 1
+        _<_ | less_duration | (duration, duration) -> bool | 1
         _<=_ | less_equals_bool | (bool, bool) -> bool | 1
         _<=_ | less_equals_int64 | (int, int) -> bool | 1
         _<=_ | less_equals_int64_double | (int, double) -> bool | 1 | dyn
@@ -71,6 +79,8 @@ public sealed class StandardLibraryV1Tests
         _<=_ | less_equals_double_uint64 | (double, uint) -> bool | 1 | dyn
         _<=_ | less_equals_string | (string, string) -> bool | 1 + ⌈Lₐ/10⌉
         _<=_ | less_equals_bytes | (bytes, bytes) -> bool | 1 + ⌈Lₐ/10⌉
+        _<=_ | less_equals_timestamp | (timestamp, timestamp) -> bool | 1
+        _<=_ | less_equals_duration | (duration, duration) -> bool | 1
         _>_ | greater_bool | (bool, bool) -> bool | 1
         _>_ | greater_int64 | (int, int) -> bool | 1
         _>_ | greater_int64_double | (int, double) -> bool | 1 | dyn
@@ -83,6 +93,8 @@ public sealed class StandardLibraryV1Tests
         _>_ | greater_double_uint64 | (double, uint) -> bool | 1 | dyn
         _>_ | greater_string | (string, string) -> bool | 1 + ⌈Lₐ/10⌉
         _>_ | greater_bytes | (bytes, bytes) -> bool | 1 + ⌈Lₐ/10⌉
+        _>_ | greater_timestamp | (timestamp, timestamp) -> bool | 1
+        _>_ | greater_duration | (duration, duration) -> bool | 1
         _>=_ | greater_equals_bool | (bool, bool) -> bool | 1
         _>=_ | greater_equals_int64 | (int, int) -> bool | 1
         _>=_ | greater_equals_int64_double | (int, double) -> bool | 1 | dyn
@@ -95,6 +107,8 @@ public sealed class StandardLibraryV1Tests
         _>=_ | greater_equals_double_uint64 | (double, uint) -> bool | 1 | dyn
         _>=_ | greater_equals_string | (string, string) -> bool | 1 + ⌈Lₐ/10⌉
         _>=_ | greater_equals_bytes | (bytes, bytes) -> bool | 1 + ⌈Lₐ/10⌉
+        _>=_ | greater_equals_timestamp | (timestamp, timestamp) -> bool | 1
+        _>=_ | greater_equals_duration | (duration, duration) -> bool | 1
         _[_] | index_list | (list(A), int) -> A | 1
         _[_] | index_map | (map(A, B), A) -> B | 1 + ⌈L/10⌉ of a string key
         @in | in_list | (A, list(A)) -> bool | 1 + Σ eq(x, eᵢ)
@@ -116,17 +130,26 @@ public sealed class StandardLibraryV1Tests
         double | int64_to_double | (int) -> double | 1
         double | string_to_double | (string) -> double | 1 + ⌈Lₐ/10⌉
         double | uint64_to_double | (uint) -> double | 1
+        duration | duration_to_duration | (duration) -> duration | 1
+        duration | string_to_duration | (string) -> duration | 1 + ⌈Lₐ/10⌉
         dyn | to_dyn | (A) -> dyn | 1
         int | int64_to_int64 | (int) -> int | 1
         int | double_to_int64 | (double) -> int | 1
+        int | duration_to_int64 | (duration) -> int | 1
         int | string_to_int64 | (string) -> int | 1 + ⌈Lₐ/10⌉
+        int | timestamp_to_int64 | (timestamp) -> int | 1
         int | uint64_to_int64 | (uint) -> int | 1
         string | string_to_string | (string) -> string | 1
         string | bool_to_string | (bool) -> string | 1 + ⌈Lᵣ/10⌉
         string | bytes_to_string | (bytes) -> string | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉
         string | double_to_string | (double) -> string | 1 + ⌈Lᵣ/10⌉
+        string | duration_to_string | (duration) -> string | 1 + ⌈Lᵣ/10⌉
         string | int64_to_string | (int) -> string | 1 + ⌈Lᵣ/10⌉
+        string | timestamp_to_string | (timestamp) -> string | 1 + ⌈Lᵣ/10⌉
         string | uint64_to_string | (uint) -> string | 1 + ⌈Lᵣ/10⌉
+        timestamp | timestamp_to_timestamp | (timestamp) -> timestamp | 1
+        timestamp | int64_to_timestamp | (int) -> timestamp | 1
+        timestamp | string_to_timestamp | (string) -> timestamp | 1 + ⌈Lₐ/10⌉
         uint | uint64_to_uint64 | (uint) -> uint | 1
         uint | double_to_uint64 | (double) -> uint | 1
         uint | int64_to_uint64 | (int) -> uint | 1
@@ -134,6 +157,30 @@ public sealed class StandardLibraryV1Tests
         contains | contains_string | string.contains(string) -> bool | 1 + ⌈Lₐ/10⌉
         endsWith | ends_with_string | string.endsWith(string) -> bool | 1 + ⌈Lₐ/10⌉
         startsWith | starts_with_string | string.startsWith(string) -> bool | 1 + ⌈Lₐ/10⌉
+        getFullYear | timestamp_to_year | timestamp.getFullYear() -> int | 1
+        getFullYear | timestamp_to_year_with_tz | timestamp.getFullYear(string) -> int | 1 + ⌈Lₐ/10⌉
+        getMonth | timestamp_to_month | timestamp.getMonth() -> int | 1
+        getMonth | timestamp_to_month_with_tz | timestamp.getMonth(string) -> int | 1 + ⌈Lₐ/10⌉
+        getDayOfYear | timestamp_to_day_of_year | timestamp.getDayOfYear() -> int | 1
+        getDayOfYear | timestamp_to_day_of_year_with_tz | timestamp.getDayOfYear(string) -> int | 1 + ⌈Lₐ/10⌉
+        getDayOfMonth | timestamp_to_day_of_month | timestamp.getDayOfMonth() -> int | 1
+        getDayOfMonth | timestamp_to_day_of_month_with_tz | timestamp.getDayOfMonth(string) -> int | 1 + ⌈Lₐ/10⌉
+        getDate | timestamp_to_day_of_month_1_based | timestamp.getDate() -> int | 1
+        getDate | timestamp_to_day_of_month_1_based_with_tz | timestamp.getDate(string) -> int | 1 + ⌈Lₐ/10⌉
+        getDayOfWeek | timestamp_to_day_of_week | timestamp.getDayOfWeek() -> int | 1
+        getDayOfWeek | timestamp_to_day_of_week_with_tz | timestamp.getDayOfWeek(string) -> int | 1 + ⌈Lₐ/10⌉
+        getHours | timestamp_to_hours | timestamp.getHours() -> int | 1
+        getHours | timestamp_to_hours_with_tz | timestamp.getHours(string) -> int | 1 + ⌈Lₐ/10⌉
+        getHours | duration_to_hours | duration.getHours() -> int | 1
+        getMinutes | timestamp_to_minutes | timestamp.getMinutes() -> int | 1
+        getMinutes | timestamp_to_minutes_with_tz | timestamp.getMinutes(string) -> int | 1 + ⌈Lₐ/10⌉
+        getMinutes | duration_to_minutes | duration.getMinutes() -> int | 1
+        getSeconds | timestamp_to_seconds | timestamp.getSeconds() -> int | 1
+        getSeconds | timestamp_to_seconds_tz | timestamp.getSeconds(string) -> int | 1 + ⌈Lₐ/10⌉
+        getSeconds | duration_to_seconds | duration.getSeconds() -> int | 1
+        getMilliseconds | timestamp_to_milliseconds | timestamp.getMilliseconds() -> int | 1
+        getMilliseconds | timestamp_to_milliseconds_with_tz | timestamp.getMilliseconds(string) -> int | 1 + ⌈Lₐ/10⌉
+        getMilliseconds | duration_to_milliseconds | duration.getMilliseconds() -> int | 1
         """;
 
     // The argument of each parameter type for the cost and kind checks: a string of 21 code units, bytes of 15
@@ -209,15 +256,18 @@ public sealed class StandardLibraryV1Tests
     }
 
     [Fact]
-    public static void TypeIdentifiers_AreTheTenOfThisPart()
+    public static void TypeIdentifiers_AreTheTwelveOfVersionOne()
     {
         Assert.Equal(
             [
-                ("bool", "bool"), ("bytes", "bytes"), ("double", "double"), ("int", "int"), ("list", "list(dyn)"),
-                ("map", "map(dyn, dyn)"), ("null_type", "null_type"), ("string", "string"), ("type", "type(dyn)"), ("uint", "uint"),
+                ("bool", "bool"), ("bytes", "bytes"), ("double", "double"), ("google.protobuf.Duration", "duration"),
+                ("google.protobuf.Timestamp", "timestamp"), ("int", "int"), ("list", "list(dyn)"), ("map", "map(dyn, dyn)"),
+                ("null_type", "null_type"), ("string", "string"), ("type", "type(dyn)"), ("uint", "uint"),
             ],
             StandardLibraryV1.TypeIdentifiers.OrderBy(entry => entry.Key, StringComparer.Ordinal).Select(entry => (entry.Key, entry.Value.ToString())));
-        Assert.Equal(["google.protobuf.Timestamp", "google.protobuf.Duration"], StandardLibraryV1.LaterTypeIdentifiers);
+        var reserved = (ISet<string>)CelStandardLibrary.V1.Declarations.ReservedNames;
+        Assert.Contains("google.protobuf.Timestamp", reserved);
+        Assert.Contains("google.protobuf.Duration", reserved);
     }
 
     [Fact]
@@ -278,6 +328,8 @@ public sealed class StandardLibraryV1Tests
         CelTypeKind.Double => CelValue.FromDouble(2.5),
         CelTypeKind.String => CelValue.FromString(Text),
         CelTypeKind.Bytes => CelValue.FromBytes(Bytes),
+        CelTypeKind.Timestamp => CelValue.FromTimestamp(new CelTimestamp(1_234_567_890, 123_456_789)),
+        CelTypeKind.Duration => CelValue.FromDuration(new CelDuration(1_500_000_000)),
         CelTypeKind.List => CelValue.FromList(CelList.Create(CelValue.FromInt64(1), CelValue.FromInt64(2), CelValue.FromInt64(3))),
         CelTypeKind.Map => CelValue.FromMap(CelMap.Create([new(CelValue.FromInt64(7), CelValue.FromInt64(7))])),
         _ => CelValue.FromInt64(7),

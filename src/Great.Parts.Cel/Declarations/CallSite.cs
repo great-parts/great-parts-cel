@@ -50,7 +50,8 @@ internal readonly struct CallSite
         LineTable lines,
         IEvaluationMeter? meter = null,
         TypeIndex? types = null,
-        IApplicationBoundary? boundary = null)
+        IApplicationBoundary? boundary = null,
+        CelTimeZoneDatabase? timeZones = null)
     {
         Function = function;
         _offset = offset;
@@ -58,6 +59,7 @@ internal readonly struct CallSite
         Meter = meter;
         Types = types;
         Boundary = boundary;
+        TimeZones = timeZones;
     }
 
     // The function name, for messages.
@@ -73,6 +75,10 @@ internal readonly struct CallSite
     // The exception boundary and the event counter of the evaluation, for the reads of fields of objects; null outside
     // an evaluation.
     internal IApplicationBoundary? Boundary { get; }
+
+    // The time zone database of the environment, which the receivers of time with a zone resolve names against; null when the
+    // environment has none.
+    internal CelTimeZoneDatabase? TimeZones { get; }
 
     // Whether the evaluation has a cost limit.
     internal bool HasLimit => Meter is not null;

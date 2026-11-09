@@ -10,7 +10,7 @@ namespace Great.Parts.Cel.Values;
 /// <summary>
 /// .NET values to CEL values, by the input rows of
 /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see> for
-/// values: integers, floating-point numbers, <c>bool</c>, <c>string</c>, <c>Guid</c>, enumerations, bytes,
+/// values: integers, floating-point numbers, <c>bool</c>, <c>string</c>, <c>Guid</c>, enumerations, bytes, time,
 /// <c>Nullable&lt;X&gt;</c> of these value types, <c>CelValue</c>, <c>CelList</c>, <c>CelMap</c> and <c>object</c>. The
 /// conversion follows the static type <c>T</c> and does not box a value type, except a nullable enumeration.
 /// </summary>
@@ -75,8 +75,10 @@ internal static partial class ConversionRules
         }
 
         return TryFromOther(value, out result)
+            || TryFromTime(value, out result)
             || TryFromCelValueOrObject(value, out result)
             || TryFromNullable(value, out result)
+            || TryFromNullableTime(value, out result)
             || TryFromJson(value, out result)
             || TryFromCollection(value, out result);
     }
@@ -107,10 +109,14 @@ internal static partial class ConversionRules
             return DynMap;
         }
 
-        // Nullable<X> of a value type with a wrapper: the wrapper of the CEL type of X.
-        return Nullable.GetUnderlyingType(type) is Type underlying && ScalarInputType(underlying) is CelType primitive
-            ? CelType.WrapperOf(primitive)
-            : null;
+        // Nullable<X> of a value type with a wrapper: the wrapper of the CEL type of X; of time, the type of X, since CEL has
+        // no wrapper of it.
+        if (Nullable.GetUnderlyingType(type) is not Type underlying || ScalarInputType(underlying) is not CelType primitive)
+        {
+            return null;
+        }
+
+        return primitive.Kind is CelTypeKind.Timestamp or CelTypeKind.Duration ? primitive : CelType.WrapperOf(primitive);
     }
 
     // The rows of numbers, enumerations, bool, string, Guid and bytes.
@@ -141,7 +147,7 @@ internal static partial class ConversionRules
             return CelType.String;
         }
 
-        return type == typeof(byte[]) || type == typeof(ReadOnlyMemory<byte>) ? CelType.Bytes : null;
+        return type == typeof(byte[]) || type == typeof(ReadOnlyMemory<byte>) ? CelType.Bytes : TimeInputType(type);
     }
 
     private static bool IsSigned(Type type) =>
@@ -442,14 +448,14 @@ internal static partial class ConversionRules
             return result;
         }
 
-        // Time and decimals come with their parts. Any other instance, a .NET collection included, is a bare object value
+        // Decimals come with their part. Any other instance, a .NET collection included, is a bare object value
         // that the node which reads it decides with the type index.
         return IsOfLaterPart(value!) ? throw new NotImplementedException() : CelValue.FromBareObject(value!);
     }
 
-    // The instances of the input rows that later parts read: JSON, time and decimals.
+    // The instances of the input rows that later parts read: decimals.
     private static bool IsOfLaterPart(object value) =>
-        value is CelTimestamp or DateTimeOffset or DateTime or CelDuration or TimeSpan or decimal
+        value is decimal
 #if NET11_0_OR_GREATER
             or System.Numerics.Decimal128
 #endif
@@ -482,6 +488,11 @@ internal static partial class ConversionRules
             float number => CelValue.FromDouble(number),
             Half number => CelValue.FromDouble((double)number),
             Guid guid => FromGuid(guid),
+            CelTimestamp timestamp => CelValue.FromTimestamp(timestamp),
+            DateTimeOffset moment => CelValue.FromTimestamp(CelTimestamp.FromDateTimeOffset(moment)),
+            DateTime dateTime => FromDateTime(dateTime),
+            CelDuration duration => CelValue.FromDuration(duration),
+            TimeSpan span => FromTimeSpan(span),
             JsonElement element => JsonRules.FromElement(element),
             Enum number => FromBoxedEnum(number),
             _ => null,

@@ -10,25 +10,29 @@ namespace Great.Parts.Cel.Values;
 /// <para>
 /// <see cref="TimeSpan"/> counts in ticks of 100 nanoseconds and has a wider range, so a
 /// <see cref="TimeSpan"/> converts to a duration exactly when it is within the range of a duration,
-/// while a duration converts back only when its nanoseconds are a multiple of 100.
+/// while a duration converts back only when its nanoseconds are a multiple of 100. The functions of time are on the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md#time">Standard library</see>, the conversions on the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md#time">Type mapping</see>.
 /// </para>
 /// <para>The structure is immutable and can be shared between threads. <c>default(CelDuration)</c> is zero.</para>
 /// </remarks>
 public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDuration>
 {
+    private readonly long _nanoseconds;
+
     /// <summary>
     /// Creates a duration of <paramref name="totalNanoseconds"/> nanoseconds.
     /// </summary>
     /// <param name="totalNanoseconds">The length of the time span in nanoseconds; negative for a negative span.</param>
     public CelDuration(long totalNanoseconds)
     {
-        throw new NotImplementedException();
+        _nanoseconds = totalNanoseconds;
     }
 
     /// <summary>
     /// The length of the time span in nanoseconds; negative for a negative span.
     /// </summary>
-    public long TotalNanoseconds => throw new NotImplementedException();
+    public long TotalNanoseconds => _nanoseconds;
 
     /// <summary>
     /// Converts a <see cref="TimeSpan"/> to a duration, exactly.
@@ -40,7 +44,13 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// </exception>
     public static CelDuration FromTimeSpan(TimeSpan value)
     {
-        throw new NotImplementedException();
+        long ticks = value.Ticks;
+        if (ticks is < long.MinValue / 100 or > long.MaxValue / 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value), value, "The time span does not fit the range of a duration, a 64-bit number of nanoseconds.");
+        }
+
+        return new CelDuration(ticks * 100);
     }
 
     /// <summary>
@@ -53,7 +63,14 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// </returns>
     public bool TryGetTimeSpan(out TimeSpan value)
     {
-        throw new NotImplementedException();
+        if (_nanoseconds % 100 != 0)
+        {
+            value = default;
+            return false;
+        }
+
+        value = TimeSpan.FromTicks(_nanoseconds / 100);
+        return true;
     }
 
     /// <summary>
@@ -63,7 +80,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns>A negative number, zero or a positive number when this duration is shorter than, as long as or longer than <paramref name="other"/>.</returns>
     public int CompareTo(CelDuration other)
     {
-        throw new NotImplementedException();
+        return _nanoseconds.CompareTo(other._nanoseconds);
     }
 
     /// <summary>
@@ -73,7 +90,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns><see langword="true"/> when the durations are equal.</returns>
     public bool Equals(CelDuration other)
     {
-        throw new NotImplementedException();
+        return _nanoseconds == other._nanoseconds;
     }
 
     /// <summary>
@@ -83,7 +100,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns><see langword="true"/> when <paramref name="obj"/> is an equal duration.</returns>
     public override bool Equals(object? obj)
     {
-        throw new NotImplementedException();
+        return obj is CelDuration other && Equals(other);
     }
 
     /// <summary>
@@ -92,7 +109,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns>The hash code.</returns>
     public override int GetHashCode()
     {
-        throw new NotImplementedException();
+        return _nanoseconds.GetHashCode();
     }
 
     /// <summary>
@@ -103,7 +120,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns>The duration in seconds.</returns>
     public override string ToString()
     {
-        throw new NotImplementedException();
+        return string.Create(TimeTextRules.DurationLength(_nanoseconds), _nanoseconds, static (span, value) => TimeTextRules.WriteDuration(value, span));
     }
 
     /// <summary>
@@ -114,7 +131,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns><see langword="true"/> when the durations are equal.</returns>
     public static bool operator ==(CelDuration left, CelDuration right)
     {
-        throw new NotImplementedException();
+        return left.Equals(right);
     }
 
     /// <summary>
@@ -125,7 +142,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns><see langword="true"/> when the durations differ.</returns>
     public static bool operator !=(CelDuration left, CelDuration right)
     {
-        throw new NotImplementedException();
+        return !left.Equals(right);
     }
 
     /// <summary>
@@ -136,7 +153,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns><see langword="true"/> when <paramref name="left"/> is shorter.</returns>
     public static bool operator <(CelDuration left, CelDuration right)
     {
-        throw new NotImplementedException();
+        return left._nanoseconds < right._nanoseconds;
     }
 
     /// <summary>
@@ -147,7 +164,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns><see langword="true"/> when <paramref name="left"/> is longer.</returns>
     public static bool operator >(CelDuration left, CelDuration right)
     {
-        throw new NotImplementedException();
+        return left._nanoseconds > right._nanoseconds;
     }
 
     /// <summary>
@@ -158,7 +175,7 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns><see langword="true"/> when <paramref name="left"/> is not longer.</returns>
     public static bool operator <=(CelDuration left, CelDuration right)
     {
-        throw new NotImplementedException();
+        return left._nanoseconds <= right._nanoseconds;
     }
 
     /// <summary>
@@ -169,6 +186,6 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     /// <returns><see langword="true"/> when <paramref name="left"/> is not shorter.</returns>
     public static bool operator >=(CelDuration left, CelDuration right)
     {
-        throw new NotImplementedException();
+        return left._nanoseconds >= right._nanoseconds;
     }
 }

@@ -19,11 +19,10 @@ namespace Great.Parts.Cel.Values;
 /// </remarks>
 internal static partial class ConversionRules
 {
-    // A .NET type of time, optional or decimal, directly or as an argument of Nullable<X>, IReadOnlyList<X> or IReadOnlyDictionary<XK, XV>.
+    // A .NET type of optional or decimal, directly or as an argument of Nullable<X>, IReadOnlyList<X> or IReadOnlyDictionary<XK, XV>.
     private static bool MentionsLaterPart(Type type)
     {
-        if (type == typeof(CelTimestamp) || type == typeof(DateTimeOffset) || type == typeof(DateTime) || type == typeof(CelDuration)
-            || type == typeof(TimeSpan) || type == typeof(decimal)
+        if (type == typeof(decimal)
 #if NET11_0_OR_GREATER
             || type == typeof(System.Numerics.Decimal128)
 #endif
@@ -59,12 +58,12 @@ internal static partial class ConversionRules
         return false;
     }
 
-    // A CEL type that is not supported yet, at any depth: time, optional, decimal, google.protobuf.Any.
+    // A CEL type that is not supported yet, at any depth: optional, decimal, google.protobuf.Any.
     private static bool MentionsLaterPart(CelType type)
     {
         switch (type.Kind)
         {
-            case CelTypeKind.Timestamp or CelTypeKind.Duration or CelTypeKind.Any or CelTypeKind.Optional:
+            case CelTypeKind.Any or CelTypeKind.Optional:
                 return true;
 #if NET11_0_OR_GREATER
             case CelTypeKind.Decimal:
@@ -116,6 +115,7 @@ internal static partial class ConversionRules
                 new NullableRow<long>(longRow), new NullableRow<int>(intRow), new NullableRow<ulong>(ulongRow),
                 new NullableRow<uint>(uintRow), new NullableRow<double>(doubleRow), new NullableRow<bool>(boolRow),
                 new NullableRow<ReadOnlyMemory<byte>>(memoryRow),
+                .. TimeRows.Create(),
             ];
 
             var rows = new Dictionary<Type, ClrRow>();
@@ -319,6 +319,12 @@ internal static partial class ConversionRules
                     return true;
                 case CelValueKind.Type when value.TryGetType(out CelType? celType):
                     result = celType;
+                    return true;
+                case CelValueKind.Timestamp when value.TryGetTimestamp(out CelTimestamp timestamp):
+                    result = timestamp;
+                    return true;
+                case CelValueKind.Duration when value.TryGetDuration(out CelDuration duration):
+                    result = duration;
                     return true;
                 case CelValueKind.Object when value.TryGetObject(out object? instance):
                     result = instance;

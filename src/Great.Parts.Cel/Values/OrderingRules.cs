@@ -40,6 +40,16 @@ internal static class OrderingRules
             return Sign(leftBytes.Span.SequenceCompareTo(rightBytes.Span));
         }
 
+        if (left.TryGetTimestamp(out CelTimestamp leftTimestamp) && right.TryGetTimestamp(out CelTimestamp rightTimestamp))
+        {
+            return Sign(leftTimestamp.CompareTo(rightTimestamp));
+        }
+
+        if (left.TryGetDuration(out CelDuration leftDuration) && right.TryGetDuration(out CelDuration rightDuration))
+        {
+            return Sign(leftDuration.CompareTo(rightDuration));
+        }
+
         return ValueOrdering.None;
     }
 

@@ -11,7 +11,9 @@ namespace Great.Parts.Cel.Values;
 /// <see cref="DateTimeOffset"/> counts in ticks of 100 nanoseconds, so every <see cref="DateTimeOffset"/>
 /// converts to a timestamp exactly, while a timestamp converts back only when its nanoseconds are a
 /// multiple of 100. A timestamp carries no time zone or offset; functions such as <c>getHours</c> take
-/// the time zone as an argument.
+/// the time zone as an argument. The functions of time are on the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md#time">Standard library</see>, the conversions to and from the types of .NET
+/// on the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md#time">Type mapping</see>.
 /// </para>
 /// <para>
 /// The structure is immutable and can be shared between threads. <c>default(CelTimestamp)</c> is the
@@ -20,6 +22,24 @@ namespace Great.Parts.Cel.Values;
 /// </remarks>
 public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelTimestamp>
 {
+    // The range of Unix seconds of a timestamp, 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z.
+    internal const long MinSeconds = -62_135_596_800;
+    internal const long MaxSeconds = 253_402_300_799;
+
+    // The seconds from 0001-01-01T00:00:00Z to the Unix epoch, and the ticks of a second.
+    private const long UnixEpochSeconds = -MinSeconds;
+    private const long TicksPerSecond = 10_000_000;
+
+    private readonly long _seconds;
+    private readonly int _nanoseconds;
+
+    // Rebuilds a timestamp whose parts a check has already accepted: a payload of a value, the result of reading a text.
+    private CelTimestamp(long seconds, int nanoseconds, bool _)
+    {
+        _seconds = seconds;
+        _nanoseconds = nanoseconds;
+    }
+
     /// <summary>
     /// Creates a timestamp from seconds since the Unix epoch, 1970-01-01T00:00:00Z, and nanoseconds
     /// within the second, as <c>google.protobuf.Timestamp</c> stores it.
@@ -32,18 +52,35 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// </exception>
     public CelTimestamp(long seconds, int nanoseconds)
     {
-        throw new NotImplementedException();
+        if (nanoseconds is < 0 or > 999_999_999)
+        {
+            throw new ArgumentOutOfRangeException(nameof(nanoseconds), nanoseconds, "The nanoseconds are not from 0 to 999 999 999.");
+        }
+
+        if (seconds is < MinSeconds or > MaxSeconds)
+        {
+            throw new ArgumentOutOfRangeException(nameof(seconds), seconds, "The point in time is not from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z.");
+        }
+
+        _seconds = seconds;
+        _nanoseconds = nanoseconds;
     }
+
+    internal static CelTimestamp FromChecked(long seconds, int nanoseconds) => new(seconds, nanoseconds, false);
+
+    // The moment of ticks of 100 nanoseconds since 0001-01-01T00:00:00Z, which every DateTime and DateTimeOffset holds in range.
+    internal static CelTimestamp FromUtcTicks(long ticks) =>
+        new((ticks / TicksPerSecond) - UnixEpochSeconds, (int)(ticks % TicksPerSecond) * 100, false);
 
     /// <summary>
     /// Seconds since the Unix epoch, 1970-01-01T00:00:00Z; negative before it.
     /// </summary>
-    public long Seconds => throw new NotImplementedException();
+    public long Seconds => _seconds;
 
     /// <summary>
     /// Nanoseconds after <see cref="Seconds"/>, from 0 to 999 999 999.
     /// </summary>
-    public int Nanoseconds => throw new NotImplementedException();
+    public int Nanoseconds => _nanoseconds;
 
     /// <summary>
     /// Converts a <see cref="DateTimeOffset"/> to the same point in time, exactly. The offset is not kept.
@@ -52,7 +89,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns>The timestamp.</returns>
     public static CelTimestamp FromDateTimeOffset(DateTimeOffset value)
     {
-        throw new NotImplementedException();
+        return FromUtcTicks(value.UtcTicks);
     }
 
     /// <summary>
@@ -67,7 +104,14 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// </returns>
     public bool TryGetDateTimeOffset(out DateTimeOffset value)
     {
-        throw new NotImplementedException();
+        if (_nanoseconds % 100 != 0)
+        {
+            value = default;
+            return false;
+        }
+
+        value = new DateTimeOffset(((_seconds + UnixEpochSeconds) * TicksPerSecond) + (_nanoseconds / 100), TimeSpan.Zero);
+        return true;
     }
 
     /// <summary>
@@ -77,7 +121,8 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns>A negative number, zero or a positive number when this timestamp is earlier than, the same as or later than <paramref name="other"/>.</returns>
     public int CompareTo(CelTimestamp other)
     {
-        throw new NotImplementedException();
+        int bySeconds = _seconds.CompareTo(other._seconds);
+        return bySeconds != 0 ? bySeconds : _nanoseconds.CompareTo(other._nanoseconds);
     }
 
     /// <summary>
@@ -87,7 +132,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns><see langword="true"/> when the timestamps are equal.</returns>
     public bool Equals(CelTimestamp other)
     {
-        throw new NotImplementedException();
+        return _seconds == other._seconds && _nanoseconds == other._nanoseconds;
     }
 
     /// <summary>
@@ -97,7 +142,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns><see langword="true"/> when <paramref name="obj"/> is an equal timestamp.</returns>
     public override bool Equals(object? obj)
     {
-        throw new NotImplementedException();
+        return obj is CelTimestamp other && Equals(other);
     }
 
     /// <summary>
@@ -106,7 +151,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns>The hash code.</returns>
     public override int GetHashCode()
     {
-        throw new NotImplementedException();
+        return HashCode.Combine(_seconds, _nanoseconds);
     }
 
     /// <summary>
@@ -117,7 +162,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns>The timestamp in RFC 3339 form.</returns>
     public override string ToString()
     {
-        throw new NotImplementedException();
+        return string.Create(TimeTextRules.TimestampLength(this), this, static (span, value) => TimeTextRules.WriteTimestamp(value, span));
     }
 
     /// <summary>
@@ -128,7 +173,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns><see langword="true"/> when the timestamps are equal.</returns>
     public static bool operator ==(CelTimestamp left, CelTimestamp right)
     {
-        throw new NotImplementedException();
+        return left.Equals(right);
     }
 
     /// <summary>
@@ -139,7 +184,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns><see langword="true"/> when the timestamps differ.</returns>
     public static bool operator !=(CelTimestamp left, CelTimestamp right)
     {
-        throw new NotImplementedException();
+        return !left.Equals(right);
     }
 
     /// <summary>
@@ -150,7 +195,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns><see langword="true"/> when <paramref name="left"/> is earlier.</returns>
     public static bool operator <(CelTimestamp left, CelTimestamp right)
     {
-        throw new NotImplementedException();
+        return left.CompareTo(right) < 0;
     }
 
     /// <summary>
@@ -161,7 +206,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns><see langword="true"/> when <paramref name="left"/> is later.</returns>
     public static bool operator >(CelTimestamp left, CelTimestamp right)
     {
-        throw new NotImplementedException();
+        return left.CompareTo(right) > 0;
     }
 
     /// <summary>
@@ -172,7 +217,7 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns><see langword="true"/> when <paramref name="left"/> is not later.</returns>
     public static bool operator <=(CelTimestamp left, CelTimestamp right)
     {
-        throw new NotImplementedException();
+        return left.CompareTo(right) <= 0;
     }
 
     /// <summary>
@@ -183,6 +228,6 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     /// <returns><see langword="true"/> when <paramref name="left"/> is not earlier.</returns>
     public static bool operator >=(CelTimestamp left, CelTimestamp right)
     {
-        throw new NotImplementedException();
+        return left.CompareTo(right) >= 0;
     }
 }

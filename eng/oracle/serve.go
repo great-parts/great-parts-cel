@@ -9,6 +9,7 @@ import (
 	"io"
 	"runtime"
 	"runtime/debug"
+	"time"
 
 	"cel.dev/cel-go/cel"
 	"cel.dev/cel-go/common/ast"
@@ -31,6 +32,8 @@ type request struct {
 	Bindings    map[string]json.RawMessage `json:"bindings"`
 	Name        string                     `json:"name"`
 	Description string                     `json:"description"`
+	Zone        *string                    `json:"zone"`
+	Instant     *int64                     `json:"instant"`
 }
 
 type handshake struct {
@@ -46,6 +49,7 @@ type answer struct {
 	Message   *string         `json:"message,omitempty"`
 	Value     json.RawMessage `json:"value,omitempty"`
 	Textproto *string         `json:"textproto,omitempty"`
+	Seconds   *int64          `json:"seconds,omitempty"`
 }
 
 // outcome is the result of cel-go for one expression.
@@ -115,6 +119,12 @@ func handle(environment *cel.Env, line []byte) (answer, error) {
 	}
 	if req.ID == nil {
 		return answer{}, fmt.Errorf("malformed request %q: no id", line)
+	}
+	if req.Op == "offset" {
+		return handleOffset(req, line)
+	}
+	if req.Zone != nil || req.Instant != nil {
+		return answer{}, fmt.Errorf("malformed request %q: zone and instant belong to the op offset", line)
 	}
 	if req.Expr == nil {
 		return answer{}, fmt.Errorf("malformed request %q: no expr", line)
@@ -265,4 +275,32 @@ func readVariables(environment *cel.Env, parsed *cel.Ast) ([]*celpb.Decl, error)
 		})
 	}
 	return declarations, nil
+}
+
+// locations holds the zones that the oracle has loaded: loading one reads the archive of ZONEINFO.
+var locations = map[string]*time.Location{}
+
+// handleOffset answers the request offset: the offset in seconds that time.LoadLocation gives for a zone at an instant, in whole
+// seconds since 1970-01-01T00:00:00Z (docs/design/eng-oracle.md, "Protocol"). A zone that does not load is the outcome
+// zone-error with the message of Go.
+func handleOffset(req request, line []byte) (answer, error) {
+	if req.Zone == nil || req.Instant == nil {
+		return answer{}, fmt.Errorf("malformed request %q: the op offset needs zone and instant", line)
+	}
+	if req.Expr != nil || len(req.Bindings) != 0 || req.Name != "" || req.Description != "" {
+		return answer{}, fmt.Errorf("malformed request %q: the op offset has only zone and instant", line)
+	}
+	location, ok := locations[*req.Zone]
+	if !ok {
+		loaded, err := time.LoadLocation(*req.Zone)
+		if err != nil {
+			message := err.Error()
+			return answer{ID: *req.ID, Outcome: "zone-error", Message: &message}, nil
+		}
+		location = loaded
+		locations[*req.Zone] = location
+	}
+	_, offset := time.Unix(*req.Instant, 0).In(location).Zone()
+	seconds := int64(offset)
+	return answer{ID: *req.ID, Outcome: "offset", Seconds: &seconds}, nil
 }

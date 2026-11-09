@@ -83,6 +83,21 @@ The table is built from the members of `CelErrorCode` and their XML documentatio
 | 9000 | `InsufficientStack` | Any | The thread has too little stack left for the next recursive step of parsing, macro expansion, type checking, planning, evaluation or comparison of nested values. The library checks the stack before each such step instead of failing with a stack overflow, which cannot be caught. Location: the node at which the step was not performed. |
 | 9001 | `InternalError` | Any | An unexpected exception inside the library, other than `OutOfMemoryException`. It is reported as an error of the stage at which it happened, so a defect of the library does not escape as an exception; the original exception is in `Exception`. Location: during parsing, type checking and evaluation, the node that was being processed when the exception was thrown; errors of the environment build have no position in an expression. |
 
+## Messages of time
+
+The messages of the errors that the functions of time and the time zone database give. The text is not part of the contract (see below) and can become more precise; the code and the place are.
+
+| Code | Name | Message | Place |
+| :- | :- | :- | :- |
+| 3006 | `Overflow` | `timestamp overflow` or `duration overflow` | the operator `+` or `-` |
+| 3007 | `ConversionRange` | `{value} is out of the range of timestamp` or `{value} is out of the range of duration`; `{value}` is the number of `timestamp(int)` or the string | the call |
+| 3008 | `InvalidArgument` | `invalid argument to 'timestamp': cannot parse {text} as timestamp` and `invalid argument to 'duration': cannot parse {text} as duration`; also for a constant string, at evaluation | the call |
+| 3022 | `TimeZoneNotFound` | `time zone '{zone}' is not found in the time zone database of the environment (version {version})`; without a database, `time zone '{zone}' is not found: the environment has no time zone database` | the call |
+| 3023 | `InvalidTimeZone` | `invalid time zone '{zone}': expected 'UTC', an IANA time zone identifier or a fixed offset [+-]HH:MM` | the call |
+| 4012 | `TimeZoneDatabaseConflict` | `a different time zone database is already added to the environment` | none: a build error |
+
+`{version}` is the `Version` that the application gave to the database; a database without a version leaves it out. Both errors of a zone occur at evaluation, also for a zone that is a constant.
+
 ## Rules of the codes
 
 - A code is added with an explicit number, the next free number of the range of its stage. Adding a code is not a breaking change, so a `switch` over codes needs a default branch.

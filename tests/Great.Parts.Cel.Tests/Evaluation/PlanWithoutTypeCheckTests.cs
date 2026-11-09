@@ -60,7 +60,7 @@ public sealed class PlanWithoutTypeCheckTests
         Plan plan = Plans.WithoutTypeCheck("1 + 2");
 
         var dispatch = Assert.IsType<DispatchPlanNode>(plan.Root);
-        Assert.Equal(["add_bytes", "add_double", "add_int64", "add_list", "add_string", "add_uint64"], dispatch.Candidates.Select(candidate => candidate.Declaration.OverloadId));
+        Assert.Equal(["add_bytes", "add_double", "add_duration_duration", "add_duration_timestamp", "add_timestamp_duration", "add_int64", "add_list", "add_string", "add_uint64"], dispatch.Candidates.Select(candidate => candidate.Declaration.OverloadId));
         Assert.Equal(CelValue.FromInt64(3), plan.EvaluateOn(NoBindings));
     }
 

@@ -28,6 +28,10 @@ internal sealed class Planner
     private const string IndexListId = "index_list";
     private const string IndexMapId = "index_map";
 
+    // The conversions of a string to a moment or a span of time, which the planner runs once for a string literal.
+    private const string StringToTimestampId = "string_to_timestamp";
+    private const string StringToDurationId = "string_to_duration";
+
     private readonly ParsedExpression _parsed;
 
     // The checked expression; null when planning without type checking.
@@ -36,6 +40,10 @@ internal sealed class Planner
     // The declarations of the environment: the overloads of a call without type checking, and the index overloads of an
     // operand of the static type dyn with it.
     private readonly DeclarationIndex _declarations;
+
+    // The time zone database of the environment, which the plan keeps for the receivers of time with a zone; null when the
+    // environment has none.
+    private readonly CelTimeZoneDatabase? _timeZones;
 
     private readonly Dictionary<string, int> _variables = new(StringComparer.Ordinal);
 
@@ -54,8 +62,9 @@ internal sealed class Planner
     // The accumulator slot of the map or filter whose step is being planned; -1 outside one.
     private int _appendSlot = -1;
 
-    private Planner(ParsedExpression parsed, CheckedExpression? checkedExpression, DeclarationIndex declarations)
+    private Planner(ParsedExpression parsed, CheckedExpression? checkedExpression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones)
     {
+        _timeZones = timeZones;
         _parsed = parsed;
         _checked = checkedExpression;
         _declarations = declarations;
@@ -63,19 +72,19 @@ internal sealed class Planner
 
     // Plans a checked expression against the declarations it was checked with: a call with one candidate of the
     // reference map calls it, a call with several chooses among them by Matches.
-    internal static Plan Plan(CheckedExpression expression, DeclarationIndex declarations) =>
-        new Planner(expression.Parsed, expression, declarations).Build();
+    internal static Plan Plan(CheckedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null) =>
+        new Planner(expression.Parsed, expression, declarations, timeZones).Build();
 
     // Plans a parsed expression without type checking: names resolve in the bindings at evaluation, and
     // every call other than the special forms chooses among all overloads of its name, call style and
     // argument count.
-    internal static Plan PlanWithoutTypeCheck(ParsedExpression expression, DeclarationIndex declarations) =>
-        new Planner(expression, null, declarations).Build();
+    internal static Plan PlanWithoutTypeCheck(ParsedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null) =>
+        new Planner(expression, null, declarations, timeZones).Build();
 
     private Plan Build()
     {
         PlanNode root = Visit(_parsed.Root, out int stackSize);
-        return new Plan(root, _variables.Count, _localCount, stackSize, _parsed.Lines, _declarations.Types);
+        return new Plan(root, _variables.Count, _localCount, stackSize, _parsed.Lines, _declarations.Types, _timeZones);
     }
 
     // The node of a syntax node, and the most argument values on the stack at one time while it is
@@ -327,6 +336,12 @@ internal sealed class Planner
 
         if (candidates.Length == 1)
         {
+            if (TryFoldTime(candidates[0], argumentNodes, offset) is { } folded)
+            {
+                stackSize = 0;
+                return folded;
+            }
+
             return new CallPlanNode(offset, candidates[0], Marks(candidates[0], argumentTypes), !_added, arguments);
         }
 
@@ -337,6 +352,33 @@ internal sealed class Planner
         }
 
         return new DispatchPlanNode(offset, call.Function, candidates, marks.MoveToImmutable(), !_added, arguments);
+    }
+
+    // A call of timestamp or duration on a string literal, run once at planning on a call site with no limit and no
+    // database: a value becomes a constant that charges the units of the call it replaces, the fixed units and the cost of the
+    // literal, at the position of the call. An error value is not folded: the call stays and fails when it is evaluated. A call
+    // that the expansion of a standard macro adds charges nothing.
+    private ConstantPlanNode? TryFoldTime(OverloadBinding overload, ImmutableArray<ExprNode> argumentNodes, int offset)
+    {
+        if (overload.IsApplication
+            || argumentNodes.Length != 1
+            || argumentNodes[0] is not ConstantNode { Value: var literal }
+            || !literal.TryGetString(out _)
+            || overload.Declaration.OverloadId is not (StringToTimestampId or StringToDurationId))
+        {
+            return null;
+        }
+
+        ReadOnlySpan<CelValue> arguments = [literal];
+        var site = new Declarations.CallSite(overload.Function, offset, _parsed.Lines);
+        CelValue value = overload.Implementation!(arguments, in site);
+        if (value.Kind == CelValueKind.Error)
+        {
+            return null;
+        }
+
+        ulong cost = _added ? 0 : overload.FixedCost + (overload.ArgumentCost?.Invoke(arguments) ?? 0);
+        return new ConstantPlanNode(offset, value, cost);
     }
 
     // The candidates of _[_] on an operand of the static type dyn: those of the reference map, and index_list and

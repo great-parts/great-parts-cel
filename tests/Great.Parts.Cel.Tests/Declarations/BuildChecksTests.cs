@@ -217,16 +217,16 @@ public sealed class BuildChecksTests
                 .AddFunctionImplementation("rate_int", First));
         AssertSingle(
             CelErrorCode.TypeNotDeclared,
-            "variable 'when' has type 'System.DateTime', which no type source or extension of the environment declares",
-            Builder().AddVariable<DateTime>("when"));
+            "variable 'when' has type 'System.Int128', which no type source or extension of the environment declares",
+            Builder().AddVariable<Int128>("when"));
         AssertSingle(
             CelErrorCode.TypeNotDeclared,
-            "overload 'early_System.DateTime' has type 'System.DateTime', which no type source or extension of the environment declares",
-            Builder().AddFunction<DateTime, bool>("early", value => value.Hour < 9));
+            "overload 'early_System.Int128' has type 'System.Int128', which no type source or extension of the environment declares",
+            Builder().AddFunction<Int128, bool>("early", value => value < 9));
         AssertSingle(
             CelErrorCode.TypeNotDeclared,
-            "overload 'stamp_int' has type 'System.DateTime', which no type source or extension of the environment declares",
-            Builder().AddFunction<long, DateTime>("stamp", ticks => new DateTime(ticks, DateTimeKind.Utc)));
+            "overload 'stamp_int' has type 'System.Int128', which no type source or extension of the environment declares",
+            Builder().AddFunction<long, Int128>("stamp", ticks => ticks));
     }
 
     [Fact]
@@ -366,7 +366,7 @@ public sealed class BuildChecksTests
         AssertSingle(
             CelErrorCode.InvalidVariableName,
             "variable name '" + name + "' of application is not an identifier or a qualified name",
-            Builder().AddVariable<DateTime>(name));
+            Builder().AddVariable<Int128>(name));
     }
 
     // Reserved words other than keywords may follow the first segment.

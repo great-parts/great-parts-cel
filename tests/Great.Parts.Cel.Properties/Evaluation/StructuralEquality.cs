@@ -7,7 +7,8 @@ namespace Great.Parts.Cel.Properties.Evaluation;
 
 /// <summary>
 /// The structural comparison of two values that the properties of evaluation use (docs/design/tests.md, "Properties of
-/// evaluation"): the same kind, lists element by element, maps as sets of entries, NaN equal to NaN, type values by name, object values by the instance. It
+/// evaluation"): the same kind, lists element by element, maps as sets of entries, NaN equal to NaN, type values by name, time by
+/// kind and payload — seconds and nanoseconds of a timestamp, nanoseconds of a duration — and object values by the instance. It
 /// does not use the equality of the library, which the properties check.
 /// </summary>
 internal static class StructuralEquality
@@ -48,6 +49,8 @@ internal static class StructuralEquality
                 _ = left.TryGetBytes(out ReadOnlyMemory<byte> leftBytes);
                 _ = right.TryGetBytes(out ReadOnlyMemory<byte> rightBytes);
                 return leftBytes.Span.SequenceEqual(rightBytes.Span);
+            case CelValueKind.Timestamp or CelValueKind.Duration:
+                return TimeEqual(left, right);
             case CelValueKind.Type:
                 _ = left.TryGetType(out CelType? leftType);
                 _ = right.TryGetType(out CelType? rightType);
@@ -68,6 +71,20 @@ internal static class StructuralEquality
             default:
                 throw new NotSupportedException($"The comparison has no rule for the kind {left.Kind}.");
         }
+    }
+
+    // The payloads of two values of the same time kind: seconds and nanoseconds of a timestamp, nanoseconds of a duration.
+    private static bool TimeEqual(CelValue left, CelValue right)
+    {
+        if (left.TryGetTimestamp(out CelTimestamp leftMoment))
+        {
+            _ = right.TryGetTimestamp(out CelTimestamp rightMoment);
+            return leftMoment.Seconds == rightMoment.Seconds && leftMoment.Nanoseconds == rightMoment.Nanoseconds;
+        }
+
+        _ = left.TryGetDuration(out CelDuration leftSpan);
+        _ = right.TryGetDuration(out CelDuration rightSpan);
+        return leftSpan.TotalNanoseconds == rightSpan.TotalNanoseconds;
     }
 
     private static bool ListsEqual(CelList left, CelList right)

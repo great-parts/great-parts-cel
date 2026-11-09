@@ -5,7 +5,7 @@ namespace Great.Parts.Cel.Eng.Difftest.Profile;
 /// <summary>
 /// A type of the profile: a target type of the generator, the type of a variable or a parameter of an overload. Members end
 /// with <c>Type</c>, so that no name is the name of a .NET type. <c>list</c>, <c>map</c> and <c>type</c> stand without
-/// parameters; the type parameters <c>A</c> and <c>B</c> occur only as parameters and results of overloads.
+/// parameters; <c>timestamp</c> and <c>duration</c> are the short names of the standard library page; the type parameters <c>A</c> and <c>B</c> occur only as parameters and results of overloads.
 /// </summary>
 internal enum ProfileType
 {
@@ -39,6 +39,12 @@ internal enum ProfileType
     /// <summary><c>type</c>: the type of type values, without parameters.</summary>
     TypeType,
 
+    /// <summary><c>timestamp</c>: <c>google.protobuf.Timestamp</c>; the profile makes its values in the expression.</summary>
+    TimestampType,
+
+    /// <summary><c>duration</c>: <c>google.protobuf.Duration</c>; the profile makes its values in the expression.</summary>
+    DurationType,
+
     /// <summary><c>dyn</c>: the type of a variable whose value has any kind.</summary>
     DynType,
 
@@ -69,6 +75,8 @@ internal static class ProfileTypeNames
         ProfileType.ListType => "list",
         ProfileType.MapType => "map",
         ProfileType.TypeType => "type",
+        ProfileType.TimestampType => "timestamp",
+        ProfileType.DurationType => "duration",
         ProfileType.DynType => "dyn",
         ProfileType.ParameterAType => "A",
         ProfileType.ParameterBType => "B",
@@ -78,4 +86,8 @@ internal static class ProfileTypeNames
     /// <summary>Whether a type is a type parameter of an overload.</summary>
     /// <param name="type">The type.</param>
     internal static bool IsParameter(this ProfileType type) => type is ProfileType.ParameterAType or ProfileType.ParameterBType;
+
+    /// <summary>Whether a type is <c>timestamp</c> or <c>duration</c>: a type with no literal, whose values the constructors make.</summary>
+    /// <param name="type">The type.</param>
+    internal static bool IsTime(this ProfileType type) => type is ProfileType.TimestampType or ProfileType.DurationType;
 }

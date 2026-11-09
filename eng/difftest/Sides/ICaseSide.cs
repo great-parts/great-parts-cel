@@ -17,11 +17,12 @@ internal interface ICaseSide
     SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings);
 
     /// <summary>
-    /// The offset of a time zone from UTC at an instant. The profile has no time zone data file until time: runs
-    /// do not compare offsets, and both sides throw <see cref="NotSupportedException"/>.
+    /// The offset of a time zone from UTC at an instant (<c>ENG822</c>, docs/design/eng-difftest.md, "Findings and output"): the
+    /// request <c>offset</c> of the oracle, and an expression of the public API on the library side. A side that cannot answer
+    /// throws <see cref="SideFailureException"/>.
     /// </summary>
     /// <param name="zone">The name of the zone in the time zone data file, such as <c>Europe/Berlin</c>.</param>
-    /// <param name="instant">The instant.</param>
+    /// <param name="instant">The instant, in whole seconds.</param>
     /// <returns>The offset from UTC.</returns>
     TimeSpan ZoneOffset(string zone, DateTimeOffset instant);
 }

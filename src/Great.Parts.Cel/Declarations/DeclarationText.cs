@@ -80,6 +80,10 @@ internal static class DeclarationText
 
                 text.Append('>');
                 break;
+            case CelTypeKind.Timestamp or CelTypeKind.Duration:
+                // The types of time are written timestamp and duration, not by their full names.
+                text.Append(type.ToString());
+                break;
             default:
                 text.Append(type.Name);
                 break;

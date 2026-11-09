@@ -3,11 +3,15 @@
 # From a linked git worktree add eng/compose.worktree.yaml (docs/design/eng-test.md, "Linked worktrees").
 name: great-parts-cel-eng
 
+# Every service that builds an image names it, so the image is the same in every Compose project
+# (eng/compose.worktree.yaml): it holds only the toolchain, nothing of a working copy, and is built once.
+
 services:
   # eng/test: the full check in one command: build, all tests under JIT, the checks, and the tests under Native AOT on linux-x64 with
   # the test count (docs/design/eng-test.md). It runs on the image stage with the native toolchain. Arguments after the service name
   # go to the command of eng/run.
   test:
+    image: great-parts-cel-eng-test
     build:
       context: docker
       target: sdk-aot
@@ -22,6 +26,7 @@ services:
   # (without it: the target of the configuration, main). In a linked worktree, with the second Compose file, only a run without
   # since goes on, such as the control set: a run with since stops.
   mutate:
+    image: great-parts-cel-eng-mutate
     build:
       context: docker
       target: sdk
@@ -35,6 +40,7 @@ services:
   # error codes matches CelErrorCode, and the relative links, files and anchors exist, with lychee offline. It runs on the image stage
   # with the lychee program. The external links are checked only in CI. Arguments after the service name go to the command of eng/run.
   docs:
+    image: great-parts-cel-eng-docs
     build:
       context: docker
       target: docs
@@ -49,6 +55,7 @@ services:
   # compiled. It has its own packages folder under artifacts/min-sdk and does not use the volume nuget
   # (docs/design/eng-test.md, "min-sdk").
   min-sdk:
+    image: great-parts-cel-eng-min-sdk
     build:
       context: docker
       target: sdk-min
@@ -60,6 +67,7 @@ services:
   # eng/difftest: the differential run against cel-go (docs/design/eng-difftest.md). Compose starts the service oracle first;
   # the options of the run follow the service name, for example --seed 20261104 --budget 2h. Exit code 0, 1 or 2.
   difftest:
+    image: great-parts-cel-eng-difftest
     build:
       context: docker
       target: sdk
@@ -75,8 +83,9 @@ services:
   # Without arguments the launcher serves one session of eng/difftest on port 7070 of the project network and ends
   # itself; with arguments it runs the oracle with them, for example:
   #   docker compose -f eng/compose.yaml run --rm -T oracle serve --env eng/difftest/Profile/environment.json
-  # The image tag equals the go line of eng/oracle/go.mod. Time zones come only from zoneinfo.zip of that Go: the
-  # system zone directory is hidden under an empty tmpfs. No version stamp, so the build does not read git.
+  # The image tag equals the go line of eng/oracle/go.mod. Time zones come only from the repository copy of zoneinfo.zip of that Go: the
+  # system zone directory is hidden under an empty tmpfs; ZONEINFO names the copy of zoneinfo.zip that the library tests and
+  # eng/difftest read, so a zone is the same bytes in Go and in the library. No version stamp, so the build does not read git.
   oracle:
     image: golang:1.27.3
     working_dir: /repo/eng/oracle
@@ -88,11 +97,16 @@ services:
       - /usr/share/zoneinfo
     environment:
       GOTOOLCHAIN: local
-      ZONEINFO: /usr/local/go/lib/time/zoneinfo.zip
+      ZONEINFO: /repo/tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip
       GOFLAGS: -mod=readonly -buildvcs=false
     entrypoint: [go, run, ./launch]
 
+# The volumes have fixed names, so every working copy, whatever its Compose project name (eng/compose.worktree.yaml), shares the
+# package caches and none downloads them again.
 volumes:
   nuget:
+    name: great-parts-cel-eng_nuget
   gomod:
+    name: great-parts-cel-eng_gomod
   gobuild:
+    name: great-parts-cel-eng_gobuild

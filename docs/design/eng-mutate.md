@@ -109,6 +109,7 @@ So `since` mutates exactly the changed C# files of the project under test, and `
 
 ```text
 ENG_GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir)" \
+ENG_WORKTREE_NAME="$(basename "$(git rev-parse --show-toplevel)")" \
   docker compose -f eng/compose.yaml -f eng/compose.worktree.yaml run --rm mutate eng/stryker-control.json
 ```
 

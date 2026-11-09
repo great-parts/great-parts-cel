@@ -7,7 +7,8 @@ using Type = Cel.Expr.Type;
 namespace Great.Parts.Cel.Conformance.Runner;
 
 /// <summary>
-/// Converts a type between <see cref="CelType"/> and <c>cel.expr.Type</c> for the kinds the library supports. Other kinds throw
+/// Converts a type between <see cref="CelType"/> and <c>cel.expr.Type</c> for the kinds the library supports, the two types of
+/// time among them. Other kinds throw
 /// <see cref="NotImplementedException"/>.
 /// </summary>
 internal static class TypeConversion
@@ -24,6 +25,8 @@ internal static class TypeConversion
         CelTypeKind.Null => new Type { Null = NullValue.NullValue },
         CelTypeKind.Bool or CelTypeKind.Int or CelTypeKind.UInt or CelTypeKind.Double or CelTypeKind.String or CelTypeKind.Bytes =>
             new Type { Primitive = ToPrimitive(type) },
+        CelTypeKind.Timestamp => new Type { WellKnown = Type.Types.WellKnownType.Timestamp },
+        CelTypeKind.Duration => new Type { WellKnown = Type.Types.WellKnownType.Duration },
         CelTypeKind.Wrapper => new Type { Wrapper = ToPrimitive(type.Parameters[0]) },
         CelTypeKind.Type => new Type { Type_ = ToExprType(type.Parameters[0]) },
         CelTypeKind.List => new Type { ListType = new Type.Types.ListType { ElemType = ToExprType(type.Parameters[0]) } },
@@ -42,10 +45,28 @@ internal static class TypeConversion
         Type.TypeKindOneofCase.Dyn => CelType.Dyn,
         Type.TypeKindOneofCase.Null => CelType.Null,
         Type.TypeKindOneofCase.Primitive => FromPrimitive(type.Primitive),
+        Type.TypeKindOneofCase.WellKnown => FromWellKnown(type.WellKnown),
+        Type.TypeKindOneofCase.MessageType => FromMessageName(type.MessageType),
         Type.TypeKindOneofCase.Wrapper => CelType.WrapperOf(FromPrimitive(type.Wrapper)),
         Type.TypeKindOneofCase.ListType => CelType.ListOf(ToCelType(type.ListType.ElemType)),
         Type.TypeKindOneofCase.MapType => CelType.MapOf(ToCelType(type.MapType.KeyType), ToCelType(type.MapType.ValueType)),
         Type.TypeKindOneofCase.Type_ => CelType.TypeOf(ToCelType(type.Type_)),
+        _ => throw new NotImplementedException(),
+    };
+
+    // The well-known types of time; the other well-known types (Any and the wrappers) come with the protobuf part.
+    private static CelType FromWellKnown(Type.Types.WellKnownType wellKnown) => wellKnown switch
+    {
+        Type.Types.WellKnownType.Timestamp => CelType.Timestamp,
+        Type.Types.WellKnownType.Duration => CelType.Duration,
+        _ => throw new NotImplementedException(),
+    };
+
+    // The message names of the two types of time; other message names throw until the protobuf part.
+    private static CelType FromMessageName(string name) => name switch
+    {
+        "google.protobuf.Timestamp" => CelType.Timestamp,
+        "google.protobuf.Duration" => CelType.Duration,
         _ => throw new NotImplementedException(),
     };
 

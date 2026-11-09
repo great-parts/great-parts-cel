@@ -13,8 +13,8 @@ using Type = Cel.Expr.Type;
 namespace Great.Parts.Cel.Conformance.Runner;
 
 /// <summary>
-/// Runs a case on the library. All cases share one setup, <c>new CelEnvironmentBuilder(CelStandardLibrary.V1)</c>; each case adds
-/// what it declares and builds its environment. A checked case is compiled to <c>CelProgram&lt;CelValue&gt;</c> and evaluated.
+/// Runs a case on the library. All cases share one setup, <c>new CelEnvironmentBuilder(CelStandardLibrary.V1)</c> with the time zone
+/// database of the tests added by <c>UseTimeZones</c>; each case adds what it declares and builds its environment. A checked case is compiled to <c>CelProgram&lt;CelValue&gt;</c> and evaluated.
 /// </summary>
 /// <remarks>
 /// A <c>disable_check</c> case is parsed and evaluated through the internal entry points <c>Parse</c> and
@@ -120,10 +120,11 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
             ? CaseOutcome.Evaluated(resultType, ValueConversion.ToExprValue(result.Value))
             : CaseOutcome.EvaluationFailed(resultType, Messages(result.Errors));
 
-    // The setup of all cases and what the case declares: the container and the variables of type_env.
+    // The setup of all cases and what the case declares: the container and the variables of type_env. Every case has the time zone
+    // database of the archive of the tests, as the runner of cel-go takes zones from its own database; no case declares one.
     private static CelEnvironmentBuilder Setup(CaseEnvironment declared)
     {
-        CelEnvironmentBuilder builder = new(CelStandardLibrary.V1);
+        CelEnvironmentBuilder builder = new CelEnvironmentBuilder(CelStandardLibrary.V1).UseTimeZones(ZoneInfoFile.Database());
         if (declared.Container.Length > 0)
         {
             builder.UseContainer(declared.Container);

@@ -74,6 +74,9 @@ internal static class BuildErrors
             "name resolution container '" + container1 + "' of " + source1 + " conflicts with container '" + container2 + "' of " + source2,
             sourceLocation);
 
+    internal static CelError TimeZoneDatabaseConflict() =>
+        Create(CelErrorCode.TimeZoneDatabaseConflict, "a different time zone database is already added to the environment");
+
     private static CelError Create(CelErrorCode code, string message, CelSourceLocation? sourceLocation = null) =>
         new(code, CelErrorStage.Build, message, default, sourceLocation, null);
 }

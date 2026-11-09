@@ -53,7 +53,7 @@ public sealed class EnvironmentJsonVariableTests
     }
 
     [Theory]
-    [InlineData("""{"variables": [{"name": "x", "type": ^"timestamp"}]}""", "the type 'timestamp' is not supported")]
+    [InlineData("""{"variables": [{"name": "x", "type": ^"optional_type"}]}""", "the type 'optional_type' is not supported")]
     [InlineData("""{"variables": [{"name": "x", "type": ^"optional_type<int>"}]}""", "the type 'optional_type' is not supported")]
     [InlineData("""{"variables": [{"name": "x", "type": ^"map<string>"}]}""", "takes 2 type parameters")]
     [InlineData("""{"variables": [{"name": "x", "type_name": ^"list"}]}""", "takes 1 type parameter")]

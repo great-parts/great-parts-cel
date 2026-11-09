@@ -10,8 +10,11 @@ using System.Text.Json;
 using System.Threading;
 using Cel.Expr;
 using Google.Protobuf;
+using Google.Protobuf.Reflection;
 using Great.Parts.Cel.Eng.Difftest.Numbers;
 using Great.Parts.Cel.Eng.Findings;
+using Duration = Google.Protobuf.WellKnownTypes.Duration;
+using Timestamp = Google.Protobuf.WellKnownTypes.Timestamp;
 
 namespace Great.Parts.Cel.Eng.Difftest.Sides;
 
@@ -61,6 +64,10 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
     internal static readonly TimeSpan DefaultAnswerLimit = TimeSpan.FromSeconds(10);
 
     private static readonly TimeSpan RetryPause = TimeSpan.FromMilliseconds(250);
+
+    // Reads the values of an answer: a value of time is an Any of a message of the two types, which the parser must know.
+    private static readonly JsonParser ValueParser = new(JsonParser.Settings.Default.WithTypeRegistry(
+        TypeRegistry.FromMessages(Timestamp.Descriptor, Duration.Descriptor)));
 
     private readonly TcpClient client;
     private readonly NetworkStream stream;
@@ -129,7 +136,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
         string outcome = Text(root, "outcome", id);
         return outcome switch
         {
-            "value" when root.TryGetProperty("value", out JsonElement value) => SideOutcome.Of(JsonParser.Default.Parse<Value>(value.GetRawText())),
+            "value" when root.TryGetProperty("value", out JsonElement value) => SideOutcome.Of(ValueParser.Parse<Value>(value.GetRawText())),
             "eval-error" => SideOutcome.EvaluationError(Text(root, "message", id)),
             "compile-error" => SideOutcome.CompileError(Stage(root, id), Text(root, "message", id)),
             _ => throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no outcome of the protocol"), root.GetRawText()),
@@ -144,13 +151,36 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
         return Text(answer.RootElement, "textproto", id);
     }
 
-    /// <summary>The profile has no time zone data file until time, so the oracle has no request <c>offset</c> yet.</summary>
-    /// <param name="zone">The name of the zone.</param>
-    /// <param name="instant">The instant.</param>
-    /// <returns>Nothing: it always throws.</returns>
-    /// <exception cref="NotSupportedException">Always.</exception>
-    public TimeSpan ZoneOffset(string zone, DateTimeOffset instant) =>
-        throw new NotSupportedException("the profile compares no time zone offsets until time");
+    /// <summary>
+    /// The request <c>offset</c> of the oracle (docs/design/eng-oracle.md, "Protocol"): the offset that <c>time.LoadLocation</c>
+    /// gives for the zone at the instant, in seconds.
+    /// </summary>
+    /// <param name="zone">The name of the zone in the time zone data file.</param>
+    /// <param name="instant">The instant, in whole seconds.</param>
+    /// <returns>The offset from UTC.</returns>
+    /// <exception cref="SideFailureException">The oracle does not load the zone, or sends an answer that does not read.</exception>
+    public TimeSpan ZoneOffset(string zone, DateTimeOffset instant)
+    {
+        long id = nextId++;
+        Send(request =>
+        {
+            request.WriteNumber("id", id);
+            request.WriteString("op", "offset");
+            request.WriteString("zone", zone);
+            request.WriteNumber("instant", instant.ToUnixTimeSeconds());
+        });
+        using JsonDocument answer = Answer(id);
+        JsonElement root = answer.RootElement;
+        string outcome = Text(root, "outcome", id);
+        if (outcome == "offset" && root.TryGetProperty("seconds", out JsonElement seconds) && seconds.TryGetInt64(out long offset))
+        {
+            return TimeSpan.FromSeconds(offset);
+        }
+
+        throw outcome == "zone-error"
+            ? new SideFailureException(string.Create(CultureInfo.InvariantCulture, $"the oracle does not load the time zone '{zone}': {Text(root, "message", id)}"))
+            : Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no offset"), root.GetRawText());
+    }
 
     /// <summary>Closes the connection: standard input of the oracle ends, and the oracle and its container end.</summary>
     public void Dispose()

@@ -2,7 +2,7 @@
 
 This page says how a .NET value becomes a CEL value and how a CEL value becomes a .NET value. The input rows apply wherever a value enters an expression: the bindings of `CelBindings`, the declaration `AddVariable<T>`, and the arguments and the results of the functions of the application. The result rows apply to the result of `Compile<T>`, `Evaluate<T>` and the one-step call, and to the parameters of the typed delegates of the functions of the application.
 
-Not in this version of the page: the rows of time (`CelTimestamp`, `DateTimeOffset`, `DateTime`, `CelDuration`, `TimeSpan`), of `decimal` and of `optional`, the rows of the messages of protobuf, and the descriptions of .NET types that the source generator writes. They come with their parts. The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
+Not in this version of the page: the rows of `decimal` and of `optional`, the rows of the messages of protobuf, and the descriptions of .NET types that the source generator writes. They come with their parts. The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
 
 An error of a conversion is an error of the result, not an exception, except the conditions that the documentation of a method names. A refusal of a value to enter the expression is an error value where the value is read: the binding when the expression reads the variable, the result of a function at the call.
 
@@ -20,7 +20,12 @@ An error of a conversion is an error of the result, not an exception, except the
 | `Guid` | `string` | the format `D`, in lower case |
 | an enumeration, also `[Flags]` | `int` | the underlying value. The value of an enumeration on `ulong` above the range of `int` is the evaluation error `ConversionRange` (3007) |
 | `byte[]`, `ReadOnlyMemory<byte>` | `bytes` | without a copy; a `null` array is the value `null`. The application does not change the buffer while an evaluation reads it |
-| `Nullable<X>`, `X` a value type of the rows above | the wrapper of the CEL type of `X`, such as `wrapper(int)` | `null` is the value `null` |
+| `CelTimestamp` | `timestamp` | as it is, to the nanosecond |
+| `DateTimeOffset` | `timestamp` | the same moment in UTC; the offset is not kept |
+| `DateTime` of the kind `Utc` | `timestamp` | the same moment; another kind is refused, see [Time](#time) |
+| `CelDuration` | `duration` | as it is |
+| `TimeSpan` | `duration` | exactly, a tick is 100 ns; a value outside the range of `duration` is `ConversionRange` |
+| `Nullable<X>`, `X` a value type of the rows above | the wrapper of the CEL type of `X`, such as `wrapper(int)`; for time the type of `X` itself, since CEL has no wrapper of time | `null` is the value `null`; for time it fits no type, see [Time](#time) |
 | `CelValue` | `dyn` | as it is |
 | `CelList`, `CelMap` | `list(dyn)`, `map(dyn, dyn)` | as they are; a `null` reference is the value `null` |
 | `JsonElement` | `dyn` | by its kind, lazily; see [`JsonElement`](#jsonelement) |
@@ -94,6 +99,14 @@ The mapping follows the language definition, "JSON Data Conversion". The static 
 
 `JsonElement` is never a result: the reverse mapping is ambiguous for `int`, `uint` and `bytes` and needs a new document, so a JSON value is given by the rows of `list`, `map` and the simple types in the results below. No type provider is needed for it: the values are `map`, `list` and simple values.
 
+### Time
+
+**Time.** A `DateTimeOffset` converts exactly, by its moment in UTC; its offset is not kept, and no zone or clock of the machine is read. A `DateTime` is a moment only when its kind is `Utc`; a `DateTime` of the kind `Local` or `Unspecified` would depend on the zone of the process, so it is refused: `CelBindings.Add` throws `ArgumentException` that names the kind, also when the `DateTime` is boxed as `object`, because the value becomes a CEL value at once. Read lazily — a field of an object, an element of a collection of the application, the result of a typed delegate — such a `DateTime` is the evaluation error `InvalidArgument` (3008) `invalid argument to '<name>': a DateTime of the kind <kind> is not an instant in UTC` at the node that reads it. A `TimeSpan` outside the range of `duration` ([Limits](limits.md#values)) is the evaluation error `ConversionRange` (3007), `<ticks> ticks is out of the range of duration`, where the variable is read.
+
+CEL has no wrapper of time, so `DateTimeOffset?`, `DateTime?`, `TimeSpan?`, `CelTimestamp?` and `CelDuration?` have the CEL type of the value: `AddVariable<DateTimeOffset?>("t")` declares `timestamp`. A `null` bound to such a variable is the value `null`, which fits neither `timestamp` nor `duration`: `BindingTypeMismatch` (3011) at the first read. A typed delegate that returns such a `null` is `ImplementationResultMismatch`.
+
+A time value is a scalar. In a collection it goes through `CelList`, `CelMap`, `CelValue` or `object` (boxed `DateTimeOffset`, `DateTime`, `TimeSpan`, `CelTimestamp` or `CelDuration`); a typed collection of time such as `IReadOnlyList<DateTimeOffset>` is not one of the rows: `AddVariable<T>` is `TypeNotDeclared` and `CelBindings.Add<T>` an `ArgumentException`. A field of the type `timestamp` or `duration` of a type described at run time reads `CelValue.FromTimestamp(…)` or `CelValue.FromDuration(…)`, which allocates nothing.
+
 ## Types that are not read
 
 A type in the namespace `System` or in a namespace below it that has no row on this page is not read. It is `TypeNotDeclared` for `AddVariable<T>` and the delegate forms of `AddFunction`, and an `ArgumentException` for `CelBindings.Add<T>`: its members would be read as data by a random set of properties, or reading them would run code or input and output. They include:
@@ -139,6 +152,8 @@ The value of the root is converted to the type `T` by the rows below. A value wh
 | `double` | `double` | as it is | a value of another type |
 | `string` | `string` | as it is | a value of another type |
 | `bytes` | `ReadOnlyMemory<byte>`, `byte[]` | `ReadOnlyMemory<byte>` without a copy; `byte[]` as a copy | a value of another type |
+| `timestamp` | `CelTimestamp`, `DateTimeOffset` | `CelTimestamp` exactly; `DateTimeOffset` with offset 0 | `T = DateTimeOffset` when the nanoseconds are not a multiple of 100: `ResultConversion` at the root, never rounded |
+| `duration` | `CelDuration`, `TimeSpan` | `CelDuration` exactly; `TimeSpan` exactly | `T = TimeSpan` when the nanoseconds are not a multiple of 100 |
 | `null_type` | reference types, `Nullable<>`, `object`, `CelValue` | `null`; for `CelValue` the value `null`. `CelEvalResult<T>.Value` is `null` also after `IsSuccess` is checked when the result is `null` for a reference `T`; `GetValueOrThrow()` returns `null` too | `T` a value type without `?` |
 | `list(E)` | `IReadOnlyList<X>` with `E` to `X` by this table, one step deep; `CelList` | a lazy view when no element can fail its conversion and the list is a collection of the library, after a check of the value; otherwise an immutable copy made at the end of the evaluation | an element that does not convert to `X`, at the root; a value that fails the check before the view |
 | `map(K, V)` | `IReadOnlyDictionary<XK, XV>` with `K` to `XK` and `V` to `XV` by this table, one step deep; `CelMap` | the same | a key or a value that does not convert, or fails the check |
@@ -146,7 +161,7 @@ The value of the root is converted to the type `T` by the rows below. A value wh
 | a wrapper such as `wrapper(int)`: a plain value or `null` | `long?`, `int?`, `ulong?`, `uint?`, `double?`, `bool?`, `ReadOnlyMemory<byte>?`, and `string`, `byte[]` | not `null`: by the row of the CEL type of the value with `T = X`, so an `int` with `T = long?` is the same as with `long`; `null` is `null` | by the row of the CEL type of the value |
 | any | `CelValue` | as it is | never |
 | an object type, also one described at run time | the .NET class, record, structure or interface of the application that the instance is, a base class or an interface of it, and the carrier class `TCarrier` of a type described at run time; `object`; `CelValue` | the same instance, by a test of its type, without reading the description | an instance that is not a `T`, with the name of its description or of its .NET type; the error is never `TypeNotAccessible` |
-| any | `object` | the natural mapping: `long`, `ulong`, `double`, `bool`, `string`, `byte[]`, `null`, `IReadOnlyList<object?>`, `IReadOnlyDictionary<object, object?>`, the instance of an object, `CelType` | never |
+| any | `object` | the natural mapping: `long`, `ulong`, `double`, `bool`, `string`, `byte[]`, `null`, `CelTimestamp`, `CelDuration`, `IReadOnlyList<object?>`, `IReadOnlyDictionary<object, object?>`, the instance of an object, `CelType` | never |
 
 `JsonElement` and unknown values are never a result, and an error is not a value of the result: the errors of an evaluation come as the list of errors of the result.
 
@@ -180,10 +195,12 @@ The expected type of `Compile<T>` is taken from `T`. An expression whose type is
 | `double` | `double` |
 | `string` | `string` |
 | `ReadOnlyMemory<byte>`, `byte[]` | `bytes` |
+| `CelTimestamp`, `DateTimeOffset` | `timestamp` |
+| `CelDuration`, `TimeSpan` | `duration` |
 | `IReadOnlyList<X>` | `list(E')`, `E'` the expected type of `X` |
 | `IReadOnlyDictionary<XK, XV>` | `map(K', V')` from `XK` and `XV` |
 | `CelType` | `type` |
-| `Nullable<X>` | the wrapper of the CEL type of `X`: `int?` and `long?` give `wrapper(int)`; `uint?` and `ulong?` give `wrapper(uint)`; `double?`, `bool?` and `ReadOnlyMemory<byte>?` give `wrapper(double)`, `wrapper(bool)` and `wrapper(bytes)` |
+| `Nullable<X>` | the wrapper of the CEL type of `X`: `int?` and `long?` give `wrapper(int)`; `uint?` and `ulong?` give `wrapper(uint)`; `double?`, `bool?` and `ReadOnlyMemory<byte>?` give `wrapper(double)`, `wrapper(bool)` and `wrapper(bytes)`; `DateTimeOffset?`, `CelTimestamp?`, `TimeSpan?` and `CelDuration?` give `timestamp` and `duration`, which have no wrapper |
 | a class, record, structure or interface of the application | its object type when a type source describes exactly this .NET type; otherwise `dyn`, and the instance is tested at the evaluation. An explicit `ExpectedType` must then be `dyn` or an object type |
 | `CelValue`, `object` | `dyn`: a result of any type |
 | `CelList` | `list(dyn)` |

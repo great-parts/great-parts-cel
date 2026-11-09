@@ -40,7 +40,7 @@ public sealed class CelStandardLibrary
     /// <c>timestamp</c> and <c>duration</c>.
     /// </summary>
     public static CelStandardLibrary V1 { get; } =
-        new(new LibraryDeclarations(1, StandardLibraryV1.Overloads, StandardLibraryV1.TypeIdentifiers, StandardLibraryV1.LaterTypeIdentifiers));
+        new(new LibraryDeclarations(1, StandardLibraryV1.Overloads, StandardLibraryV1.TypeIdentifiers, []));
 
     /// <summary>
     /// The version number, which build errors show, for example "standard library v1".

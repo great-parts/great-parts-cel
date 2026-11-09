@@ -327,7 +327,7 @@ public abstract class CelObjectType
     /// <returns>A value of the kind <see cref="CelValueKind.Timestamp"/> or <see cref="CelValueKind.Error"/>.</returns>
     protected CelValue FromDateTime(int number, DateTime value)
     {
-        throw new NotImplementedException();
+        return Named(number, ConversionRules.FromDateTime(value));
     }
 
     /// <summary>
@@ -343,7 +343,7 @@ public abstract class CelObjectType
     /// <returns>A value of the kind <see cref="CelValueKind.Duration"/> or <see cref="CelValueKind.Error"/>.</returns>
     protected CelValue FromTimeSpan(int number, TimeSpan value)
     {
-        throw new NotImplementedException();
+        return Named(number, ConversionRules.FromTimeSpan(value));
     }
 
     /// <summary>

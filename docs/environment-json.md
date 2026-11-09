@@ -8,7 +8,7 @@ public static ImmutableArray<CelError> CelEnvironmentJson.Apply(CelEnvironmentBu
 
 The format is a subset of the JSON form of the environment configuration of cel-go, the CEL implementation in Go, so that the library and the oracle of the differential run against cel-go read one file with one meaning. `Apply` maps the description one to one onto calls of the builder and makes no decisions of its own: an environment from JSON is the environment that the same calls in code build, and its build errors are those of the same calls.
 
-Not in this version of the page: the extension sets. The catalog of sets is empty until the sets are added, so every `name` in `extensions` is an error, and each set adds its name with its version. The type records `timestamp`, `duration`, `google.protobuf.Timestamp`, `google.protobuf.Duration` and `optional_type<E>` are errors that name the type until the library supports it.
+Not in this version of the page: the extension sets. The catalog of sets is empty until the sets are added, so every `name` in `extensions` is an error, and each set adds its name with its version. The type record `optional_type<E>` is an error that names the type until the library supports it.
 
 ## Reading
 
@@ -160,13 +160,14 @@ A name is looked up as a full name: the `container` does not apply to it, as in 
 | `int`, `uint`, `double`, `bool`, `string`, `bytes` | the simple types | none |
 | `null_type`, `null` | `null_type` | none |
 | `dyn` | `dyn` | none |
+| `timestamp`, `duration` | `timestamp`, `duration` | none |
 | `bool_wrapper`, `bytes_wrapper`, `double_wrapper`, `int_wrapper`, `uint_wrapper`, `string_wrapper` | the wrappers | none |
 | `list<E>` | `list(E)` | exactly 1 |
 | `map<K, V>` | `map(K, V)` | exactly 2 |
 | `type`, `type<E>` | `type` | 0 or 1 |
 | `~A` … `~Z`, `~a` … `~z` | a type parameter; only in a record of an overload | none |
 | `any` | `google.protobuf.Any` | none |
-| another full name; a leading `.` is dropped | the object type of a source added to the environment, resolved when the environment is built | none |
+| another full name, `google.protobuf.Timestamp` and `google.protobuf.Duration` included; a leading `.` is dropped | the object type of a source added to the environment, resolved when the environment is built; a name that no source declares is `TypeNotDeclared`, so the types of time are written `timestamp` and `duration` | none |
 
 The errors:
 
@@ -219,7 +220,7 @@ These are set in code, next to `Apply`. A key for them is an unknown key and an 
 | What | How it is set |
 | :- | :- |
 | the version of the standard library | `new CelEnvironmentBuilder(CelStandardLibrary.V1)` |
-| the time zone database | `CelTimeZoneDatabase` and `UseTimeZones` of the builder |
+| the time zone database | `CelTimeZoneDatabase` and `UseTimeZones` of the builder; a variable of the type `timestamp` and a receiver with a zone work in an environment from JSON as in code, see [Time zone database](recipes/time-zone-database.md) |
 | the implementations of functions | `AddFunctionImplementation(id, delegate)`, before or after `Apply`: they are bound to the overloads by the identifier at `Build`, and the order of the calls does not change the environment |
 | the types of .NET from type contexts, and the protobuf provider | `AddTypes` |
 | the flag of the `decimal` literal | a method of the builder, on `net11.0` only |

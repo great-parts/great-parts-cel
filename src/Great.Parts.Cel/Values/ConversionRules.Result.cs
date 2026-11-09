@@ -31,7 +31,7 @@ internal static partial class ConversionRules
     /// <typeparamref name="T"/> is outside the tables, or it does not hold the values of the explicit type.
     /// </exception>
     /// <exception cref="NotImplementedException">
-    /// <typeparamref name="T"/> or the explicit type is not supported yet: time, <c>optional</c>, <c>decimal</c>.
+    /// <typeparamref name="T"/> or the explicit type is not supported yet: <c>optional</c>, <c>decimal</c>.
     /// </exception>
     internal static CelType ExpectedType<T>(CelType? explicitType, string parameterName, TypeIndex? types = null)
     {
@@ -309,7 +309,7 @@ internal static partial class ConversionRules
 
         if (MentionsLaterPart(typeof(T)))
         {
-            // The result types of time, optional and decimal come with their parts; they are not ignored.
+            // The result types of optional and decimal come with their parts; they are not ignored.
             throw new NotImplementedException();
         }
 

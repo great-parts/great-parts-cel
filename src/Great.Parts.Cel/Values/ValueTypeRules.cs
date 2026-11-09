@@ -32,8 +32,10 @@ internal static class ValueTypeRules
         CelValueKind.List => ListType,
         CelValueKind.Map => MapType,
         CelValueKind.Type => TypeType,
+        CelValueKind.Timestamp => CelType.Timestamp,
+        CelValueKind.Duration => CelType.Duration,
 
-        // Time, optional values, objects and decimals come with their parts.
+        // Optional values, objects and decimals come with their parts.
         _ => throw new NotImplementedException(),
     };
 
@@ -306,8 +308,10 @@ internal static class ValueTypeRules
             CelTypeKind.List => kind == CelValueKind.List,
             CelTypeKind.Map => kind == CelValueKind.Map,
             CelTypeKind.Type => kind == CelValueKind.Type,
+            CelTypeKind.Timestamp => kind == CelValueKind.Timestamp,
+            CelTypeKind.Duration => kind == CelValueKind.Duration,
 
-            // Time, optional values and decimals come with their parts.
+            // Optional values and decimals come with their parts.
             _ => throw new NotImplementedException(),
         };
     }

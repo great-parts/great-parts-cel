@@ -61,7 +61,7 @@ public sealed class EnvironmentDeclarationsTests
         Assert.Equal(["string_add"], index.GetOverloads("plus", true, 2).Select(overload => overload.Declaration.OverloadId));
         Assert.Empty(index.GetOverloads("plus", true, 1));
         Assert.True(index.IsFunction("plus"));
-        Assert.Equal(["add_bytes", "add_double", "add_int64", "add_list", "add_string", "add_uint64"], index.GetOverloads("_+_", 2).Select(overload => overload.Declaration.OverloadId));
+        Assert.Equal(["add_bytes", "add_double", "add_duration_duration", "add_duration_timestamp", "add_timestamp_duration", "add_int64", "add_list", "add_string", "add_uint64"], index.GetOverloads("_+_", 2).Select(overload => overload.Declaration.OverloadId));
 
         OverloadBinding binding = index.GetOverloads("plus", true, 2)[0];
         Assert.Equal(("plus", true, 1UL, "application", false), (binding.Function, binding.IsApplication, binding.FixedCost, binding.Source, binding.DynOnly));
@@ -96,7 +96,11 @@ public sealed class EnvironmentDeclarationsTests
         Assert.True(plain.TryGetTypeIdentifier("null_type", out CelType? nullType));
         Assert.Equal(CelType.Null, nullType);
         Assert.False(plain.TryGetTypeIdentifier("dyn", out _));
-        Assert.False(plain.TryGetTypeIdentifier("google.protobuf.Timestamp", out _));
+        Assert.True(plain.TryGetTypeIdentifier("google.protobuf.Timestamp", out CelType? timestamp));
+        Assert.Equal(CelType.Timestamp, timestamp);
+        Assert.True(plain.TryGetTypeIdentifier("google.protobuf.Duration", out CelType? duration));
+        Assert.Equal(CelType.Duration, duration);
+        Assert.False(plain.TryGetTypeIdentifier("timestamp", out _));
         Assert.Equal(string.Empty, plain.Container);
         Assert.Equal("acme.sales", contained.Container);
     }

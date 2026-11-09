@@ -54,7 +54,7 @@ public sealed class SkipListTests
         Assert.All(list.Entries, entry => Assert.Equal(6, entry.Scope.Count));
     }
 
-    // The 45 differences of the registry — map literals, a bytes value in a map and orderings of NaN with another kind — and
+    // The 58 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind and time — and
     // the cases of the corpus that minimize them: one entry of the list for each signature, the entries in ordinal order.
     [Fact]
     public void PinnedCorpusListAndRegistry_HaveNoFindingAndAnEntryForEachSignatureOfTheRegistry()
@@ -66,8 +66,8 @@ public sealed class SkipListTests
 
         Assert.Empty(registry.Findings);
         Assert.Empty(list.Findings);
-        Assert.Equal(45, registry.Signatures.Count);
-        Assert.Equal(45, list.Entries.Count);
+        Assert.Equal(58, registry.Signatures.Count);
+        Assert.Equal(58, list.Entries.Count);
         Assert.Equal(registry.Signatures.Order(StringComparer.Ordinal), EntrySignatures(text).Order(StringComparer.Ordinal));
         Assert.Equal(list.Entries.Select(entry => entry.Case).Order(StringComparer.Ordinal), list.Entries.Select(entry => entry.Case));
     }

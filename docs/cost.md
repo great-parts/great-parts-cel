@@ -59,14 +59,14 @@ The charge of every pair is made before the pair is compared, so a comparison th
 
 | Pair of values | eq(a, b) |
 | :- | :- |
-| values of different kinds; `null`, `bool`, `int`, `uint`, `double` and values of the type `type` | 1 |
+| values of different kinds; `null`, `bool`, `int`, `uint`, `double`, `timestamp`, `duration` and values of the type `type` | 1 |
 | two strings | 1 + ⌈(La + Lb)/10⌉, with the lengths of the two strings |
 | two `bytes` | 1 + ⌈(Ba + Bb)/10⌉, with the lengths of the two in bytes |
 | two lists | 1 when the sizes differ; otherwise 1 + Σ eq(aᵢ, bᵢ) by index, in order, up to the first unequal pair |
 | two maps | 1 when the sizes differ; otherwise 1 + Σ over the keys k of a in its order: the lookup of k in b (the classes Read and Read with a string key) + eq(a[k], b[k]), up to the first unequal pair. For a JSON object the lookup is the row "key lookup in a JSON object" of [Data of the application](#data-of-the-application), and its size and enumeration are the row "`size`, enumeration of a JSON object" |
 | two objects of the application | 1 + Σ over the fields compared, in the order of the description: the reads of the field on both sides (1 each) + eq of the two values, up to the first unequal pair. Two objects of different descriptions are 1 |
 
-Ordering (`<`, `<=`, `>`, `>=`) of numbers and `bool` is 1, of strings 1 + ⌈(La + Lb)/10⌉, of `bytes` 1 + ⌈(Ba + Bb)/10⌉.
+Ordering (`<`, `<=`, `>`, `>=`) of numbers, `bool`, `timestamp` and `duration` is 1, of strings 1 + ⌈(La + Lb)/10⌉, of `bytes` 1 + ⌈(Ba + Bb)/10⌉.
 
 ## Standard library
 
@@ -78,10 +78,10 @@ The identifiers are those of the page [Standard library](standard-library.md).
 | `not_strictly_false` | part of the macro step | 0 |
 | `logical_not` | Constant | 1 |
 | `equals`, `not_equals` | Equality | eq(a, b) |
-| `add_int64`, `add_uint64`, `add_double`, `subtract_…`, `multiply_…`, `divide_…`, `modulo_int64`, `modulo_uint64`, `negate_int64`, `negate_double` | Constant | 1 |
+| `add_int64`, `add_uint64`, `add_double`, `add_duration_duration`, `add_duration_timestamp`, `add_timestamp_duration`, `subtract_…`, `multiply_…`, `divide_…`, `modulo_int64`, `modulo_uint64`, `negate_int64`, `negate_double` | Constant | 1 |
 | `add_string`, `add_bytes` | Text | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with Lᵣ = Lₐ |
 | `add_list` | List | 1 + n, with n the size of the result |
-| ordering of `bool` and numbers, among them the 24 overloads across numeric types | Constant | 1 |
+| ordering of `bool`, numbers and time, among them the 24 overloads across numeric types | Constant | 1 |
 | ordering of `string` and `bytes` | Order | 1 + ⌈Lₐ/10⌉ |
 | `index_list` | Read | 1 |
 | `index_map`, `in_map` | Read, Read with a string key | 1; for a string key of length L, 1 + ⌈L/10⌉ |
@@ -90,13 +90,25 @@ The identifiers are those of the page [Standard library](standard-library.md).
 | `size_string`, `string_size` | Text | 1 + ⌈Lₐ/10⌉: the size counts code points, which takes a pass over the string |
 | `contains_string`, `ends_with_string`, `starts_with_string` | Text | 1 + ⌈Lₐ/10⌉ |
 | `type`, `to_dyn` | Constant | 1 |
-| `bool_to_bool`, `bytes_to_bytes`, `double_to_double`, `int64_to_int64`, `string_to_string`, `uint64_to_uint64` | Constant | 1: the identity, the value is not copied |
+| `bool_to_bool`, `bytes_to_bytes`, `double_to_double`, `int64_to_int64`, `string_to_string`, `uint64_to_uint64`, `timestamp_to_timestamp`, `duration_to_duration` | Constant | 1: the identity, the value is not copied |
 | `int64_to_double`, `uint64_to_double`, `double_to_int64`, `uint64_to_int64`, `double_to_uint64`, `int64_to_uint64` | Constant | 1 |
-| `string_to_bool`, `string_to_double`, `string_to_int64`, `string_to_uint64` | Text | 1 + ⌈Lₐ/10⌉ |
+| `string_to_bool`, `string_to_double`, `string_to_int64`, `string_to_uint64`, `string_to_timestamp`, `string_to_duration` | Text | 1 + ⌈Lₐ/10⌉ |
 | `string_to_bytes`, `bytes_to_string` | Text | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ |
-| `bool_to_string`, `int64_to_string`, `uint64_to_string`, `double_to_string` | Text | 1 + ⌈Lᵣ/10⌉; the length of the result is bounded and known before the string is created |
+| `bool_to_string`, `int64_to_string`, `uint64_to_string`, `double_to_string`, `timestamp_to_string`, `duration_to_string` | Text | 1 + ⌈Lᵣ/10⌉; the length of the result is bounded and known before the string is created (for time at most 30) |
+| `int64_to_timestamp`, `timestamp_to_int64`, `duration_to_int64` | Constant | 1 |
+| the 14 receivers of time without a zone: `timestamp_to_year`, `timestamp_to_month`, `timestamp_to_day_of_year`, `timestamp_to_day_of_month`, `timestamp_to_day_of_month_1_based`, `timestamp_to_day_of_week`, `timestamp_to_hours`, `timestamp_to_minutes`, `timestamp_to_seconds`, `timestamp_to_milliseconds`, `duration_to_hours`, `duration_to_minutes`, `duration_to_seconds`, `duration_to_milliseconds` | Constant | 1 |
+| the 10 receivers of a timestamp with a zone: `timestamp_to_year_with_tz`, `timestamp_to_month_with_tz`, `timestamp_to_day_of_year_with_tz`, `timestamp_to_day_of_month_with_tz`, `timestamp_to_day_of_month_1_based_with_tz`, `timestamp_to_day_of_week_with_tz`, `timestamp_to_hours_with_tz`, `timestamp_to_minutes_with_tz`, `timestamp_to_seconds_tz`, `timestamp_to_milliseconds_with_tz` | Text | 1 + ⌈Lₐ/10⌉, Lₐ the length of the zone string |
 
 The search for a substring (`contains`) takes time linear in the lengths of the string and the substring in the worst case, so 1 + ⌈Lₐ/10⌉ holds for every input.
+
+### Time
+
+The overloads of time are on the page [Standard library](standard-library.md#time). Their cost is in the table above; what is particular to time:
+
+- A receiver of a timestamp with a zone charges 1 + ⌈Lₐ/10⌉, with Lₐ the length of the zone string, whether the zone is a name of the database, `UTC`, an offset or a string that fails: the charge is made before the call, from the text of the argument. A zone that is a constant is charged in the same way.
+- `string(timestamp)` and `string(duration)` produce at most 30 characters, so their charge is at most 1 + 3 = 4; it is made from the value, before the string is created.
+- A call that the compiler folds, such as `duration('72h')` or `timestamp('2009-02-13T23:31:30Z')`, charges what the call charges at evaluation: folding changes the work of the program, not its cost.
+- A receiver without a zone, the arithmetic, the comparison and the conversions between a time value and an `int` take constant time and no memory that grows with the data.
 
 ## Macros
 

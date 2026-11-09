@@ -22,7 +22,8 @@ public sealed class GeneratorTests
 {
     private const int Cases = 400;
 
-    // The cases per seed of the test of the string arguments of conversions, which are rarer than the other forms.
+    // The cases per seed of the tests of the forms that are rarer than the others: the string arguments of conversions, and the places of
+    // the typed variables and of dyn operands, which the functions of time made rarer still.
     private const int ConversionCases = 4000;
 
     // The cases per seed of the test of the forms rarer still: dyn() around an iteration variable that is the range of a macro.
@@ -114,7 +115,11 @@ public sealed class GeneratorTests
 
         // A root that is the variable of the type int_wrapper has the type wrapper(int).
         Assert.Equal(
-            new[] { CelTypeKind.Dyn, CelTypeKind.Null, CelTypeKind.Bool, CelTypeKind.Int, CelTypeKind.UInt, CelTypeKind.Double, CelTypeKind.String, CelTypeKind.Bytes, CelTypeKind.List, CelTypeKind.Map, CelTypeKind.Wrapper, CelTypeKind.Type },
+            new[]
+            {
+                CelTypeKind.Dyn, CelTypeKind.Null, CelTypeKind.Bool, CelTypeKind.Int, CelTypeKind.UInt, CelTypeKind.Double, CelTypeKind.String, CelTypeKind.Bytes,
+                CelTypeKind.List, CelTypeKind.Map, CelTypeKind.Wrapper, CelTypeKind.Type, CelTypeKind.Timestamp, CelTypeKind.Duration,
+            }.Order(),
             resultKinds.Order());
     }
 
@@ -168,7 +173,7 @@ public sealed class GeneratorTests
     [Fact]
     public void DynOperands_StandWhereFunctionsTakeThem()
     {
-        List<Expr> nodes = [.. AllNodes()];
+        List<Expr> nodes = [.. AllNodes(ConversionCases)];
         List<Call> calls = [.. nodes.OfType<Call>()];
 
         foreach (string function in new[] { ProfileTables.Negate, ProfileTables.Add, ProfileTables.Divide, ProfileTables.Modulo, ProfileTables.Less, ProfileTables.Size, ProfileTables.IntConversion, ProfileTables.Contains, ProfileTables.LogicalAnd })
@@ -236,8 +241,18 @@ public sealed class GeneratorTests
         Assert.All(cases, generated => Assert.InRange(MacroNesting(generated.Expression), 0, ProfileTables.MaxMacroNesting));
         Assert.Equal(ProfileTables.MaxDepth, cases.Max(generated => Depth(generated.Expression)));
         Assert.Equal(ProfileTables.MaxMacroNesting, cases.Max(generated => MacroNesting(generated.Expression)));
-        Assert.All(cases.SelectMany(generated => Nodes(generated.Expression)), node => Assert.InRange(TextLength(node), 0, LimitOf(node)));
-        Assert.All(cases.SelectMany(generated => generated.Bindings.Values).SelectMany(Values), value => Assert.InRange(TextLength(value), 0, LimitOf(value)));
+        Assert.All(cases.SelectMany(generated => Nodes(generated.Expression)), node => Assert.InRange(TextLength(node), 0, node is StringLiteral ? TimeStrings.MaxCodePoints : LimitOf(node)));
+        Assert.All(
+            cases.SelectMany(generated => Nodes(generated.Expression)).OfType<Call>().SelectMany(call => call.Args.Select(arg => (call, arg))).Where(pair => pair.arg is StringLiteral),
+            pair => Assert.True(
+                TextLength(pair.arg) <= ProfileTables.MaxCodePoints || TimeFunctions.Contains(pair.call.Function),
+                ExprPrinter.Print(pair.call)));
+        Assert.All(
+            cases.SelectMany(generated => generated.Bindings).Where(binding => binding.Key != ProfileTables.ZoneVariable).SelectMany(binding => Values(binding.Value)),
+            value => Assert.InRange(TextLength(value), 0, LimitOf(value)));
+        Assert.All(
+            cases.SelectMany(generated => generated.Bindings).Where(binding => binding.Key == ProfileTables.ZoneVariable).SelectMany(binding => Values(binding.Value)),
+            value => Assert.InRange(TextLength(value), 0, TimeStrings.MaxCodePoints));
         Assert.All(cases.SelectMany(generated => Nodes(generated.Expression)), node => Assert.InRange(Elements(node), 0, ProfileTables.MaxElements));
         Assert.Contains(cases, generated => generated.Bindings.Values.Any(value => value.KindCase == Value.KindOneofCase.StringValue && TextLength(value) == ProfileTables.MaxCodePoints));
     }
@@ -357,7 +372,7 @@ public sealed class GeneratorTests
     [Fact]
     public void TypedVariables_StandWhereTheirTypeFits()
     {
-        List<Expr> nodes = [.. AllNodes()];
+        List<Expr> nodes = [.. AllNodes(ConversionCases)];
         List<Comprehension> macros = [.. nodes.OfType<Comprehension>()];
         string[] lists = ["li", "ls", "lx"];
         string[] maps = ["ms", "mx"];
@@ -679,6 +694,89 @@ public sealed class GeneratorTests
             string.Join('|', trees.Select(ExprPrinter.Print)));
     }
 
+    // ---- Time ----
+
+    // The functions that take a string of time or a zone argument.
+    private static readonly string[] TimeFunctions =
+        [ProfileTables.TimestampConversion, ProfileTables.DurationConversion, "getFullYear", "getMonth", "getDayOfYear", "getDayOfMonth", "getDate", "getDayOfWeek", "getHours", "getMinutes", "getSeconds", "getMilliseconds"];
+
+    [Fact]
+    public void ConstructorsOfTime_ArePrintedAsGlobalCalls()
+    {
+        Call timestamp = new(ProfileTables.TimestampConversion, [Quoted("1970-01-01T00:00:00Z")]);
+        Call duration = new(ProfileTables.DurationConversion, [Quoted("72h")]);
+
+        Assert.Equal("timestamp('1970-01-01T00:00:00Z')", ExprPrinter.Print(timestamp));
+        Assert.Equal("duration('72h')", ExprPrinter.Print(duration));
+        Assert.Equal("timestamp(1).getHours('UTC')", ExprPrinter.Print(new Call("getHours", [new Call(ProfileTables.TimestampConversion, [new IntLiteral(1, IntegerForm.DecimalDigits)]), Quoted("UTC")]) { Receiver = true }));
+    }
+
+    // A string literal in apostrophes whose every unit is written as itself.
+    private static StringLiteral Quoted(string value) => new(value, new TextForm(Quote.Apostrophe, null, [.. value.EnumerateRunes().Select(_ => Escape.Literal)]));
+
+    [Fact]
+    public void ConstructorsOfTime_TakeStringsAndIntsAndEveryReceiverOccursWithAndWithoutAZone()
+    {
+        List<Call> calls = [.. Sample(ConversionCases).SelectMany(generated => Nodes(generated.Expression)).OfType<Call>()];
+
+        Assert.Contains(calls, call => call is { Function: ProfileTables.TimestampConversion, Args: [StringLiteral] });
+        Assert.Contains(calls, call => call is { Function: ProfileTables.TimestampConversion, Args: [IntLiteral] });
+        Assert.Contains(calls, call => call is { Function: ProfileTables.TimestampConversion, Args: [Call] });
+        Assert.Contains(calls, call => call is { Function: ProfileTables.DurationConversion, Args: [StringLiteral] });
+        Assert.Contains(calls, call => call is { Function: ProfileTables.DurationConversion, Args: [Call] });
+        foreach (string receiver in TimeFunctions.Skip(2))
+        {
+            Assert.Contains(calls, call => call.Function == receiver && call is { Receiver: true, Args.Count: 1 });
+        }
+
+        foreach (string receiver in TimeFunctions.Skip(2).Where(name => name is not ("getHours" or "getMinutes" or "getSeconds" or "getMilliseconds")))
+        {
+            Assert.Contains(calls, call => call.Function == receiver && call is { Receiver: true, Args.Count: 2 });
+        }
+
+        Assert.Contains(calls, call => call is { Function: "getHours" or "getMinutes" or "getSeconds" or "getMilliseconds", Receiver: true, Args.Count: 2 });
+    }
+
+    [Fact]
+    public void ZoneArguments_AreZonesOfTheFileAndTheOtherFormsOfTheProfile()
+    {
+        HashSet<string> zones = [.. ZoneData.Zones];
+        List<Expr> arguments = [.. Sample(ConversionCases).SelectMany(generated => Nodes(generated.Expression)).OfType<Call>()
+            .Where(call => call is { Receiver: true, Args.Count: 2 } && TimeFunctions.Contains(call.Function)).Select(call => call.Args[1])];
+        List<string> literals = [.. arguments.OfType<StringLiteral>().Select(literal => literal.Value)];
+
+        Assert.Contains(literals, zones.Contains);
+        Assert.Contains(literals, literal => literal == "UTC");
+        Assert.Contains(literals, literal => literal is "+05:30" or "-03:00" or "00:00");
+        Assert.Contains(literals, literal => literal is "+1:5" or "+001:30" or "+24:00" or "+03:60" or ":");
+        Assert.Contains(literals, literal => literal is "" or "Local");
+        Assert.Contains(literals, literal => literal == "Mars/Base");
+        Assert.Contains(literals, literal => !zones.Contains(literal) && zones.Any(zone => string.Equals(zone, literal, StringComparison.OrdinalIgnoreCase)));
+        Assert.Contains(arguments, argument => argument is Ident { Name: ProfileTables.ZoneVariable });
+        Assert.All(arguments, argument => Assert.True(argument is StringLiteral or Ident { Name: ProfileTables.ZoneVariable } or Call or Comprehension or Select, ExprPrinter.Print(argument)));
+    }
+
+    [Fact]
+    public void TheVariableThatIsAZone_IsOftenBoundToAZoneArgument()
+    {
+        HashSet<string> zones = [.. ZoneData.Zones];
+        List<string> bound = [.. Sample().Select(generated => generated.Bindings.GetValueOrDefault(ProfileTables.ZoneVariable)).Where(value => value is not null).Select(value => value!.StringValue)];
+
+        Assert.Contains(bound, zones.Contains);
+    }
+
+    [Fact]
+    public void TypeIdentifiersOfTime_AreInTheProfileAndNoVariableHoldsTime()
+    {
+        Assert.Contains("google.protobuf.Timestamp", ProfileTables.TypeIdentifiers);
+        Assert.Contains("google.protobuf.Duration", ProfileTables.TypeIdentifiers);
+        Assert.All(ProfileTables.Variables, variable => Assert.False(variable.Type.IsTime()));
+        string manifest = File.ReadAllText(Path.Combine(RepositoryRoot.Find(), ProfileTables.ManifestPath));
+        Assert.DoesNotContain("timestamp", manifest, StringComparison.Ordinal);
+        Assert.DoesNotContain("duration", manifest, StringComparison.Ordinal);
+        Assert.DoesNotContain(Sample().SelectMany(generated => generated.Bindings.Values).SelectMany(Values), value => value.KindCase == Value.KindOneofCase.ObjectValue);
+    }
+
     // ---- Helpers ----
 
     private static IEnumerable<GeneratedCase> Sample(int cases = Cases)
@@ -702,7 +800,7 @@ public sealed class GeneratorTests
         return built.Environment!;
     }
 
-    private static IEnumerable<Expr> AllNodes() => Sample().SelectMany(generated => Nodes(generated.Expression));
+    private static IEnumerable<Expr> AllNodes(int cases = Cases) => Sample(cases).SelectMany(generated => Nodes(generated.Expression));
 
     // Every child of a node, the arguments of a macro included: a walk of its own, not Minimizer.Children.
     private static IEnumerable<Expr> Children(Expr expr) => expr switch

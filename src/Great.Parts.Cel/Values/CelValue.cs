@@ -181,7 +181,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>The CEL value; no memory is allocated.</returns>
     public static CelValue FromTimestamp(CelTimestamp value)
     {
-        throw new NotImplementedException();
+        return new CelValue(CelValueKind.Timestamp, null, unchecked((ulong)value.Seconds), (ulong)value.Nanoseconds);
     }
 
     /// <summary>
@@ -191,7 +191,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns>The CEL value; no memory is allocated.</returns>
     public static CelValue FromDuration(CelDuration value)
     {
-        throw new NotImplementedException();
+        return new CelValue(CelValueKind.Duration, null, unchecked((ulong)value.TotalNanoseconds), 0);
     }
 
     /// <summary>
@@ -345,7 +345,9 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Timestamp"/>.</returns>
     public bool TryGetTimestamp(out CelTimestamp value)
     {
-        throw new NotImplementedException();
+        // The payload was checked when the value was made.
+        value = _kind == CelValueKind.Timestamp ? CelTimestamp.FromChecked(unchecked((long)_p0), (int)_p1) : default;
+        return _kind == CelValueKind.Timestamp;
     }
 
     /// <summary>
@@ -355,7 +357,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Duration"/>.</returns>
     public bool TryGetDuration(out CelDuration value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Duration ? new CelDuration(unchecked((long)_p0)) : default;
+        return _kind == CelValueKind.Duration;
     }
 
     /// <summary>
@@ -483,7 +486,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
         return _kind switch
         {
             CelValueKind.Null => true,
-            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt => _p0 == other._p0,
+            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Duration => _p0 == other._p0,
+            CelValueKind.Timestamp => _p0 == other._p0 && _p1 == other._p1,
             CelValueKind.Double => BitConverter.UInt64BitsToDouble(_p0).Equals(BitConverter.UInt64BitsToDouble(other._p0)),
             CelValueKind.String => string.Equals((string?)_ref, (string?)other._ref, StringComparison.Ordinal),
             CelValueKind.Bytes => BytesOf(this).Span.SequenceEqual(BytesOf(other).Span),
@@ -515,7 +519,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
         int content = _kind switch
         {
             CelValueKind.Null => 0,
-            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt => _p0.GetHashCode(),
+            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Duration => _p0.GetHashCode(),
+            CelValueKind.Timestamp => HashCode.Combine(_p0, _p1),
             CelValueKind.Double => BitConverter.UInt64BitsToDouble(_p0).GetHashCode(),
             CelValueKind.String => ((string)_ref!).GetHashCode(StringComparison.Ordinal),
             CelValueKind.Bytes => BytesHash(BytesOf(this).Span),

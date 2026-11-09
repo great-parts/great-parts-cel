@@ -636,7 +636,7 @@ public sealed class SignatureTests
     }
 
     [Fact]
-    public void BodyInstances_TakeEveryBodyThatReadsTheVariableInOrderAndNoOther()
+    public void BodyInstances_TakeEveryBodyInOrder_OneForEachElementWhenItReadsTheVariableAndOneWhenItDoesNot()
     {
         Expr v = new Ident("v");
         Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
@@ -648,9 +648,65 @@ public sealed class SignatureTests
         Assert.Equal(
             ["(1) > 1", "(2) > 1", "(1) + (1)", "(2) + (2)"],
             Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, transform])));
-        Assert.Equal(["(1) > 1", "(2) > 1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, one])));
-        Assert.Empty(Printed(new Comprehension(ProfileTables.All, range, "v", [one])));
+        Assert.Equal(["(1) > 1", "(2) > 1", "1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, one])));
+        Assert.Equal(["1", "(1) > 1", "(2) > 1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [one, predicate])));
+        Assert.Equal(["1"], Printed(new Comprehension(ProfileTables.All, range, "v", [one])));
         Assert.Empty(Printed(new Call(ProfileTables.Add, [v, v])));
+    }
+
+    // A body that does not read the variable is one instance, the body itself, over a range with elements, with none, with an
+    // error, and over a scalar; the library is not asked for the value of the range.
+    [Fact]
+    public void BodyInstances_OfABodyWithoutTheVariable_AreTheBodyItselfWhateverTheRangeHolds()
+    {
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr independent = new Call(ProfileTables.Greater, [new Ident("x1"), one]);
+        Expr[] ranges =
+        [
+            new ListLiteral([one, one], TrailingComma: false),
+            new Call(ProfileTables.Dyn, [new ListLiteral([], TrailingComma: false)]),
+            new MapLiteral([], TrailingComma: false),
+            new Ident("lx"),
+        ];
+
+        foreach (Expr range in ranges)
+        {
+            foreach (Value? value in new Value?[] { null, Int(3), ListOf(), ListOf(Int(1)) })
+            {
+                int rangeCalls = 0;
+                Expr macro = new Comprehension(ProfileTables.Exists, range, "v", [independent]);
+
+                IEnumerable<string> instances = Minimizer.BodyInstances(macro, _ =>
+                {
+                    rangeCalls++;
+                    return value;
+                }).Select(ExprPrinter.Print);
+
+                Assert.Equal(["x1 > 1"], instances);
+                Assert.Equal(0, rangeCalls);
+            }
+        }
+    }
+
+    // The range is asked once, however many bodies read the variable, and not for a body that does not.
+    [Fact]
+    public void BodyInstances_AskTheRangeOnceAndOnlyForABodyThatReadsTheVariable()
+    {
+        Expr v = new Ident("v");
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr predicate = new Call(ProfileTables.Greater, [v, one]);
+        Expr transform = new Call(ProfileTables.Add, [v, v]);
+        Expr macro = new Comprehension(ProfileTables.MapMacro, new Ident("lx"), "v", [predicate, transform]);
+        int rangeCalls = 0;
+
+        List<string> instances = [.. Minimizer.BodyInstances(macro, _ =>
+        {
+            rangeCalls++;
+            return ListOf(Int(5));
+        }).Select(ExprPrinter.Print)];
+
+        Assert.Equal(["lx[0] > 1", "lx[0] + lx[0]"], instances);
+        Assert.Equal(1, rangeCalls);
     }
 
     // A macro inside the body that declares the same variable keeps its own body; its range reads the outer variable.
@@ -680,6 +736,58 @@ public sealed class SignatureTests
 
         Assert.Equal(root, divergence?.Case.Expression);
         Assert.Equal("comprehension(list) value-mismatch", divergence?.Signature);
+    }
+
+    // Cases 48263 and 84991 of seed 20261109: the divergence is in a body that does not read the variable, which has an instance
+    // of its own over a range with elements, with none and with an error, so the case is minimized to the known divergence of
+    // the body, and the macro does not hide it.
+    [Theory]
+    [InlineData("elements")]
+    [InlineData("empty")]
+    [InlineData("error")]
+    public static void Macro_WithADivergenceInABodyWithoutTheVariable_IsMinimizedToTheBodyOverAnyRange(string range)
+    {
+        Expr x1 = new Ident("x1");
+        Expr body = new Call(ProfileTables.Greater, [x1, new Ident("d1")]);
+        Expr source = range switch
+        {
+            "elements" => new ListLiteral([I1], TrailingComma: false),
+            "empty" => new Call(ProfileTables.Dyn, [new ListLiteral([], TrailingComma: false)]),
+            _ => new Ident("lx"),
+        };
+        SideOutcome rangeOutcome = range == "error" ? SideOutcome.EvaluationError("no such attribute") : Agreed;
+
+        AssertMinimizedToKnown(
+            new Comprehension(ProfileTables.Exists, source, "v", [body]),
+            body,
+            SideOutcome.EvaluationError("no such overload: _>_(bytes, double)"),
+            "_>_(bytes, double) we-error",
+            "x1 > d1",
+            Agree(x1, Bytes(0x61)),
+            Agree(new Ident("d1"), Dbl(double.NaN)),
+            (source, rangeOutcome, rangeOutcome));
+    }
+
+    // The divergence of a body without the variable that nobody knows stays the macro, with the signature of the macro.
+    [Fact]
+    public void Macro_WithAnUnknownDivergenceInABodyWithoutTheVariable_StaysTheMacro()
+    {
+        Expr x1 = new Ident("x1");
+        Expr body = new Call(ProfileTables.Greater, [x1, new Ident("d1")]);
+        Expr range = new Call(ProfileTables.Dyn, [new ListLiteral([], TrailingComma: false)]);
+        Expr root = new Comprehension(ProfileTables.Exists, range, "v", [body]);
+        SideOutcome error = SideOutcome.EvaluationError("no such overload: _>_(bytes, double)");
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, error, SideOutcome.Of(Bool(false))),
+            (body, error, SideOutcome.Of(Bool(false))),
+            (range, SideOutcome.Of(ListOf()), SideOutcome.Of(ListOf())));
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal(root, divergence?.Case.Expression);
+        Assert.Equal("comprehension(list) we-error", divergence?.Signature);
+        Assert.Single(search.NewSignatures);
     }
 
     // ---- Minimization under a macro over a range that is not a literal ----
@@ -920,7 +1028,26 @@ public sealed class SignatureTests
         Assert.Equal(instants, ZoneOffsets.Instants(RunSeed, 50));
         Assert.NotEqual(instants, ZoneOffsets.Instants(RunSeed + 1, 50));
         Assert.All(instants, instant => Assert.InRange(instant.Year, 1800, 2199));
-        Assert.Empty(ProfileTables.ZoneDataPath);
+        Assert.Equal(55, instants.Count);
+    }
+
+    [Fact]
+    public void Instants_EndWithTheFiveFixedInstants()
+    {
+        IReadOnlyList<DateTimeOffset> instants = ZoneOffsets.Instants(RunSeed, 256);
+
+        Assert.Equal(261, instants.Count);
+        Assert.Equal(
+            ["1800-01-01T00:00:00Z", "1900-01-01T00:00:00Z", "1970-01-01T00:00:00Z", "2037-01-01T00:00:00Z", "2100-01-01T00:00:00Z"],
+            instants.TakeLast(5).Select(ZoneOffsets.Instant));
+        Assert.Equal(instants.Take(256), ZoneOffsets.Instants(RunSeed, 256).Take(256));
+    }
+
+    [Fact]
+    public void ZoneInfoPath_NamesTheZipOfTheRepository()
+    {
+        Assert.Equal("tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip", ProfileTables.ZoneInfoPath);
+        Assert.True(File.Exists(Path.Combine(RepositoryRoot.Find(), ProfileTables.ZoneInfoPath)));
     }
 
     // ---- Helpers ----

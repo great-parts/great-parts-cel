@@ -381,6 +381,10 @@ public sealed class ObjectTypeTests
 
         internal CelValue Dynamic(int number, object? value) => FromDynamic(number, value);
 
+        internal CelValue DateTimeField(int number, DateTime value) => FromDateTime(number, value);
+
+        internal CelValue TimeSpanField(int number, TimeSpan value) => FromTimeSpan(number, value);
+
         protected internal override CelValue GetField(object instance, int number)
         {
             var order = (Order)instance;

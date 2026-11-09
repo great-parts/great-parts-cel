@@ -91,6 +91,14 @@
   </ItemGroup>
 
   <!--
+    The time zone data of the tests: the archive zoneinfo.zip of the pinned Go (docs/design/tests.md, "Time zone data"). One copy of the file; the
+    other test projects embed it by a linked item, and Runner/ZoneInfoFile.cs reads it. It is used by tests only (NOTICE).
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="ZoneInfo/zoneinfo.zip" LogicalName="tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip" />
+  </ItemGroup>
+
+  <!--
     protoc reads each text file as a cel.expr.conformance.test.SimpleTestFile and writes the binary form. Expanded Any values and
     extensions resolve only when the test messages are inputs too, with the import path of the protos and the standard imports of
     Grpc.Tools. The stamp file is written after every file is encoded, so a failed run never looks up to date.

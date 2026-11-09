@@ -54,7 +54,7 @@ internal static partial class ConversionRules
     {
         try
         {
-            return converter(source[index]);
+            return NameRefusal(converter(source[index]), ListCallee);
         }
         catch (Exception exception) when (IsApplicationException(exception))
         {
@@ -67,7 +67,7 @@ internal static partial class ConversionRules
     {
         try
         {
-            return converter(value);
+            return NameRefusal(converter(value), MapCallee);
         }
         catch (Exception exception) when (IsApplicationException(exception))
         {
@@ -141,7 +141,8 @@ internal static partial class ConversionRules
         }
 
         CelValueKind kind = values[0].Kind;
-        if (kind is not (CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.String or CelValueKind.Bytes))
+        if (kind is not (CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.String or CelValueKind.Bytes
+            or CelValueKind.Timestamp or CelValueKind.Duration))
         {
             return false;
         }
@@ -201,7 +202,7 @@ internal static partial class ConversionRules
                 return false;
             }
 
-            value = converter(found);
+            value = NameRefusal(converter(found), MapCallee);
             return true;
         }
         catch (Exception exception) when (IsApplicationException(exception))
@@ -268,15 +269,20 @@ internal static partial class ConversionRules
             return JsonRules.FromElement(Unsafe.As<T, JsonElement>(ref value), overloadId);
         }
 
+        if (typeof(T) == typeof(DateTime))
+        {
+            return FromDateTime(Unsafe.As<T, DateTime>(ref value), overloadId);
+        }
+
         _ = TryFromClr(value, out CelValue result);
-        return result;
+        return NameRefusal(result, overloadId);
     }
 
     // Whether a refusal of CelBindings.Add names an undefined JsonElement, which has no CEL value.
     internal static bool IsRefusedByBindings(CelValue value) =>
         value.TryGetError(out CelError? error) && error.Code == CelErrorCode.InvalidArgument;
 
-    // Whether the .NET type is one of time, optional and decimal, which come with their parts.
+    // Whether the .NET type is one of optional and decimal, which come with their parts.
     internal static bool IsOfLaterPart<T>() => MentionsLaterPart(typeof(T));
 
     // The CEL type that the rows of collections and application lists give a .NET type; null outside them.
@@ -294,7 +300,7 @@ internal static partial class ConversionRules
     {
         try
         {
-            return converter(item);
+            return NameRefusal(converter(item), ListCallee);
         }
         catch (Exception exception) when (IsApplicationException(exception))
         {

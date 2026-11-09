@@ -18,6 +18,13 @@ public sealed class TypeRecordResolverTests
         { "dyn", CelType.Dyn },
         { "null_type", CelType.Null },
         { "null", CelType.Null },
+        { "timestamp", CelType.Timestamp },
+        { "duration", CelType.Duration },
+        { "list<timestamp>", CelType.ListOf(CelType.Timestamp) },
+        { "map<string, duration>", CelType.MapOf(CelType.String, CelType.Duration) },
+        { "type<timestamp>", CelType.TypeOf(CelType.Timestamp) },
+        { "google.protobuf.Timestamp", CelType.ObjectNamed("google.protobuf.Timestamp") },
+        { ".google.protobuf.Duration", CelType.ObjectNamed("google.protobuf.Duration") },
         { "int_wrapper", CelType.WrapperOf(CelType.Int) },
         { "uint_wrapper", CelType.WrapperOf(CelType.UInt) },
         { "double_wrapper", CelType.WrapperOf(CelType.Double) },
@@ -98,6 +105,8 @@ public sealed class TypeRecordResolverTests
     [InlineData("int<int>", "the type 'int' has no type parameters: 'int<int>'")]
     [InlineData("dyn<int>", "the type 'dyn' has no type parameters: 'dyn<int>'")]
     [InlineData("int_wrapper<int>", "the type 'int_wrapper' has no type parameters: 'int_wrapper<int>'")]
+    [InlineData("timestamp<int>", "the type 'timestamp' has no type parameters: 'timestamp<int>'")]
+    [InlineData("duration<int>", "the type 'duration' has no type parameters: 'duration<int>'")]
     [InlineData("acme.Order<int>", "the type 'acme.Order' has no type parameters: 'acme.Order<int>'")]
     [InlineData("list<map<int>>", "the type 'map' takes 2 type parameters, but 'list<map<int>>' gives 1")]
     public static void WrongNumberOfParameters_IsAnError(string text, string expected)
@@ -107,15 +116,11 @@ public sealed class TypeRecordResolverTests
         Assert.Equal(expected, detail);
     }
 
-    // The types that the parts of time and of extension sets bring are errors that name the type.
+    // The type that a later part brings is an error that names the type.
     [Theory]
-    [InlineData("timestamp", "timestamp")]
-    [InlineData("duration", "duration")]
-    [InlineData("google.protobuf.Timestamp", "google.protobuf.Timestamp")]
-    [InlineData(".google.protobuf.Duration", "google.protobuf.Duration")]
     [InlineData("optional_type<int>", "optional_type")]
     [InlineData("optional_type", "optional_type")]
-    [InlineData("list<timestamp>", "timestamp")]
+    [InlineData("list<optional_type<int>>", "optional_type")]
     public static void TypeThatLaterPartsBring_IsAnErrorThatNamesIt(string text, string name)
     {
         Assert.Null(TypeRecordResolver.Resolve(text, allowTypeParameters: false, "a variable", out string detail));

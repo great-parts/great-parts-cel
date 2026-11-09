@@ -40,7 +40,7 @@ internal sealed record ProfileOverload(
 
 /// <summary>
 /// The tables of the profile (docs/design/eng-difftest.md, "Profile"): the variables of the manifest, the functions of the
-/// standard library version 1 without time and <c>matches</c> and their overloads, the macros, the type identifiers, and
+/// standard library version 1 without <c>matches</c> and their overloads, the macros, the type identifiers, and
 /// the limits of a generated case.
 /// </summary>
 internal static class ProfileTables
@@ -49,10 +49,23 @@ internal static class ProfileTables
     internal const string ManifestPath = "eng/difftest/Profile/environment.json";
 
     /// <summary>
-    /// The path of the time zone data file from the repository root, whose zones the run compares (<c>ENG822</c>). The profile
-    /// has no time zone data file until time: the path is empty, and runs do not compare offsets.
+    /// The path of the time zone data file from the repository root, with <c>/</c>: the archive <c>zoneinfo.zip</c> of the tests,
+    /// byte for byte the one of the pinned Go. The library side of a run takes its database from it, the oracle names it with
+    /// <c>ZONEINFO</c>, the generator takes zone names from it, and <c>ENG822</c> compares the offsets of its zones.
     /// </summary>
-    internal const string ZoneDataPath = "";
+    internal const string ZoneInfoPath = "tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip";
+
+    /// <summary>The version of the release of the time zone database in <see cref="ZoneInfoPath"/>.</summary>
+    internal const string ZoneInfoVersion = "2026c";
+
+    /// <summary>The string variable that is, half the time, bound to a zone argument: the zone of a receiver may be this variable.</summary>
+    internal const string ZoneVariable = "s1";
+
+    /// <summary>The function <c>timestamp</c>.</summary>
+    internal const string TimestampConversion = "timestamp";
+
+    /// <summary>The function <c>duration</c>.</summary>
+    internal const string DurationConversion = "duration";
 
     /// <summary>The function <c>_?_:_</c>.</summary>
     internal const string Conditional = "_?_:_";
@@ -211,7 +224,7 @@ internal static class ProfileTables
 
     /// <summary>The type identifiers of the standard library version 1; each is a value of the type <c>type</c>.</summary>
     internal static IReadOnlyList<string> TypeIdentifiers { get; } =
-        ["bool", "bytes", "double", "int", "uint", "string", "null_type", "type", "list", "map"];
+        ["bool", "bytes", "double", "int", "uint", "string", "null_type", "type", "list", "map", "google.protobuf.Timestamp", "google.protobuf.Duration"];
 
     /// <summary>The iteration variables: the first for a macro outside any other, the second for a macro inside it.</summary>
     internal static IReadOnlyList<string> IterationVariables { get; } = ["v", "w"];
@@ -238,6 +251,8 @@ internal static class ProfileTables
         ProfileType.ListType,
         ProfileType.MapType,
         ProfileType.TypeType,
+        ProfileType.TimestampType,
+        ProfileType.DurationType,
         ProfileType.DynType,
     ];
 
@@ -260,7 +275,7 @@ internal static class ProfileTables
     /// <summary>The kinds of the value of a <c>dyn</c> variable: the scalar kinds, <c>null</c>, a list and a map.</summary>
     internal static IReadOnlyList<ProfileType> DynKinds { get; } = [.. ScalarKinds, ProfileType.ListType, ProfileType.MapType];
 
-    // The table of the standard library version 1 without time and matches, as the library and cel-go v0.32.0 have it.
+    // The table of the standard library version 1 without matches, as the library and cel-go v0.32.0 have it.
     private static List<ProfileOverload> BuildOverloads()
     {
         const ProfileType A = ProfileType.ParameterAType;
@@ -271,6 +286,8 @@ internal static class ProfileTables
         const ProfileType Bool = ProfileType.BoolType;
         const ProfileType Str = ProfileType.StringType;
         const ProfileType Byt = ProfileType.BytesType;
+        const ProfileType Ts = ProfileType.TimestampType;
+        const ProfileType Dur = ProfileType.DurationType;
         const ProfileType ListA = ProfileType.ListType;
         const ProfileType MapAB = ProfileType.MapType;
 
@@ -288,6 +305,9 @@ internal static class ProfileTables
             new("add_list", Add, [ListA, ListA], ListA),
             new("add_string", Add, [Str, Str], Str),
             new("add_uint64", Add, [Uint, Uint], Uint),
+            new("add_timestamp_duration", Add, [Ts, Dur], Ts),
+            new("add_duration_timestamp", Add, [Dur, Ts], Ts),
+            new("add_duration_duration", Add, [Dur, Dur], Dur),
             new("divide_double", Divide, [Dbl, Dbl], Dbl),
             new("divide_int64", Divide, [Int, Int], Int),
             new("divide_uint64", Divide, [Uint, Uint], Uint),
@@ -301,6 +321,9 @@ internal static class ProfileTables
             new("subtract_double", Subtract, [Dbl, Dbl], Dbl),
             new("subtract_int64", Subtract, [Int, Int], Int),
             new("subtract_uint64", Subtract, [Uint, Uint], Uint),
+            new("subtract_timestamp_duration", Subtract, [Ts, Dur], Ts),
+            new("subtract_timestamp_timestamp", Subtract, [Ts, Ts], Dur),
+            new("subtract_duration_duration", Subtract, [Dur, Dur], Dur),
         ];
 
         // Ordering: for each relation bool, then each number with itself and the other two numbers, then string and bytes;
@@ -308,7 +331,7 @@ internal static class ProfileTables
         (ProfileType Left, ProfileType Right)[] pairs =
         [
             (Bool, Bool), (Int, Int), (Int, Dbl), (Int, Uint), (Uint, Uint), (Uint, Dbl), (Uint, Int),
-            (Dbl, Dbl), (Dbl, Int), (Dbl, Uint), (Str, Str), (Byt, Byt),
+            (Dbl, Dbl), (Dbl, Int), (Dbl, Uint), (Str, Str), (Byt, Byt), (Ts, Ts), (Dur, Dur),
         ];
         foreach ((string function, string prefix) in new[] { (Less, "less"), (LessEqual, "less_equals"), (Greater, "greater"), (GreaterEqual, "greater_equals") })
         {
@@ -355,12 +378,50 @@ internal static class ProfileTables
             new("int64_to_string", StringConversion, [Int], Str),
             new("uint64_to_string", StringConversion, [Uint], Str),
             new("uint64_to_uint64", UintConversion, [Uint], Uint),
+            new("timestamp_to_timestamp", TimestampConversion, [Ts], Ts),
+            new("int64_to_timestamp", TimestampConversion, [Int], Ts),
+            new("string_to_timestamp", TimestampConversion, [Str], Ts),
+            new("duration_to_duration", DurationConversion, [Dur], Dur),
+            new("string_to_duration", DurationConversion, [Str], Dur),
+            new("timestamp_to_int64", IntConversion, [Ts], Int),
+            new("duration_to_int64", IntConversion, [Dur], Int),
+            new("timestamp_to_string", StringConversion, [Ts], Str),
+            new("duration_to_string", StringConversion, [Dur], Str),
             new("double_to_uint64", UintConversion, [Dbl], Uint),
             new("int64_to_uint64", UintConversion, [Int], Uint),
             new("string_to_uint64", UintConversion, [Str], Uint),
             new("contains_string", Contains, [Str, Str], Bool, Receiver: true),
             new("ends_with_string", EndsWith, [Str, Str], Bool, Receiver: true),
             new("starts_with_string", StartsWith, [Str, Str], Bool, Receiver: true),
+        ]);
+
+        // The receivers of a timestamp, without a zone argument and with one (the ids are those of cel-go, among them
+        // timestamp_to_seconds_tz), and of a duration.
+        (string Function, string Id, string ZoneId)[] timestampReceivers =
+        [
+            ("getFullYear", "timestamp_to_year", "timestamp_to_year_with_tz"),
+            ("getMonth", "timestamp_to_month", "timestamp_to_month_with_tz"),
+            ("getDayOfYear", "timestamp_to_day_of_year", "timestamp_to_day_of_year_with_tz"),
+            ("getDayOfMonth", "timestamp_to_day_of_month", "timestamp_to_day_of_month_with_tz"),
+            ("getDate", "timestamp_to_day_of_month_1_based", "timestamp_to_day_of_month_1_based_with_tz"),
+            ("getDayOfWeek", "timestamp_to_day_of_week", "timestamp_to_day_of_week_with_tz"),
+            ("getHours", "timestamp_to_hours", "timestamp_to_hours_with_tz"),
+            ("getMinutes", "timestamp_to_minutes", "timestamp_to_minutes_with_tz"),
+            ("getSeconds", "timestamp_to_seconds", "timestamp_to_seconds_tz"),
+            ("getMilliseconds", "timestamp_to_milliseconds", "timestamp_to_milliseconds_with_tz"),
+        ];
+        foreach ((string function, string id, string zoneId) in timestampReceivers)
+        {
+            table.Add(new(id, function, [Ts], Int, Receiver: true));
+            table.Add(new(zoneId, function, [Ts, Str], Int, Receiver: true));
+        }
+
+        table.AddRange(
+        [
+            new("duration_to_hours", "getHours", [Dur], Int, Receiver: true),
+            new("duration_to_minutes", "getMinutes", [Dur], Int, Receiver: true),
+            new("duration_to_seconds", "getSeconds", [Dur], Int, Receiver: true),
+            new("duration_to_milliseconds", "getMilliseconds", [Dur], Int, Receiver: true),
         ]);
         return table;
     }

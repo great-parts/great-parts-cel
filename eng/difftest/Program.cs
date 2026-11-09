@@ -23,7 +23,7 @@ internal sealed record RunOptions(ulong Seed, TimeSpan Budget, ulong? Case, bool
 /// <summary>What a run works with besides its options: the streams, the two sides and the commit.</summary>
 /// <param name="Output">Standard output: the <c>log</c> lines of the oracle, the findings and the journal line.</param>
 /// <param name="Error">Standard error: the messages of the run itself.</param>
-/// <param name="Library">Step 2: builds the library side from the run manifest, or names why it cannot.</param>
+/// <param name="Library">Step 2: builds the library side from the run manifest and the path of the time zone data file, or names why it cannot.</param>
 /// <param name="OracleHost">The host of the oracle.</param>
 /// <param name="OraclePort">The port of the oracle.</param>
 /// <param name="ConnectLimit">How long step 3 tries to connect to the oracle.</param>
@@ -32,7 +32,7 @@ internal sealed record RunOptions(ulong Seed, TimeSpan Budget, ulong? Case, bool
 internal sealed record RunSetup(
     TextWriter Output,
     TextWriter Error,
-    Func<byte[], (ICaseSide? Side, string Problem)> Library,
+    Func<byte[], string, (ICaseSide? Side, string Problem)> Library,
     string OracleHost,
     int OraclePort,
     TimeSpan ConnectLimit,
@@ -45,7 +45,7 @@ internal sealed record RunSetup(
     internal static RunSetup Container(TextWriter output, TextWriter error) => new(
         output,
         error,
-        manifest => LibrarySide.TryBuild(manifest, out LibrarySide? side, out string problem) ? (side, problem) : (null, problem),
+        (manifest, zoneInfoFile) => LibrarySide.TryBuild(manifest, zoneInfoFile, out LibrarySide? side, out string problem) ? (side, problem) : (null, problem),
         OracleConnection.DefaultHost,
         OracleConnection.DefaultPort,
         OracleConnection.DefaultConnectLimit,
@@ -93,6 +93,9 @@ internal static class Program
     private const string BudgetOption = "--budget";
     private const string CaseOption = "--case";
     private const string NumbersOnlyOption = "--numbers-only";
+
+    // The number of instants that ENG822 draws from the seed; five fixed instants join them.
+    private const int ZoneInstants = 256;
 
     /// <summary>The budget without <c>--budget</c>.</summary>
     internal static readonly TimeSpan DefaultBudget = TimeSpan.FromMinutes(5);
@@ -155,7 +158,9 @@ internal static class Program
         string problem;
         try
         {
-            (library, problem) = setup.Library(File.ReadAllBytes(Path.Combine(root, ProfileTables.ManifestPath)));
+            (library, problem) = setup.Library(
+                File.ReadAllBytes(Path.Combine(root, ProfileTables.ManifestPath)),
+                Path.Combine(root, ProfileTables.ZoneInfoPath));
         }
         catch (Exception exception) when (exception is not (OutOfMemoryException or IOException))
         {
@@ -183,6 +188,14 @@ internal static class Program
             return 1;
         }
 
+        // Between the handshake and the cases, inside the budget: the offsets of the zones of the data file (ENG822). A run with
+        // --case reproduces one case and does not run it.
+        List<Finding> zoneFindings = [];
+        if (options.Case is null)
+        {
+            zoneFindings.AddRange(ZoneOffsets.Compare(root, ProfileTables.ZoneInfoPath, ZoneOffsets.Instants(options.Seed, ZoneInstants), library, oracle));
+        }
+
         // Step 4: cases 0, 1, 2, … until the budget is spent, or the one case of --case.
         DivergenceSearch search = new(library, oracle, oracle, KnownSignatures.Read(root));
         ulong cases = 0;
@@ -194,7 +207,7 @@ internal static class Program
 
         // Step 5: pending.textproto, the findings and the journal line.
         PendingText pending = PendingFile.Build(search.NewSignatures);
-        IReadOnlyList<Finding> findings = PendingFile.Findings(search.NewSignatures, pending);
+        IReadOnlyList<Finding> findings = [.. zoneFindings, .. PendingFile.Findings(search.NewSignatures, pending)];
         if (!options.NumbersOnly)
         {
             PendingFile.Write(root, pending);

@@ -86,7 +86,9 @@ public sealed class ManifestTests
     {
         byte[] manifest = File.ReadAllBytes(Path.Combine(RepositoryRoot.Find(), ProfileTables.ManifestPath));
 
-        Assert.True(LibrarySide.TryBuild(manifest, out LibrarySide? side, out string problem), problem);
+        string zoneInfoFile = Path.Combine(RepositoryRoot.Find(), ProfileTables.ZoneInfoPath);
+
+        Assert.True(LibrarySide.TryBuild(manifest, zoneInfoFile, out LibrarySide? side, out string problem), problem);
         Assert.NotNull(side);
         Assert.Equal(string.Empty, problem);
     }

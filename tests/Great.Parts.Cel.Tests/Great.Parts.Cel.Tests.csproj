@@ -45,4 +45,10 @@
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
   </ItemGroup>
 
+  <!-- The time zone data of the tests: one copy of the file and its reader, kept in the suite runner (docs/design/tests.md, "Time zone data"). -->
+  <ItemGroup>
+    <Compile Include="../Great.Parts.Cel.Conformance/Runner/ZoneInfoFile.cs" Link="ZoneInfo/ZoneInfoFile.cs" />
+    <EmbeddedResource Include="../Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip" Link="ZoneInfo/zoneinfo.zip" LogicalName="tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip" />
+  </ItemGroup>
+
 </Project>

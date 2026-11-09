@@ -55,6 +55,11 @@ internal sealed class DeclarationChecks
         out TypeIndex types)
     {
         var checks = new DeclarationChecks(set, library);
+        if (set.TimeZoneConflict)
+        {
+            checks._errors.Add(BuildErrors.TimeZoneDatabaseConflict());
+        }
+
         types = checks.CheckTypes();
         checks.ResolveUnmapped(types);
         checks.ResolveImplementations(types);

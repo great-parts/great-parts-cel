@@ -82,35 +82,12 @@ public sealed partial class ConcurrencyTests
         }
 
         var cache = new CelCompilationCache(Environment, CacheEntries, CacheEntries * 4096);
-        string?[] failures = new string?[Threads];
-        using var barrier = new Barrier(Threads);
-        var threads = new Thread[Threads];
-        for (int thread = 0; thread < Threads; thread++)
-        {
-            int number = thread;
-            threads[thread] = new Thread(() => failures[number] = Run(workload, cache, items, references, number, barrier));
-            threads[thread].Start();
-        }
-
-        foreach (Thread thread in threads)
-        {
-            thread.Join();
-        }
-
-        foreach (string? failure in failures)
-        {
-            if (failure is not null)
-            {
-                return failure;
-            }
-        }
-
-        return null;
+        return ThreadRun.OnThreads(Threads, (thread, barrier) => Run(workload, cache, items, references, thread, barrier));
     }
 
     private static string? Run(Workload workload, CelCompilationCache cache, Item[] items, Result[] references, int thread, Barrier barrier)
     {
-        int[] order = Shuffled(items.Length, new PCG((uint)thread, Seed));
+        int[] order = ThreadRun.Shuffled(items.Length, new PCG((uint)thread, Seed));
         barrier.SignalAndWait();
         foreach (int index in order)
         {
@@ -132,23 +109,6 @@ public sealed partial class ConcurrencyTests
         return null;
     }
 
-    private static int[] Shuffled(int count, PCG random)
-    {
-        int[] order = new int[count];
-        for (int index = 0; index < count; index++)
-        {
-            order[index] = index;
-        }
-
-        for (int index = count - 1; index > 0; index--)
-        {
-            int other = (int)random.Next((uint)index + 1);
-            (order[index], order[other]) = (order[other], order[index]);
-        }
-
-        return order;
-    }
-
     private static Result Outcome(CelEvalResult<CelValue> result) =>
         result.IsSuccess ? new Result("value", result.Value) : new Result(Errors(result.Errors), null);
 
@@ -156,16 +116,7 @@ public sealed partial class ConcurrencyTests
     private static string Outcome(CelCompileResult<CelValue> result) =>
         result.IsSuccess ? "program of " + result.Program.ResultType : Errors(result.Errors);
 
-    private static string Errors(IEnumerable<CelError> errors)
-    {
-        var text = new System.Text.StringBuilder("errors");
-        foreach (CelError error in errors)
-        {
-            text.Append(CultureInfo.InvariantCulture, $" [{error.Code} {error.Stage} {error.Location.Offset}:{error.Location.Line}:{error.Location.Column} {error.Message}]");
-        }
-
-        return text.ToString();
-    }
+    private static string Errors(IEnumerable<CelError> errors) => ThreadRun.Errors(errors);
 
     // The outcome of an item: errors by code, stage, location and message, a value by the structural comparison of CheckedEqualsUncheckedTests.
     private readonly record struct Result(string Text, CelValue? Value)

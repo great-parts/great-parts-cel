@@ -9,6 +9,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using Cel.Expr;
+using Any = Google.Protobuf.WellKnownTypes.Any;
+using Duration = Google.Protobuf.WellKnownTypes.Duration;
+using Timestamp = Google.Protobuf.WellKnownTypes.Timestamp;
 using Great.Parts.Cel.Eng.Difftest;
 using Great.Parts.Cel.Eng.Difftest.Corpus;
 using Great.Parts.Cel.Eng.Difftest.Profile;
@@ -81,7 +84,6 @@ public sealed class OracleConnectionTests
         Assert.Equal((OutcomeClass.CompileError, CompileStage.Parse), (parseError.Class, parseError.Stage));
         Assert.Equal((OutcomeClass.CompileError, CompileStage.Check), (checkError.Class, checkError.Stage));
         Assert.Equal("name: \"7-1\"\nexpr: \"i1 + 1\"", text);
-        Assert.Throws<NotSupportedException>(() => connection.ZoneOffset("Europe/Berlin", DateTimeOffset.UnixEpoch));
         connection.Dispose();
         fake.Join();
         using JsonDocument request = JsonDocument.Parse(fake.Requests[^1]);
@@ -94,6 +96,54 @@ public sealed class OracleConnectionTests
                 fields.GetProperty("bindings").GetProperty("i1").GetProperty("int64Value").GetString(),
                 fields.GetProperty("name").GetString(),
                 fields.GetProperty("description").GetString()));
+    }
+
+    // A value of time is an Any of google.protobuf.Timestamp or google.protobuf.Duration in the protojson of the oracle.
+    [Fact]
+    public void ValueOfTime_IsReadFromAnAnyOfItsMessage()
+    {
+        using FakeOracle fake = new([Handshake], request => request.GetProperty("expr").GetString() switch
+        {
+            "timestamp('2023-01-01T00:00:00.000000005Z')" => """{"id":ID,"outcome":"value","value":{"objectValue":{"@type":"type.googleapis.com/google.protobuf.Timestamp","value":"2023-01-01T00:00:00.000000005Z"}}}""",
+            _ => """{"id":ID,"outcome":"value","value":{"objectValue":{"@type":"type.googleapis.com/google.protobuf.Duration","value":"-1.500s"}}}""",
+        });
+        using OracleConnection connection = OracleConnection.Open(Loopback, fake.Port, Limit, Limit, ProfileTables.ManifestPath, _ => { });
+
+        SideOutcome timestamp = connection.Evaluate("timestamp('2023-01-01T00:00:00.000000005Z')", new Dictionary<string, Value>());
+        SideOutcome duration = connection.Evaluate("duration('-1.5s')", new Dictionary<string, Value>());
+
+        Assert.Equal(new Value { ObjectValue = Any.Pack(new Timestamp { Seconds = 1672531200, Nanos = 5 }) }, timestamp.Result);
+        Assert.Equal(new Value { ObjectValue = Any.Pack(new Duration { Seconds = -1, Nanos = -500_000_000 }) }, duration.Result);
+    }
+
+    [Fact]
+    public void ZoneOffset_SendsTheRequestOffsetAndReadsTheSeconds()
+    {
+        using FakeOracle fake = new([Handshake], request => request.GetProperty("op").GetString() == "offset"
+            ? """{"id":ID,"outcome":"offset","seconds":-17762}"""
+            : null);
+        using OracleConnection connection = OracleConnection.Open(Loopback, fake.Port, Limit, Limit, ProfileTables.ManifestPath, _ => { });
+
+        TimeSpan offset = connection.ZoneOffset("America/New_York", new DateTimeOffset(1800, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        connection.Dispose();
+        fake.Join();
+
+        Assert.Equal(TimeSpan.FromSeconds(-17762), offset);
+        using JsonDocument request = JsonDocument.Parse(fake.Requests.Single());
+        JsonElement fields = request.RootElement;
+        Assert.Equal(["id", "op", "zone", "instant"], fields.EnumerateObject().Select(property => property.Name));
+        Assert.Equal(("offset", "America/New_York", -5364662400L), (fields.GetProperty("op").GetString(), fields.GetProperty("zone").GetString(), fields.GetProperty("instant").GetInt64()));
+    }
+
+    [Fact]
+    public void ZoneOffset_OfAZoneThatTheOracleDoesNotLoad_IsAFailureOfTheSide()
+    {
+        using FakeOracle fake = new([Handshake], _ => """{"id":ID,"outcome":"zone-error","message":"unknown time zone Mars/Base"}""");
+        using OracleConnection connection = OracleConnection.Open(Loopback, fake.Port, Limit, Limit, ProfileTables.ManifestPath, _ => { });
+
+        SideFailureException failure = Assert.Throws<SideFailureException>(() => connection.ZoneOffset("Mars/Base", DateTimeOffset.UnixEpoch));
+
+        Assert.Equal("the oracle does not load the time zone 'Mars/Base': unknown time zone Mars/Base", failure.Message);
     }
 
     // The formatter of Google.Protobuf writes 2^-25 with "r", which on .NET 10 gives the text of the neighbouring double.
@@ -420,7 +470,7 @@ public sealed class OracleConnectionTests
         using StringWriter output = new();
         using StringWriter error = new();
         using Socket bound = BoundPort();
-        RunSetup setup = new(output, error, _ => throw new NotImplementedException("The method or operation is not implemented."), Loopback, Port(bound), Limit, Limit, _ => Commit);
+        RunSetup setup = new(output, error, (_, _) => throw new NotImplementedException("The method or operation is not implemented."), Loopback, Port(bound), Limit, Limit, _ => Commit);
 
         int exitCode = Program.Run(["--seed", "7"], root.Path, DateTimeOffset.UnixEpoch, setup);
 
@@ -463,7 +513,7 @@ public sealed class OracleConnectionTests
     {
         using StringWriter output = new();
         using StringWriter error = new();
-        RunSetup setup = new(output, error, _ => (library, string.Empty), Loopback, port, limit, limit, _ => Commit);
+        RunSetup setup = new(output, error, (_, _) => (library, string.Empty), Loopback, port, limit, limit, _ => Commit);
 
         int exitCode = Program.Run(["--seed", "7", .. args], root.Path, DateTimeOffset.UnixEpoch, setup);
 

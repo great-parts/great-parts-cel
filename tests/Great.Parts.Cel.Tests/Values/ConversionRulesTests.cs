@@ -148,11 +148,11 @@ public sealed class ConversionRulesTests
         Assert.Null(ConversionRules.InputType<decimal>());
         Assert.False(ConversionRules.TryFromClr(1m, out CelValue value));
         Assert.Equal(CelValue.Null, value);
-        Assert.Null(ConversionRules.InputType<DateTime?>());
+        Assert.Null(ConversionRules.InputType<Int128?>());
         Assert.Null(ConversionRules.InputType<CelValue?>());
-        Assert.False(ConversionRules.TryFromClr<DateTime?>(null, out _));
-        Assert.Equal(CelErrorCode.TypeNotDeclared, Assert.Single(new CelEnvironmentBuilder(CelStandardLibrary.V1).AddVariable<DateTime>("v").Build().Errors).Code);
-        Assert.Throws<NotImplementedException>(() => ConversionRules.TryFromClr<object>(DateTime.UnixEpoch, out _));
+        Assert.False(ConversionRules.TryFromClr<Int128?>(null, out _));
+        Assert.Equal(CelErrorCode.TypeNotDeclared, Assert.Single(new CelEnvironmentBuilder(CelStandardLibrary.V1).AddVariable<Int128>("v").Build().Errors).Code);
+        Assert.Throws<NotImplementedException>(() => ConversionRules.TryFromClr<object>(1m, out _));
         Assert.True(ConversionRules.TryFromClr<object>(new List<int>(), out CelValue collection));
         Assert.Equal(CelValueKind.Object, collection.Kind);
     }

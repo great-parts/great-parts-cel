@@ -21,6 +21,8 @@ public sealed class ValueTypeNamesTests
         [CelValueKind.List] = "list",
         [CelValueKind.Map] = "map",
         [CelValueKind.Type] = "type",
+        [CelValueKind.Timestamp] = "timestamp",
+        [CelValueKind.Duration] = "duration",
         [CelValueKind.Error] = "error",
     };
 

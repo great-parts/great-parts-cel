@@ -6,6 +6,8 @@ using System.Text;
 using Cel.Expr;
 using Great.Parts.Cel.Eng.Difftest.Numbers;
 using Great.Parts.Cel.Eng.Difftest.Sides;
+using Duration = Google.Protobuf.WellKnownTypes.Duration;
+using Timestamp = Google.Protobuf.WellKnownTypes.Timestamp;
 
 namespace Great.Parts.Cel.Eng.Difftest.Compare;
 
@@ -29,8 +31,8 @@ internal static class ValueText
 
     /// <summary>
     /// The CEL type name of a value as <c>type()</c> gives it, without parameters: <c>int</c>, <c>uint</c>, <c>double</c>,
-    /// <c>bool</c>, <c>string</c>, <c>bytes</c>, <c>null_type</c>, <c>list</c>, <c>map</c>, <c>type</c>, or the name of an enum
-    /// or a message.
+    /// <c>bool</c>, <c>string</c>, <c>bytes</c>, <c>null_type</c>, <c>list</c>, <c>map</c>, <c>type</c>, <c>timestamp</c>,
+    /// <c>duration</c>, or the name of an enum or a message.
     /// </summary>
     /// <param name="value">The value.</param>
     internal static string TypeName(Value value)
@@ -48,6 +50,8 @@ internal static class ValueText
             Value.KindOneofCase.MapValue => "map",
             Value.KindOneofCase.TypeValue => "type",
             Value.KindOneofCase.EnumValue => value.EnumValue.Type,
+            Value.KindOneofCase.ObjectValue when value.ObjectValue.Is(Timestamp.Descriptor) => "timestamp",
+            Value.KindOneofCase.ObjectValue when value.ObjectValue.Is(Duration.Descriptor) => "duration",
             Value.KindOneofCase.ObjectValue => value.ObjectValue.TypeUrl[(value.ObjectValue.TypeUrl.LastIndexOf('/') + 1)..],
             _ => "unknown",
         };
@@ -73,10 +77,16 @@ internal static class ValueText
             Value.KindOneofCase.MapValue => "{" + string.Join(", ", value.MapValue.Entries.Select(entry => Format(entry.Key) + ": " + Format(entry.Value))) + "}",
             Value.KindOneofCase.TypeValue => value.TypeValue,
             Value.KindOneofCase.EnumValue => value.EnumValue.Type + "(" + value.EnumValue.Value.ToString(CultureInfo.InvariantCulture) + ")",
+            Value.KindOneofCase.ObjectValue when value.ObjectValue.Is(Timestamp.Descriptor) => TimeText("timestamp", value.ObjectValue.Unpack<Timestamp>().Seconds, value.ObjectValue.Unpack<Timestamp>().Nanos),
+            Value.KindOneofCase.ObjectValue when value.ObjectValue.Is(Duration.Descriptor) => TimeText("duration", value.ObjectValue.Unpack<Duration>().Seconds, value.ObjectValue.Unpack<Duration>().Nanos),
             Value.KindOneofCase.ObjectValue => value.ObjectValue.TypeUrl + "{…}",
             _ => "unknown",
         };
     }
+
+    // A value of time as the seconds and the nanoseconds of its message: the text has no calendar, which a divergence may be about.
+    private static string TimeText(string type, long seconds, int nanoseconds) =>
+        string.Create(CultureInfo.InvariantCulture, $"{type}({seconds}s {nanoseconds}ns)");
 
     private static string StageName(CompileStage stage) => stage switch
     {

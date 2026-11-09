@@ -60,6 +60,7 @@ Every pull request and every push to `main` runs [CI](.github/workflows/ci.yml):
 - [Environment description in JSON](docs/environment-json.md): the keys and the type records of the JSON form of an environment.
 - [Error codes](docs/error-codes.md): every code of `CelErrorCode`, its stage and when it occurs.
 - [Application functions](docs/recipes/application-functions.md): how to give the functions of an application the data they need.
+- [Time zone database](docs/recipes/time-zone-database.md): how to give an environment the time zones that `getHours('Europe/Moscow')` needs.
 - [Design](docs/design/): how the library and its checks are built, for contributors.
 
 ## How it is built

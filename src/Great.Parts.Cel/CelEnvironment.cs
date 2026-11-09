@@ -107,7 +107,7 @@ public sealed class CelEnvironment
         }
 
         CheckedExpression checkedExpression = checkedResult.Expression;
-        return new CelCompileResult<T>(new CelProgram<T>(Planner.Plan(checkedExpression, Declarations), checkedExpression.ResultType, start));
+        return new CelCompileResult<T>(new CelProgram<T>(Planner.Plan(checkedExpression, Declarations, TimeZones), checkedExpression.ResultType, start));
     }
 
     /// <summary>
@@ -200,6 +200,9 @@ public sealed class CelEnvironment
     // The declarations of the standard library version and of the application, indexed for checking
     // and evaluation.
     internal DeclarationIndex Declarations { get; }
+
+    // The time zone database that the application gave, or null when the environment has none.
+    internal CelTimeZoneDatabase? TimeZones => _declarationSet.TimeZones;
 
     /// <summary>
     /// Parses an expression: the parse step of <see cref="Compile{T}"/>, with the syntax of this environment unless
@@ -301,6 +304,6 @@ public sealed class CelEnvironment
     {
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(bindings);
-        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations), CelType.Dyn, bindings, null, null, CancellationToken.None);
+        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations, TimeZones), CelType.Dyn, bindings, null, null, CancellationToken.None);
     }
 }

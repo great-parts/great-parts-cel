@@ -1,0 +1,88 @@
+# Minimized cases of known divergences from cel-go in the zone argument of the receivers of timestamp. The expectation of each case is the answer of cel-go.
+
+name: "time_zone_names"
+description: "A zone argument that is not a name of the time zone database or a fixed offset [+-]HH:MM"
+section {
+  name: "empty_name"
+  description: "cel-go reads the empty string as UTC; the library has no zone of that name and fails with TimeZoneNotFound"
+  test {
+    name: "year"
+    description: "timestamp_to_year_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getFullYear('')"
+    value: {
+      int64_value: 2023
+    }
+  }
+  test {
+    name: "month"
+    description: "timestamp_to_month_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getMonth('')"
+    value: {
+      int64_value: 0
+    }
+  }
+  test {
+    name: "day_of_year"
+    description: "timestamp_to_day_of_year_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getDayOfYear('')"
+    value: {
+      int64_value: 0
+    }
+  }
+  test {
+    name: "day_of_month"
+    description: "timestamp_to_day_of_month_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getDayOfMonth('')"
+    value: {
+      int64_value: 0
+    }
+  }
+  test {
+    name: "date"
+    description: "timestamp_to_day_of_month_1_based_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getDate('')"
+    value: {
+      int64_value: 1
+    }
+  }
+  test {
+    name: "day_of_week"
+    description: "timestamp_to_day_of_week_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getDayOfWeek('')"
+    value: {
+      int64_value: 0
+    }
+  }
+  test {
+    name: "hours"
+    description: "timestamp_to_hours_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getHours('')"
+    value: {
+      int64_value: 0
+    }
+  }
+  test {
+    name: "minutes"
+    description: "timestamp_to_minutes_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getMinutes('')"
+    value: {
+      int64_value: 0
+    }
+  }
+  test {
+    name: "seconds"
+    description: "timestamp_to_seconds_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getSeconds('')"
+    value: {
+      int64_value: 0
+    }
+  }
+  test {
+    name: "milliseconds"
+    description: "timestamp_to_milliseconds_with_tz(timestamp, string) we-error"
+    expr: "timestamp('2023-01-01T00:00:00Z').getMilliseconds('')"
+    value: {
+      int64_value: 0
+    }
+  }
+}

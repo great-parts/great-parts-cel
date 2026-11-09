@@ -1,0 +1,36 @@
+# Minimized cases of known divergences from cel-go in the values of time. The expectation of each case is the answer of cel-go.
+
+name: "time_strings"
+description: "Milliseconds of a duration and the text of a duration and of a timestamp"
+section {
+  name: "duration"
+  description: "cel-go returns the total milliseconds of a duration and prints its seconds through a 64-bit float"
+  test {
+    name: "milliseconds"
+    description: "duration_to_milliseconds(duration) value-mismatch"
+    expr: "duration('1.5s').getMilliseconds()"
+    value: {
+      int64_value: 1500
+    }
+  }
+  test {
+    name: "string_digits"
+    description: "duration_to_string(duration) value-mismatch"
+    expr: "string(duration('9223372036.854775807s'))"
+    value: {
+      string_value: "9223372036.854776s"
+    }
+  }
+}
+section {
+  name: "timestamp"
+  description: "cel-go keeps the offset of the parsed string when it prints a timestamp"
+  test {
+    name: "string_offset"
+    description: "timestamp_to_string(timestamp) value-mismatch"
+    expr: "string(timestamp('2023-01-01T00:00:00-07:00'))"
+    value: {
+      string_value: "2023-01-01T00:00:00-07:00"
+    }
+  }
+}

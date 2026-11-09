@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using CsCheck;
 using Great.Parts.Cel.Eng.Difftest.Profile;
@@ -13,8 +12,7 @@ namespace Great.Parts.Cel.Eng.Difftest.Compare;
 
 /// <summary>
 /// The comparison of time zone offsets, <c>ENG822</c> (docs/design/eng-difftest.md, "Findings and output"): the offsets of
-/// every zone of the time zone data file at generated instants. The path of the file is a parameter; the profile has no
-/// file until time, so runs do not compare offsets.
+/// every zone of the time zone data file at generated instants. The path of the file is a parameter.
 /// </summary>
 internal static class ZoneOffsets
 {
@@ -22,15 +20,29 @@ internal static class ZoneOffsets
     private static readonly long FirstSecond = new DateTimeOffset(1800, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
     private static readonly long EndSecond = new DateTimeOffset(2200, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
 
-    /// <summary>Instants in whole seconds of the years 1800 to 2199 that depend on the seed of the run alone.</summary>
+    /// <summary>
+    /// <paramref name="count"/> instants in whole seconds of the years 1800 to 2199 that depend on the seed of the run alone, and
+    /// after them five fixed instants: 1800-01-01, 1900-01-01, 1970-01-01, 2037-01-01 and 2100-01-01 UTC.
+    /// </summary>
     /// <param name="seed">The seed of the run.</param>
-    /// <param name="count">The number of instants.</param>
+    /// <param name="count">The number of instants drawn from the seed.</param>
     internal static IReadOnlyList<DateTimeOffset> Instants(ulong seed, int count)
     {
         PCG pcg = CaseGenerator.CaseState(seed, ulong.MaxValue);
         return [.. Enumerable.Range(0, count)
-            .Select(_ => DateTimeOffset.FromUnixTimeSeconds(FirstSecond + (long)(pcg.Next64() % (ulong)(EndSecond - FirstSecond))))];
+            .Select(_ => DateTimeOffset.FromUnixTimeSeconds(FirstSecond + (long)(pcg.Next64() % (ulong)(EndSecond - FirstSecond)))),
+            .. FixedInstants];
     }
+
+    /// <summary>The five fixed instants that join the drawn ones, in UTC.</summary>
+    internal static IReadOnlyList<DateTimeOffset> FixedInstants { get; } =
+    [
+        new(1800, 1, 1, 0, 0, 0, TimeSpan.Zero),
+        new(1900, 1, 1, 0, 0, 0, TimeSpan.Zero),
+        new(1970, 1, 1, 0, 0, 0, TimeSpan.Zero),
+        new(2037, 1, 1, 0, 0, 0, TimeSpan.Zero),
+        new(2100, 1, 1, 0, 0, 0, TimeSpan.Zero),
+    ];
 
     /// <summary>
     /// Compares the offsets of every zone of the time zone data file at the instants. A zone gives one finding, at its first
@@ -50,7 +62,7 @@ internal static class ZoneOffsets
         ICaseSide oracle)
     {
         List<Finding> findings = [];
-        foreach (string zone in Zones(Path.Combine(root, path)))
+        foreach (string zone in ZoneData.Names(Path.Combine(root, path)))
         {
             foreach (DateTimeOffset instant in instants)
             {
@@ -88,12 +100,5 @@ internal static class ZoneOffsets
             CultureInfo.InvariantCulture,
             $"{sign}{(int)magnitude.TotalHours:00}:{magnitude.Minutes:00}");
         return magnitude.Seconds == 0 ? text : string.Create(CultureInfo.InvariantCulture, $"{text}:{magnitude.Seconds:00}");
-    }
-
-    // The zones of the file: the names of its entries that are not directories, in the order of the archive.
-    private static IEnumerable<string> Zones(string file)
-    {
-        using ZipArchive archive = ZipFile.OpenRead(file);
-        return [.. archive.Entries.Select(entry => entry.FullName).Where(name => !name.EndsWith('/'))];
     }
 }

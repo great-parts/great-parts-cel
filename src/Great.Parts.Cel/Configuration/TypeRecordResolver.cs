@@ -98,7 +98,7 @@ internal static class TypeRecordResolver
         }
 
         string name = Bare(record.Name);
-        if (Unsupported(name) || name == "optional_type")
+        if (name == "optional_type")
         {
             detail = $"the type '{name}' is not supported";
             return null;
@@ -124,7 +124,7 @@ internal static class TypeRecordResolver
     {
         detail = "";
         string name = Bare(record.Name);
-        if (Unsupported(name) || name == "optional_type")
+        if (name == "optional_type")
         {
             detail = $"the type '{name}' is not supported";
             return null;
@@ -153,10 +153,6 @@ internal static class TypeRecordResolver
         _ => "1 type parameter",
     };
 
-    // The types that the library brings with the parts of time and of extension sets: until then their names are errors.
-    private static bool Unsupported(string name) =>
-        name is "timestamp" or "duration" or "google.protobuf.Timestamp" or "google.protobuf.Duration";
-
     private static string Bare(string name) => name is ['.', ..] ? name[1..] : name;
 
     private static CelType? Simple(string name) => name switch
@@ -169,6 +165,8 @@ internal static class TypeRecordResolver
         "bytes" => CelType.Bytes,
         "dyn" => CelType.Dyn,
         "null_type" or "null" => CelType.Null,
+        "timestamp" => CelType.Timestamp,
+        "duration" => CelType.Duration,
         "int_wrapper" => CelType.WrapperOf(CelType.Int),
         "uint_wrapper" => CelType.WrapperOf(CelType.UInt),
         "double_wrapper" => CelType.WrapperOf(CelType.Double),

@@ -85,13 +85,13 @@ public sealed class CelType : IEquatable<CelType>
     /// <c>google.protobuf.Timestamp</c>: a point in time from 0001-01-01T00:00:00Z to
     /// 9999-12-31T23:59:59.999999999Z with nanosecond precision; on .NET, <c>CelTimestamp</c>.
     /// </summary>
-    public static CelType Timestamp => throw new NotImplementedException();
+    public static CelType Timestamp { get; } = new(CelTypeKind.Timestamp, "google.protobuf.Timestamp", []);
 
     /// <summary>
     /// <c>google.protobuf.Duration</c>: a signed time span of a 64-bit number of nanoseconds; on .NET,
     /// <c>CelDuration</c>.
     /// </summary>
-    public static CelType Duration => throw new NotImplementedException();
+    public static CelType Duration { get; } = new(CelTypeKind.Duration, "google.protobuf.Duration", []);
 
     /// <summary>
     /// <c>google.protobuf.Any</c>: a protobuf message of any type. Values of this type are unpacked to
@@ -290,7 +290,13 @@ public sealed class CelType : IEquatable<CelType>
     {
         if (Parameters.IsEmpty)
         {
-            return Name;
+            // The types of time are written with their short names, as the messages of errors write them.
+            return Kind switch
+            {
+                CelTypeKind.Timestamp => "timestamp",
+                CelTypeKind.Duration => "duration",
+                _ => Name,
+            };
         }
 
         // A wrapper is written in the notation of the language definition, as cel-go writes it, not by its full name.

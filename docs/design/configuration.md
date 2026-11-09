@@ -44,6 +44,7 @@ The grammar of cel-go, read in full: a name, optionally with parameters in angle
 | :- | :- |
 | `int`, `uint`, `double`, `bool`, `string`, `bytes`, `dyn` | the simple types and `dyn` |
 | `null_type`, `null` | `Null` |
+| `timestamp`, `duration` | `Timestamp`, `Duration` |
 | `int_wrapper`, `uint_wrapper`, `double_wrapper`, `bool_wrapper`, `string_wrapper`, `bytes_wrapper` | `WrapperOf(P)` |
 | `list<E>`, `map<K, V>` | `ListOf(E)`, `MapOf(K, V)` |
 | `type`, `type<E>` | `TypeOf(Dyn)`, `TypeOf(E)` |
@@ -51,7 +52,7 @@ The grammar of cel-go, read in full: a name, optionally with parameters in angle
 | `any` | as the name `google.protobuf.Any` |
 | another name; a leading `.` is dropped | `ObjectNamed(name)`, resolved at `Build`; a name no source declares is `TypeNotDeclared` |
 
-The parameter count of `list`, `map` and `type`, and parameters of any other name, are checked; a wrong count is an error. `timestamp`, `duration`, `google.protobuf.Timestamp`, `google.protobuf.Duration` and `optional_type<E>` are errors that name the type until their part brings the type. A type parameter as the type of a variable or a field is an error.
+The parameter count of `list`, `map` and `type`, and parameters of any other name, are checked; a wrong count is an error. `optional_type<E>` is an error that names the type until its part brings the type. The full names `google.protobuf.Timestamp` and `google.protobuf.Duration` are no records: as any other name that no source declares they are `ObjectNamed`, and `Build` reports `TypeNotDeclared`. A description has no time zone database, so a variable of the type `timestamp` and a receiver with a zone work in an environment from JSON as in code: the database comes from `UseTimeZones`. A type parameter as the type of a variable or a field is an error.
 
 ## Extension sets
 

@@ -52,7 +52,7 @@ A manifest that cel-go cannot read, or from which it builds no environment — a
 
 ## Time zones
 
-The oracle takes time zones only from `zoneinfo.zip` of the pinned Go: it refuses to start, with exit code 2, unless the environment variable `ZONEINFO` names an existing file. The container hides the system zone directory under an empty mount, so every zone comes from that file. In the walking skeleton `ZONEINFO` is the file of the image, `/usr/local/go/lib/time/zoneinfo.zip`; once the library has time zones, the repository holds a copy of it for the library tests, and `ZONEINFO` names that copy.
+The oracle takes time zones only from `zoneinfo.zip` of the pinned Go: it refuses to start, with exit code 2, unless the environment variable `ZONEINFO` names an existing file. The container hides the system zone directory under an empty mount, so every zone comes from that file. `ZONEINFO` is `/repo/tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip`, the copy of the file of the image that the repository holds for the library tests and that `eng/difftest` gives to the library side too ([tests.md](tests.md#time-zone-data)), so a zone is the same bytes in Go and in the library.
 
 ## Protocol
 
@@ -70,18 +70,21 @@ In the handshake, `go` is the Go that built the oracle, `runtime.Version()`.
 | :- | :- | :- |
 | `eval` | `id`, `expr`, `bindings`: name → `cel.expr.Value` | `outcome` and its fields, below |
 | `case` | the fields of `eval`, `name`, `description` | `textproto`: a `SimpleTest` in text format |
+| `offset` | `id`, `zone`: the name of a zone of the file, `instant`: whole seconds since 1970-01-01T00:00:00Z, no other field | `outcome` `offset` with `seconds`, or `zone-error` with `message` |
 
 | `outcome` | When | Fields |
 | :- | :- | :- |
 | `compile-error` | `Parse`, `Check` or `Program` of the environment fails | `stage` — `parse`, `check` or `program`; `message` |
 | `eval-error` | `Eval` returns an error or an error value | `message` |
 | `value` | otherwise | `value` |
+| `offset` | the answer to the request `offset` | `seconds`: the offset in seconds that `time.LoadLocation` of the zone gives at the instant |
+| `zone-error` | `time.LoadLocation` does not load the zone | `message` of Go |
 
 - Values travel as `cel.expr.Value` in the JSON mapping of protobuf. A binding becomes a value with `cel.ProtoAsValue`, a result a message with `cel.ValueAsProto`, as in the conformance runner.
 - The `case` answer is a case of the regression corpus: `name`, `description`, `expr`, `type_env` with the manifest variables that the expression reads, `bindings`, and the outcome of cel-go as the expectation — `value` or `eval_error` with the message.
 - The text of the `case` answer is the output of `prototext`, which is not stable on purpose: its spaces change across builds of the oracle (https://pkg.go.dev/google.golang.org/protobuf/encoding/prototext, read on 2026-10-29). `eng/difftest` copies it unchanged and never compares it byte for byte; only the empty form of `pending.textproto` is exact ([eng-difftest.md](eng-difftest.md#known-signatures-and-the-corpus)).
 - A malformed request, or a result without a `cel.expr.Value` form, ends the process with exit code 1 and a message on standard error.
-- Time zone offsets add the request `offset` (zone, instant → offset in seconds) once the library has time zones.
+- The request `offset` is `ENG822` of [eng-difftest.md](eng-difftest.md#findings-and-output): the oracle loads each zone once from the archive of `ZONEINFO` and answers the offset of `time.Unix(instant, 0)` in it. A value of time is `object_value`, an `Any` of `google.protobuf.Timestamp` or `google.protobuf.Duration`, in the protojson of the answer.
 
 ## One-time run of test files
 
@@ -100,7 +103,7 @@ The service `oracle` of `eng/compose.yaml` runs the image `golang` of Docker Hub
 | Image | `golang:1.27.3`; the tag equals the `go` line of `go.mod` |
 | Entry point | `go run ./launch` in `/repo/eng/oracle`; the arguments of `docker compose run` follow it. When the launcher exits with a code other than 0, `go run` prints `exit status <code>` and exits with 1, so the exit code of the container only tells success from failure; the code of the launcher and of the oracle is in that line |
 | Mounts | the working copy at `/repo`; the named volumes `gomod` at `/go/pkg/mod` and `gobuild` at `/root/.cache/go-build`; an empty `tmpfs` over `/usr/share/zoneinfo`. The git mounts of `eng/compose.worktree.yaml` are not added: the oracle does not read git |
-| Variables | `GOTOOLCHAIN=local`, which the image sets too; `ZONEINFO=/usr/local/go/lib/time/zoneinfo.zip`; `GOFLAGS=-mod=readonly -buildvcs=false` — no version stamp, so the build does not read git |
+| Variables | `GOTOOLCHAIN=local`, which the image sets too; `ZONEINFO=/repo/tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip`; `GOFLAGS=-mod=readonly -buildvcs=false` — no version stamp, so the build does not read git |
 | Modules | from the Go module proxy, checked against the checksum database |
 | Network | the default network of the project, port 7070; nothing is published to the host |
 | Restart policy | none |
@@ -124,7 +127,7 @@ With arguments it prints the step lines itself, opens no port and passes the arg
 
 **Lifetime.** `docker compose run` starts the services its service depends on and leaves them running; `--rm` removes only its own container (Docker Compose v5.6.1, `startDependencies` and `RunOneOffContainer` in https://github.com/docker/compose/blob/v5.6.1/pkg/compose/run.go, read on 2026-10-28). So the oracle ends itself, the next run starts the stopped container again, and nobody stops or removes containers. A run that ends before it connects leaves the container waiting for up to 15 minutes.
 
-The default project name, the directory of the first Compose file, is `eng` in every working copy (https://docs.docker.com/compose/how-tos/project-name/), and a project has one container of the service. So concurrent runs take their own project names, `docker compose -p <name> -f eng/compose.yaml run --rm difftest`; otherwise the second run fails with exit code 2.
+A Compose project has one container of the service `oracle`, and a run from another working copy that shares the project replaces it, together with the session of the first run. `eng/compose.yaml` names the project `great-parts-cel-eng`, which is the project of the main working copy; a run from a linked worktree adds `eng/compose.worktree.yaml`, which names the project after the working copy ([eng-test.md](eng-test.md#linked-worktrees)), so two working copies never share the oracle. Concurrent runs from one working copy take their own project names, `docker compose -p <name> -f eng/compose.yaml run --rm difftest`; otherwise the second run fails with exit code 2.
 
 ## Version of Go
 

@@ -3,6 +3,7 @@ using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Great.Parts.Cel.Declarations;
+using Great.Parts.Cel.Library.Time;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using static Great.Parts.Cel.Library.Comparisons;
@@ -53,10 +54,9 @@ internal static class StandardLibraryV1
         ["type"] = CelType.TypeOf(CelType.Dyn),
         ["list"] = CelType.ListOf(CelType.Dyn),
         ["map"] = CelType.MapOf(CelType.Dyn, CelType.Dyn),
+        ["google.protobuf.Timestamp"] = CelType.Timestamp,
+        ["google.protobuf.Duration"] = CelType.Duration,
     }.ToFrozenDictionary(StringComparer.Ordinal);
-
-    // The type identifiers that the time types bring: a variable cannot have their names already.
-    internal static ImmutableArray<string> LaterTypeIdentifiers { get; } = ["google.protobuf.Timestamp", "google.protobuf.Duration"];
 
     // The overloads, each function in the order of cel-go. Costs are units of the page Cost,
     // https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md: fixed units, and a cost function
@@ -88,6 +88,7 @@ internal static class StandardLibraryV1
         // Arithmetic.
         table.Add(Global("_+_", OverloadIds.AddBytes, [bytes, bytes], bytes, Strings.AddBytes, 1, Costs.Concatenation));
         table.Add(Global("_+_", OverloadIds.AddDouble, [@double, @double], @double, Arithmetic.AddDouble, 1));
+        TimeOverloads.AddAdditions(table, Source);
         table.Add(Global("_+_", OverloadIds.AddInt64, [@int, @int], @int, Arithmetic.AddInt64, 1));
         table.Add(Global("_+_", OverloadIds.AddList, [ListOfA, ListOfA], ListOfA, Collections.AddList, 1, Costs.ListSizes));
         table.Add(Global("_+_", OverloadIds.AddString, [@string, @string], @string, Strings.AddString, 1, Costs.Concatenation));
@@ -103,14 +104,16 @@ internal static class StandardLibraryV1
         table.Add(Global("-_", OverloadIds.NegateDouble, [@double], @double, Arithmetic.NegateDouble, 1));
         table.Add(Global("-_", OverloadIds.NegateInt64, [@int], @int, Arithmetic.NegateInt64, 1));
         table.Add(Global("_-_", OverloadIds.SubtractDouble, [@double, @double], @double, Arithmetic.SubtractDouble, 1));
+        TimeOverloads.AddDurationSubtraction(table, Source);
         table.Add(Global("_-_", OverloadIds.SubtractInt64, [@int, @int], @int, Arithmetic.SubtractInt64, 1));
+        TimeOverloads.AddTimestampSubtractions(table, Source);
         table.Add(Global("_-_", OverloadIds.SubtractUInt64, [@uint, @uint], @uint, Arithmetic.SubtractUInt64, 1));
 
         // Ordering.
-        AddRelation(table, "_<_", OverloadIds.Less, Relation.Less);
-        AddRelation(table, "_<=_", OverloadIds.LessEquals, Relation.LessEquals);
-        AddRelation(table, "_>_", OverloadIds.Greater, Relation.Greater);
-        AddRelation(table, "_>=_", OverloadIds.GreaterEquals, Relation.GreaterEquals);
+        AddRelationWithTime(table, "_<_", OverloadIds.Less, Relation.Less, TimeOverloadIds.LessTimestamp, TimeOverloadIds.LessDuration);
+        AddRelationWithTime(table, "_<=_", OverloadIds.LessEquals, Relation.LessEquals, TimeOverloadIds.LessEqualsTimestamp, TimeOverloadIds.LessEqualsDuration);
+        AddRelationWithTime(table, "_>_", OverloadIds.Greater, Relation.Greater, TimeOverloadIds.GreaterTimestamp, TimeOverloadIds.GreaterDuration);
+        AddRelationWithTime(table, "_>=_", OverloadIds.GreaterEquals, Relation.GreaterEquals, TimeOverloadIds.GreaterEqualsTimestamp, TimeOverloadIds.GreaterEqualsDuration);
 
         // Index, in and size. A string key costs ⌈L/10⌉ more; in_list charges eq pair by pair.
         table.Add(Global("_[_]", OverloadIds.IndexList, [ListOfA, @int], A, Collections.IndexList, 1, Costs.IndexList));
@@ -136,17 +139,23 @@ internal static class StandardLibraryV1
         table.Add(Global("double", OverloadIds.Int64ToDouble, [@int], @double, Conversions.Int64ToDouble, 1));
         table.Add(Global("double", OverloadIds.StringToDouble, [@string], @double, Conversions.StringToDouble, 1, Costs.Text));
         table.Add(Global("double", OverloadIds.UInt64ToDouble, [@uint], @double, Conversions.UInt64ToDouble, 1));
+        TimeOverloads.AddDurationConversions(table, Source);
         table.Add(Global("dyn", OverloadIds.ToDyn, [A], CelType.Dyn, Conversions.ToDyn, 1));
         table.Add(Global("int", OverloadIds.Int64ToInt64, [@int], @int, Conversions.IntIdentity, 1));
         table.Add(Global("int", OverloadIds.DoubleToInt64, [@double], @int, Conversions.DoubleToInt64, 1));
+        TimeOverloads.AddDurationToInt(table, Source);
         table.Add(Global("int", OverloadIds.StringToInt64, [@string], @int, Conversions.StringToInt64, 1, Costs.Text));
+        TimeOverloads.AddTimestampToInt(table, Source);
         table.Add(Global("int", OverloadIds.UInt64ToInt64, [@uint], @int, Conversions.UInt64ToInt64, 1));
         table.Add(Global("string", OverloadIds.StringToString, [@string], @string, Conversions.StringIdentity, 1));
         table.Add(Global("string", OverloadIds.BoolToString, [@bool], @string, Conversions.BoolToString, 1));
         table.Add(Global("string", OverloadIds.BytesToString, [bytes], @string, Conversions.BytesToString, 1, Costs.Text));
         table.Add(Global("string", OverloadIds.DoubleToString, [@double], @string, Conversions.DoubleToString, 1));
+        TimeOverloads.AddDurationToString(table, Source);
         table.Add(Global("string", OverloadIds.Int64ToString, [@int], @string, Conversions.Int64ToString, 1));
+        TimeOverloads.AddTimestampToString(table, Source);
         table.Add(Global("string", OverloadIds.UInt64ToString, [@uint], @string, Conversions.UInt64ToString, 1));
+        TimeOverloads.AddTimestampConversions(table, Source);
         table.Add(Global("uint", OverloadIds.UInt64ToUInt64, [@uint], @uint, Conversions.UIntIdentity, 1));
         table.Add(Global("uint", OverloadIds.DoubleToUInt64, [@double], @uint, Conversions.DoubleToUInt64, 1));
         table.Add(Global("uint", OverloadIds.Int64ToUInt64, [@int], @uint, Conversions.Int64ToUInt64, 1));
@@ -157,7 +166,31 @@ internal static class StandardLibraryV1
         table.Add(Member("endsWith", OverloadIds.EndsWithString, [@string, @string], @bool, Strings.EndsWith, 1, Costs.Text));
         table.Add(Member("startsWith", OverloadIds.StartsWithString, [@string, @string], @bool, Strings.StartsWith, 1, Costs.Text));
 
+        // The receivers of timestamp and duration.
+        TimeOverloads.AddReceivers(table, Source);
+
         return table.DrainToImmutable();
+    }
+
+    // The overloads of one relation, then those of timestamp and duration, which come after bytes in cel-go; all of them run the
+    // ordering of the library.
+    private static void AddRelationWithTime(
+        ImmutableArray<OverloadBinding>.Builder table,
+        string function,
+        string prefix,
+        Relation relation,
+        string timestampId,
+        string durationId)
+    {
+        AddRelation(table, function, prefix, relation);
+        TimeOverloads.AddRelations(
+            table,
+            Source,
+            function,
+            timestampId,
+            durationId,
+            Ordering(relation, CelValueKind.Timestamp, CelValueKind.Timestamp),
+            Ordering(relation, CelValueKind.Duration, CelValueKind.Duration));
     }
 
     // The overloads of one relation: one for each ordered pair, those across numeric kinds candidates only

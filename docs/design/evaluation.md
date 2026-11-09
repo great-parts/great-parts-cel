@@ -18,7 +18,7 @@
 
 | Node | Planned from | Cost |
 | :- | :- | :- |
-| `ConstantPlanNode` | a literal; a type identifier, an object type of the application included, whose type value the planner takes from the declaration index; an enumeration constant | literal 0; type identifier and constant 1, as a name read |
+| `ConstantPlanNode` | a literal; a type identifier, an object type of the application included, whose type value the planner takes from the declaration index; an enumeration constant; a call of `timestamp` or `duration` on a string literal ([Time](#time)) | literal 0; type identifier and constant 1, as a name read; a folded time constant ([Time](#time)) the units of the call it replaces |
 | `VariablePlanNode` | an identifier or a selection that names a declared variable | 1; at the first read also the check of the binding ([values](values.md), "Fits a type") |
 | `LocalPlanNode` | an iteration variable or the accumulator of a comprehension | 1; see comprehensions for the reads that cost 0 |
 | `FieldPlanNode` | `e.f` and `has(e.f)` whose operand has an object type, with the description and the field number of the reference map | 1 |
@@ -135,6 +135,36 @@ Steps 2 and 3 run inside the exception boundary: an exception becomes `Applicati
 
 The memory of each row stays within B per unit: a pair or a JSON adapter is one object of at most 64 bytes inside the unit of its read, and the sorted keys of a map view, n references, are inside the n · ⌈log₂(n + 1)⌉ units of the sort. The rows of sets and of collections without an index read as members, of struct members, and of the unpacking of `google.protobuf.Any` come with the generator and protobuf; a set and a collection without an index bound as a variable are converted by `CelBindings.Add`, before the evaluation, and cost nothing; returned by an application function they are copied at the call by the two rows above.
 
+## Time
+
+Time adds no node and no frame state. The database of the environment reaches the functions of time through the call site.
+
+**Receivers and zones.** A receiver of `timestamp` or `duration`, with a zone or without, is a call like any other: a `CallPlanNode` when type checking leaves one candidate, a `DispatchPlanNode` for a `dyn` receiver or argument or without type checking. Candidates are chosen by the kinds of the values: `dyn(duration('1s')).getHours()` takes `duration_to_hours`; with a zone argument no candidate takes a duration, and the call is `EvalNoMatchingOverload` at the call. The environment gives its `CelTimeZoneDatabase` to the planner, `Plan` keeps it and `Frame` hands it to `CallSite.TimeZones`; it is `null` when `UseTimeZones` was never called ([time zones](time-zones.md)). The name of the zone is resolved inside the implementation at each call, by the order of "Resolving a zone name" there, so a constant zone and a zone read from a variable or from `dyn` take the same path.
+
+The planner does not look up a constant zone. The reasons: a wrong constant must fail when the call is evaluated, at the call, and only then — a branch of `?:` that is not taken, the right side of `||` after `true` and the right side of `&&` after `false` have no error — which per-call resolution gives with no extra rule; the lookup is a binary search over a sorted array of strings and allocates nothing, so there is nothing to save; and one path cannot differ from another in a value or a cost. The call evaluates its arguments from left to right: an error value of the receiver is the value of the call, then one of the zone, and only then do the kinds of the arguments and the name of the zone matter. `TimeZoneNotFound` (3022) and `InvalidTimeZone` (3023) are errors of the call, found after the kinds are checked, so `timestamp(0).getHours(5)` is `EvalNoMatchingOverload` and `timestamp(0).getHours('Mars')` is 3022.
+
+**Constants of time.** For a `CallPlanNode` whose overload is `string_to_timestamp` or `string_to_duration` and whose argument is a string literal, the planner runs the implementation once at planning, on a call site with no limit, no database and the offset of the call. A value becomes a `ConstantPlanNode` with the value and the units of the call it replaces — `FixedCost` plus the argument cost of the literal, 1 + ⌈L/10⌉ — charged when the node is evaluated, at the position of the call. An error value is not folded: the call stays, and the error comes when it is evaluated, at the call. So `timestamp('x')` compiles, `false && timestamp('x') == timestamp(0)` is `false`, and `timestamp('x').getHours()` is `InvalidArgument` at the `(` of `timestamp`. Folding is an optimization and changes no value, error or cost: evaluation without type checking, whose calls are `DispatchPlanNode`s, folds nothing and gives the same value and the same units as the checked plan. A folded constant allocates nothing when it is evaluated.
+
+**Evaluation without type checking.** The same functions, the same rules, no extra case. A time value of a binding is converted by the static type of `T` at `CelBindings.Add`, whether or not the variable is declared, so a `DateTimeOffset` is a `timestamp` there too; no declared type is consulted, and a variable declared `timestamp` that holds a string is not an error without the check ([values](values.md), "Fits a type"). Every argument is marked, a time scalar fits its kind and nothing else, and a call that no overload takes is `EvalNoMatchingOverload`: `timestamp(0) + 1`, `timestamp(0).getHours(5)` and `duration('1s').getHours('UTC')` are that error at the call. `timestamp('x')` is `InvalidArgument`; the zone errors and `Overflow` are those of the checked path. The rows `WithoutTypeCheck` of the examples and the property of checked against unchecked evaluation, with time in its generator ([tests](tests.md)), hold the two paths together.
+
+**Cost of time**, every row charged by the call before it runs, as the standard library rows of [library](library.md):
+
+| Operation | Units | Where |
+| :- | :- | :- |
+| `timestamp(string)`, `duration(string)`, folded or not | 1 + ⌈L/10⌉, L the UTF-16 length of the string | the call; the folded node |
+| `timestamp(int)`, `int(timestamp)`, `int(duration)`, `timestamp(timestamp)`, `duration(duration)` | 1 | the call |
+| `string(timestamp)` | 1 + ⌈Lᵣ/10⌉ with Lᵣ = 20, or 21 plus the digits of the fraction, from the nanoseconds | the call, before the string is made |
+| `string(duration)` | 1 + ⌈Lᵣ/10⌉ with Lᵣ at most 22, from the value | the call, before the string is made |
+| a receiver without a zone; `+`, `-` and the relations of time | 1 | the call |
+| `==` and `!=` of two time values | 1 as eq of two scalars, at any depth in a list or a map | `EqualityRules` |
+| a receiver with a zone, constant or not | 1 + ⌈L/10⌉, L the UTF-16 length of the zone string; the lookup is inside it | the call |
+| the read of a variable of time; the check of its binding at the first read | 1; the check is the top level only, 0 | `VariablePlanNode` |
+| a time field of an object | 1, as any field | `FieldPlanNode` |
+| a time argument or result of an application function | the check of the type charges 0 for a scalar; no copy | the call |
+| a call that fails | its units as above; the error value holds references and numbers only — the zone string, the database, the text of the string, a number in a field — at most 64 bytes | the call |
+
+The rows that a measurement of the earlier parts found missing came from operations whose work grows with data that no argument length shows. Time has three that could: the length of the zone string of a receiver (the receiver is not a string, so the argument cost reads the other argument), the length of the result of `string()` (known before the string exists), and the folded constant (the same units as the call). A time scalar has no data to copy and no elements to check. The test of memory against units ([tests](tests.md), "Properties of evaluation") gets time in its generator and in its rows: the 1-unit failures `timestamp(253402300800)` and `timestamp(0).getHours('+1:5')` fit B per unit without the error allowance E; E = 256 is added to a case of the generator that ends in an error exactly as for the other kinds; and the rows `string(timestamp)` and `string(duration)` hold their string of at most 30 characters inside B per unit.
+
 ## Cancellation
 
 When the token can be canceled, the frame counts events: the steps of comprehensions, the calls of application functions and the field reads and presence tests of objects. Before each event, `Event()` checks the token when the count is a multiple of 64 — so before the first event and then every 64 — and increments the count; a canceled token throws `OperationCanceledException` out of the evaluation. After the signal at most 64 events begin. With `CancellationToken.None` nothing is counted.
@@ -171,7 +201,7 @@ Types of values in messages are the names of runtime types without parameters ([
 
 ## Evaluation without type checking
 
-`Planner.PlanWithoutTypeCheck(ParsedExpression, DeclarationIndex)` serves the internal entry point `CelEnvironment.EvaluateWithoutTypeCheck` (see [facade](facade.md)). It plans the parsed tree with the same nodes and no checked expression:
+`Planner.PlanWithoutTypeCheck(ParsedExpression, DeclarationIndex, CelTimeZoneDatabase?)` serves the internal entry point `CelEnvironment.EvaluateWithoutTypeCheck` (see [facade](facade.md)). It plans the parsed tree with the same nodes and no checked expression:
 
 - names resolve at evaluation as [checking](checking.md) resolves them at compilation, with "has a value in the bindings" in place of "is declared": comprehension variables first, then the qualified names of an identifier or a selection chain, the longest first, each by the candidates of the container; for each candidate a value in the bindings, else a type identifier of the version. No candidate is `Unbound` for the name as written. Values are not checked against declared types;
 - a selection on a value is a `SelectPlanNode`, which finds a field of an object by name; variables of an object type apply the place rule at the first read; a message literal is planned with protobuf literals and is `InternalError` until then;
@@ -184,8 +214,8 @@ So `f_unknown(17)` evaluates to `EvalNoMatchingOverload`, and `x` without a bind
 | Part | This part | Later |
 | :- | :- | :- |
 | nodes | all nodes above, fields of objects and presence on them included | message literals of protobuf; `optional` selection and index; comprehensions of two variables; constant arguments prepared at planning (`matches`) |
-| values read | bindings by name, checked against the declared type at any depth; objects of types described at run time and of descriptions with a .NET type; collections of the application; `JsonElement` | members of .NET types and their place rule inside collections (generator), protobuf messages, time, `decimal` |
-| calls | the standard library, application functions | extension sets |
+| values read | bindings by name, checked against the declared type at any depth; objects of types described at run time and of descriptions with a .NET type; collections of the application; `JsonElement` | members of .NET types and their place rule inside collections (generator), protobuf messages, `decimal`; time is read from bindings and fields as scalars ([Time](#time)) |
+| calls | the standard library with time, application functions | extension sets, `matches` |
 | cost and cancellation | the meter, the event counter, the rows of application data above | the rows of later parts |
 
 Related pages: [checking](checking.md), [library](library.md), [values](values.md), [objects](objects.md), [types](types.md), [declarations](declarations.md), [facade](facade.md), [core](core.md).

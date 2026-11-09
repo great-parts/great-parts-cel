@@ -75,7 +75,8 @@ internal static class Minimizer
 
     /// <summary>
     /// The children of a node: the arguments of a call, the elements of a list, the keys and values of a map, the operand of a
-    /// selection and of a presence test, and the range of a macro only, since its other arguments read the iteration variable.
+    /// selection and of a presence test, and the range of a macro only, since its other arguments are taken as instances of its
+    /// bodies (<see cref="BodyInstances"/>).
     /// </summary>
     /// <param name="node">The node.</param>
     internal static IEnumerable<Expr> Children(Expr node) => node switch
@@ -90,20 +91,23 @@ internal static class Minimizer
     };
 
     /// <summary>
-    /// The instances of the bodies of a macro: for each argument that reads the iteration variable, in order, and each element
-    /// of the range, in order (the key for a map), the argument with each free read of the variable replaced by a node that
-    /// stands for the element and fits wherever the variable does. For a list or map literal, or such a literal in
+    /// The instances of the bodies of a macro, for each argument after the iteration variable, in the order of the source. An
+    /// argument that does not read the variable has one instance, the argument itself, whatever the range holds (elements, none
+    /// or an error): it does not depend on an element, and the range is not asked. An argument that reads the variable has an
+    /// instance for each element of the range, in order (the key for a map): the argument with each free read of the variable
+    /// replaced by a node that stands for the element and fits wherever the variable does. For a list or map literal, or such a
+    /// literal in
     /// <c>dyn()</c>, the node is the element in parentheses, or <c>dyn(element)</c> when the range is in <c>dyn()</c>, so that
     /// the static types stay. For any other range (a variable, <c>dyn(x1)</c>, <c>lx + []</c>, the result of <c>map</c> or
     /// <c>filter</c>) the elements are those of its value that the library gives: for a list, the index <c>range[i]</c> for
     /// each position <c>i</c> from 0; for a map, <c>dyn(k)</c> for each key <c>k</c> in the order the library iterates the map.
-    /// A range whose value is not a list or a map (an error, an unbound variable, a scalar) has no instances. Nothing for a node
-    /// that is not a macro.
+    /// A range whose value is not a list or a map (an error, an unbound variable, a scalar) has no instances of the arguments
+    /// that read the variable. Nothing for a node that is not a macro.
     /// </summary>
     /// <param name="node">The node.</param>
     /// <param name="rangeValue">
     /// The value of the range of the macro on the library, <see langword="null"/> when it gives none. Asked once, and only for a
-    /// range that is not a literal and only when a body reads the iteration variable.
+    /// range that is not a literal and only when the first body that reads the iteration variable is reached.
     /// </param>
     internal static IEnumerable<Expr> BodyInstances(Expr node, Func<Expr, Value?> rangeValue)
     {
@@ -112,15 +116,17 @@ internal static class Minimizer
             yield break;
         }
 
-        List<Expr> bodies = [.. macro.Arguments.Where(argument => Reads(argument, macro.Variable))];
-        if (bodies.Count == 0)
+        IReadOnlyList<Expr>? replacements = null;
+        foreach (Expr body in macro.Arguments)
         {
-            yield break;
-        }
+            if (!Reads(body, macro.Variable))
+            {
+                // Independent of the element: the argument itself, whatever the range holds.
+                yield return body;
+                continue;
+            }
 
-        IReadOnlyList<Expr> replacements = Replacements(macro, rangeValue);
-        foreach (Expr body in bodies)
-        {
+            replacements ??= Replacements(macro, rangeValue);
             foreach (Expr replacement in replacements)
             {
                 yield return Replace(body, macro.Variable, replacement);

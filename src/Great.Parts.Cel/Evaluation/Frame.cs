@@ -43,6 +43,7 @@ internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
         _stack = Allocate<CelValue>(plan.StackSize);
         Lines = plan.Lines;
         Types = plan.Types;
+        TimeZones = plan.TimeZones;
         if (costLimit is { } limit)
         {
             _metered = true;
@@ -59,6 +60,9 @@ internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
 
     // The type index of the environment of the plan, which describes object values.
     internal TypeIndex Types { get; }
+
+    // The time zone database of the environment of the plan, which the receivers of time with a zone resolve names against.
+    internal CelTimeZoneDatabase? TimeZones { get; }
 
     // Whether the evaluation has a cost limit.
     internal bool Metered => _metered;

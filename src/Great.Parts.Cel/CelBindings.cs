@@ -87,7 +87,7 @@ public sealed class CelBindings
         }
         else if (!ConversionRules.TryFromClr(value, out converted))
         {
-            // Time, optional values and decimals come with their parts.
+            // Optional values and decimals come with their parts.
             throw ConversionRules.IsOfLaterPart<T>()
                 ? new NotImplementedException()
                 : new ArgumentException(
@@ -97,7 +97,7 @@ public sealed class CelBindings
 
         if (ConversionRules.IsRefusedByBindings(converted))
         {
-            throw new ArgumentException("The value is an undefined JsonElement, which has no CEL value.", nameof(value));
+            throw new ArgumentException(ConversionRules.BindingsRefusalMessage(converted), nameof(value));
         }
 
         if (!_values.TryAdd(name, converted))

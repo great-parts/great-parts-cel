@@ -132,7 +132,7 @@ public sealed class EnvironmentJsonFunctionTests
     [InlineData("""{"functions": [{"name": "f", "overloads": [{"id": "a", "return": "int", "args": ["int", ^"list<int, int>"]}]}]}""", "takes 1 type parameter")]
     [InlineData("""{"functions": [{"name": "f", "overloads": [{"id": "a", "return": "int", "examples": ^"f()"}]}]}""", "'examples' must be an array")]
     [InlineData("""{"functions": [{"name": "f", "overloads": [{"id": "a", "return": "int", "examples": [^1]}]}]}""", "must be a string")]
-    [InlineData("""{"functions": [{"name": "f", "overloads": [{"id": "a", "return": ^"timestamp"}]}]}""", "'timestamp' is not supported")]
+    [InlineData("""{"functions": [{"name": "f", "overloads": [{"id": "a", "return": ^"optional_type<int>"}]}]}""", "'optional_type' is not supported")]
     public static void EmptyNameOrValueOfTheWrongKind_IsAnErrorAtTheValue(string marked, string detail) =>
         AssertError(marked, detail);
 

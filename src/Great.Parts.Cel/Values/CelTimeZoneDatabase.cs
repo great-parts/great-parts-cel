@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 
 namespace Great.Parts.Cel.Values;
 
@@ -26,31 +27,46 @@ namespace Great.Parts.Cel.Values;
 /// Adding a different database to an environment that already has one is a build error
 /// <see cref="Diagnostics.CelErrorCode.TimeZoneDatabaseConflict"/>.
 /// </para>
+/// <para>
+/// The recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/time-zone-database.md">Time zone database</see> shows how to read the files and
+/// build a database; the rules for a name are on the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md#time-zone-names">Standard library</see>.
+/// </para>
 /// <para>The database is immutable and can be shared between threads and environments.</para>
 /// </remarks>
 public sealed class CelTimeZoneDatabase
 {
-    private CelTimeZoneDatabase()
+    private static readonly CelTimeZoneDatabase EmptyInstance = new([], [], null);
+
+    // The identifiers in ordinal order and the zone of each, at the same index.
+    private readonly string[] _ids;
+    private readonly ZoneData[] _zones;
+
+    private CelTimeZoneDatabase(string[] ids, ZoneData[] zones, string? version)
     {
+        _ids = ids;
+        _zones = zones;
+        Version = version;
+        ZoneIds = ImmutableCollectionsMarshal.AsImmutableArray(ids);
     }
 
     /// <summary>
     /// A database without time zones: only <c>UTC</c> and fixed offsets resolve.
     /// </summary>
-    public static CelTimeZoneDatabase Empty => throw new NotImplementedException();
+    public static CelTimeZoneDatabase Empty => EmptyInstance;
 
     /// <summary>
     /// The version of the data given by the application, for example <c>2026a</c>, or <see langword="null"/>.
     /// It is informational: the library does not interpret it, and the message of
     /// <see cref="Diagnostics.CelErrorCode.TimeZoneNotFound"/> shows it.
     /// </summary>
-    public string? Version => throw new NotImplementedException();
+    public string? Version { get; }
 
     /// <summary>
     /// The identifiers of the time zones in ordinal order. A link such as <c>US/Central</c> is an identifier
     /// of its own, with the same data as its target.
     /// </summary>
-    public ImmutableArray<string> ZoneIds => throw new NotImplementedException();
+    public ImmutableArray<string> ZoneIds { get; }
 
     /// <summary>
     /// Creates a database from pairs of an IANA identifier and the TZif data of that time zone. Every
@@ -73,7 +89,55 @@ public sealed class CelTimeZoneDatabase
         IEnumerable<KeyValuePair<string, ReadOnlyMemory<byte>>> zones,
         string? version = null)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(zones);
+        Dictionary<string, (ReadOnlyMemory<byte> Data, ZoneData Zone)> seen = new(StringComparer.Ordinal);
+        foreach (KeyValuePair<string, ReadOnlyMemory<byte>> pair in zones)
+        {
+            string id = pair.Key;
+            ArgumentNullException.ThrowIfNull(id, nameof(zones));
+            if (id.Length == 0)
+            {
+                throw new ArgumentException("a time zone identifier is empty", nameof(zones));
+            }
+
+            if (TimeZoneRules.HasColon(id))
+            {
+                throw new ArgumentException(
+                    $"time zone identifier '{id}' has ':', so the name would read as a fixed offset", nameof(zones));
+            }
+
+            bool known = seen.TryGetValue(id, out (ReadOnlyMemory<byte> Data, ZoneData Zone) previous);
+            if (known && previous.Data.Span.SequenceEqual(pair.Value.Span))
+            {
+                continue;
+            }
+
+            TimeZoneRules.TzifFailure failure = TimeZoneRules.TryReadTzif(pair.Value.Span, out ZoneData? zone);
+            if (failure != TimeZoneRules.TzifFailure.None)
+            {
+                throw new ArgumentException(FailureMessage(id, failure), nameof(zones));
+            }
+
+            if (known)
+            {
+                throw new ArgumentException($"time zone '{id}' is given twice with different data", nameof(zones));
+            }
+
+            seen.Add(id, (pair.Value, zone!));
+        }
+
+        string[] ids = new string[seen.Count];
+        ZoneData[] data = new ZoneData[seen.Count];
+        int index = 0;
+        foreach (KeyValuePair<string, (ReadOnlyMemory<byte> Data, ZoneData Zone)> entry in seen)
+        {
+            ids[index] = entry.Key;
+            data[index] = entry.Value.Zone;
+            index++;
+        }
+
+        Array.Sort(ids, data, StringComparer.Ordinal);
+        return new CelTimeZoneDatabase(ids, data, version);
     }
 
     /// <summary>
@@ -84,6 +148,60 @@ public sealed class CelTimeZoneDatabase
     /// <exception cref="ArgumentNullException"><paramref name="zoneId"/> is <see langword="null"/>.</exception>
     public bool Contains(string zoneId)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(zoneId);
+        return Find(zoneId) is not null;
+    }
+
+    /// <summary>
+    /// Finds the zone of an identifier by a binary search over the ordered identifiers, by ordinal comparison and without allocation.
+    /// </summary>
+    /// <param name="zoneId">The identifier.</param>
+    /// <returns>The zone, or <see langword="null"/> when the database has none.</returns>
+    internal ZoneData? Find(ReadOnlySpan<char> zoneId)
+    {
+        int low = 0;
+        int high = _ids.Length - 1;
+        while (low <= high)
+        {
+            int middle = low + ((high - low) >> 1);
+            int order = zoneId.SequenceCompareTo(_ids[middle].AsSpan());
+            if (order == 0)
+            {
+                return _zones[middle];
+            }
+
+            if (order < 0)
+            {
+                high = middle - 1;
+            }
+            else
+            {
+                low = middle + 1;
+            }
+        }
+
+        return null;
+    }
+
+    private static string FailureMessage(string id, TimeZoneRules.TzifFailure failure)
+    {
+        if (failure == TimeZoneRules.TzifFailure.LeapSeconds)
+        {
+            return $"time zone '{id}': the data has leap second records, which CEL time does not have (files of the right/ directory are not supported)";
+        }
+
+        string detail = failure switch
+        {
+            TimeZoneRules.TzifFailure.BadMagic => "bad magic",
+            TimeZoneRules.TzifFailure.UnsupportedVersion => "unsupported version",
+            TimeZoneRules.TzifFailure.Version1 => "version 1 has no 64-bit data",
+            TimeZoneRules.TzifFailure.Cut => "the data is cut",
+            TimeZoneRules.TzifFailure.TransitionsOrder => "transitions are not in increasing order",
+            TimeZoneRules.TzifFailure.UnknownType => "a transition has an unknown local time type",
+            TimeZoneRules.TzifFailure.NoType => "no local time type",
+            TimeZoneRules.TzifFailure.FooterMissing => "the footer is missing",
+            _ => "the footer is not a POSIX TZ rule",
+        };
+        return $"time zone '{id}': the data is not valid TZif: {detail}";
     }
 }

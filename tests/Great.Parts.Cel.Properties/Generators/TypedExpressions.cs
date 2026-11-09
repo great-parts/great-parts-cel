@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using CsCheck;
+using Great.Parts.Cel.Conformance.Runner;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
@@ -22,7 +23,9 @@ internal sealed record TypedCase(string Text, CelType Target, CelBindings Bindin
 /// Generates well-typed expressions of the core (docs/design/tests.md, "Property tests and the seed"): for a target CEL type an
 /// expression over the standard library version 1 — literals, the variables of a fixed environment, calls, <c>&amp;&amp;</c>,
 /// <c>||</c>, <c>?:</c>, indexes, selections and <c>has()</c> on maps, the standard macros — within depth 8 and 60 nodes, and
-/// bindings of the declared types: a <c>dyn</c> variable bound to any kind, one variable in ten unbound.
+/// bindings of the declared types: a <c>dyn</c> variable bound to any kind, one variable in ten unbound. With the part of time,
+/// the environment has the variables <c>ts</c> and <c>du</c> and the time zone database of the whole test archive, and
+/// <c>timestamp</c> and <c>duration</c> are target types.
 /// </summary>
 internal static class TypedExpressions
 {
@@ -40,7 +43,8 @@ internal static class TypedExpressions
 
     /// <summary>
     /// The variables of the fixed environment: one of each type, two of type <c>dyn</c>, and the variables of application data —
-    /// <c>o</c> of <c>gen.Item</c>, <c>g</c> of <c>gen.Bag</c> and <c>j</c> of type <c>dyn</c>, bound to a <see cref="System.Text.Json.JsonElement"/>.
+    /// <c>o</c> of <c>gen.Item</c>, <c>g</c> of <c>gen.Bag</c> and <c>j</c> of type <c>dyn</c>, bound to a <see cref="System.Text.Json.JsonElement"/> —
+    /// and <c>ts</c> of type <c>timestamp</c> and <c>du</c> of type <c>duration</c>.
     /// </summary>
     internal static readonly (string Name, CelType Type)[] Variables =
     [
@@ -48,13 +52,14 @@ internal static class TypedExpressions
         ("y", CelType.Bytes), ("li", ListInt), ("ld", ListDyn), ("msi", MapStringInt), ("mid", MapIntDyn), ("t", TypeType),
         ("x1", CelType.Dyn), ("x2", CelType.Dyn),
         ("o", GeneratedTypes.ItemName), ("g", GeneratedTypes.BagName), ("j", CelType.Dyn),
+        ("ts", CelType.Timestamp), ("du", CelType.Duration),
     ];
 
     /// <summary>The target types of the generator.</summary>
     internal static readonly CelType[] Targets =
     [
         CelType.Int, CelType.UInt, CelType.Double, CelType.Bool, CelType.String, CelType.Bytes, ListInt, ListDyn, MapStringInt,
-        MapIntDyn, TypeType, CelType.Dyn,
+        MapIntDyn, TypeType, CelType.Timestamp, CelType.Duration, CelType.Dyn,
     ];
 
     /// <summary>The environment of <see cref="CelStandardLibrary.V1"/> with the variables of the generator.</summary>
@@ -72,12 +77,13 @@ internal static class TypedExpressions
     internal static Gen<TypedCase> Of(CelType target) =>
         Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => Create(new PCG(stream, seed), target, damaged: false));
 
-    /// <summary>Declares the type source and the variables of the generator.</summary>
+    /// <summary>Declares the type source, the time zone database and the variables of the generator.</summary>
     /// <param name="builder">The builder.</param>
     /// <returns>The builder.</returns>
     internal static CelEnvironmentBuilder Declare(CelEnvironmentBuilder builder)
     {
         builder.AddTypes(GeneratedTypes.Provider);
+        builder.UseTimeZones(ZoneInfoFile.Database());
         foreach ((string name, CelType type) in Variables)
         {
             builder.AddVariable(name, type);
@@ -177,6 +183,14 @@ internal static class TypedExpressions
             case CelValueKind.List or CelValueKind.Map:
                 PrintCollection(text, value);
                 break;
+            case CelValueKind.Timestamp:
+                _ = value.TryGetTimestamp(out CelTimestamp moment);
+                text.Append("timestamp('").Append(moment).Append("')");
+                break;
+            case CelValueKind.Duration:
+                _ = value.TryGetDuration(out CelDuration span);
+                text.Append("duration('").Append(span).Append("')");
+                break;
             case CelValueKind.Type:
                 _ = value.TryGetType(out CelType? type);
                 text.Append(type!.Name);
@@ -275,6 +289,16 @@ internal static class TypedExpressions
             return CelValue.FromBytes(bytes);
         }
 
+        if (type.Equals(CelType.Timestamp))
+        {
+            return TimeText.BoundTimestamp(random);
+        }
+
+        if (type.Equals(CelType.Duration))
+        {
+            return TimeText.BoundDuration(random);
+        }
+
         return type.Kind == CelTypeKind.Type
             ? CelValue.FromType(TypeValues[random.Next((uint)TypeValues.Length)])
             : Collection(random, type, depth);
@@ -319,6 +343,10 @@ internal static class TypedExpressions
         private static readonly string[] TypeNames = ["int", "uint", "double", "bool", "string", "bytes", "list", "map", "type", "null_type"];
         private static readonly string[] Fields = ["a", "b", "f"];
         private static readonly string[] Ordered = ["<", "<=", ">", ">="];
+        private static readonly string[] Relations = ["<", "<=", ">", ">=", "==", "!="];
+        private static readonly string[] TimestampReceivers =
+            ["getFullYear", "getMonth", "getDayOfYear", "getDayOfMonth", "getDate", "getDayOfWeek", "getHours", "getMinutes", "getSeconds", "getMilliseconds"];
+        private static readonly string[] DurationReceivers = ["getHours", "getMinutes", "getSeconds", "getMilliseconds"];
 
         private readonly List<(string Name, CelType Type)> _scope = [];
         private int _nodes;
@@ -442,6 +470,11 @@ internal static class TypedExpressions
                 return Pick(TypeNames);
             }
 
+            if (type.Kind is CelTypeKind.Timestamp or CelTypeKind.Duration)
+            {
+                return TimeLiteral(type);
+            }
+
             // dyn: null, a dyn variable, or a literal of another type under dyn(), so that the static type is dyn.
             return random.Next(4) switch
             {
@@ -449,6 +482,20 @@ internal static class TypedExpressions
                 1 => Pick("x1", "x2"),
                 _ => $"dyn({Literal(Targets[random.Next((uint)Targets.Length - 1)])})",
             };
+        }
+
+        // A timestamp from a string of the grammar of time, valid or mutated, or from an int near the limits of the range; a duration
+        // from a string.
+        private string TimeLiteral(CelType type)
+        {
+            if (type.Kind == CelTypeKind.Duration)
+            {
+                return $"duration('{TimeText.Duration(random)}')";
+            }
+
+            return random.Next(5) == 0
+                ? $"timestamp({TimeText.TimestampInteger(random).ToString(CultureInfo.InvariantCulture)})"
+                : $"timestamp('{TimeText.Timestamp(random)}')";
         }
 
         private string Compound(CelType type, int depth)
@@ -463,6 +510,50 @@ internal static class TypedExpressions
                 return data;
             }
 
+            return type.Kind switch
+            {
+                CelTypeKind.Timestamp => TimestampCompound(depth),
+                CelTypeKind.Duration => DurationCompound(depth),
+                _ => Typed(type, depth),
+            };
+        }
+
+        // The conversions, the arithmetic and the identity of timestamps; the receivers and the relations are in the int and bool compounds.
+        private string TimestampCompound(int depth) => random.Next(6) switch
+        {
+            0 => $"timestamp({Expression(CelType.Int, depth)})",
+            1 => $"timestamp({Expression(CelType.Timestamp, depth)})",
+            2 => $"timestamp(string({Expression(CelType.Timestamp, depth)}))",
+            3 => $"({Expression(CelType.Timestamp, depth)} + {Expression(CelType.Duration, depth)})",
+            4 => $"({Expression(CelType.Duration, depth)} + {Expression(CelType.Timestamp, depth)})",
+            _ => $"({Expression(CelType.Timestamp, depth)} - {Expression(CelType.Duration, depth)})",
+        };
+
+        private string DurationCompound(int depth) => random.Next(5) switch
+        {
+            0 => $"duration({Expression(CelType.Duration, depth)})",
+            1 => $"duration(string({Expression(CelType.Duration, depth)}))",
+            2 => $"({Expression(CelType.Duration, depth)} + {Expression(CelType.Duration, depth)})",
+            3 => $"({Expression(CelType.Duration, depth)} - {Expression(CelType.Duration, depth)})",
+            _ => $"({Expression(CelType.Timestamp, depth)} - {Expression(CelType.Timestamp, depth)})",
+        };
+
+        private CelType TimeType() => random.Next(2) == 0 ? CelType.Timestamp : CelType.Duration;
+
+        // One of the ten receivers of a timestamp, without a zone or with a zone of the pool, or one of the four receivers of a duration.
+        private string Receiver(int depth)
+        {
+            if (random.Next(3) == 0)
+            {
+                return $"{Expression(CelType.Duration, depth)}.{Pick(DurationReceivers)}()";
+            }
+
+            string zone = random.Next(2) == 0 ? "" : $"'{TimeText.Zone(random)}'";
+            return $"{Expression(CelType.Timestamp, depth)}.{Pick(TimestampReceivers)}({zone})";
+        }
+
+        private string Typed(CelType type, int depth)
+        {
             if (type.Equals(CelType.Int))
             {
                 return IntCompound(depth);
@@ -494,9 +585,10 @@ internal static class TypedExpressions
 
             if (type.Equals(CelType.String))
             {
-                return random.Next(3) switch
+                return random.Next(4) switch
                 {
                     0 => $"string({Expression(Targets[random.Next(6)], depth)})",
+                    1 => $"string({Expression(TimeType(), depth)})",
                     _ => $"({Expression(CelType.String, depth)} + {Expression(CelType.String, depth)})",
                 };
             }
@@ -610,7 +702,7 @@ internal static class TypedExpressions
             return null;
         }
 
-        private string IntCompound(int depth) => random.Next(9) switch
+        private string IntCompound(int depth) => random.Next(12) switch
         {
             // The operand of a negation goes through int(): an index of [], {} or a dyn value has a free type, which -_ binds to
             // double, its first overload, as cel-go does.
@@ -621,12 +713,14 @@ internal static class TypedExpressions
             4 => $"{Expression(ListInt, depth)}[{Expression(CelType.Int, depth)}]",
             5 => $"{Expression(MapStringInt, depth)}[{Expression(CelType.String, depth)}]",
             6 => $"{Expression(MapStringInt, depth)}.{Pick(Fields)}",
+            7 => $"int({Expression(TimeType(), depth)})",
+            8 or 9 => Receiver(depth),
             _ => $"({Expression(CelType.Int, depth)} {Pick("+", "-", "*", "/", "%")} {Expression(CelType.Int, depth)})",
         };
 
         private string BoolCompound(int depth)
         {
-            switch (random.Next(11))
+            switch (random.Next(12))
             {
                 case 0:
                     return $"!({Expression(CelType.Bool, depth)})";
@@ -646,6 +740,12 @@ internal static class TypedExpressions
 
                 case 4:
                     return $"({Expression(CelType.Int, depth)} in {Expression(ListInt, depth)})";
+                case 8:
+                    {
+                        CelType time = TimeType();
+                        return $"({Expression(time, depth)} {Pick(Relations)} {Expression(time, depth)})";
+                    }
+
                 case 5:
                     return $"({Expression(CelType.String, depth)} in {Expression(MapStringInt, depth)})";
                 case 6:

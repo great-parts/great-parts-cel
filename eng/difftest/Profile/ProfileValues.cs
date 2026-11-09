@@ -124,6 +124,7 @@ internal static class ProfileValues
     internal static Value Binding(PCG pcg, ProfileVariable variable) => variable switch
     {
         { Wrapper: true } when pcg.OneIn(4) => new Value { NullValue = NullValue.NullValue },
+        { Name: ProfileTables.ZoneVariable } when pcg.OneIn(2) => new Value { StringValue = TimeStrings.Zone(pcg) },
         { Type: ProfileType.ListType, Declared.Element: { } element } => TypedListBinding(pcg, element),
         { Type: ProfileType.MapType, Declared: { Key: { } key, Value: { } value } } => TypedMapBinding(pcg, key, value),
         _ => Binding(pcg, variable.Type),

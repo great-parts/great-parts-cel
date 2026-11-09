@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Declarations;
 
@@ -13,7 +14,9 @@ internal sealed class DeclarationSet
         ImmutableArray<ImplementationEntry> implementations,
         ImmutableArray<SourcedDeclaration<string>> containers,
         ImmutableArray<UnmappedDeclaration> unmapped,
-        ImmutableArray<TypeSource> typeSources)
+        ImmutableArray<TypeSource> typeSources,
+        CelTimeZoneDatabase? timeZones = null,
+        bool timeZoneConflict = false)
     {
         Variables = variables;
         Functions = functions;
@@ -21,6 +24,8 @@ internal sealed class DeclarationSet
         Containers = containers;
         Unmapped = unmapped;
         TypeSources = typeSources;
+        TimeZones = timeZones;
+        TimeZoneConflict = timeZoneConflict;
     }
 
     internal ImmutableArray<SourcedDeclaration<CelVariableDecl>> Variables { get; }
@@ -36,4 +41,10 @@ internal sealed class DeclarationSet
 
     // The type sources, each provider once, in the order of the calls.
     internal ImmutableArray<TypeSource> TypeSources { get; }
+
+    // The first time zone database that UseTimeZones added; null without one.
+    internal CelTimeZoneDatabase? TimeZones { get; }
+
+    // Whether a database other than the first was added: the build error TimeZoneDatabaseConflict.
+    internal bool TimeZoneConflict { get; }
 }

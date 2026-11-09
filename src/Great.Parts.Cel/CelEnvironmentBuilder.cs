@@ -54,6 +54,10 @@ public sealed class CelEnvironmentBuilder
     // The type sources, each provider once.
     private readonly List<TypeSource> _typeSources = [];
 
+    // The first time zone database added, which stays; and whether a different one was added later, which Build reports.
+    private CelTimeZoneDatabase? _timeZones;
+    private bool _timeZoneConflict;
+
     /// <summary>
     /// Creates a builder for an environment with the given version of the standard library.
     /// </summary>
@@ -717,14 +721,25 @@ public sealed class CelEnvironmentBuilder
     /// Without a database only <c>UTC</c> and fixed offsets resolve; any other zone name is the evaluation
     /// error <see cref="CelErrorCode.TimeZoneNotFound"/>. A different database added to the same environment
     /// is a build error <see cref="CelErrorCode.TimeZoneDatabaseConflict"/>: a database is never replaced
-    /// silently. An environment description in JSON does not carry the database; add it in code.
+    /// silently. An environment description in JSON does not carry the database; add it in code. The recipe
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/time-zone-database.md">Time zone database</see> shows how to build one.
     /// </remarks>
     /// <param name="database">The time zone database.</param>
     /// <returns>This builder.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="database"/> is <see langword="null"/>.</exception>
     public CelEnvironmentBuilder UseTimeZones(CelTimeZoneDatabase database)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(database);
+        if (_timeZones is null)
+        {
+            _timeZones = database;
+        }
+        else if (!ReferenceEquals(_timeZones, database))
+        {
+            _timeZoneConflict = true;
+        }
+
+        return this;
     }
 
 #if NET11_0_OR_GREATER
@@ -766,7 +781,7 @@ public sealed class CelEnvironmentBuilder
     /// <returns>The environment or the build errors.</returns>
     public CelBuildResult Build()
     {
-        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped], [.. _typeSources]);
+        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped], [.. _typeSources], _timeZones, _timeZoneConflict);
         LibraryDeclarations library = _standardLibrary.Declarations;
         ImmutableArray<CelError> errors = DeclarationChecks.Check(
             declarations,
@@ -794,6 +809,7 @@ public sealed class CelEnvironmentBuilder
         _containers.AddRange(declarations.Containers);
         _unmapped.AddRange(declarations.Unmapped);
         _typeSources.AddRange(declarations.TypeSources);
+        _timeZones = declarations.TimeZones;
     }
 
     // The declarations of variables collected so far, in the order of the calls, each once.

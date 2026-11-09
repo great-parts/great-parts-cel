@@ -63,6 +63,9 @@ Code that a later part of the library adds to `Values` follows the same rule: lo
 | `src/Great.Parts.Cel/Values/JsonRules.cs` | `JsonElement`: kinds, numbers, the counting key lookup, repeated names | bindings of `JsonElement` |
 | `src/Great.Parts.Cel/Values/ObjectRules.cs` | the description of an object value and the place rule; the field value of a type described at run time (presence, `FieldNotSet`, `FieldTypeMismatch`); the default equality of objects | objects of the application |
 | `src/Great.Parts.Cel/Values/DoubleTextRules.cs` | the shortest digits of a double that read back to the same double, shared by the text form of the library and the printer of syntax trees | `string(double)` and printing of a literal |
+| `src/Great.Parts.Cel/Values/TimeTextRules.cs` | RFC 3339 and duration text: reading, printing, the length of the printed text | `timestamp(string)`, `duration(string)`, `string()` of time |
+| `src/Great.Parts.Cel/Values/CalendarRules.cs` | the proleptic Gregorian calendar: days and dates, weekday, day of the year | the receivers of `timestamp`, the grammar of RFC 3339 |
+| `src/Great.Parts.Cel/Values/TimeZoneRules.cs`, `TimeZoneRules.Tzif.cs`, `TimeZoneRules.Posix.cs` | the resolution of a zone name; reading TZif; the POSIX TZ rule; the offset of a zone at an instant ([time zones](time-zones.md)) | `UseTimeZones`, the receivers with a zone |
 
 ## Core paths
 
@@ -101,6 +104,9 @@ Moving code across the line — a new rule file outside this naming, a rule in a
 | `src/Great.Parts.Cel/Values/ConversionRules.Result.cs` | yes | part of a rule file |
 | `src/Great.Parts.Cel/Values/CelValue.cs` | no | value model; `CelEquals` only delegates |
 | `src/Great.Parts.Cel/Values/CelList.cs` | no | value model |
+| `src/Great.Parts.Cel/Values/CelTimestamp.cs` | no | value model; its text and its conversions delegate to `TimeTextRules.cs` |
+| `src/Great.Parts.Cel/Values/TimeZoneRules.Tzif.cs` | yes | part of a rule file |
+| `src/Great.Parts.Cel/Library/Time/TimeReceivers.cs` | yes | sub-namespace of `Library` |
 | `src/Great.Parts.Cel/Values/ObjectRules.cs` | yes | rule file in `Values` |
 | `src/Great.Parts.Cel/Values/CelObjectTypeBuilder.cs` | no | type description; its decisions are in `ObjectRules.cs` |
 | `src/Great.Parts.Cel/Values/JsonObjectMap.cs` | no | adapter; its decisions are in `JsonRules.cs` |
@@ -116,4 +122,4 @@ Moving code across the line — a new rule file outside this naming, a rule in a
 
 A change that moves `src/Great.Parts.Cel/Values/EqualityRules.cs` to `src/Great.Parts.Cel/Values/Equality.cs` prints both paths with `--no-renames`; the first one matches, so the change is a core change.
 
-Related pages: [facade](facade.md), [syntax](syntax.md), [types](types.md), [values](values.md), [objects](objects.md), [declarations](declarations.md), [environment description in JSON](configuration.md).
+Related pages: [facade](facade.md), [syntax](syntax.md), [types](types.md), [values](values.md), [time zones](time-zones.md), [objects](objects.md), [declarations](declarations.md), [environment description in JSON](configuration.md).

@@ -2,7 +2,7 @@
 
 This page lists what the standard library `CelStandardLibrary.V1` declares and how each function behaves: the type identifiers, the macros, and the functions and operators with their overloads. An environment names the version it uses in `new CelEnvironmentBuilder(CelStandardLibrary.V1)`.
 
-Not in this version of the page: the functions `timestamp` and `duration` with their conversions, arithmetic and receivers, the function `matches`, and the extension sets, which have their own page. They are added to the library in a later release; until then a call to them is a type checking error.
+Not in this version of the page: the function `matches` and the extension sets, which have their own page. They are added to the library in a later release; until then a call to them is a type checking error.
 
 The sources are the language definition of CEL (`doc/langdef.md` of cel-spec), cited by section title, and the CEL implementation in Go, cel-go v0.32.0, which is the reference where the language definition is silent. The costs of the overloads are on the page [Cost](cost.md), the error codes on the page [Error codes](error-codes.md), and the limits on the page [Limits](limits.md).
 
@@ -32,8 +32,10 @@ An identifier evaluates to a value of the type `type`; its static type is `type(
 | `map` | the type `map`; the parameters are erased |
 | `null_type` | the type `null_type` |
 | `type` | the type `type` |
+| `google.protobuf.Timestamp` | the type `timestamp` |
+| `google.protobuf.Duration` | the type `duration` |
 
-`dyn` is not an identifier: the name `dyn` is only the function `dyn` below, as in cel-go and in the test data of cel-spec. The names `timestamp` and `duration` are functions, not type identifiers. The wrappers and the well-known types of protobuf are not part of the standard library; their names come from type providers.
+`dyn` is not an identifier: the name `dyn` is only the function `dyn` below, as in cel-go and in the test data of cel-spec. The names `timestamp` and `duration` are functions, not type identifiers; the identifiers of their types are the full names `google.protobuf.Timestamp` and `google.protobuf.Duration`, so `type(timestamp(0)) == google.protobuf.Timestamp` is `true`. The wrappers and the well-known types of protobuf are not part of the standard library; their names come from type providers.
 
 ## Macros
 
@@ -80,7 +82,7 @@ Type checking requires equal types of the operands, except with `dyn`; `type(T1)
 
 ### Arithmetic
 
-An overflow of `int` or `uint` is an error. `double` follows IEEE 754 and gives no errors: a division by zero gives an infinity or a NaN. There is no mixed arithmetic: `1 + 1u` is a type checking error.
+An overflow of `int`, `uint`, `timestamp` or `duration` is an error. `double` follows IEEE 754 and gives no errors: a division by zero gives an infinity or a NaN. There is no mixed arithmetic: `1 + 1u` is a type checking error.
 
 | Identifier | Function | Signature | Semantics | Errors |
 | :- | :- | :- | :- | :- |
@@ -90,9 +92,15 @@ An overflow of `int` or `uint` is an error. `double` follows IEEE 754 and gives 
 | `add_string` | `_+_` | `(string, string) -> string` | concatenation | none |
 | `add_bytes` | `_+_` | `(bytes, bytes) -> bytes` | concatenation | none |
 | `add_list` | `_+_` | `(list(A), list(A)) -> list(A)` | concatenation | none |
+| `add_duration_duration` | `_+_` | `(duration, duration) -> duration` | sum | outside the range of `int` nanoseconds: `Overflow` |
+| `add_duration_timestamp` | `_+_` | `(duration, timestamp) -> timestamp` | the moment moved forward | outside the range of `timestamp`: `Overflow` |
+| `add_timestamp_duration` | `_+_` | `(timestamp, duration) -> timestamp` | the moment moved forward | the same |
 | `subtract_int64` | `_-_` | `(int, int) -> int` | difference | `Overflow` |
 | `subtract_uint64` | `_-_` | `(uint, uint) -> uint` | difference | a negative result: `Overflow` |
 | `subtract_double` | `_-_` | `(double, double) -> double` | IEEE 754 | none |
+| `subtract_duration_duration` | `_-_` | `(duration, duration) -> duration` | difference | `Overflow` |
+| `subtract_timestamp_duration` | `_-_` | `(timestamp, duration) -> timestamp` | the moment moved back | outside the range of `timestamp`: `Overflow` |
+| `subtract_timestamp_timestamp` | `_-_` | `(timestamp, timestamp) -> duration` | the duration between two moments | outside the range of `int` nanoseconds: `Overflow` |
 | `multiply_int64` | `_*_` | `(int, int) -> int` | product | `Overflow` |
 | `multiply_uint64` | `_*_` | `(uint, uint) -> uint` | product | `Overflow` |
 | `multiply_double` | `_*_` | `(double, double) -> double` | IEEE 754 | none |
@@ -106,13 +114,13 @@ An overflow of `int` or `uint` is an error. `double` follows IEEE 754 and gives 
 
 ### Ordering
 
-Ordering is defined for `bool`, `int`, `uint`, `double`, `string` and `bytes`. Strings are ordered by code points, not by UTF-16 code units, and `bytes` by bytes; `e1 <= e2` is `(e1 < e2) || (e1 == e2)`. A comparison with a NaN is `false`. The ordering of lists, maps and `null` has no overload: with `dyn` the error is `EvalNoMatchingOverload`.
+Ordering is defined for `bool`, `int`, `uint`, `double`, `string`, `bytes`, `timestamp` and `duration`. Strings are ordered by code points, not by UTF-16 code units, and `bytes` by bytes; `e1 <= e2` is `(e1 < e2) || (e1 == e2)`. A comparison with a NaN is `false`. The ordering of lists, maps and `null` has no overload: with `dyn` the error is `EvalNoMatchingOverload`.
 
 The operators are `<`, `<=`, `>` and `>=`. Their identifiers are the prefix `less_`, `less_equals_`, `greater_` or `greater_equals_` and a suffix; the signature of each is `(T, T) -> bool`:
 
 | Suffix | `T` | Candidate in type checking |
 | :- | :- | :- |
-| `bool`, `int64`, `uint64`, `double`, `string`, `bytes` | `bool`, `int`, `uint`, `double`, `string`, `bytes` | always |
+| `bool`, `int64`, `uint64`, `double`, `string`, `bytes`, `timestamp`, `duration` | `bool`, `int`, `uint`, `double`, `string`, `bytes`, `timestamp`, `duration` | always |
 | `int64_double`, `int64_uint64`, `uint64_double`, `uint64_int64`, `double_int64`, `double_uint64` | the two numeric types in the order of the suffix | only when an operand has the type `dyn` |
 
 The 24 overloads across numeric types follow the language definition: "Comparisons require strict type equality at type-check time" and numeric comparisons across types are allowed at run time. So `1 < 1.5` is a type checking error, and `-1 < dyn(1u)` is `true`. The environment of cel-go also filters out these overloads unless it enables `CrossTypeNumericComparisons`, which the environments of the conformance suite do not.
@@ -185,13 +193,87 @@ The language definition shows `string(123u)` as `"123u"`; that contradicts its o
 
 The result is the nearest `double`, with ties to even; an exponent that underflows (`'1e-400'`) gives `0` or a subnormal number without an error.
 
+### Time
+
+The functions of time are `timestamp` and `duration`, the ten receivers `getFullYear` to `getMilliseconds`, and the operators on the two types, which are in [Arithmetic](#arithmetic) and [Ordering](#ordering). The identifiers are those of cel-go v0.32.0, including `int(duration)` and `timestamp(int)`, so the lists of overloads compare without exceptions. The meaning is the language definition's: where cel-go differs from it, this library follows the language definition, and the differences are listed [at the end of this section](#where-the-library-differs-from-cel-go).
+
+A call such as `duration('72h')` or `timestamp('2009-02-13T23:31:30Z')` on a string constant is read once when the program is compiled; its value, its cost and its error are those of the call, and a constant that is not valid is an error at evaluation, not at compilation. The costs are on the page [Cost](cost.md#time).
+
+#### Time conversions
+
+| Identifier | Function | Signature | Semantics | Errors |
+| :- | :- | :- | :- | :- |
+| `timestamp_to_timestamp` | `timestamp` | `(timestamp) -> timestamp` | the identity | none |
+| `int64_to_timestamp` | `timestamp` | `(int) -> timestamp` | Unix seconds | outside −62135596800 … 253402300799: `ConversionRange` (3007) |
+| `string_to_timestamp` | `timestamp` | `(string) -> timestamp` | RFC 3339, strictly, as below; the result is the moment, without the offset of the text | a string of another form: `InvalidArgument` (3008); outside the range of `timestamp`: `ConversionRange` |
+| `timestamp_to_int64` | `int` | `(timestamp) -> int` | Unix seconds, rounded down | none |
+| `timestamp_to_string` | `string` | `(timestamp) -> string` | RFC 3339 in UTC with `Z`; the fraction has no trailing zeros: `2009-02-13T23:31:30Z`, `9999-12-31T23:59:59.999999999Z` | none |
+| `duration_to_duration` | `duration` | `(duration) -> duration` | the identity | none |
+| `string_to_duration` | `duration` | `(string) -> duration` | the grammar of `time.ParseDuration` of Go, as below | a string of another form: `InvalidArgument`; outside the range of `int` nanoseconds: `ConversionRange` |
+| `duration_to_int64` | `int` | `(duration) -> int` | nanoseconds | none |
+| `duration_to_string` | `string` | `(duration) -> string` | seconds and a fraction of up to 9 digits without trailing zeros, with the suffix `s`, exact: `60.001s`, `-1.5s`, `0s` | none |
+
+**The string of a timestamp** is `YYYY-MM-DDTHH:MM:SS`, an optional fraction (`.` and digits), and `Z` or an offset `+HH:MM` or `-HH:MM`. The day must exist in its month, with leap years by the Gregorian rule: `2023-02-30`, `2023-04-31`, `2023-02-29` and `1900-02-29` are errors, `2024-02-29` and `2000-02-29` are valid. The second is 00 to 59; the second `60` is an error. The letters `T` and `Z` are upper case: `2023-01-01t00:00:00Z` and `2023-01-01T00:00:00z` are errors. Digits of the fraction beyond 9 are dropped without rounding: `.1234567891` is `.123456789`. A string that has the form but denotes a moment outside the range, such as `0000-01-01T00:00:00Z`, is `ConversionRange`.
+
+**The string of a duration** is an optional sign, then one or more pairs of a number and a unit. A number is digits, digits and a point, a point and digits, or digits, a point and digits: `'.5s'` and `'5.s'` are valid. Units are case-sensitive: `h`, `m`, `s`, `ms`, `us`, `µs` (U+00B5), `μs` (U+03BC) and `ns`. A unit may repeat, so `'1h1h'` is two hours. A lone `0`, `+0` or `-0` needs no unit. `''`, `'1'` and `'1H'` are `InvalidArgument`.
+
+#### Receivers of `timestamp` and `duration`
+
+Without a zone, the local time is UTC. With a zone, the argument is a [zone name](#time-zone-names). The month, the day of the year and `getDayOfMonth` count from 0, `getDate` from 1, and the day of the week from 0 for Sunday. A receiver of a duration gives whole units, truncated toward zero; `getMilliseconds` of a duration is the part within its second.
+
+| Identifier | Function | Signature |
+| :- | :- | :- |
+| `timestamp_to_year`, `timestamp_to_year_with_tz` | `getFullYear` | `timestamp.getFullYear() -> int`, `timestamp.getFullYear(string) -> int` |
+| `timestamp_to_month`, `timestamp_to_month_with_tz` | `getMonth` | `timestamp.getMonth() -> int`, `timestamp.getMonth(string) -> int` |
+| `timestamp_to_day_of_year`, `timestamp_to_day_of_year_with_tz` | `getDayOfYear` | `timestamp.getDayOfYear() -> int`, `timestamp.getDayOfYear(string) -> int` |
+| `timestamp_to_day_of_month`, `timestamp_to_day_of_month_with_tz` | `getDayOfMonth` | `timestamp.getDayOfMonth() -> int`, `timestamp.getDayOfMonth(string) -> int` |
+| `timestamp_to_day_of_month_1_based`, `timestamp_to_day_of_month_1_based_with_tz` | `getDate` | `timestamp.getDate() -> int`, `timestamp.getDate(string) -> int` |
+| `timestamp_to_day_of_week`, `timestamp_to_day_of_week_with_tz` | `getDayOfWeek` | `timestamp.getDayOfWeek() -> int`, `timestamp.getDayOfWeek(string) -> int` |
+| `timestamp_to_hours`, `timestamp_to_hours_with_tz`; `duration_to_hours` | `getHours` | `timestamp.getHours() -> int`, `timestamp.getHours(string) -> int`; `duration.getHours() -> int`, the whole hours |
+| `timestamp_to_minutes`, `timestamp_to_minutes_with_tz`; `duration_to_minutes` | `getMinutes` | `timestamp.getMinutes() -> int`, `timestamp.getMinutes(string) -> int`; `duration.getMinutes() -> int`, the whole minutes |
+| `timestamp_to_seconds`, `timestamp_to_seconds_tz`; `duration_to_seconds` | `getSeconds` | `timestamp.getSeconds() -> int`, `timestamp.getSeconds(string) -> int`; `duration.getSeconds() -> int`, the whole seconds. The identifier of the form with a zone has no `with`, as in cel-go |
+| `timestamp_to_milliseconds`, `timestamp_to_milliseconds_with_tz`; `duration_to_milliseconds` | `getMilliseconds` | `timestamp.getMilliseconds() -> int`, `timestamp.getMilliseconds(string) -> int`; `duration.getMilliseconds() -> int`: `duration('1.234s').getMilliseconds()` is `234` |
+
+The errors of a receiver with a zone are `TimeZoneNotFound` (3022) and `InvalidTimeZone` (3023), below. A receiver on a value of static type `dyn` is chosen by the type of the value at run time.
+
+#### Time zone names
+
+| String | Rule | Needs a database |
+| :- | :- | :- |
+| `UTC` | the built-in zone | no |
+| `[+-]HH:MM` or `HH:MM` | a fixed offset: hours 00 to 23, minutes 00 to 59; without a sign, a plus | no |
+| any other string | an identifier of the time zone database of the environment, compared exactly, with the case | yes |
+
+- A string with `:` that is not an offset is `InvalidTimeZone`.
+- A name that is not in the database, including `""` and `Local`, or any name when the environment has no database, is `TimeZoneNotFound`.
+- Both errors occur at evaluation, even for a zone that is a constant: type checking does not look at the name.
+- The database comes from the application: `CelEnvironmentBuilder.UseTimeZones` adds a `CelTimeZoneDatabase` made by `CelTimeZoneDatabase.Create` from TZif files; see the recipe [Time zone database](recipes/time-zone-database.md). The library reads no file and neither the zone nor the clock of the machine.
+- The offset of a zone at a moment comes from the TZif data: the first type before the first transition, the rule of the POSIX TZ footer after the last one, with the accuracy of a second, and a calendar of the library's own, so the result does not depend on the platform.
+
+#### Limits of time
+
+A `timestamp` runs from `0001-01-01T00:00:00Z` to `9999-12-31T23:59:59.999999999Z`; a `duration` is one `int` of nanoseconds, about ±292 years. A result of arithmetic outside the range is `Overflow` (3006), and of a conversion `ConversionRange`. The page [Limits](limits.md#values) has the table.
+
+#### Where the library differs from cel-go
+
+The language definition decides; each row is a difference from cel-go v0.32.0.
+
+| Call | cel-go | This library |
+| :- | :- | :- |
+| `duration.getMilliseconds()` | the whole milliseconds of the duration | the milliseconds within the second |
+| `string(timestamp)` of a timestamp read from a string with an offset such as `-07:00` | keeps the offset of the string | always UTC with `Z` |
+| `string(duration)` of a long duration with nanoseconds | goes through `double`, so low digits are lost: `string(duration('9223372036.854775807s'))` is `"9223372036.854776s"` | exact |
+| the zone `""` | UTC | `TimeZoneNotFound` |
+| the zone `Local` | the zone of the process | `TimeZoneNotFound` |
+| an offset outside the grammar, `+1:5` or `+001:30` | accepted | `InvalidTimeZone` |
+
 ## Errors of the standard library
 
 | Stage | Members of `CelErrorCode` |
 | :- | :- |
 | Parse | `InvalidMacroCall` |
 | Check | `UndeclaredReference`, `NoMatchingOverload`, `TypeMismatch`, `InvalidComprehensionRange` |
-| Evaluate | `EvalNoMatchingOverload`, `NoSuchKey`, `IndexOutOfRange`, `DivisionByZero`, `ModulusByZero`, `Overflow`, `ConversionRange`, `InvalidArgument`, `Unbound`, `CostLimitExceeded`, `FieldSelectionNotSupported`, `EvalInvalidComprehensionRange` |
-| Build | `StandardLibraryConflict`, `InvalidFunctionName` |
+| Evaluate | `EvalNoMatchingOverload`, `NoSuchKey`, `IndexOutOfRange`, `DivisionByZero`, `ModulusByZero`, `Overflow`, `ConversionRange`, `InvalidArgument`, `Unbound`, `CostLimitExceeded`, `FieldSelectionNotSupported`, `EvalInvalidComprehensionRange`, `TimeZoneNotFound`, `InvalidTimeZone` |
+| Build | `StandardLibraryConflict`, `InvalidFunctionName`, `TimeZoneDatabaseConflict` |
 
 The text and the position of each error are on the page [Error codes](error-codes.md).

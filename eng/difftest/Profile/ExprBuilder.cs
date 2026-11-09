@@ -30,6 +30,9 @@ internal sealed class ExprBuilder
     // A list or map literal ends with a comma with a chance of one in this.
     private const int TrailingCommaOneIn = 4;
 
+    // The zone argument of a receiver is the variable s1 with a chance of one in this.
+    private const int ZoneVariableOneIn = 10;
+
     // The target types of the root, list elements and map values: every type of the profile, int and bool more often, since
     // most functions take or give them.
     private static readonly ProfileType[] WeightedTargets =
@@ -42,6 +45,9 @@ internal sealed class ExprBuilder
 
     // The target types without dyn.
     private static readonly ProfileType[] ConcreteTargets = [.. ProfileTables.TargetTypes.Where(type => type != ProfileType.DynType)];
+
+    // The concrete target types of an atom of type dyn: without time, whose atom is a call of two nodes that needs room.
+    private static readonly ProfileType[] AtomTargets = [.. ConcreteTargets.Where(type => !type.IsTime())];
 
     // The functions whose overloads take and give types without parameters, by result type; the other functions have builders of their own.
     private static readonly Dictionary<ProfileType, ProfileOverload[][]> SimpleOverloads = ProfileTables.Overloads
@@ -157,13 +163,39 @@ internal sealed class ExprBuilder
 
     // ---- Nodes of a target type ----
 
-    // A node of a target type: an atom near the limits and more often deeper, otherwise a compound form.
+    // A node of a target type: an atom near the limits and more often deeper, otherwise a compound form. A node of time has no
+    // atom of one node — it is a constructor and its argument, two nodes and two levels — so where there is no room for it, a dyn
+    // variable stands, which fits wherever a node of time is expected.
     private Built Make(ProfileType target, int depth, int limit)
     {
-        Built built = depth >= ProfileTables.MaxDepth || limit < 2 || pcg.Below(ProfileTables.MaxDepth + 1) < depth
-            ? Atom(target)
-            : Compound(target, depth, limit) ?? Atom(target);
+        Built built = target.IsTime() && (limit < 2 || depth >= ProfileTables.MaxDepth)
+            ? DynVariable()
+            : depth >= ProfileTables.MaxDepth || limit < 2 || pcg.Below(ProfileTables.MaxDepth + 1) < depth
+                ? Atom(target)
+                : Compound(target, depth, limit) ?? Atom(target);
         return built with { Expr = Maybe(built.Expr) };
+    }
+
+    // A value of time made in the expression, by a constructor from a string or, for a timestamp, from an int: two nodes. The
+    // string is a string of time of the grammar of the profile, valid or mutated.
+    private Built TimeValue(ProfileType target)
+    {
+        Expr argument;
+        string function;
+        if (target == ProfileType.DurationType)
+        {
+            function = ProfileTables.DurationConversion;
+            argument = StringLiteral(TimeStrings.Duration(pcg));
+        }
+        else
+        {
+            function = ProfileTables.TimestampConversion;
+            argument = pcg.OneIn(3)
+                ? new IntLiteral(TimeStrings.TimestampInteger(pcg), pcg.Pick(Enum.GetValues<IntegerForm>()))
+                : StringLiteral(TimeStrings.Timestamp(pcg));
+        }
+
+        return new Built(new Call(function, [argument]), 2, StaticType.Of(target));
     }
 
     // A node of one node.
@@ -182,11 +214,13 @@ internal sealed class ExprBuilder
         switch (target)
         {
             case ProfileType.DynType:
-                return pcg.OneIn(3) ? DynVariable() : Atom(pcg.Pick(ConcreteTargets));
+                return pcg.OneIn(3) ? DynVariable() : Atom(pcg.Pick(AtomTargets));
             case ProfileType.TypeType:
                 return new Built(new Ident(pcg.Pick(ProfileTables.TypeIdentifiers)), 1, StaticType.Of(ProfileType.TypeType));
             case ProfileType.NullType:
                 return new Built(new NullLiteral(), 1, StaticType.Of(ProfileType.NullType));
+            case ProfileType.TimestampType or ProfileType.DurationType:
+                return TimeValue(target);
             default:
                 return pcg.OneIn(2) && VariableOf(target) is { } variable ? variable : EmptyOrLiteral(target);
         }
@@ -348,7 +382,7 @@ internal sealed class ExprBuilder
     {
         if (depth >= ProfileTables.MaxDepth || limit < 2)
         {
-            Built atom = Atom(target);
+            Built atom = target.IsTime() ? DynVariable() : Atom(target);
             return accept(atom.Type) ? atom : DynVariable();
         }
 
@@ -558,14 +592,49 @@ internal sealed class ExprBuilder
             int budget = limit - nodes - (count - 1 - i);
             Built arg = i == dynAt
                 ? Operand(parameter, depth + 1, budget, type => type is { IsDyn: true })
-                : parameter == ProfileType.StringType && TextConversions.Contains(overload.Function) && pcg.OneIn(2)
-                    ? new Built(StringLiteral(ProfileValues.NumberText(pcg, overload.Result)), 1, StaticType.Of(ProfileType.StringType))
-                    : Make(parameter, depth + 1, budget);
+                : ConstantArgument(overload, i) ?? Make(parameter, depth + 1, budget);
             args.Add(arg.Expr);
             nodes += arg.Nodes;
         }
 
         return new Built(new Call(overload.Function, args) { Receiver = overload.Receiver }, nodes, StaticType.Of(target));
+    }
+
+    // The argument of one node that some overloads take from a table instead of a generated expression: a number or a bool in the
+    // text forms of the conversions, half the time; a string of time for a constructor of time, half the time, and an int near the
+    // limits of the range for timestamp(int); the zone argument of a receiver of a timestamp — a literal, or, one case in ten, the
+    // variable s1, which a binding also gives the name of a zone. Null for any other argument.
+    private Built? ConstantArgument(ProfileOverload overload, int index)
+    {
+        ProfileType parameter = overload.Parameters[index];
+        if (parameter == ProfileType.StringType)
+        {
+            string? text = null;
+            if (TextConversions.Contains(overload.Function) && pcg.OneIn(2))
+            {
+                text = ProfileValues.NumberText(pcg, overload.Result);
+            }
+            else if (overload.Function == ProfileTables.TimestampConversion && pcg.OneIn(2))
+            {
+                text = TimeStrings.Timestamp(pcg);
+            }
+            else if (overload.Function == ProfileTables.DurationConversion && pcg.OneIn(2))
+            {
+                text = TimeStrings.Duration(pcg);
+            }
+            else if (index == 1 && overload.Parameters[0] == ProfileType.TimestampType)
+            {
+                return pcg.OneIn(ZoneVariableOneIn)
+                    ? VariableNode(ProfileTables.Variables.First(variable => variable.Name == ProfileTables.ZoneVariable))
+                    : new Built(StringLiteral(TimeStrings.Zone(pcg)), 1, StaticType.Of(ProfileType.StringType));
+            }
+
+            return text is null ? null : new Built(StringLiteral(text), 1, StaticType.Of(ProfileType.StringType));
+        }
+
+        return parameter == ProfileType.IntType && overload.Function == ProfileTables.TimestampConversion && pcg.OneIn(2)
+            ? new Built(new IntLiteral(TimeStrings.TimestampInteger(pcg), pcg.Pick(Enum.GetValues<IntegerForm>())), 1, StaticType.Of(ProfileType.IntType))
+            : null;
     }
 
     // A chain of && or || with 2–4 operands, nested to the left as the parser reads it.

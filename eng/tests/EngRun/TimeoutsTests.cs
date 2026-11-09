@@ -48,7 +48,7 @@ public sealed class TimeoutsTests
         Step[] steps = [.. stages.SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
 
         // The build of eng/checks and of the library: 139 s; the examples: 46 s; the error codes page: 12 s; the directory of the
-        // report: in this process, no limit; lychee: 2 s; the links of the report: 12 s. Literals, not the constants of Timeouts,
+        // report: in this process, no limit; lychee: 5 s; the links of the report: 12 s. Literals, not the constants of Timeouts,
         // so a changed constant fails the test.
         Assert.Equal(
             [
@@ -57,7 +57,7 @@ public sealed class TimeoutsTests
                 "dotnet run --project eng/checks -c Release --no-build -- examples=46",
                 "dotnet run --project eng/checks -c Release --no-build -- error-codes --page docs/error-codes.md=12",
                 "docs: create artifacts/docs=",
-                "lychee --offline --include-fragments --format json --output artifacts/docs/lychee.json --config lychee.toml README.md docs src/**/*.cs=3",
+                "lychee --offline --include-fragments --format json --output artifacts/docs/lychee.json --config lychee.toml README.md docs src/**/*.cs=5",
                 "dotnet run --project eng/checks -c Release --no-build -- links --report artifacts/docs/lychee.json=12",
             ],
             steps.Select(step => $"{step.CommandLine}={step.Timeout?.TotalSeconds}"));

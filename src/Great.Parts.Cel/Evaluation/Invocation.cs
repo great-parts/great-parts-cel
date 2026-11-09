@@ -16,7 +16,7 @@ internal static class Invocation
     internal static CelValue Call(Frame frame, OverloadBinding overload, ReadOnlySpan<CelValue> arguments, int offset, bool charges)
     {
         // A call that the expansion of a standard macro adds charges nothing, also inside its implementation.
-        var site = new CallSite(overload.Function, offset, frame.Lines, charges ? frame.Meter : null, frame.Types, frame);
+        var site = new CallSite(overload.Function, offset, frame.Lines, charges ? frame.Meter : null, frame.Types, frame, frame.TimeZones);
         if (overload.IsApplication)
         {
             return CallApplication(frame, overload, arguments, in site, offset);

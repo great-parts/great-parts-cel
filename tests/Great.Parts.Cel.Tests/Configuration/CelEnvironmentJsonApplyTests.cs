@@ -132,7 +132,7 @@ public sealed class CelEnvironmentJsonApplyTests
     [InlineData("""^{"name": "x", "type": "int", "params": []}""", "a variable has 'params' without 'type_name'")]
     [InlineData("""{"name": "x", "type_name": ^"list<int>"}""", "'list<int>' is not a type name")]
     [InlineData("""{"name": "x", "type_name": ^" int"}""", "' int' is not a type name")]
-    [InlineData("""{"name": "x", "type_name": ^"timestamp"}""", "the type 'timestamp' is not supported")]
+    [InlineData("""{"name": "x", "type_name": ^"optional_type"}""", "the type 'optional_type' is not supported")]
     [InlineData("""{"name": "x", "type_name": ^"map", "params": ["int"]}""", "the type 'map' takes 2 type parameters, but 'map<int>' gives 1")]
     [InlineData("""{"name": "x", "type_name": ^"int", "params": ["int", "dyn"]}""", "the type 'int' has no type parameters: 'int<int, dyn>'")]
     [InlineData("""{"name": "x", "type_name": "list", "params": ^"int"}""", "'params' must be an array")]

@@ -51,7 +51,7 @@ internal sealed class LibraryDeclarations
     // The type identifiers of the version, such as int, with the type each stands for.
     internal FrozenDictionary<string, CelType> TypeIdentifiers { get; }
 
-    // The type identifiers and those that the time types bring, such as google.protobuf.Timestamp: a variable
-    // with one of these names conflicts with the standard library.
+    // The type identifiers and the names that a table lists beyond them: a variable with one of these names conflicts
+    // with the standard library.
     internal FrozenSet<string> ReservedNames { get; }
 }

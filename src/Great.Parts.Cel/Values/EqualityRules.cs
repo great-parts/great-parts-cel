@@ -93,16 +93,15 @@ internal static class EqualityRules
     private static ValueEquality SameKind(CelValue left, CelValue right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
     {
         error = default;
+        if (left.Kind is CelValueKind.Null or CelValueKind.Bool or CelValueKind.Timestamp or CelValueKind.Duration)
+        {
+            // These kinds have no content to walk: one unit, and the same payload.
+            meter?.Charge(1);
+            return Result(left.Equals(right));
+        }
+
         switch (left.Kind)
         {
-            case CelValueKind.Null:
-                meter?.Charge(1);
-                return ValueEquality.Equal;
-            case CelValueKind.Bool:
-                meter?.Charge(1);
-                _ = left.TryGetBoolean(out bool leftBool);
-                _ = right.TryGetBoolean(out bool rightBool);
-                return Result(leftBool == rightBool);
             case CelValueKind.String:
                 _ = left.TryGetString(out string? leftString);
                 _ = right.TryGetString(out string? rightString);
@@ -127,7 +126,7 @@ internal static class EqualityRules
                 _ = right.TryGetMap(out CelMap? rightMap);
                 return MapsEqual(leftMap!, rightMap!, meter, out error, types, boundary);
             default:
-                // Time, optional values and decimals come with their parts.
+                // Optional values and decimals come with their parts.
                 throw new NotImplementedException();
         }
     }

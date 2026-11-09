@@ -57,11 +57,23 @@ public sealed class ExpectedTypeTests
         Assert.Throws<ArgumentException>(() => Environment.Compile<IReadOnlyDictionary<string, IReadOnlyList<long>>>("{'a': [1]}"));
     }
 
+    // The rows of time have their expected types; an int is not assignable to a timestamp or a duration.
+    [Fact]
+    public void TypeOfTime_ExpectsItsType_AndAnIntIsExpectedTypeMismatch()
+    {
+        Assert.Equal(["timestamp", "timestamp", "timestamp", "duration", "duration", "duration"], new[]
+        {
+            Derived<CelTimestamp>(), Derived<DateTimeOffset>(), Derived<DateTimeOffset?>(), Derived<CelDuration>(), Derived<TimeSpan>(), Derived<TimeSpan?>(),
+        });
+        Assert.Equal(CelErrorCode.ExpectedTypeMismatch, Assert.Single(Environment.Compile<TimeSpan>("1").Errors).Code);
+        Assert.Equal(CelErrorCode.ExpectedTypeMismatch, Assert.Single(Environment.Compile<DateTimeOffset>("1").Errors).Code);
+        Assert.Throws<ArgumentException>(() => Environment.Compile<DateTime>("1"));
+        Assert.Throws<ArgumentException>(() => Environment.Compile<IReadOnlyList<DateTimeOffset>>("[1]"));
+    }
+
     [Fact]
     public void TypeOfALaterPart_ThrowsNotImplementedException()
     {
-        Assert.Throws<NotImplementedException>(() => Environment.Compile<TimeSpan>("1"));
-        Assert.Throws<NotImplementedException>(() => Environment.Compile<DateTimeOffset?>("1"));
         Assert.Throws<NotImplementedException>(() => Environment.Compile<IReadOnlyList<decimal>>("1"));
         Assert.Throws<NotImplementedException>(() => Environment.Compile<CelValue>("1", Expect(CelType.OptionalOf(CelType.Int))));
     }
