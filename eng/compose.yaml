@@ -19,6 +19,8 @@ services:
     volumes:
       - ..:/repo
       - nuget:/root/.nuget/packages
+    environment:
+      GITHUB_ACTIONS: ${GITHUB_ACTIONS:-}
     entrypoint: [dotnet, run, --project, eng/run, --, test]
 
   # eng/mutate: mutation testing of the changed code (docs/design/eng-mutate.md). The arguments after the service name are a
@@ -34,6 +36,8 @@ services:
     volumes:
       - ..:/repo
       - nuget:/root/.nuget/packages
+    environment:
+      GITHUB_ACTIONS: ${GITHUB_ACTIONS:-}
     entrypoint: [dotnet, run, --project, eng/run, --, mutate]
 
   # eng/docs: the check of the documentation (docs/design/eng-docs.md): the examples compile and print what they show, the page of
@@ -48,6 +52,8 @@ services:
     volumes:
       - ..:/repo
       - nuget:/root/.nuget/packages
+    environment:
+      GITHUB_ACTIONS: ${GITHUB_ACTIONS:-}
     entrypoint: [dotnet, run, --project, eng/run, --, docs]
 
   # Builds a sample application on the .NET SDK 10.0.100 from the packed Great.Parts.Cel of artifacts/packages; run it after the
@@ -62,6 +68,8 @@ services:
     working_dir: /repo
     volumes:
       - ..:/repo
+    environment:
+      GITHUB_ACTIONS: ${GITHUB_ACTIONS:-}
     entrypoint: [dotnet, eng/run/bin/Release/net10.0/Great.Parts.Cel.Eng.Run.dll, min-sdk]
 
   # eng/difftest: the differential run against cel-go (docs/design/eng-difftest.md). Compose starts the service oracle first;
@@ -77,6 +85,8 @@ services:
       - nuget:/root/.nuget/packages
     depends_on:
       - oracle
+    environment:
+      GITHUB_ACTIONS: ${GITHUB_ACTIONS:-}
     entrypoint: [dotnet, run, --project, eng/run, --, difftest]
 
   # The oracle of the differential run: cel-go in the official golang image, Go only here (docs/design/eng-oracle.md).

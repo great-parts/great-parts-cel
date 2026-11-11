@@ -86,6 +86,43 @@ public sealed class QuietWaitTests
     }
 
     [Fact]
+    public void InCi_TheWaitDoesNotWait_EvenOnAHostThatIsNeverQuiet()
+    {
+        using StringWriter output = new();
+        TimeSpan now = TimeSpan.Zero;
+        long busy = 0;
+        long total = 0;
+        QuietWait wait = new(
+            () => new CpuTimes(busy, total, Processors),
+            () => now,
+            slept =>
+            {
+                now += slept;
+                total += 100L * Processors;
+                busy += 400;
+            },
+            output,
+            skip: true);
+
+        wait.Until(Minute);
+
+        Assert.Equal(TimeSpan.Zero, wait.Waited);
+        Assert.Equal(TimeSpan.Zero, now);
+        Assert.Contains("wait: not waiting in CI (GITHUB_ACTIONS is true)", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("true", true)]
+    [InlineData("True", true)]
+    [InlineData("false", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public static void InCi_IsTrueOnlyWhenGithubActionsIsTrue(string? value, bool expected)
+    {
+        Assert.Equal(expected, QuietWait.InCi(name => name == "GITHUB_ACTIONS" ? value : null));
+    }
+
+    [Fact]
     public void Waits_AreAddedUp()
     {
         using FakeHost host = new(_ => 0.0);

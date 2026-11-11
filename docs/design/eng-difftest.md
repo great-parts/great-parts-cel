@@ -241,7 +241,7 @@ The result of the workflow is the exit code of `eng/difftest`, passed through `e
 | Command | `docker compose -f eng/compose.yaml run --rm -T difftest --numbers-only --budget 10m --seed <seed>` |
 | Checkout | the whole history, as in the nightly run |
 | Budget | `10m`. The run replaces the run of the closing of a change of the core, which a developer machine made with the default budget of 5 minutes; the budget is twice as long, so a push draws at least as many cases as the run it replaces even on a slower runner. A push is checked after it has landed, so a long run costs only time: the job does not hold up another job of `ci`. The value is the variable `BUDGET` of the workflow; the first runs show the number of cases, and the budget changes there |
-| Time limits | `eng/run` limits the run to 12.6 minutes (budget × 1.2 + 36 s, [Invocation](#invocation)); the job limit is 40 minutes, which holds the build of the image, the build of `eng/difftest`, the wait for a quiet host and a cold module cache of Go as well |
+| Time limits | `eng/run` limits the run to 12.6 minutes (budget × 1.2 + 36 s, [Invocation](#invocation)); the job limit is 40 minutes, which holds the build of the image, the build of `eng/difftest`, a cold module cache of Go as well; the wait for a quiet host is off in CI ([eng-test.md](eng-test.md#waiting-for-the-host)) |
 | Seed | the first 8 hex digits of the commit read as a whole number, from 0 to 4 294 967 295. Every push draws other cases, where the date of the nightly run would give the same cases to every push of a day. The seed is in the journal line and in the title of the step summary |
 | Concurrency | one run at a time; a started run is not cancelled, and of the pushes that wait only the newest runs |
 
