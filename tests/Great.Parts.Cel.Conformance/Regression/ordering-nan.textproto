@@ -4,7 +4,7 @@ name: "ordering_nan"
 description: "Ordering of a NaN double with a value that is not a number"
 section {
   name: "nan_first"
-  description: "A NaN double before a value that is not a number: ordering is not defined across the kinds; cel-go returns false"
+  description: "A NaN double before a value that is not a number: ordering is not defined across the kinds, a timestamp and a duration included; cel-go returns false"
   test {
     name: "less_double_bool"
     description: "_<_(double, bool) we-error"
@@ -57,6 +57,22 @@ section {
     name: "less_double_type"
     description: "_<_(double, type) we-error"
     expr: "0.0 / 0.0 < dyn(int)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_double_timestamp"
+    description: "_<_(double, timestamp) we-error"
+    expr: "0.0 / 0.0 < dyn(timestamp(0))"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_double_duration"
+    description: "_<_(double, duration) we-error"
+    expr: "0.0 / 0.0 < dyn(duration('1s'))"
     value: {
       bool_value: false
     }
@@ -118,6 +134,22 @@ section {
     }
   }
   test {
+    name: "less_equals_double_timestamp"
+    description: "_<=_(double, timestamp) we-error"
+    expr: "0.0 / 0.0 <= dyn(timestamp(0))"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_double_duration"
+    description: "_<=_(double, duration) we-error"
+    expr: "0.0 / 0.0 <= dyn(duration('1s'))"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
     name: "greater_double_bool"
     description: "_>_(double, bool) we-error"
     expr: "0.0 / 0.0 > dyn(true)"
@@ -169,6 +201,22 @@ section {
     name: "greater_double_type"
     description: "_>_(double, type) we-error"
     expr: "0.0 / 0.0 > dyn(int)"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_timestamp"
+    description: "_>_(double, timestamp) we-error"
+    expr: "0.0 / 0.0 > dyn(timestamp(0))"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_double_duration"
+    description: "_>_(double, duration) we-error"
+    expr: "0.0 / 0.0 > dyn(duration('1s'))"
     value: {
       bool_value: false
     }
@@ -229,10 +277,26 @@ section {
       bool_value: false
     }
   }
+  test {
+    name: "greater_equals_double_timestamp"
+    description: "_>=_(double, timestamp) we-error"
+    expr: "0.0 / 0.0 >= dyn(timestamp(0))"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_double_duration"
+    description: "_>=_(double, duration) we-error"
+    expr: "0.0 / 0.0 >= dyn(duration('1s'))"
+    value: {
+      bool_value: false
+    }
+  }
 }
 section {
   name: "nan_second"
-  description: "A bool, string or bytes value before a NaN double: ordering is not defined across the kinds; cel-go returns false"
+  description: "A bool, string, bytes, timestamp or duration value before a NaN double: ordering is not defined across the kinds; cel-go returns false"
   test {
     name: "less_bool_double"
     description: "_<_(bool, double) we-error"
@@ -253,6 +317,22 @@ section {
     name: "less_bytes_double"
     description: "_<_(bytes, double) we-error"
     expr: "dyn(b'a') < 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_timestamp_double"
+    description: "_<_(timestamp, double) we-error"
+    expr: "dyn(timestamp(0)) < 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_duration_double"
+    description: "_<_(duration, double) we-error"
+    expr: "dyn(duration('1s')) < 0.0 / 0.0"
     value: {
       bool_value: false
     }
@@ -282,6 +362,22 @@ section {
     }
   }
   test {
+    name: "less_equals_timestamp_double"
+    description: "_<=_(timestamp, double) we-error"
+    expr: "dyn(timestamp(0)) <= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "less_equals_duration_double"
+    description: "_<=_(duration, double) we-error"
+    expr: "dyn(duration('1s')) <= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
     name: "greater_bool_double"
     description: "_>_(bool, double) we-error"
     expr: "dyn(true) > 0.0 / 0.0"
@@ -306,6 +402,22 @@ section {
     }
   }
   test {
+    name: "greater_timestamp_double"
+    description: "_>_(timestamp, double) we-error"
+    expr: "dyn(timestamp(0)) > 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_duration_double"
+    description: "_>_(duration, double) we-error"
+    expr: "dyn(duration('1s')) > 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
     name: "greater_equals_bool_double"
     description: "_>=_(bool, double) we-error"
     expr: "dyn(true) >= 0.0 / 0.0"
@@ -325,6 +437,22 @@ section {
     name: "greater_equals_bytes_double"
     description: "_>=_(bytes, double) we-error"
     expr: "dyn(b'a') >= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_timestamp_double"
+    description: "_>=_(timestamp, double) we-error"
+    expr: "dyn(timestamp(0)) >= 0.0 / 0.0"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "greater_equals_duration_double"
+    description: "_>=_(duration, double) we-error"
+    expr: "dyn(duration('1s')) >= 0.0 / 0.0"
     value: {
       bool_value: false
     }

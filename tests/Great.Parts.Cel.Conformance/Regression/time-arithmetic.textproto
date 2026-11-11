@@ -1,0 +1,18 @@
+# Minimized cases of known divergences from cel-go in the arithmetic of time. The expectation of each case is the answer of cel-go.
+
+name: "time_arithmetic"
+description: "Subtraction of a duration from a timestamp"
+section {
+  name: "subtract_duration"
+  description: "cel-go subtracts a duration by negating it, so the smallest duration fails with an integer overflow"
+  test {
+    name: "minimum_duration"
+    description: "subtract_timestamp_duration(timestamp, duration) we-value"
+    expr: "timestamp(0) - duration('-9223372036854775808ns')"
+    eval_error: {
+      errors: {
+        message: "integer overflow"
+      }
+    }
+  }
+}

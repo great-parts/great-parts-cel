@@ -59,8 +59,9 @@ public sealed class SkipListTests
     // and an entry for a passing case is ENG802.
     private static readonly string[] SignaturesWithoutEntry = ["matches(string, error) stage-mismatch"];
 
-    // The 73 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time and matches — and
-    // the cases of the corpus that minimize them: one entry of the list for each signature but one, the entries in ordinal order.
+    // The 90 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind and time, matches and
+    // the subtraction of the smallest duration — and the cases of the corpus that minimize them: one entry of the list for each signature but one,
+    // the entries in ordinal order.
     [Fact]
     public void PinnedCorpusListAndRegistry_HaveNoFindingAndAnEntryForEachSignatureOfTheRegistry()
     {
@@ -71,8 +72,8 @@ public sealed class SkipListTests
 
         Assert.Empty(registry.Findings);
         Assert.Empty(list.Findings);
-        Assert.Equal(73, registry.Signatures.Count);
-        Assert.Equal(72, list.Entries.Count);
+        Assert.Equal(90, registry.Signatures.Count);
+        Assert.Equal(89, list.Entries.Count);
         Assert.Equal(
             registry.Signatures.Except(SignaturesWithoutEntry).Order(StringComparer.Ordinal),
             EntrySignatures(text).Order(StringComparer.Ordinal));
