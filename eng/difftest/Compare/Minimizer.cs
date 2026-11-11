@@ -100,7 +100,8 @@ internal static class Minimizer
     /// replaced by a node that stands for the element and fits wherever the variable does. For a list or map literal, or such a
     /// literal in
     /// <c>dyn()</c>, the node is the element in parentheses, or <c>dyn(element)</c> when the range is in <c>dyn()</c>, so that
-    /// the static types stay. For any other range (a variable, <c>dyn(x1)</c>, <c>lx + []</c>, the result of <c>map</c> or
+    /// the static types stay; for a literal that is not in <c>dyn()</c> each element that is a string literal has one more
+    /// instance, <c>dyn(element)</c>, after those of all the elements (<see cref="ElementInstances"/>). For any other range (a variable, <c>dyn(x1)</c>, <c>lx + []</c>, the result of <c>map</c> or
     /// <c>filter</c>) the elements are those of its value that the library gives: for a list, the index <c>range[i]</c> for
     /// each position <c>i</c> from 0; for a map, <c>dyn(k)</c> for each key <c>k</c> in the order the library iterates the map.
     /// A range whose value is not a list or a map (an error, an unbound variable, a scalar) gives an argument that reads the
@@ -248,9 +249,7 @@ internal static class Minimizer
         };
         if (elements is not null)
         {
-            return elements.Count == 0
-                ? ZeroInstances(macro)
-                : [.. elements.Select(element => inDyn ? new Call(ProfileTables.Dyn, [element]) : element with { Parenthesized = true })];
+            return elements.Count == 0 ? ZeroInstances(macro) : ElementInstances(elements, inDyn);
         }
 
         // Any other range: the elements are those of its value, which both sides give alike since the range agrees.
@@ -267,6 +266,20 @@ internal static class Minimizer
             _ => AnyZeroInstances(),
         };
     }
+
+    // The nodes that stand for the elements of a literal range with elements. In dyn() each element in dyn(). Otherwise each element
+    // in parentheses, then each element that is a string literal in dyn(): the validator of regular expression literals of cel-go
+    // reads a string literal that is the first argument of matches as a pattern, so with the subject in parentheses cel-go may
+    // refuse the call when the expression is compiled, where the variable it stands for let the evaluation reach the pattern, and
+    // the two sides agree; dyn(element) is not a literal for the validator.
+    private static IReadOnlyList<Expr> ElementInstances(IReadOnlyList<Expr> elements, bool inDyn) =>
+        inDyn
+            ? [.. elements.Select(element => new Call(ProfileTables.Dyn, [element]))]
+            :
+            [
+                .. elements.Select(element => element with { Parenthesized = true }),
+                .. elements.OfType<StringLiteral>().Select(element => new Call(ProfileTables.Dyn, [element])),
+            ];
 
     // The nodes that stand for the element of a range whose value is not a list or a map (an error, an unbound variable, a
     // scalar under dyn): one for each zero literal of the profile in the order of ZeroLiteral, whatever the type of the

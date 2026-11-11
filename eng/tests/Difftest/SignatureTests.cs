@@ -680,8 +680,30 @@ public sealed class SignatureTests
         // The last instance is the closed node 0, the literal of the argument.
         Assert.Equal(["(1) > 0", "(2) > 0", "0"], Printed(new Comprehension(ProfileTables.All, list, "v", [positive])));
         Assert.Equal(["dyn(1) > 0", "dyn(2) > 0", "0"], Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [list]), "v", [positive])));
-        Assert.Equal(["('a') > 0", "0"], Printed(new Comprehension(ProfileTables.All, map, "v", [positive])));
+        Assert.Equal(["('a') > 0", "dyn('a') > 0", "0"], Printed(new Comprehension(ProfileTables.All, map, "v", [positive])));
         Assert.Equal(["dyn('a') > 0", "0"], Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [map]), "v", [positive])));
+    }
+
+    // An element that is a string literal has one more instance in dyn(), after the instances of all the elements in parentheses;
+    // an element that is not a literal, and every element of a range in dyn(), has none.
+    [Fact]
+    public void BodyInstances_OverStringLiteralElements_EndWithTheElementsInDyn()
+    {
+        Expr a = Quoted("a");
+        Expr b = Quoted("b");
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr positive = new Call(ProfileTables.Greater, [new Ident("v"), one]);
+        Expr strings = new ListLiteral([a, one, b], TrailingComma: false);
+        Expr map = new MapLiteral([new MapEntry(a, one), new MapEntry(b, one)], TrailingComma: false);
+
+        Assert.Equal(
+            ["('a') > 1", "(1) > 1", "('b') > 1", "dyn('a') > 1", "dyn('b') > 1", "1"],
+            Printed(new Comprehension(ProfileTables.All, strings, "v", [positive])));
+        Assert.Equal(["('a') > 1", "('b') > 1", "dyn('a') > 1", "dyn('b') > 1", "1"], Printed(new Comprehension(ProfileTables.All, map, "v", [positive])));
+        Assert.Equal(
+            ["dyn('a') > 1", "dyn(1) > 1", "dyn('b') > 1", "1"],
+            Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [strings]), "v", [positive])));
+        Assert.Equal(["(1) > 1", "1"], Printed(new Comprehension(ProfileTables.All, new ListLiteral([one], TrailingComma: false), "v", [positive])));
     }
 
     [Fact]
@@ -1224,6 +1246,28 @@ public sealed class SignatureTests
             (x1, unbound, unbound),
             (map, unbound, unbound),
             (range, unbound, unbound));
+    }
+
+    // Case 1191079 of seed 2367977110: the element of the range is a string literal that is no pattern, `?`. In parentheses in
+    // place of the variable it is the first argument of matches, which the validator of cel-go reads as a pattern and refuses
+    // when the expression is compiled, as the library refuses the constant pattern, so the two sides agree and the instance is
+    // dropped; the instance with the element in dyn() is not a literal for the validator, and it diverges by the known signature.
+    [Fact]
+    public void Macro_OverAListWithAStringLiteralThatIsNoPattern_IsMinimizedToTheMatchesWithTheElementInDyn()
+    {
+        Expr element = Quoted("?");
+        Expr root = new Comprehension(ProfileTables.Exists, new ListLiteral([element], TrailingComma: false), "v", [MatchesOf(new Ident("v"))]);
+        Expr inParentheses = MatchesOf(Parenthesized(element));
+        Expr inDyn = new Call(ProfileTables.Dyn, [element]);
+        SideOutcome refused = SideOutcome.CompileError(CompileStage.Check, "invalid regular expression at offset 0: missing closing )");
+        SideOutcome subjectRefused = SideOutcome.CompileError(CompileStage.Check, "invalid matches argument");
+
+        AssertMinimizedToMatches(
+            root,
+            [root, MatchesOf(inDyn)],
+            "matches(dyn('?'), '(')",
+            (inParentheses, refused, subjectRefused),
+            Agree(inDyn, Str("?")));
     }
 
     [Fact]
