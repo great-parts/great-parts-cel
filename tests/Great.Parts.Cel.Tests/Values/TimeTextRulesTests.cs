@@ -178,6 +178,22 @@ public sealed class TimeTextRulesTests
         Assert.Equal(nanoseconds, value.TotalNanoseconds);
     }
 
+    // The digits of a fraction run up to 2^63 = 9223372036854775808, the last value of the fraction that Go keeps: it is kept
+    // with its power of ten, the next digit and all after it are skipped, and the fraction still scales to the right unit.
+    [Theory]
+    [InlineData("1.9223372036854775808s", 1_922_337_203L)]
+    [InlineData("0.92233720368547758089999s", 922_337_203L)]
+    [InlineData("0.9223372036854775809s", 922_337_203L)]
+    [InlineData("0.9223372036854775808h", 3_320_413_933_267L)]
+    [InlineData("0.9223372036854775808m", 55_340_232_221L)]
+    [InlineData("0.9223372036854775808ms", 922_337L)]
+    [InlineData("-0.9223372036854775808s", -922_337_203L)]
+    public static void Duration_FractionOfTwoToThe63_IsKeptAndScaled(string text, long nanoseconds)
+    {
+        Assert.Equal(TimeParseResult.Parsed, TimeTextRules.TryParseDuration(text, out CelDuration value));
+        Assert.Equal(nanoseconds, value.TotalNanoseconds);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("+")]

@@ -16,13 +16,14 @@ internal static class RegexCases
     private const int MostNodes = 24;
     private const int Depth = 4;
     private const int Line = 0x0A;
+    private const int CarriageReturn = 0x0D;
 
     // The letters of patterns, and the code points of subjects: the letters, their upper-case forms, the Kelvin sign and the long s,
-    // which fold into k and s, the line feed, an emoji outside the BMP, and characters that are not letters.
+    // which fold into k and s, the line feed and the carriage return, an emoji outside the BMP, and characters that are not letters.
     private static readonly int[] PatternLetters = ['a', 'b', 'c', 'k', 's', 0xE9];
 
     private static readonly int[] SubjectCodePoints =
-        ['a', 'b', 'c', 'A', 'B', 'k', 'K', 0x212A, 's', 'S', 0x17F, 0xE9, 0xC9, 0x1F600, Line, '_', '-'];
+        ['a', 'b', 'c', 'A', 'B', 'k', 'K', 0x212A, 's', 'S', 0x17F, 0xE9, 0xC9, 0x1F600, Line, CarriageReturn, '_', '-'];
 
     // The orbits of simple case folding of the letters above.
     private static readonly int[][] Orbits =
@@ -50,6 +51,22 @@ internal static class RegexCases
         from flags in FlagsPrefix
         from subject in Gen.OneOfConst(SubjectCodePoints).Array[0, 8]
         select new RegexCase(root, flags, subject);
+
+    // The patterns that are about lines: letters, the dot, the anchors of a line and of the text, in the mode of lines or not, over
+    // subjects of two letters, the line feed and the carriage return, which is not the end of a line.
+    private static readonly int[] LineSubjectCodePoints = ['a', 'b', Line, CarriageReturn];
+
+    private static readonly Gen<RegexNode> LineItem = Gen.Frequency(
+        (3, Gen.OneOfConst('a', 'b').Select(letter => (RegexNode)new LiteralNode(letter))),
+        (2, Gen.Const((RegexNode)new AnyNode())),
+        (3, Gen.OneOfConst(AnchorKind.BeginLine, AnchorKind.EndLine, AnchorKind.BeginText, AnchorKind.EndText).Select(kind => (RegexNode)new AnchorNode(kind))),
+        (1, Gen.OneOfConst(AnchorKind.BeginLine, AnchorKind.EndLine).Select(kind => (RegexNode)new RepeatNode(new AnchorNode(kind), 0, 1))));
+
+    internal static readonly Gen<RegexCase> LineCase =
+        from items in LineItem.Array[1, 4]
+        from flags in Gen.OneOfConst("(?m)", "(?m)", "(?ms)", string.Empty)
+        from subject in Gen.OneOfConst(LineSubjectCodePoints).Array[0, 6]
+        select new RegexCase(new ConcatNode(items), flags, subject);
 
     // The same patterns with the long subjects of the test of linearity.
     internal static Gen<RegexCase> CaseWithSubjectOfUpTo(int length)

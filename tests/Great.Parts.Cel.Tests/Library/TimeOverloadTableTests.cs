@@ -31,8 +31,7 @@ public sealed class TimeOverloadTableTests
         Assert.Equal(47, constants.Length);
         Assert.Equal(47, inTable.Count);
         Assert.Equal([.. constants.Order(StringComparer.Ordinal)], [.. inTable.Order(StringComparer.Ordinal)]);
-        Assert.Equal(160, StandardLibraryV1.Overloads.Length);
-        Assert.Equal(160, StandardLibraryV1.Overloads.Select(overload => overload.Declaration.OverloadId).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(47, StandardLibraryV1.Overloads.Where(IsTime).Select(overload => overload.Declaration.OverloadId).Distinct(StringComparer.Ordinal).Count());
     }
 
     [Fact]

@@ -20,6 +20,13 @@ public sealed class RegexEngineProperties
         PropertyLoop.Check(Property, RegexCases.Case, Seed, Cases, Violation, RegexCases.Show);
     }
 
+    // The ends of lines: only the line feed ends a line, so the end of a line stands before it and not before a carriage return.
+    [Fact]
+    public static void NfaEqualsNaiveSearchOnLines()
+    {
+        PropertyLoop.Check("RegexEngineProperties.NfaEqualsNaiveSearchOnLines", RegexCases.LineCase, Seed, Cases, Violation, RegexCases.Show);
+    }
+
     // The reason why the engine breaks the property on a case, or null.
     private static string? Violation(RegexCase input)
     {
