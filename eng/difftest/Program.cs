@@ -201,7 +201,7 @@ internal static class Program
         ulong cases = 0;
         for (ulong number = options.Case ?? 0; options.Case is not null ? cases == 0 : spent.Elapsed < options.Budget; number++)
         {
-            search.Check(options.Seed, number, CaseGenerator.Case(options.Seed, number));
+            CheckCase(search, options.Seed, number);
             cases++;
         }
 
@@ -225,6 +225,20 @@ internal static class Program
 
         setup.Output.WriteLine(JournalLine(options, commit, oracle.Handshake, cases, search.NewSignatures, search.KnownSignaturesFound.Count));
         return findings.Any(finding => finding.Severity == FindingSeverity.Error) ? 1 : 0;
+    }
+
+    // Checks one case. A failed oracle names the case in progress, by the seed and the number alone: the log of the oracle is not
+    // in the public log, and the number is what reproduces the case, with its minimization requests included.
+    private static void CheckCase(DivergenceSearch search, ulong seed, ulong number)
+    {
+        try
+        {
+            search.Check(seed, number, CaseGenerator.Case(seed, number));
+        }
+        catch (IOException exception)
+        {
+            throw new IOException(string.Create(CultureInfo.InvariantCulture, $"case {number} of seed {seed}: {exception.Message}"), exception);
+        }
     }
 
     /// <summary>

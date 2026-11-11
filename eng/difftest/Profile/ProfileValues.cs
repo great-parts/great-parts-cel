@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -264,6 +265,51 @@ internal static class ProfileValues
         }
 
         return new Value { MapValue = map };
+    }
+
+    /// <summary>
+    /// A value whose <c>bytes</c>, also those inside a list or a map, are valid UTF-8: each byte of an invalid sequence becomes
+    /// <c>?</c>, so the length and the valid sequences stay; a value of valid bytes is returned as it is. The bytes of a
+    /// binding that <c>format</c> reads with <c>%s</c> are such, since cel-go gives a Go string with the raw invalid bytes
+    /// where the library gives <c>U+FFFD</c> (the known difference <c>string_format</c>), and that string has no form in
+    /// <c>cel.expr.Value</c>.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    internal static Value WithValidUtf8Bytes(Value value)
+    {
+        switch (value.KindCase)
+        {
+            case Value.KindOneofCase.BytesValue:
+                return new Value { BytesValue = ByteString.CopyFrom(ValidUtf8(value.BytesValue.Span)) };
+            case Value.KindOneofCase.ListValue:
+                ListValue list = new();
+                list.Values.AddRange(value.ListValue.Values.Select(WithValidUtf8Bytes));
+                return new Value { ListValue = list };
+            case Value.KindOneofCase.MapValue:
+                MapValue map = new();
+                map.Entries.AddRange(value.MapValue.Entries.Select(entry =>
+                    new MapValue.Types.Entry { Key = WithValidUtf8Bytes(entry.Key), Value = WithValidUtf8Bytes(entry.Value) }));
+                return new Value { MapValue = map };
+            default:
+                return value;
+        }
+    }
+
+    private static byte[] ValidUtf8(ReadOnlySpan<byte> bytes)
+    {
+        byte[] valid = bytes.ToArray();
+        for (int i = 0; i < valid.Length;)
+        {
+            OperationStatus status = Rune.DecodeFromUtf8(bytes[i..], out _, out int consumed);
+            if (status != OperationStatus.Done)
+            {
+                valid.AsSpan(i, consumed).Fill((byte)'?');
+            }
+
+            i += consumed;
+        }
+
+        return valid;
     }
 
     // The value of a double binding: a finite value, or sometimes NaN, ±infinity or -0.0.

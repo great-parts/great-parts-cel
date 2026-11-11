@@ -987,14 +987,43 @@ public sealed class SignatureTests
             Agree(ms, Map()));
     }
 
+    // Case 318218 of seed 343979798: the range is a conditional whose value is an empty list, so no element reaches the pattern
+    // and cel-go gives the value false where the library refuses the constant pattern when the expression is compiled. The type
+    // of a conditional is not known to the descent, so the zero literals of the profile are tried and the first, '', gives the
+    // known divergence of matches(string, string).
+    [Fact]
+    public void Macro_OverAConditionalWhoseValueIsAnEmptyList_IsMinimizedToTheMatchesWithTheZeroLiteral()
+    {
+        Expr empty = new Call(ProfileTables.Dyn, [new ListLiteral([], TrailingComma: false)]);
+        Expr conditional = new Call(ProfileTables.Conditional, [new Ident("b1"), new Ident("ls"), empty]);
+        Expr root = new Comprehension(ProfileTables.Exists, conditional, "v", [MatchesOf(new Ident("v"))]);
+        SideOutcome refused = SideOutcome.CompileError(CompileStage.Check, "invalid regular expression at offset 0: missing closing )");
+
+        (Divergence? divergence, DivergenceSearch search) = SearchUnderMacro(
+            ["matches(string, string) stage-mismatch"],
+            root,
+            [MatchesOf(Quoted(string.Empty))],
+            (root, refused, SideOutcome.Of(Bool(false))),
+            Agree(conditional, ListOf()),
+            Agree(Quoted(string.Empty), Str(string.Empty)),
+            Agree(Quoted("("), Str("(")));
+
+        Assert.Equal("matches(string, string) stage-mismatch", divergence?.Signature);
+        Assert.Equal("matches('', '(')", divergence?.Case.Text);
+        Assert.Empty(search.NewSignatures);
+    }
+
     // A range without elements gives an argument that reads the variable one instance for the zero literal of the type of the
-    // variable: the key type of a map, the element type of a list, dyn in dyn(); for a range of an unknown type, none.
+    // variable: the key type of a map, the element type of a list, dyn in dyn(); for a range whose type the descent does not know
+    // (an empty literal that is not in dyn(), a conditional, a sum, a name that is no variable of the manifest), each zero literal
+    // of the profile; for a variable of the manifest that is no list, map or dyn, none.
     [Fact]
     public void BodyInstances_OverARangeWithoutElements_PutTheZeroLiteralOfTheTypeOfTheVariable()
     {
         Expr v = new Ident("v");
         Expr body = new Call(ProfileTables.Equal, [v, v]);
         Expr dynEmpty = new Call(ProfileTables.Dyn, [new ListLiteral([], TrailingComma: false)]);
+        string[] everyZero = ["'' == ''", "0 == 0", "0u == 0u", "0.0 == 0.0", "false == false", "b'' == b''", "dyn('') == dyn('')"];
 
         Assert.Equal(["'' == ''"], Printed(new Comprehension(ProfileTables.All, new Ident("ms"), "v", [body]), Map()));
         Assert.Equal(["0 == 0"], Printed(new Comprehension(ProfileTables.All, new Ident("mx"), "v", [body]), Map()));
@@ -1009,11 +1038,19 @@ public sealed class SignatureTests
             ["dyn('') == dyn('')"],
             Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [new MapLiteral([], TrailingComma: false)]), "v", [body])));
 
-        // The range is an empty literal that is not in dyn(), a variable that is not a list or a map, or a range of another kind.
-        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new ListLiteral([], TrailingComma: false), "v", [body])));
-        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new MapLiteral([], TrailingComma: false), "v", [body])));
-        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new Ident("unknown"), "v", [body]), ListOf()));
-        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Add, [new Ident("li"), new Ident("li")]), "v", [body]), ListOf()));
+        // The range is an empty literal that is not in dyn(), a name that is no variable of the manifest, a sum or a conditional: its
+        // type is not known, so every zero literal of the profile is tried.
+        Assert.Equal(everyZero, Printed(new Comprehension(ProfileTables.All, new ListLiteral([], TrailingComma: false), "v", [body])));
+        Assert.Equal(everyZero, Printed(new Comprehension(ProfileTables.All, new MapLiteral([], TrailingComma: false), "v", [body])));
+        Assert.Equal(everyZero, Printed(new Comprehension(ProfileTables.All, new Ident("unknown"), "v", [body]), ListOf()));
+        Assert.Equal(
+            everyZero,
+            Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Add, [new Ident("li"), new Ident("li")]), "v", [body]), ListOf()));
+        Assert.Equal(
+            everyZero,
+            Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Conditional, [new Ident("b1"), new Ident("ls"), dynEmpty]), "v", [body]), ListOf()));
+
+        // A variable of the manifest that is no list, map or dyn has no element type to take a zero literal from.
         Assert.Empty(Printed(new Comprehension(ProfileTables.All, new Ident("i1"), "v", [body]), ListOf()));
     }
 

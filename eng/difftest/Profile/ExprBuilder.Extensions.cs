@@ -428,6 +428,7 @@ internal sealed partial class ExprBuilder
             return null;
         }
 
+        FormatsLx |= variableList;
         bool checkedAtCompilation = !dynamicString && !variableList;
         string? fault = checkedAtCompilation && (faulty || mismatch) ? "format" : null;
         return new Built(

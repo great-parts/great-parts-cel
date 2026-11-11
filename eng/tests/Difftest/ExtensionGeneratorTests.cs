@@ -209,6 +209,52 @@ public sealed class ExtensionGeneratorTests
         Assert.Contains(formats, call => GeneratorTests.Nodes(call.Args[1]).Any(node => node is DoubleLiteral));
     }
 
+    // Case 1496201 of seed 4188587866: `'...%.0s '.format(lx)` with the first element of lx the bytes dd c7 3d 7f. cel-go gives the Go
+    // string with the raw bytes, which has no form in cel.expr.Value and ended the oracle with exit code 1; the library gives U+FFFD
+    // (the known difference string_format). The profile does not meet the difference: the binding of lx is valid UTF-8.
+    [Fact]
+    public void CaseThatFormatsTheVariableLx_BindsItToBytesOfValidUtf8()
+    {
+        UTF8Encoding strict = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
+        List<GeneratedCase> formatting =
+        [
+            .. Sample(ManyCases).Where(generated => Calls(generated).Any(call => call.Function == "format" && call.Args[1] is Ident { Name: "lx" })),
+            CaseGenerator.ExtensionCase(4188587866, 1496201),
+        ];
+
+        Assert.True(formatting.Count > 1);
+        Assert.All(formatting, generated => Assert.True(
+            !generated.Bindings.TryGetValue("lx", out Value? lx) || BytesIn(lx).All(bytes => IsValidUtf8(strict, bytes)),
+            generated.Text));
+        Assert.Contains(formatting, generated => generated.Bindings.TryGetValue("lx", out Value? lx) && BytesIn(lx).Any());
+    }
+
+    // The bytes of a value: an invalid sequence is replaced byte by byte with '?', a valid one stays, in a list and a map too.
+    [Fact]
+    public void WithValidUtf8Bytes_ReplacesEachByteOfAnInvalidSequenceAndKeepsTheRest()
+    {
+        static Value Bytes(params byte[] bytes) => new() { BytesValue = Google.Protobuf.ByteString.CopyFrom(bytes) };
+
+        // dd c7 3d 7f: two invalid lead bytes; e2 82: a sequence cut short; e2 82 ac and f0 9f 98 80: valid sequences; ff after a valid one.
+        Assert.Equal(Bytes(0x3F, 0x3F, 0x3D, 0x7F), ProfileValues.WithValidUtf8Bytes(Bytes(0xDD, 0xC7, 0x3D, 0x7F)));
+        Assert.Equal(Bytes(0x3F, 0x3F), ProfileValues.WithValidUtf8Bytes(Bytes(0xE2, 0x82)));
+        Assert.Equal(Bytes(0xE2, 0x82, 0xAC, 0xF0, 0x9F, 0x98, 0x80), ProfileValues.WithValidUtf8Bytes(Bytes(0xE2, 0x82, 0xAC, 0xF0, 0x9F, 0x98, 0x80)));
+        Assert.Equal(Bytes(0xE2, 0x82, 0xAC, 0x3F), ProfileValues.WithValidUtf8Bytes(Bytes(0xE2, 0x82, 0xAC, 0xFF)));
+        Assert.Equal(Bytes(), ProfileValues.WithValidUtf8Bytes(Bytes()));
+
+        Value list = new() { ListValue = new ListValue { Values = { Bytes(0xFF), new Value { Int64Value = 1 } } } };
+        Value map = new()
+        {
+            MapValue = new MapValue
+            {
+                Entries = { new MapValue.Types.Entry { Key = new Value { StringValue = "k" }, Value = Bytes(0xC0, 0x41) } },
+            },
+        };
+        Assert.Equal(new[] { new byte[] { 0x3F } }, BytesIn(ProfileValues.WithValidUtf8Bytes(list)));
+        Assert.Equal(new[] { new byte[] { 0x3F, 0x41 } }, BytesIn(ProfileValues.WithValidUtf8Bytes(map)));
+        Assert.Equal(new Value { Int64Value = 1 }, ProfileValues.WithValidUtf8Bytes(new Value { Int64Value = 1 }));
+    }
+
     [Fact]
     public void CasesOfTheExtensionProfile_KeepTheLimitsAndEachMacroVariableIsReadInsideItsMacro()
     {
@@ -381,6 +427,28 @@ public sealed class ExtensionGeneratorTests
     private static IEnumerable<Call> Calls(GeneratedCase generated) => GeneratorTests.Nodes(generated.Expression).OfType<Call>();
 
     private static bool HasFault(GeneratedCase generated) => Calls(generated).Any(call => call.Fault is not null);
+
+    // The bytes values of a value, inside a list or a map too.
+    private static IEnumerable<byte[]> BytesIn(Value value) => value.KindCase switch
+    {
+        Value.KindOneofCase.BytesValue => [value.BytesValue.ToByteArray()],
+        Value.KindOneofCase.ListValue => value.ListValue.Values.SelectMany(BytesIn),
+        Value.KindOneofCase.MapValue => value.MapValue.Entries.SelectMany(entry => BytesIn(entry.Key).Concat(BytesIn(entry.Value))),
+        _ => [],
+    };
+
+    private static bool IsValidUtf8(UTF8Encoding strict, byte[] bytes)
+    {
+        try
+        {
+            _ = strict.GetString(bytes);
+            return true;
+        }
+        catch (DecoderFallbackException)
+        {
+            return false;
+        }
+    }
 
     private static IEnumerable<string> Printed(Expr macro) => Minimizer.BodyInstances(macro, _ => null).Select(ExprPrinter.Print);
 

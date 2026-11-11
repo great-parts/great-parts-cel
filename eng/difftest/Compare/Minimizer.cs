@@ -108,7 +108,9 @@ internal static class Minimizer
     /// variable one instance for each zero literal of the profile, whatever the type of the variable
     /// (<see cref="AnyZeroInstances"/>). A range with no element — a literal without elements, in <c>dyn()</c> or not, or any
     /// other range whose value is an empty list or an empty map — gives an argument that reads the variable one instance for
-    /// each zero literal of the profile that fits the static type of the variable (<see cref="ZeroInstances"/>). After the
+    /// each zero literal of the profile that fits the static type of the variable (<see cref="ZeroInstances"/>), or, when the
+    /// type of the range is not known to the descent (a conditional, a sum, an iteration variable, an empty literal that is not in
+    /// <c>dyn()</c>), one instance for each zero literal of the profile (<see cref="AnyZeroInstances"/>). After the
     /// instances of the elements, an argument that reads the variable also has, in the order of the source, one instance for
     /// each closed node of it (<see cref="ClosedNodes"/>): a maximal node that reads no iteration variable of the macros above
     /// it, which is evaluated by itself, once, with the same bindings and without any substitution. Nothing for a node that is
@@ -327,22 +329,31 @@ internal static class Minimizer
 
     // The nodes that stand for the element of an empty range, a guess that is judged like any instance: the zero literal that
     // fits the static type of the iteration variable, which is the type of the element of the list or of the key of the map
-    // that the range declares: dyn for a range in dyn(), the declared type of a variable of the manifest. Any other type, and a
-    // range whose type is not known (an empty literal that is not in dyn()), has no instance.
+    // that the range declares: dyn for a range in dyn(), the declared type of a variable of the manifest. A variable of the
+    // manifest of another type, or of an element type without a zero literal, has no instance. Any other range — a conditional,
+    // a sum, an iteration variable of a macro above, an empty literal that is not in dyn() — has a type that the descent does not
+    // know, so each zero literal of the profile is tried, as for a range that is not a list or a map (AnyZeroInstances).
     private static IReadOnlyList<Expr> ZeroInstances(Comprehension macro)
     {
-        StaticType? type = macro.Range switch
+        StaticType? type;
+        switch (macro.Range)
         {
-            Call { Function: ProfileTables.Dyn } => StaticType.Dyn,
-            Ident ident => ProfileTables.Variables.FirstOrDefault(variable => variable.Name == ident.Name) switch
-            {
-                { Type: ProfileType.ListType } list => list.Declared.Element,
-                { Type: ProfileType.MapType } map => map.Declared.Key,
-                { Type: ProfileType.DynType } => StaticType.Dyn,
-                _ => null,
-            },
-            _ => null,
-        };
+            case Call { Function: ProfileTables.Dyn }:
+                type = StaticType.Dyn;
+                break;
+            case Ident ident when ProfileTables.Variables.FirstOrDefault(variable => variable.Name == ident.Name) is { } declared:
+                type = declared switch
+                {
+                    { Type: ProfileType.ListType } => declared.Declared.Element,
+                    { Type: ProfileType.MapType } => declared.Declared.Key,
+                    { Type: ProfileType.DynType } => StaticType.Dyn,
+                    _ => null,
+                };
+                break;
+            default:
+                return AnyZeroInstances();
+        }
+
         return type is null || ZeroLiteral(type) is not { } zero ? [] : [zero];
     }
 

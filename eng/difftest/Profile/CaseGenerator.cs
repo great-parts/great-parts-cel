@@ -71,10 +71,12 @@ internal sealed class CaseGenerator : Gen<GeneratedCase>
         {
             if (!pcg.OneIn(UnboundOneIn))
             {
-                // A call of matches that takes s1 as its subject or its pattern has its text bound to it.
-                bindings[variable.Name] = variable.Name == "s1" && builder.S1Binding is { } text
+                // A call of matches that takes s1 as its subject or its pattern has its text bound to it; a call of format that takes
+                // lx as its arguments has bytes of valid UTF-8 in it, drawn as for any binding and then made valid.
+                Value value = variable.Name == "s1" && builder.S1Binding is { } text
                     ? new Value { StringValue = text }
                     : ProfileValues.Binding(pcg, variable);
+                bindings[variable.Name] = variable.Name == "lx" && builder.FormatsLx ? ProfileValues.WithValidUtf8Bytes(value) : value;
             }
         }
 

@@ -91,6 +91,13 @@ internal sealed partial class ExprBuilder
     /// </summary>
     internal string? S1Binding { get; private set; }
 
+    /// <summary>
+    /// Whether a call of <c>format</c> of the expression takes the variable <c>lx</c> as its list of arguments, so that the bytes of
+    /// the binding of <c>lx</c> must be valid UTF-8 (<see cref="ProfileValues.WithValidUtf8Bytes"/>): <c>%s</c> of other bytes is
+    /// the known difference <c>string_format</c>, and cel-go gives a string that no <c>cel.expr.Value</c> can hold.
+    /// </summary>
+    internal bool FormatsLx { get; private set; }
+
     private enum Form
     {
         Conditional,

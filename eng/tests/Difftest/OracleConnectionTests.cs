@@ -331,8 +331,26 @@ public sealed class OracleConnectionTests
 
         Assert.Equal(2, exitCode);
         Assert.Empty(output);
-        Assert.Equal("eng/difftest: the oracle did not answer request 0 within 0.5 seconds\n", error);
+        Assert.Equal("eng/difftest: case 3 of seed 7: the oracle did not answer request 0 within 0.5 seconds\n", error);
         Assert.Single(fake.Requests);
+    }
+
+    // An oracle that ends in the middle of a case, as when a result has no cel.expr.Value form: the message names the case by the seed
+    // and the number, which are what reproduces it; --numbers-only keeps the log lines of the oracle and the case out of the output.
+    [Fact]
+    public void ClosedConnectionInACase_IsExitCode2AndNamesTheCaseBySeedAndNumber()
+    {
+        using FakeOracle fake = new([Log("oracle: request 0: the result has no form"), Handshake], answer: null);
+        using TempDirectory root = Repository();
+
+        (int exitCode, string output, string error) = Run(root, fake.Port, Limit, "--case", "3", "--numbers-only");
+        fake.Join();
+
+        // The connection is closed when the run sends the request or when it waits for the answer: both name the case.
+        Assert.Equal(2, exitCode);
+        Assert.Empty(output);
+        Assert.StartsWith("eng/difftest: case 3 of seed 7: the oracle closed the connection", error, StringComparison.Ordinal);
+        Assert.DoesNotContain("no form", error, StringComparison.Ordinal);
     }
 
     // The answer limit holds for the whole answer: log lines without a pause do not extend it. --numbers-only keeps the log
@@ -348,7 +366,7 @@ public sealed class OracleConnectionTests
 
         Assert.Equal(2, exitCode);
         Assert.Empty(output);
-        Assert.Equal("eng/difftest: the oracle did not answer request 0 within 0.5 seconds\n", error);
+        Assert.Equal("eng/difftest: case 3 of seed 7: the oracle did not answer request 0 within 0.5 seconds\n", error);
         Assert.Single(fake.Requests);
     }
 
