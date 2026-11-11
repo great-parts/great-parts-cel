@@ -149,7 +149,7 @@ All have the stage `Parse`.
 | `NestingTooDeep` (1003) | `{depthKind} depth exceeds the limit of 250` | see "Limits" |
 | `TooManyErrors` (1004) | `more than 100 syntax errors; parsing stopped` | the place of the error it replaces |
 | `ReservedIdentifier` (1005) | `reserved identifier '{name}'` | the identifier |
-| `InvalidMacroCall` (1006) | `invalid call of macro '{macro}': {detail}` | the `(` of the call; for a macro of an extension set, the node at which cel-go reports ([extension-macros](extension-macros.md#errors-of-the-expansion)) |
+| `InvalidMacroCall` (1006) | `invalid call of macro '{macro}': {detail}` | the `(` of the call; for a macro of an extension set, the node at which cel-go reports ([extension-macros](extension-macros.md#the-macros)) |
 | `SyntaxNotEnabled` (1007) | `'.?'`, `'[?'` or `'?' is not enabled: add the extension set optional`; `decimal literal is not enabled: enable decimal literals in the environment builder`, in `net10.0` `…: decimal requires .NET 11` | the `?`; the literal |
 | `InsufficientStack` (9000) | `insufficient execution stack to continue parsing` | the current token |
 
