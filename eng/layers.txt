@@ -9,12 +9,15 @@ Great.Parts.Cel.Declarations -> Great.Parts.Cel.Values, Great.Parts.Cel.Types, G
 Great.Parts.Cel.Syntax -> Great.Parts.Cel.Values, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Checking -> Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Library -> Great.Parts.Cel.Library.Unicode, Great.Parts.Cel.Library.Regex, Great.Parts.Cel.Library.Time, Great.Parts.Cel.Library.Decimals, Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
+Great.Parts.Cel.Library.Extensions.Strings -> Great.Parts.Cel.Library, Great.Parts.Cel.Library.Time, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
+Great.Parts.Cel.Library.Extensions.Network -> Great.Parts.Cel.Library, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
+Great.Parts.Cel.Library.Extensions -> Great.Parts.Cel.Library.Extensions.Strings, Great.Parts.Cel.Library.Extensions.Network, Great.Parts.Cel.Library, Great.Parts.Cel.Library.Time, Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Library.Unicode ->
 Great.Parts.Cel.Library.Regex -> Great.Parts.Cel.Library.Unicode, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Library.Time -> Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Library.Decimals -> Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Evaluation -> Great.Parts.Cel.Checking, Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
-Great.Parts.Cel -> Great.Parts.Cel.Evaluation, Great.Parts.Cel.Library, Great.Parts.Cel.Library.Unicode, Great.Parts.Cel.Library.Regex, Great.Parts.Cel.Library.Time, Great.Parts.Cel.Library.Decimals, Great.Parts.Cel.Checking, Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
+Great.Parts.Cel -> Great.Parts.Cel.Evaluation, Great.Parts.Cel.Library, Great.Parts.Cel.Library.Extensions, Great.Parts.Cel.Library.Extensions.Strings, Great.Parts.Cel.Library.Extensions.Network, Great.Parts.Cel.Library.Unicode, Great.Parts.Cel.Library.Regex, Great.Parts.Cel.Library.Time, Great.Parts.Cel.Library.Decimals, Great.Parts.Cel.Checking, Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Configuration -> Great.Parts.Cel, Great.Parts.Cel.Evaluation, Great.Parts.Cel.Library, Great.Parts.Cel.Library.Unicode, Great.Parts.Cel.Library.Regex, Great.Parts.Cel.Library.Time, Great.Parts.Cel.Library.Decimals, Great.Parts.Cel.Checking, Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 
 [Great.Parts.Cel.Protobuf]

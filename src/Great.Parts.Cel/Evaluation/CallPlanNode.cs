@@ -35,7 +35,7 @@ internal sealed class CallPlanNode : PlanNode
         _prepared = prepared;
         _cache = cache;
         _marks = marks;
-        _checks = marks.Contains(true);
+        _checks = marks.Contains(true) || overload.ShallowArguments;
         _charges = charges;
         Overload = overload;
         Arguments = arguments;
@@ -45,7 +45,8 @@ internal sealed class CallPlanNode : PlanNode
 
     internal ImmutableArray<PlanNode> Arguments { get; }
 
-    // Whether the planner marked any argument for the check.
+    // Whether the call checks its arguments against the parameter types: the planner marked an argument for the check at depth, or
+    // the overload reads the elements itself and has only the check of the top level.
     internal bool Checks => _checks;
 
     internal override CelValue Evaluate(Frame frame)

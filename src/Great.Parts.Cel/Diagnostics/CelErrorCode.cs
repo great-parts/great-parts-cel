@@ -169,7 +169,7 @@ public enum CelErrorCode
     /// specifier without a list element, an element whose type does not fit its specifier, or more elements
     /// than specifiers. A call with a format string or a list that is not a literal is not checked at
     /// compilation; a format error found during evaluation is <see cref="InvalidArgument"/>. Location: the
-    /// call of <c>format</c>.
+    /// call of <c>format</c>; for an element whose type does not fit its specifier, that element of the list literal.
     /// </summary>
     InvalidFormatString = 2010,
 
@@ -196,7 +196,7 @@ public enum CelErrorCode
     NoSuchKey = 3002,
 
     /// <summary>
-    /// A list index is out of bounds. Location: the index.
+    /// A list index is out of bounds, or an index or an offset of a function of the <c>strings</c> set is. Location: the index of a list, the call of a function of the set.
     /// </summary>
     IndexOutOfRange = 3003,
 
@@ -244,7 +244,9 @@ public enum CelErrorCode
 
     /// <summary>
     /// A map literal repeats a key; a <c>JsonElement</c> object repeats a property name, reported by
-    /// any operation that touches that name. Location: the literal or the operation.
+    /// any operation that touches that name; the macro <c>transformMapEntry</c> of the extension set of two-variable
+    /// comprehensions puts a key into its result that an earlier step put in. Location: the literal, the operation or the call
+    /// of the macro.
     /// </summary>
     DuplicateMapKey = 3010,
 

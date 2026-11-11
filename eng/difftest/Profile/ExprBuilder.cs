@@ -16,7 +16,7 @@ namespace Great.Parts.Cel.Eng.Difftest.Profile;
 /// types do not guarantee it, the second operand is wrapped in <c>dyn()</c>. A <c>dyn</c> operand may stand wherever a
 /// function takes one; an ordering across numeric kinds always has one.
 /// </summary>
-internal sealed class ExprBuilder
+internal sealed partial class ExprBuilder
 {
     // A node gets parentheses that precedence does not need with a chance of one in this.
     private const int ParenthesesOneIn = 10;
@@ -51,7 +51,7 @@ internal sealed class ExprBuilder
 
     // The functions whose overloads take and give types without parameters, by result type; the other functions have builders of their own.
     private static readonly Dictionary<ProfileType, ProfileOverload[][]> SimpleOverloads = ProfileTables.Overloads
-        .Where(overload => !SpecialFunctions().Contains(overload.Function) && overload.Id != "add_list"
+        .Where(overload => overload.Set is null && !SpecialFunctions().Contains(overload.Function) && overload.Id != "add_list"
             && !overload.Parameters.Any(ProfileTypeNames.IsParameter) && !overload.Result.IsParameter())
         .GroupBy(overload => overload.Result)
         .ToDictionary(byResult => byResult.Key, byResult => byResult.GroupBy(overload => overload.Function).Select(byFunction => byFunction.ToArray()).ToArray());
@@ -67,6 +67,9 @@ internal sealed class ExprBuilder
 
     private readonly PCG pcg;
 
+    // Whether the forms of the extension sets are among the forms of a target: a case of the extension profile has them.
+    private readonly bool extensions;
+
     // The iteration variables in scope, the innermost last, with their static types.
     private readonly List<(string Name, StaticType? Type)> scope = [];
 
@@ -75,7 +78,12 @@ internal sealed class ExprBuilder
 
     /// <summary>Creates a builder that draws every choice from a random source.</summary>
     /// <param name="pcg">The random source.</param>
-    internal ExprBuilder(PCG pcg) => this.pcg = pcg;
+    /// <param name="extensions">Whether the forms of the extension sets are among the forms of a target.</param>
+    internal ExprBuilder(PCG pcg, bool extensions = false)
+    {
+        this.pcg = pcg;
+        this.extensions = extensions;
+    }
 
     /// <summary>
     /// The text that the variable <c>s1</c> is bound to when a call of <c>matches</c> of the expression takes it as its subject or as
@@ -105,6 +113,7 @@ internal sealed class ExprBuilder
         DynIndex,
         IndexVariable,
         SelectVariable,
+        Extension,
     }
 
     /// <summary>Builds an expression.</summary>
@@ -344,6 +353,11 @@ internal sealed class ExprBuilder
             ProfileType.NullType => [],
             _ => [(Form.Simple, 6)],
         });
+        if (extensions && ExtensionForms.ContainsKey(target))
+        {
+            forms.Add((Form.Extension, ExtensionWeight));
+        }
+
         int total = forms.Sum(form => form.Weight);
         int draw = pcg.Below(total);
         Form chosen = forms[0].Form;
@@ -379,6 +393,7 @@ internal sealed class ExprBuilder
             Form.Transform => Transform(depth, limit),
             Form.Map => MapOfAny(depth, limit, ProfileTables.MaxElements),
             Form.TypeOf => TypeOf(depth, limit),
+            Form.Extension => Extension(target, depth, limit),
             _ => null,
         };
     }
@@ -748,7 +763,7 @@ internal sealed class ExprBuilder
         string macro = pcg.Pick<string>([ProfileTables.All, ProfileTables.Exists, ProfileTables.ExistsOne]);
         macros++;
         (Built range, StaticType? variableType) = Range(depth + 1, limit - 2);
-        string variable = ProfileTables.IterationVariables[scope.Count];
+        string variable = FreshName(ProfileTables.IterationVariables);
         scope.Add((variable, variableType));
         Built predicate = Predicate(variable, variableType, depth + 1, limit - 1 - range.Nodes);
         scope.RemoveAt(scope.Count - 1);
@@ -768,7 +783,7 @@ internal sealed class ExprBuilder
         bool predicateAndTransform = macro == ProfileTables.MapMacro && limit >= 5 && pcg.OneIn(2);
         macros++;
         (Built range, StaticType? variableType) = TransformRange(depth + 1, limit - (predicateAndTransform ? 3 : 2));
-        string variable = ProfileTables.IterationVariables[scope.Count];
+        string variable = FreshName(ProfileTables.IterationVariables);
         scope.Add((variable, variableType));
         List<Expr> arguments = [];
         int nodes = 1 + range.Nodes;

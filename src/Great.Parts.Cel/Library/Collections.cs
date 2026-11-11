@@ -160,8 +160,8 @@ internal static class Collections
 
     // The key that a map does not have; an object key is named by its description or its .NET type.
     private static CelValue NoSuchKey(in CallSite site, CelValue key) =>
-        key.Kind == CelValueKind.Object
-            ? site.Error(CelErrorCode.NoSuchKey, "no such key: " + ObjectRules.TypeName(key, site.Types))
+        key.Kind is CelValueKind.Object or CelValueKind.Abstract
+            ? site.Error(CelErrorCode.NoSuchKey, "no such key: " + ValueTypeRules.NameOf(key, site.Types))
             : site.ErrorWithValue(CelErrorCode.NoSuchKey, NoSuchKeyText, null, key);
 
     private static CelValue OutOfRange(in CallSite site, CelValue index, CelList list) =>

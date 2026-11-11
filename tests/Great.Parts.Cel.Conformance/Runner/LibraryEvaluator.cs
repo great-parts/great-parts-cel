@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Cel.Expr;
 using Great.Parts.Cel.Checking;
+using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
@@ -14,7 +15,8 @@ namespace Great.Parts.Cel.Conformance.Runner;
 
 /// <summary>
 /// Runs a case on the library. All cases share one setup, <c>new CelEnvironmentBuilder(CelStandardLibrary.V1)</c> with the time zone
-/// database of the tests added by <c>UseTimeZones</c>; each case adds what it declares and builds its environment. A checked case is compiled to <c>CelProgram&lt;CelValue&gt;</c> and evaluated.
+/// database of the tests added by <c>UseTimeZones</c> and the extension sets of the runner; each case adds what it declares and builds its environment.
+/// A checked case is compiled to <c>CelProgram&lt;CelValue&gt;</c> and evaluated.
 /// </summary>
 /// <remarks>
 /// A <c>disable_check</c> case is parsed and evaluated through the internal entry points <c>Parse</c> and
@@ -26,9 +28,9 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     // Keywords of CEL, never identifiers: the library rejects them as variable names, so the runner neither declares nor binds them.
     private static readonly string[] ReservedNames = ["true", "false", "null", "in"];
 
-    // The syntax options of the environment without macros. Every environment has SyntaxOptions.Standard until extension sets
-    // bring syntax.
-    private static readonly SyntaxOptions WithoutMacros = SyntaxOptions.Standard with { Macros = MacroTable.Empty };
+    // The extension sets that every case environment has, as the cel-go runner keeps its libraries in one list of options. The
+    // part that brings a set adds it here with its version; no file picks its sets.
+    private static readonly CelExtension[] ExtensionSets = [CelExtensions.Strings(5), CelExtensions.Math(3), CelExtensions.Lists(4), CelExtensions.Sets(0), CelExtensions.Encoders(1), CelExtensions.Bindings(1), CelExtensions.TwoVarComprehensions(0), CelExtensions.Network(1)];
 
     /// <summary>The reason why a checked case with <c>disable_macros</c> fails: only the internal <c>Parse</c> takes syntax options.</summary>
     internal const string DisableMacrosOnCheckedPath = "disable_macros needs an internal compile entry point";
@@ -96,7 +98,9 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     private static CaseOutcome WithInternalEntryPoints(CelEnvironment environment, ConformanceCase testCase, ref CaseStage stage)
     {
         stage = CaseStage.Parse;
-        ParseResult parsed = environment.Parse(testCase.Expression, testCase.Environment.DisableMacros ? WithoutMacros : null);
+        ParseResult parsed = environment.Parse(
+            testCase.Expression,
+            testCase.Environment.DisableMacros ? environment.Syntax with { Macros = MacroTable.Empty } : null);
         if (!parsed.IsSuccess)
         {
             return CaseOutcome.Failed(CaseStage.Parse, Messages(parsed.Errors));
@@ -125,6 +129,10 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     private static CelEnvironmentBuilder Setup(CaseEnvironment declared)
     {
         CelEnvironmentBuilder builder = new CelEnvironmentBuilder(CelStandardLibrary.V1).UseTimeZones(ZoneInfoFile.Database());
+        foreach (CelExtension extension in ExtensionSets)
+        {
+            builder.AddExtension(extension);
+        }
         if (declared.Container.Length > 0)
         {
             builder.UseContainer(declared.Container);

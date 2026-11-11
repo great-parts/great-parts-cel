@@ -30,20 +30,24 @@ internal sealed record ProfileVariable(string Name, ProfileType Type)
 /// <param name="Result">The result type.</param>
 /// <param name="Receiver">Whether the overload is called on its receiver, the first parameter: <c>s.contains(t)</c>.</param>
 /// <param name="DynOnly">Whether the overload is a candidate only when an argument has the static type <c>dyn</c>: ordering across numeric kinds.</param>
+/// <param name="Set">The extension set that has the overload, or <see langword="null"/> for the standard library.</param>
+/// <param name="Element">The element type of the list that the overload takes or gives, when it is fixed: the kind that <c>sort</c> orders, the strings that <c>join</c> joins.</param>
 internal sealed record ProfileOverload(
     string Id,
     string Function,
     IReadOnlyList<ProfileType> Parameters,
     ProfileType Result,
     bool Receiver = false,
-    bool DynOnly = false);
+    bool DynOnly = false,
+    string? Set = null,
+    ProfileType? Element = null);
 
 /// <summary>
 /// The tables of the profile (docs/design/eng-difftest.md, "Profile"): the variables of the manifest, the functions of the
 /// standard library version 1 and their overloads, the macros, the type identifiers, and
 /// the limits of a generated case.
 /// </summary>
-internal static class ProfileTables
+internal static partial class ProfileTables
 {
     /// <summary>The path of the run manifest from the repository root.</summary>
     internal const string ManifestPath = "eng/difftest/Profile/environment.json";
@@ -238,8 +242,8 @@ internal static class ProfileTables
     /// <summary>The macros of the profile.</summary>
     internal static IReadOnlyList<string> Macros { get; } = [All, Exists, ExistsOne, MapMacro, Filter];
 
-    /// <summary>The overloads of the profile, each function in the order of cel-go.</summary>
-    internal static IReadOnlyList<ProfileOverload> Overloads { get; } = BuildOverloads();
+    /// <summary>The overloads of the profile, each function in the order of cel-go, then those of the extension sets.</summary>
+    internal static IReadOnlyList<ProfileOverload> Overloads { get; } = [.. BuildOverloads(), .. ExtensionRows()];
 
     /// <summary>The types for which the generator builds an expression: the root, list elements and map values take any of them.</summary>
     internal static IReadOnlyList<ProfileType> TargetTypes { get; } =

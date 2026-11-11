@@ -184,6 +184,80 @@ Two kinds of entry are skipped, as the test of Go skips them or its premise does
 
 **Snapshot of version 1.** `Library/LibrarySnapshotTests.StandardLibraryV1` compares the table of version 1 with `Library/Snapshots/standard-library-v1.txt` ([library](library.md), "`matches` and `matches_string`", "The snapshot"). The test reads each line, finds the overload by its identifier, and compares the function, the call style, the parameter and result types, the `dyn` flag and the five costs of the probes; it fails on a line without an overload and on an overload without a line, and its message names every difference with both texts. It runs under JIT and Native AOT: the file is read as the corpus is.
 
+## Snapshots of the extension sets
+
+The declarations of each version of each set are pinned by a snapshot, as those of the standard library are: a later change of a published version is a failing test, and a new function comes as a new version. `Library/LibrarySnapshotTests` in `Great.Parts.Cel.Tests` gets one `[Fact]` per set, `StringsV5`, `MathV3`, `ListsV4`, `SetsV0`, `EncodersV1`, `BindingsV1`, `TwoVarComprehensionsV0` and `NetworkV1`; each builds the text of its version with the writer that `StandardLibraryV1` uses and compares it with a file under `tests/Great.Parts.Cel.Tests/Library/Snapshots/`, named `<set>-v<version>.txt` with the name of the set as the catalog has it (`two-var-comprehensions-v0.txt`). The message of a failure names every line that differs.
+
+The text of a set begins with a header and lists, in the order of the table of the set:
+
+```text
+set strings 5
+depends <name>                          one line for each dependency; none in this release
+type net.IP                             one line for each abstract type
+macro math.greatest receiver *          name, global or receiver, the argument count or * for any
+overload <function> <id> <global|receiver> <parameter types> -> <result type> cost <c0> <c1> <c2> <c3> <c4>
+```
+
+An `overload` line is that of the snapshot of the standard library: the function as the tree names it (`math.@max`, `strings.quote`, `cel.@block`), the identifier, the call style, the types in their text form with type parameters as written, the flag `dyn` for an overload that is a candidate only with a `dyn` argument, and the cost of five probes — all arguments of the kinds `string` and `bytes` of the length s, lists and maps of s entries, an `int` equal to s, a `double` of 1, and a `net.IP` or `net.CIDR` of fixed value — for s of 0, 1, 10, 11 and 100. The number is `FixedCost` and `ArgumentCost` alone, the part known before the call: what an implementation charges while it runs is in the rows of [library](library.md#cost-of-the-extension-sets) and not in the snapshot, so the probe does not run it. The flags `ShallowArguments` and the validator are not recorded: they are behavior, not declaration.
+
+The files are written by running the writer on the declarations, once, after the mechanism of the snapshot of version 1 exists; a published version is changed only by a change that does not add a new version.
+
+## Permutations of the builder
+
+**`Declarations/BuilderOrderTests.PermutationGivesSameEnvironment`** in `Great.Parts.Cel.Properties`: the order of the calls of the builder changes neither the environment nor what it does. Case `i` comes from the seed and `i` by the loop of "Property tests and the seed".
+
+- **Calls.** A model of 3–12 calls, drawn from small pools so that conflicts occur: `AddExtension` of a set of the catalog at its version, at another version (4004), at two versions of one name (4003), twice the same set, and the same `CelExtension` instance twice; `AddExtension` of an application set made by `CelExtension.Create` whose name is one of the catalog, which gives 4018, or another, with dependencies on the names of the pool, some missing (4005), and with functions that overlap those of a catalog set (`reverse` on a string, `ip(string)`), take the identifier of one (`string_to_ip`), have the form of a macro (`sortBy` on a list with two arguments, `all` with three) or a name that is not an identifier; `AddFunction` with a declaration and `AddFunctionImplementation` for it, and the delegate form; `AddVariable` with the names `math`, `ip`, `net.IP`, `x` and types of the pool, `CelType.ObjectNamed("net.IP")` among them; `AddTypes` with an object type named `net.IP`; `UseContainer`.
+- **Permuted.** The same multiset of calls in the model order and in at least three random permutations, with random repeats of a call; each permutation builds with `Build`.
+- **Compared.** Whether `Build` succeeds. When it fails, the list of errors: the code, the message and the place of each, in order. When it succeeds, a fixed set of texts in each environment: macros of every set with valid and invalid arguments, calls of the functions of every set with arguments of the fitting types and with others, qualified calls, the identifier `net.IP`, the variables and functions of the model, and the same names under the container. Compile results by `ResultType` and by the code, stage, message and location of each error; the values of one set of bindings and of the same evaluation with a cost limit, by the comparison of "Properties of evaluation", and the units charged; evaluation errors by code, message and location. 100 % of the cases agree; the failure message names the property, the seed, the number of the case, the first difference, and the calls of the two orders.
+
+The description in JSON has the same property in "Environment from JSON": the generated description gets a random order of the elements of `extensions`.
+
+## Substring search of the extension sets
+
+**`Library/StringSearchLinearityTests`** in `Great.Parts.Cel.Properties`, with the tests `IndexOfStepsBounded`, `LastIndexOfStepsBounded`, `ReplaceStepsBounded` and `SplitStepsBounded`, beside `SubstringSearchLinearityTests`. Each calls the internal implementation of the function with the counter, `StringFunctions.IndexOf(text, pattern, offset, ref steps)` and its kind for the other three ([extension-strings](extension-strings.md#search)), and asserts steps ≤ 4 · (n + m), n and m the lengths in UTF-16 units, and the result equal to that of a naive reference written in the test over code points with the semantics of the page for n up to 4 096 and for random inputs; for the chosen worst inputs the result is known from the construction of the input and is written beside it: the offset and the empty cases, the limit `n` of `replace` and `split`, the empty pattern. Inputs, each for every one of the four where it applies:
+
+- text `(ab)^N` with the pattern `(ab)^k` and another last unit, and with `(ab)^(k−1)aa`;
+- text `a^n` with the pattern `a^(m−1)b` and, for `lastIndexOf`, with `b a^(m−1)`, whose first unit differs where the search starts from the end;
+- `replace` with an old string that matches many times — `ab` in `(ab)^N`, `aa` in `a^n` — and one that matches never, and a long new string; `split` with the separators `a`, `a^k`, `a^(k−1)b` over `a^n`;
+- an offset at the start, in the middle, at the end and past the end, and the limit `n` of 0, 1, 2 and more than the matches;
+- the pattern equal to a prefix of the text, longer than 256 units, longer than the text, empty;
+- surrogate pairs in the text and the pattern, and a lone surrogate in the text;
+- random strings and patterns over alphabets of 2 and 3 units.
+
+n reaches 1 000 000 and m 100 000. No time is measured; the bound is on the steps, which count each comparison of two units, the preparation of the pattern included.
+
+## Cost and memory of the extension sets
+
+`Evaluation/CostTests.AllocationWithinCost` of [Properties of evaluation](#properties-of-evaluation) gets rows for the sets, each on the sizes 0, 1, 10, 100 and 1 000 where it grows with the data, bound as variables of type `dyn` where a literal would be long, and each run twice: through `Compile` and through `Planner.PlanWithoutTypeCheck` with `Plan.Evaluate`, so that the functions of the sets are measured on both paths. A row writes `<row>: <max bytes per unit> bytes/unit` and keeps B = 64.
+
+- **Strings.** `replace` (many matches and none), `split` (many parts), `join`, `quote`, `substring`, `trim`, `reverse`, `lowerAscii`, `upperAscii`, `charAt`, `indexOf` with a pattern over 256 units, `format` with `%s` of a long string, of a list and of a map, `%f` with a precision of 100 of a large number, `%x` of a long string.
+- **Lists.** `slice`, `reverse`, `flatten` of nested lists and of a deep list, `sort` of numbers and of strings, `sortBy`, `distinct`, `lists.range`.
+- **Encoders and network.** `base64.encode` and `decode`, `json.encode` of a nested value, `string(ip)` and `string(cidr)`, `masked` and `ip()` of a prefix, parsing of a text of the length s.
+- **Macros.** `transformList`, `transformMap` and `transformMapEntry` over a range of s elements, with and without a filter, `cel.bind`, `math.greatest` of three arguments.
+- **Errors.** Rows that make the error: a format string with an unknown letter and with a precision of 101, `ip(x)` and `cidr(x)` with `x` a text of the size that is not an address, `base64.decode(x)` with illegal text of the size, `charAt` past the end, `lists.range(-1)`, a duplicate key in `transformMapEntry`. The error value holds the text by reference and a reason code or numbers in its fields and forms its detail when it is read, so these rows keep B per unit without `ErrorBytes`.
+
+A row that does not fit B changes its formula or its allocation.
+
+## Conformance runner and the extension sets
+
+The cases share one environment ([conformance](conformance.md#environment-of-the-cases)). With this increment the setup adds the sets with `AddExtension`, once for all files, as the runner of cel-go keeps its libraries in one list of options: `CelExtensions.Strings(5)`, `Math(3)`, `Lists(4)`, `Sets(0)`, `Encoders(1)`, `Bindings(1)`, `TwoVarComprehensions(0)` and `Network(1)`, in a static list of the runner that a later part extends with its sets and with the internal set `block`. The runner's setup builds the environment from them and from the standard library; no file picks its sets. A set the cel-go runner lacks — `sets`, `network` — is added too, since the runner here runs every case of the commit ([conformance](conformance.md)).
+
+- **Closed by this increment:** `math_ext` (199), `lists_ext` (52), `encoders_ext` (4), `bindings_ext` (8), `macros2` (46) and `network_ext` (69, less one). The two cases of `lists_ext` that sort durations and timestamps, `sort/durations` and `sort/timestamps`, need the time types, which the part of time brings: the table of `lists` has all eight kinds from the start only when that part is in the branch, and the cases are closed with it.
+- **The skip list.** A case that passes leaves the list ([conformance](conformance.md#skip-lists-and-findings), the strict list): the 377 entries of the six files go, and so do the entries of the cases of `string_ext` and `sets_ext` that the shared environment now passes — those files stay open for the cases that need time and messages, and the strict list reports each entry whose case passes. The entry `network_ext/ip_type/is_ip_cidr_compile_error` stays with its reason; the eight cases of `network_ext` with a constant argument that expect an evaluation error pass, since the library does not validate constants at compilation ([extension-network](extension-network.md#parsing)). The data of the suite, and the entries that record a defect of that data, are not changed by the tasks of the code.
+- **Macros without the set.** A case with a macro of a set is parsed with the macros of the case environment, so `cel.bind` and the macros of two variables are expanded there and `disable_macros` removes them with the standard ones ([conformance](conformance.md#environment-of-the-cases)).
+- **`block_ext`** needs the internal set `block` and the macros of the tests of cel-spec; it stays in the skip list for the part that brings them.
+
+## Tests of the developer for the extension sets
+
+The unit tests take their own data and do not copy the examples of the specification. Their classes follow the files of the sets:
+
+- `Library/Extensions/ExtensionCatalogTests`: the counts, the identifiers against the documentation, no repeated identifier, no overlap between two sets or with version 1, the union of the macros against the standard ones, one definition per pair, the same `CelExtension` instance for a known pair, a different one for an unknown version.
+- `Declarations/ExtensionChecksTests`: each of 4003, 4004, 4005 and 4018 with its text; the sets left out; the order of the errors; a set added twice; the same set from the catalog and from a description.
+- `Syntax/ExtensionMacrosTests`: each macro's expansion as a tree, with the offsets and the hidden names, and each error with its detail and place; a target that is not the namespace; the macros without the set; the printing and the comparison of a tree with `IterVar2`.
+- `Checking/` and `Evaluation/`: the types of the variables of two-variable comprehensions, `MapInsertPlanNode` with its errors and charges, `AppendPlanNode` for `transformList`, `cel.@block` as in [evaluation](evaluation.md#blocks), the validator of `format` and of `cel.@block`.
+- `Library/Extensions/Strings/`, `Math/`, `Lists/`, `Encoders/`, `Network/`: every overload on its edges, the sort with NaN and with ties at 12 and 13 elements, the decoder on its rules, the parser of addresses on a table of accepted and rejected texts, the text forms, the exact formatting of a `double` against a reference over `BigInteger` including ties, the values `net.IP` and `net.CIDR` in equality, hash and type.
+- `Values/AbstractValueTests`: the rules of the kind `Abstract` — equality, the runtime type, the fit, the refusal as a map key, the conversion to `CelValue` and `object`.
+
 ## Where the classes live
 
 | Property | Project | Class |

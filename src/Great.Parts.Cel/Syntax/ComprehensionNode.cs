@@ -2,14 +2,16 @@ namespace Great.Parts.Cel.Syntax;
 
 /// <summary>
 /// A comprehension, the <c>Expr.Comprehension</c> message of <c>syntax.proto</c>: a loop over the elements of a list
-/// or the keys of a map with an accumulator. Macros such as <c>all</c> and <c>map</c> expand into it; the text has no
-/// syntax of its own for it.
+/// or the keys of a map with an accumulator, or over the indexes and elements of a list or the keys and values of a map
+/// when it has two iteration variables. Macros such as <c>all</c> and <c>map</c> expand into it; the text has no syntax of
+/// its own for it.
 /// </summary>
 internal sealed class ComprehensionNode : ExprNode
 {
     internal ComprehensionNode(
         int id,
         string iterVar,
+        string? iterVar2,
         ExprNode iterRange,
         string accuVar,
         ExprNode accuInit,
@@ -19,6 +21,7 @@ internal sealed class ComprehensionNode : ExprNode
         : base(id)
     {
         IterVar = iterVar;
+        IterVar2 = iterVar2;
         IterRange = iterRange;
         AccuVar = accuVar;
         AccuInit = accuInit;
@@ -31,6 +34,12 @@ internal sealed class ComprehensionNode : ExprNode
     /// The name of the iteration variable.
     /// </summary>
     internal string IterVar { get; }
+
+    /// <summary>
+    /// The name of the second iteration variable of a comprehension of two variables: the element of a list after its index, the
+    /// value of a map after its key; <see langword="null"/> for a comprehension of one variable.
+    /// </summary>
+    internal string? IterVar2 { get; }
 
     /// <summary>
     /// The range: a list, whose elements are iterated, or a map, whose keys are.

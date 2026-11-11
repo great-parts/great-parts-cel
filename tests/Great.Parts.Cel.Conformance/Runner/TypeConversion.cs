@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Google.Protobuf.WellKnownTypes;
 using Great.Parts.Cel.Types;
 using PrimitiveType = Cel.Expr.Type.Types.PrimitiveType;
@@ -8,7 +9,7 @@ namespace Great.Parts.Cel.Conformance.Runner;
 
 /// <summary>
 /// Converts a type between <see cref="CelType"/> and <c>cel.expr.Type</c> for the kinds the library supports, the two types of
-/// time among them. Other kinds throw
+/// time and the abstract types of the extension sets among them. Other kinds throw
 /// <see cref="NotImplementedException"/>.
 /// </summary>
 internal static class TypeConversion
@@ -33,6 +34,10 @@ internal static class TypeConversion
         CelTypeKind.Map => new Type
         {
             MapType = new Type.Types.MapType { KeyType = ToExprType(type.Parameters[0]), ValueType = ToExprType(type.Parameters[1]) },
+        },
+        CelTypeKind.Abstract => new Type
+        {
+            AbstractType = new Type.Types.AbstractType { Name = type.Name, ParameterTypes = { type.Parameters.Select(ToExprType) } },
         },
         _ => throw new NotImplementedException(),
     };

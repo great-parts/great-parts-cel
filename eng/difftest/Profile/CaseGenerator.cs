@@ -10,7 +10,7 @@ namespace Great.Parts.Cel.Eng.Difftest.Profile;
 internal sealed record GeneratedCase(Expr Expression, IReadOnlyDictionary<string, Value> Bindings)
 {
     /// <summary>The expression as CEL source.</summary>
-    internal string Text => ExprPrinter.Print(Expression);
+    internal string Text => ExprPrinter.PrintCase(Expression);
 }
 
 /// <summary>
@@ -22,17 +22,35 @@ internal sealed class CaseGenerator : Gen<GeneratedCase>
     // One variable in ten stays unbound.
     private const int UnboundOneIn = 10;
 
-    private CaseGenerator()
-    {
-    }
+    // Whether the forms of the extension sets are among the forms of a target.
+    private readonly bool extensions;
 
-    /// <summary>The generator; the size of a case is its number of nodes, then the length of its text.</summary>
-    internal static CaseGenerator Instance { get; } = new();
+    private CaseGenerator(bool extensions) => this.extensions = extensions;
 
-    /// <summary>Generates case <c>n</c> of the run with a seed.</summary>
+    /// <summary>The generator of the standard library profile; the size of a case is its number of nodes, then the length of its text.</summary>
+    internal static CaseGenerator Instance { get; } = new(extensions: false);
+
+    /// <summary>The generator of the extension profile: the standard library and the extension sets of the manifest.</summary>
+    internal static CaseGenerator Extended { get; } = new(extensions: true);
+
+    /// <summary>Whether case <c>n</c> of a run is a case of the extension profile: every third, the cases 2, 5, 8, …</summary>
+    /// <param name="n">The number of the case.</param>
+    internal static bool IsExtensionCase(ulong n) => n % 3 == 2;
+
+    /// <summary>Generates case <c>n</c> of the run with a seed: of the extension profile for every third number, else of the standard library profile.</summary>
     /// <param name="seed">The seed of the run.</param>
     /// <param name="n">The number of the case.</param>
-    internal static GeneratedCase Case(ulong seed, ulong n) => Instance.Generate(CaseState(seed, n), null, out _);
+    internal static GeneratedCase Case(ulong seed, ulong n) => IsExtensionCase(n) ? ExtensionCase(seed, n) : StandardCase(seed, n);
+
+    /// <summary>Generates case <c>n</c> of the run with a seed from the standard library profile, whatever <c>n</c> is.</summary>
+    /// <param name="seed">The seed of the run.</param>
+    /// <param name="n">The number of the case.</param>
+    internal static GeneratedCase StandardCase(ulong seed, ulong n) => Instance.Generate(CaseState(seed, n), null, out _);
+
+    /// <summary>Generates case <c>n</c> of the run with a seed from the extension profile, whatever <c>n</c> is.</summary>
+    /// <param name="seed">The seed of the run.</param>
+    /// <param name="n">The number of the case.</param>
+    internal static GeneratedCase ExtensionCase(ulong seed, ulong n) => Extended.Generate(CaseState(seed, n), null, out _);
 
     /// <summary>The CsCheck generator state of case <c>n</c> of the run with a seed.</summary>
     /// <param name="seed">The seed of the run.</param>
@@ -46,7 +64,7 @@ internal sealed class CaseGenerator : Gen<GeneratedCase>
     /// <inheritdoc/>
     public override GeneratedCase Generate(PCG pcg, Size? min, out Size size)
     {
-        ExprBuilder builder = new(pcg);
+        ExprBuilder builder = new(pcg, extensions);
         (Expr expression, int nodes) = builder.Build(builder.Target(), depth: 1, ProfileTables.MaxNodes);
         Dictionary<string, Value> bindings = [];
         foreach (ProfileVariable variable in ProfileTables.Variables)

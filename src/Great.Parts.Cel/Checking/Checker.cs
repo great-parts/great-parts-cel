@@ -41,6 +41,11 @@ internal sealed class Checker
 
     private readonly List<CelError> _errors = [];
 
+    // The calls with a candidate that carries a validator, each with that binding, in the order of the traversal; and the types
+    // of the nodes after the substitution, made once when the validators or the result need them.
+    private readonly List<(CallNode Call, OverloadBinding Binding)> _validations = [];
+    private Dictionary<int, CelType>? _finalTypes;
+
     // The variables of the enclosing comprehensions, the innermost last; a null type is the type error.
     private readonly List<(string Name, CelType? Type)> _locals = [];
 
@@ -83,6 +88,11 @@ internal sealed class Checker
     internal CheckResult Run()
     {
         CelType? type = Visit(_parsed.Root);
+        if (_errors.Count == 0 && _validations.Count > 0)
+        {
+            RunValidators();
+        }
+
         if (_errors.Count == 0 && type is not null)
         {
             CheckExpectedType(type);
@@ -101,8 +111,15 @@ internal sealed class Checker
 
     // The types of the nodes after the substitution. The bindings no longer change, so the result for each type variable
     // is kept: a chain of bindings, such as that of the elements of a list of empty lists, is walked once for all nodes.
-    private CheckedExpression Checked()
+    private CheckedExpression Checked() => new(_parsed, _references, FinalTypes());
+
+    private Dictionary<int, CelType> FinalTypes()
     {
+        if (_finalTypes is not null)
+        {
+            return _finalTypes;
+        }
+
         var types = new Dictionary<int, CelType>(_types.Count);
         var kept = new Dictionary<string, StrongBox<CelType>>(StringComparer.Ordinal);
         foreach ((int id, CelType type) in _types)
@@ -110,7 +127,107 @@ internal sealed class Checker
             types.Add(id, SubstitutionRules.Apply(_substitution, type, freeToDyn: true, kept));
         }
 
-        return new CheckedExpression(_parsed, _references, types);
+        _finalTypes = types;
+        return types;
+    }
+
+    // The validators of the calls, in the order of the calls by offset, each on the shape of its call with the final types. A
+    // rejected call keeps the type that its candidates gave it, since the traversal is over; the errors have the place of the
+    // call or the offset that the answer names.
+    private void RunValidators()
+    {
+        var keys = new long[_validations.Count];
+        var order = new (CallNode Call, OverloadBinding Binding)[_validations.Count];
+        for (int i = 0; i < order.Length; i++)
+        {
+            order[i] = _validations[i];
+            keys[i] = ((long)_parsed.GetOffset(order[i].Call.Id) << 32) | (uint)i;
+        }
+
+        Array.Sort(keys, order);
+        Dictionary<int, CelType> types = FinalTypes();
+        foreach ((CallNode call, OverloadBinding binding) in order)
+        {
+            CallShape shape = ShapeOf(call, binding, types);
+            CallValidation answer = binding.Validator!(shape);
+            if (!answer.IsOk)
+            {
+                _errors.Add(ValidationError(call, answer, shape));
+            }
+        }
+    }
+
+    // The receiver, when the overload takes one, and the arguments of the call. A call of a qualified function name has no
+    // receiver: its target is part of the name.
+    private CallShape ShapeOf(CallNode call, OverloadBinding binding, Dictionary<int, CelType> types)
+    {
+        ValueShape? receiver = binding.Declaration.IsReceiverStyle ? ShapeOf(call.Target!, types) : null;
+        ImmutableArray<ValueShape>.Builder arguments = ImmutableArray.CreateBuilder<ValueShape>(call.Arguments.Length);
+        foreach (ExprNode argument in call.Arguments)
+        {
+            arguments.Add(ShapeOf(argument, types));
+        }
+
+        return new CallShape(receiver, arguments.MoveToImmutable());
+    }
+
+    // The offset, the final type and, for a literal, its value: a string, the elements of a list or the entries of a map.
+    private ValueShape ShapeOf(ExprNode node, Dictionary<int, CelType> types)
+    {
+        int offset = _parsed.GetOffset(node.Id);
+        CelType type = types.TryGetValue(node.Id, out CelType? known) ? known : CelType.Dyn;
+        switch (node)
+        {
+            case ConstantNode constant when constant.Value.TryGetString(out string? text):
+                return new ValueShape(offset, type, text, null, false, null);
+            case ListNode list:
+                ImmutableArray<ValueShape>.Builder elements = ImmutableArray.CreateBuilder<ValueShape>(list.Elements.Length);
+                foreach (ExprNode element in list.Elements)
+                {
+                    elements.Add(ShapeOf(element, types));
+                }
+
+                return new ValueShape(offset, type, null, elements.MoveToImmutable(), !list.OptionalIndices.IsEmpty, null);
+            case StructNode { MessageName.Length: 0 } map:
+                ImmutableArray<(ValueShape Key, ValueShape Value)>.Builder entries =
+                    ImmutableArray.CreateBuilder<(ValueShape Key, ValueShape Value)>(map.Entries.Length);
+                foreach (StructEntry entry in map.Entries)
+                {
+                    entries.Add((ShapeOf(entry.Key, types), ShapeOf(entry.Value, types)));
+                }
+
+                return new ValueShape(offset, type, null, null, false, entries.MoveToImmutable());
+            default:
+                return new ValueShape(offset, type, null, null, false, null);
+        }
+    }
+
+    // The error of a rejected call: the message of its code, at the part that the answer names or at the call.
+    private CelError ValidationError(CallNode call, CallValidation answer, CallShape shape)
+    {
+        CelSourceLocation location = answer.Offset is int offset ? _parsed.Lines.GetLocation(offset) : Location(call);
+        switch (answer.Code)
+        {
+            case CelErrorCode.InvalidFormatString:
+                return CheckErrors.InvalidFormatString(answer.Detail, location);
+            case CelErrorCode.NoMatchingOverload:
+                int count = shape.Arguments.Length + (shape.Receiver is null ? 0 : 1);
+                var argumentTypes = new CelType[count];
+                int next = 0;
+                if (shape.Receiver is { } receiver)
+                {
+                    argumentTypes[next++] = receiver.Type;
+                }
+
+                foreach (ValueShape argument in shape.Arguments)
+                {
+                    argumentTypes[next++] = argument.Type;
+                }
+
+                return CheckErrors.NoMatchingOverload(call.Function, argumentTypes, location);
+            default:
+                throw new UnreachableException("A validator answers InvalidFormatString or NoMatchingOverload.");
+        }
     }
 
     // The errors ordered by offset; errors at one offset keep the order in which they were found.
@@ -457,6 +574,14 @@ internal sealed class Checker
         ImmutableArray<OverloadBinding> kept = _candidates.Count == overloads.Length ? overloads : [.. _candidates];
         object? prepared = PrepareConstant(call, kept, isReceiverStyle);
         _references.Add(call.Id, Reference.ToCandidates(kept, prepared));
+        foreach (OverloadBinding candidate in _candidates)
+        {
+            if (candidate.Validator is not null)
+            {
+                _validations.Add((call, candidate));
+            }
+        }
+
         CelType type = SubstitutionRules.Apply(_substitution, _candidateResults[0], freeToDyn: false);
         for (int i = 1; i < _candidateResults.Count; i++)
         {
@@ -763,45 +888,59 @@ internal sealed class Checker
 
     // The range and the accumulator initializer in the enclosing scopes; the loop condition and the step
     // with the accumulator and the iteration variable; the result with the accumulator only. The type is
-    // that of the result, also when the range is invalid.
+    // that of the result, also when the range is invalid. A comprehension of two variables declares the second variable after
+    // the first, both before the loop condition and the step.
     private CelType? VisitComprehension(ComprehensionNode comprehension)
     {
         CelType? rangeType = Visit(comprehension.IterRange);
-        CelType? variableType = IterationType(comprehension.IterRange, rangeType);
+        bool twoVariables = comprehension.IterVar2 is not null;
+        (CelType? variableType, CelType? secondType) = IterationTypes(comprehension.IterRange, rangeType, twoVariables);
         CelType? accumulatorType = Visit(comprehension.AccuInit);
         _locals.Add((comprehension.AccuVar, accumulatorType));
         _locals.Add((comprehension.IterVar, variableType));
+        if (comprehension.IterVar2 is { } iterVar2)
+        {
+            _locals.Add((iterVar2, secondType));
+        }
+
         _ = Expect(comprehension.LoopCondition, Visit(comprehension.LoopCondition), CelType.Bool);
         _ = Expect(comprehension.LoopStep, Visit(comprehension.LoopStep), accumulatorType);
         _locals.RemoveAt(_locals.Count - 1);
+        if (twoVariables)
+        {
+            _locals.RemoveAt(_locals.Count - 1);
+        }
+
         CelType? result = Visit(comprehension.Result);
         _locals.RemoveAt(_locals.Count - 1);
         return result;
     }
 
-    // The element type of a list, the key type of a map, dyn for dyn, error or a type parameter, which is
-    // bound to dyn; another type is InvalidComprehensionRange and the type error.
-    private CelType? IterationType(ExprNode range, CelType? rangeType)
+    // The types of the iteration variables. One variable: the element type of a list, the key type of a map. Two: the index, an int,
+    // and the element of a list; the key and the value of a map. Dyn for dyn, error or a type parameter, which is bound to dyn;
+    // another type is InvalidComprehensionRange and the type error for both. The second type is meaningful for two variables only.
+    private (CelType? First, CelType? Second) IterationTypes(ExprNode range, CelType? rangeType, bool twoVariables)
     {
         if (rangeType is null)
         {
-            return CelType.Dyn;
+            return (CelType.Dyn, CelType.Dyn);
         }
 
         CelType head = Head(rangeType);
         switch (head.Kind)
         {
             case CelTypeKind.List:
+                return twoVariables ? (CelType.Int, head.Parameters[0]) : (head.Parameters[0], null);
             case CelTypeKind.Map:
-                return head.Parameters[0];
+                return (head.Parameters[0], twoVariables ? head.Parameters[1] : null);
             case CelTypeKind.Dyn:
-                return head;
+                return (head, head);
             case CelTypeKind.TypeParameter:
                 _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
-                return CelType.Dyn;
+                return (CelType.Dyn, CelType.Dyn);
             default:
                 _errors.Add(CheckErrors.InvalidComprehensionRange(Shown(head), Location(range)));
-                return null;
+                return (null, null);
         }
     }
 

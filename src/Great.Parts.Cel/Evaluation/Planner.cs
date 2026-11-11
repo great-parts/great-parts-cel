@@ -24,6 +24,10 @@ internal sealed class Planner
     private const string AddFunction = "_+_";
     private const string IndexFunction = "_[_]";
 
+    // The function of the special form of a block and the prefix of the name of a slot reference.
+    private const string BlockFunction = "cel.@block";
+    private const string SlotPrefix = "@index";
+
     // The index overloads of the standard library.
     private const string IndexListId = "index_list";
     private const string IndexMapId = "index_map";
@@ -56,11 +60,20 @@ internal sealed class Planner
 
     private int _localCount;
 
+    // The blocks being planned that enclose the node being planned, the innermost last, and the totals that number the
+    // cells and the blocks of the plan.
+    private readonly List<BlockScope> _blocks = [];
+    private int _slotCount;
+    private int _blockCount;
+
     // Whether the node being planned was added by the expansion of a standard macro, and so costs nothing.
     private bool _added;
 
-    // The accumulator slot of the map or filter whose step is being planned; -1 outside one.
+    // The accumulator slot of the map, filter or transformList whose step is being planned; -1 outside one.
     private int _appendSlot = -1;
+
+    // The accumulator slot of the transformMap or transformMapEntry whose step is being planned; -1 outside one.
+    private int _insertSlot = -1;
 
     private Planner(ParsedExpression parsed, CheckedExpression? checkedExpression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones)
     {
@@ -84,7 +97,7 @@ internal sealed class Planner
     private Plan Build()
     {
         PlanNode root = Visit(_parsed.Root, out int stackSize);
-        return new Plan(root, _variables.Count, _localCount, stackSize, _parsed.Lines, _declarations.Types, _timeZones);
+        return new Plan(root, _variables.Count, _localCount, stackSize, _parsed.Lines, _declarations.Types, _slotCount, _blockCount, _timeZones);
     }
 
     // The node of a syntax node, and the most argument values on the stack at one time while it is
@@ -119,7 +132,7 @@ internal sealed class Planner
             case ConstantNode constant:
                 return new ConstantPlanNode(offset, constant.Value);
             case IdentNode identifier:
-                return VisitIdentifier(identifier, offset);
+                return VisitIdentifier(identifier, offset, out stackSize);
             case SelectNode select:
                 return VisitSelect(select, offset, out stackSize);
             case CallNode call:
@@ -140,15 +153,24 @@ internal sealed class Planner
         }
     }
 
-    private PlanNode VisitIdentifier(IdentNode identifier, int offset)
+    private PlanNode VisitIdentifier(IdentNode identifier, int offset, out int stackSize)
     {
+        stackSize = 0;
+        if (_blocks.Count > 0 && TryGetSlot(identifier.Name, out BlockScope? scope, out int number))
+        {
+            // The slot expression is evaluated on top of the values that the reading call has pushed: the stack that the
+            // slots of the block need together. A read inside a slot expression is part of that sum already.
+            stackSize = scope.InSlots ? 0 : scope.StackSize;
+            return new SlotPlanNode(offset, _added ? 0UL : 1UL, scope.Slots, number, identifier.Name);
+        }
+
         if (_checked is not null)
         {
             return VisitReference(_checked.References[identifier.Id], offset);
         }
 
         return identifier.Name[0] != '.' && TryGetLocal(identifier.Name, out int slot)
-            ? Local(offset, slot)
+            ? Local(offset, slot, identifier.Name)
             : VisitName(identifier, [], offset);
     }
 
@@ -159,7 +181,7 @@ internal sealed class Planner
         if (reference.Local is { } local)
         {
             _ = TryGetLocal(local, out int slot);
-            return Local(offset, slot);
+            return Local(offset, slot, local);
         }
 
         if (reference.Variable is { } variable)
@@ -175,7 +197,10 @@ internal sealed class Planner
         return new ConstantPlanNode(offset, CelValue.FromType(reference.TypeValue!), 1);
     }
 
-    private LocalPlanNode Local(int offset, int slot) => new(offset, slot, _added ? 0UL : 1UL);
+    // The read of a local: 1 unit, and nothing in the part that a macro adds or for the hidden name that sortBy binds its receiver to,
+    // which no text can write and which is part of the expansion.
+    private LocalPlanNode Local(int offset, int slot, string name) =>
+        new(offset, slot, _added || string.Equals(name, ExtensionMacros.SortByInput, StringComparison.Ordinal) ? 0UL : 1UL);
 
     private PlanNode VisitSelect(SelectNode select, int offset, out int stackSize)
     {
@@ -289,12 +314,94 @@ internal sealed class Planner
                     return new NotStrictlyFalsePlanNode(offset, Visit(arguments[0], out stackSize));
                 case AddFunction when _appendSlot >= 0 && IsAppend(arguments):
                     return new AppendPlanNode(offset, _appendSlot, Visit(((ListNode)arguments[1]).Elements[0], out stackSize));
+                case MapInsertPlanNode.Function when _insertSlot >= 0 && IsInsert(arguments):
+                    return VisitInsert(arguments, offset, out stackSize);
                 default:
                     break;
             }
         }
 
+        if (call.Target is null && arguments.Length == 2 && string.Equals(call.Function, BlockFunction, StringComparison.Ordinal))
+        {
+            return VisitBlock(call, offset, out stackSize);
+        }
+
         return _checked is null ? VisitUncheckedCall(call, offset, out stackSize) : VisitCheckedCall(call, offset, out stackSize);
+    }
+
+    // cel.@block(slots, result) with a list literal of slots, which type checking requires: one node for each slot
+    // expression and the node of the result, with a cell in the frame for each slot. A block of no slots is its result. A first
+    // argument that is not such a literal can only come from a tree that was not checked: the call has no candidates, so it
+    // is EvalNoMatchingOverload at the call after its arguments are evaluated.
+    private PlanNode VisitBlock(CallNode call, int offset, out int stackSize)
+    {
+        if (call.Arguments[0] is not ListNode { OptionalIndices.IsEmpty: true } list)
+        {
+            return new DispatchPlanNode(offset, call.Function, [], [], !_added, VisitAll(call.Arguments, out stackSize));
+        }
+
+        if (list.Elements.Length == 0)
+        {
+            return Visit(call.Arguments[1], out stackSize);
+        }
+
+        var slots = new BlockSlots(_blockCount++, _slotCount, list.Elements.Length);
+        _slotCount += slots.Count;
+        var scope = new BlockScope(slots);
+        _blocks.Add(scope);
+
+        // A slot may read any slot of its block, so each is planned with the scope in place. The stack of a read of a slot of
+        // this block is the sum of the stacks of its slot expressions: a chain of reads evaluates each slot at most once.
+        scope.InSlots = true;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            slots.Expressions[i] = Visit(list.Elements[i], out int slotStack);
+            scope.StackSize += slotStack;
+        }
+
+        scope.InSlots = false;
+        PlanNode result = Visit(call.Arguments[1], out stackSize);
+        _blocks.RemoveAt(_blocks.Count - 1);
+        return new BlockPlanNode(offset, slots.Block, result);
+    }
+
+    // The slot that an identifier of the form @indexN reads: N is the digits without a sign or a leading zero, and the block is
+    // the innermost enclosing one with more than N slots. Any other name stays an identifier.
+    private bool TryGetSlot(string name, [NotNullWhen(true)] out BlockScope? scope, out int number)
+    {
+        scope = null;
+        number = 0;
+        if (!name.StartsWith(SlotPrefix, StringComparison.Ordinal) || name.Length == SlotPrefix.Length)
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> digits = name.AsSpan(SlotPrefix.Length);
+        if (digits.Length > 9 || (digits[0] == '0' && digits.Length > 1))
+        {
+            return false;
+        }
+
+        foreach (char digit in digits)
+        {
+            if (digit is < '0' or > '9')
+            {
+                return false;
+            }
+
+            number = (number * 10) + (digit - '0');
+        }
+
+        for (int i = _blocks.Count - 1; i >= 0; i--)
+        {
+            if (number < _blocks[i].Slots.Count)
+            {
+                scope = _blocks[i];
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private ConditionalPlanNode VisitConditional(ImmutableArray<ExprNode> arguments, int offset, out int stackSize)
@@ -306,11 +413,27 @@ internal sealed class Planner
         return new ConditionalPlanNode(offset, condition, then, otherwise);
     }
 
-    // The step @result + [e] that the expansion of map and filter writes.
+    // The step @result + [e] that the expansion of map, filter and transformList writes.
     private static bool IsAppend(ImmutableArray<ExprNode> arguments) =>
         arguments.Length == 2
         && arguments[0] is IdentNode { Name: Macro.AccumulatorName }
         && arguments[1] is ListNode { Elements.Length: 1, OptionalIndices.IsEmpty: true };
+
+    // The step cel.@mapInsert(@result, k, v) or cel.@mapInsert(@result, m) that the expansion of transformMap and transformMapEntry writes.
+    private static bool IsInsert(ImmutableArray<ExprNode> arguments) =>
+        arguments.Length is 2 or 3 && arguments[0] is IdentNode { Name: Macro.AccumulatorName };
+
+    // The insertion into the map builder of the accumulator: the key, when the call has one, and the value or the map are planned;
+    // the accumulator is read from its slot. The key, the value and the map are evaluated one after the other, none of them waits on
+    // the argument stack.
+    private MapInsertPlanNode VisitInsert(ImmutableArray<ExprNode> arguments, int offset, out int stackSize)
+    {
+        int keyStack = 0;
+        PlanNode? key = arguments.Length == 3 ? Visit(arguments[1], out keyStack) : null;
+        PlanNode operand = Visit(arguments[^1], out int operandStack);
+        stackSize = Math.Max(keyStack, operandStack);
+        return new MapInsertPlanNode(offset, _insertSlot, key, operand);
+    }
 
     // A call with the candidates of the reference map. A call with a target whose candidates are global
     // overloads is the call of a qualified function name: the target is part of the name and is not
@@ -353,8 +476,12 @@ internal sealed class Planner
             marks.Add(Marks(candidate, argumentTypes));
         }
 
-        return new DispatchPlanNode(offset, call.Function, candidates, marks.MoveToImmutable(), !_added, arguments, prepared, _declarations.PatternCache);
+        return new DispatchPlanNode(offset, NameInErrors(call, candidates), candidates, marks.MoveToImmutable(), !_added, arguments, prepared, _declarations.PatternCache);
     }
+
+    // The name that an error of a call names: the qualified name when the target of the call is part of it, math.sqrt and not sqrt.
+    private static string NameInErrors(CallNode call, ImmutableArray<OverloadBinding> candidates) =>
+        call.Target is not null && !candidates.IsEmpty && !candidates[0].Declaration.IsReceiverStyle ? candidates[0].Function : call.Function;
 
     // A call of timestamp or duration on a string literal, run once at planning on a call site with no limit and no
     // database: a value becomes a constant that charges the units of the call it replaces, the fixed units and the cost of the
@@ -441,7 +568,7 @@ internal sealed class Planner
             marks.Add(all);
         }
 
-        return new DispatchPlanNode(offset, call.Function, candidates, marks.MoveToImmutable(), !_added, arguments, null, _declarations.PatternCache);
+        return new DispatchPlanNode(offset, call.Target is not null && !receiverStyle ? function : call.Function, candidates, marks.MoveToImmutable(), !_added, arguments, null, _declarations.PatternCache);
     }
 
     private static string ChainName(IdentNode root, List<SelectNode> chain)
@@ -471,9 +598,15 @@ internal sealed class Planner
     }
 
     // The arguments that Matches checks at depth: for an overload of the application all of them, for an
-    // overload of the library those whose static type does not cover the parameter type.
+    // overload of the library those whose static type does not cover the parameter type, and none for an overload that reads
+    // the elements of its arguments itself (ShallowArguments).
     private static ImmutableArray<bool> Marks(OverloadBinding overload, CelType[] argumentTypes)
     {
+        if (overload.ShallowArguments)
+        {
+            return ImmutableArray.Create(new bool[argumentTypes.Length]);
+        }
+
         if (overload.IsApplication)
         {
             return AllMarked(argumentTypes.Length);
@@ -548,19 +681,25 @@ internal sealed class Planner
         MacroCall? macro = string.Equals(comprehension.AccuVar, Macro.AccumulatorName, StringComparison.Ordinal)
             ? _parsed.GetMacroCall(comprehension.Id)
             : null;
-        bool appends = macro is not null && macro.Function is "map" or "filter";
+        bool appends = macro is not null && macro.Function is "map" or "filter" or "transformList";
+        bool inserts = macro is not null && macro.Function is "transformMap" or "transformMapEntry";
+        bool twoVariables = comprehension.IterVar2 is not null;
 
+        // The builder of a list or of a map is the initializer: the literal [] or {} that the expansion writes is not planned.
         PlanNode range = Visit(comprehension.IterRange, out int rangeStack);
         int initializerStack = 0;
-        PlanNode? initializer = appends ? null : Visit(comprehension.AccuInit, out initializerStack);
+        PlanNode? initializer = appends || inserts ? null : Visit(comprehension.AccuInit, out initializerStack);
         int accumulator = _localCount++;
         int variable = _localCount++;
+        int secondVariable = twoVariables ? _localCount++ : -1;
 
         bool added = _added;
         int appendSlot = _appendSlot;
+        int insertSlot = _insertSlot;
         if (macro is not null)
         {
-            for (int i = 1; i < macro.Arguments.Length; i++)
+            // The arguments after the names of the variables are the expressions of the author.
+            for (int i = twoVariables ? 2 : 1; i < macro.Arguments.Length; i++)
             {
                 _ = (_authored ??= new(ReferenceEqualityComparer.Instance)).Add(macro.Arguments[i]);
             }
@@ -570,17 +709,29 @@ internal sealed class Planner
 
         _locals.Add((comprehension.AccuVar, accumulator));
         _locals.Add((comprehension.IterVar, variable));
+        if (comprehension.IterVar2 is { } iterVar2)
+        {
+            _locals.Add((iterVar2, secondVariable));
+        }
+
         PlanNode condition = Visit(comprehension.LoopCondition, out int conditionStack);
         _appendSlot = appends ? accumulator : -1;
+        _insertSlot = inserts ? accumulator : -1;
         PlanNode step = Visit(comprehension.LoopStep, out int stepStack);
         _appendSlot = appendSlot;
+        _insertSlot = insertSlot;
         _locals.RemoveAt(_locals.Count - 1);
+        if (twoVariables)
+        {
+            _locals.RemoveAt(_locals.Count - 1);
+        }
+
         PlanNode result = Visit(comprehension.Result, out int resultStack);
         _locals.RemoveAt(_locals.Count - 1);
         _added = added;
 
         stackSize = Math.Max(Math.Max(rangeStack, initializerStack), Math.Max(conditionStack, Math.Max(stepStack, resultStack)));
-        return new ComprehensionPlanNode(offset, range, initializer, condition, step, result, variable, accumulator);
+        return new ComprehensionPlanNode(offset, range, initializer, condition, step, result, variable, accumulator, secondVariable, inserts);
     }
 
     private MapPlanNode VisitMap(StructNode map, int offset, out int stackSize)
@@ -642,5 +793,16 @@ internal sealed class Planner
         }
 
         return slot;
+    }
+
+    // A block being planned: its slots, whether its slot expressions are being planned and the stack that the slot
+    // expressions need together.
+    private sealed class BlockScope(BlockSlots slots)
+    {
+        internal BlockSlots Slots { get; } = slots;
+
+        internal bool InSlots { get; set; }
+
+        internal int StackSize { get; set; }
     }
 }

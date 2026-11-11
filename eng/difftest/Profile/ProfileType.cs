@@ -48,6 +48,16 @@ internal enum ProfileType
     /// <summary><c>dyn</c>: the type of a variable whose value has any kind.</summary>
     DynType,
 
+    /// <summary>
+    /// <c>net.IP</c>, the abstract type of the <c>network</c> set: no variable has it and no root, since the oracle returns
+    /// a value as <c>cel.expr.Value</c>, which has no form for it; a node of this type stands only where
+    /// <see cref="ProfileTables.AbstractResult"/> allows.
+    /// </summary>
+    IpType,
+
+    /// <summary><c>net.CIDR</c>, the abstract type of the <c>network</c> set; see <see cref="IpType"/>.</summary>
+    CidrType,
+
     /// <summary>The type parameter <c>A</c> of an overload: it takes a value of any type.</summary>
     ParameterAType,
 
@@ -78,6 +88,8 @@ internal static class ProfileTypeNames
         ProfileType.TimestampType => "timestamp",
         ProfileType.DurationType => "duration",
         ProfileType.DynType => "dyn",
+        ProfileType.IpType => "net.IP",
+        ProfileType.CidrType => "net.CIDR",
         ProfileType.ParameterAType => "A",
         ProfileType.ParameterBType => "B",
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Not a type of the profile."),
@@ -86,6 +98,10 @@ internal static class ProfileTypeNames
     /// <summary>Whether a type is a type parameter of an overload.</summary>
     /// <param name="type">The type.</param>
     internal static bool IsParameter(this ProfileType type) => type is ProfileType.ParameterAType or ProfileType.ParameterBType;
+
+    /// <summary>Whether a type is <c>net.IP</c> or <c>net.CIDR</c>: a type whose values the oracle cannot return.</summary>
+    /// <param name="type">The type.</param>
+    internal static bool IsAbstract(this ProfileType type) => type is ProfileType.IpType or ProfileType.CidrType;
 
     /// <summary>Whether a type is <c>timestamp</c> or <c>duration</c>: a type with no literal, whose values the constructors make.</summary>
     /// <param name="type">The type.</param>

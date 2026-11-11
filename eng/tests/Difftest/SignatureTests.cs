@@ -207,6 +207,63 @@ public sealed class SignatureTests
         FindingAssert.None(PendingFile.Findings(search.NewSignatures, pending));
     }
 
+    // The four known signatures of the extension sets, the records of the registry: an offset above the length of indexOf and
+    // lastIndexOf is an error here and -1 in cel-go, and a literal that is no address or no prefix is refused at compilation by
+    // cel-go and at evaluation by the library. The expressions that the registry names give them through the descent of every other
+    // case, so the profile needs no code of its own for them.
+    [Theory]
+    [InlineData("indexOf", "abc", "a", 4, "string_index_of_string_int(string, string, int) we-error")]
+    [InlineData("lastIndexOf", "abc", "", 4, "string_last_index_of_string_int(string, string, int) we-error")]
+    public static void OffsetAboveTheLength_GivesAKnownSignatureAndNoNewOne(string function, string subject, string needle, long offset, string signature)
+    {
+        Expr receiver = Quoted(subject);
+        Expr argument = Quoted(needle);
+        Expr index = new IntLiteral(offset, IntegerForm.DecimalDigits);
+        Expr root = new Call(function, [receiver, argument, index]) { Receiver = true };
+        (FakeSide librarySide, FakeSide oracleSide) = Sides(
+            (root, SideOutcome.EvaluationError("index out of range"), SideOutcome.Of(Int(-1))),
+            Agree(receiver, Str(subject)),
+            Agree(argument, Str(needle)),
+            Agree(index, Int(offset)));
+        DivergenceSearch search = new(librarySide, oracleSide, new FakeRecorder(), KnownSignatures.Of(signature));
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal(signature, divergence?.Signature);
+        Assert.Equal([signature], search.KnownSignaturesFound);
+        Assert.Empty(search.NewSignatures);
+        FindingAssert.None(PendingFile.Findings(search.NewSignatures, PendingFile.Build(search.NewSignatures)));
+    }
+
+    // The node is of an abstract type, so the descent asks for string(node); the node found is the same when it is a child.
+    [Theory]
+    [InlineData("ip", "1.2.3", "family", "string_to_ip(string) stage-mismatch")]
+    [InlineData("cidr", "10.0.0.0/33", "prefixLength", "string_to_cidr(string) stage-mismatch")]
+    public static void LiteralThatIsNoAddressOrPrefix_GivesAKnownSignatureAtTheNodeAndAtItsParent(string function, string text, string method, string signature)
+    {
+        Expr literal = Quoted(text);
+        Expr node = new Call(function, [literal]);
+        Expr parent = new Call(method, [node]) { Receiver = true };
+        SideOutcome library = SideOutcome.EvaluationError("invalid argument to " + function);
+        SideOutcome oracle = SideOutcome.CompileError(CompileStage.Check, "invalid argument");
+
+        foreach (Expr root in new[] { node, parent })
+        {
+            (Expr Node, SideOutcome Library, SideOutcome Oracle)[] outcomes = ReferenceEquals(root, node)
+                ? [(node, library, oracle), Agree(literal, Str(text))]
+                : [(root, library, oracle), (node, library, oracle), Agree(literal, Str(text))];
+            (FakeSide librarySide, FakeSide oracleSide) = Sides(outcomes);
+            DivergenceSearch search = new(librarySide, oracleSide, new FakeRecorder(), KnownSignatures.Of(signature));
+
+            Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+            Assert.Equal(signature, divergence?.Signature);
+            Assert.Same(node, divergence?.Case.Expression);
+            Assert.Equal([signature], search.KnownSignaturesFound);
+            Assert.Empty(search.NewSignatures);
+        }
+    }
+
     // The two known signatures of matches (the records of the registry of the class cel-go-bug): the expressions that the registry
     // names give them through the descent of every other case, so the profile needs no code of its own for them.
     [Theory]
@@ -1373,6 +1430,92 @@ public sealed class SignatureTests
         Assert.Single(search.NewSignatures);
     }
 
+    // ---- Minimization under cel.bind and the macros of two variables ----
+
+    // cel.bind: the name stands for its value, which is the one instance of the body. A known divergence of a body that reads the name
+    // is minimized to the body with the value in parentheses.
+    [Fact]
+    public void Bind_WithAKnownDivergenceInABodyThatReadsTheName_IsMinimizedToTheBodyWithTheValueInParentheses()
+    {
+        Expr x1 = new Ident("x1");
+        Expr d1 = new Ident("d1");
+        Expr body = new Call(ProfileTables.Greater, [new Ident("bn1"), d1]);
+        Expr instance = new Call(ProfileTables.Greater, [Parenthesized(x1), d1]);
+
+        AssertMinimizedToKnown(
+            new Comprehension(ProfileTables.BindMacro, x1, "bn1", [body]),
+            instance,
+            SideOutcome.EvaluationError("no such overload: _>_(bytes, double)"),
+            "_>_(bytes, double) we-error",
+            "(x1) > d1",
+            Agree(x1, Bytes(0x61)),
+            Agree(Parenthesized(x1), Bytes(0x61)),
+            Agree(d1, Dbl(double.NaN)));
+    }
+
+    // A macro of two variables whose body reads neither variable: the body is itself the instance.
+    [Fact]
+    public void TwoVariableMacro_WithAKnownDivergenceInABodyThatReadsNeitherVariable_IsMinimizedToTheBody()
+    {
+        Expr x1 = new Ident("x1");
+        Expr d1 = new Ident("d1");
+        Expr body = new Call(ProfileTables.Greater, [x1, d1]);
+        Expr range = new ListLiteral([I1], TrailingComma: false);
+
+        AssertMinimizedToKnown(
+            new Comprehension(ProfileTables.All, range, "i", [body]) { SecondVariable = "e" },
+            body,
+            SideOutcome.EvaluationError("no such overload: _>_(bytes, double)"),
+            "_>_(bytes, double) we-error",
+            "x1 > d1",
+            Agree(x1, Bytes(0x61)),
+            Agree(d1, Dbl(double.NaN)),
+            Agree(range, ListOf(Int(0))));
+    }
+
+    // A body that reads a variable of a macro of two variables has no instance for the element, since the element and its index or
+    // key are not replaced one by one: only its closed nodes are instances, and a divergence of a closed node is the case.
+    [Fact]
+    public void TwoVariableMacro_WithAKnownDivergenceInAClosedNodeOfABodyThatReadsAVariable_IsMinimizedToTheClosedNode()
+    {
+        Expr x1 = new Ident("x1");
+        Expr d1 = new Ident("d1");
+        Expr closed = new Call(ProfileTables.Greater, [x1, d1]);
+        Expr body = new Call(ProfileTables.Add, [new Ident("e"), closed]);
+        Expr range = new ListLiteral([I1], TrailingComma: false);
+
+        AssertMinimizedToKnown(
+            new Comprehension(ProfileTables.All, range, "i", [body]) { SecondVariable = "e" },
+            closed,
+            SideOutcome.EvaluationError("no such overload: _>_(bytes, double)"),
+            "_>_(bytes, double) we-error",
+            "x1 > d1",
+            Agree(x1, Bytes(0x61)),
+            Agree(d1, Dbl(double.NaN)),
+            Agree(range, ListOf(Int(0))));
+    }
+
+    // A divergence of a node that reads a variable of a macro of two variables is not found under the macro, and the case stays the
+    // macro with its own signature.
+    [Fact]
+    public void TwoVariableMacro_WithADivergenceOfANodeThatReadsAVariable_StaysTheMacro()
+    {
+        Expr d1 = new Ident("d1");
+        Expr body = new Call(ProfileTables.Greater, [new Ident("e"), d1]);
+        Expr range = new ListLiteral([I1], TrailingComma: false);
+        Expr root = new Comprehension(ProfileTables.All, range, "i", [body]) { SecondVariable = "e" };
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, SideOutcome.EvaluationError("no such overload: _>_(bytes, double)"), SideOutcome.Of(Bool(false))),
+            Agree(range, ListOf(Int(0))));
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal(root, divergence?.Case.Expression);
+        Assert.Equal("comprehension(list) we-error", divergence?.Signature);
+        Assert.Single(search.NewSignatures);
+    }
+
     // ---- ENG822 ----
 
     [Fact]
@@ -1469,7 +1612,7 @@ public sealed class SignatureTests
     /// no macro and no selection, so that the descent reaches i1.
     /// </summary>
     /// <param name="seed">The seed of the run.</param>
-    internal static ulong CallReadingI1(ulong seed) => Enumerable.Range(0, 1000).Select(n => (ulong)n)
+    internal static ulong CallReadingI1(ulong seed) => Enumerable.Range(0, 1000).Select(n => (ulong)n).Where(n => !CaseGenerator.IsExtensionCase(n))
         .First(n => CaseGenerator.Case(seed, n) is { Expression: Call } generated && ReadsI1(generated.Text, generated.Bindings)
             && !Nodes(generated.Expression).Any(node => node is Comprehension or Select or PresenceTest));
 
@@ -1559,7 +1702,7 @@ public sealed class SignatureTests
     private static (FakeSide Library, FakeSide Oracle) Sides(params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] outcomes)
     {
         Dictionary<string, (SideOutcome Library, SideOutcome Oracle)> table = outcomes.ToDictionary(
-            outcome => ExprPrinter.Print(outcome.Node),
+            outcome => ExprPrinter.PrintCase(outcome.Node),
             outcome => (outcome.Library, outcome.Oracle));
         return (
             new FakeSide((text, _) => table.TryGetValue(text, out (SideOutcome Library, SideOutcome Oracle) pair) ? pair.Library : Agreed),

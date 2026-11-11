@@ -121,7 +121,8 @@ public sealed class CelType : IEquatable<CelType>
     /// and <see cref="CelTypeKind.Type"/>, the type is defined by <see cref="Parameters"/>, in the order
     /// that member describes; for a wrapper <see cref="Name"/> is also the full name of the wrapper type.
     /// For <see cref="CelTypeKind.Object"/>, <see cref="Name"/> is the full name of the object type and
-    /// is the only thing that identifies it. For <see cref="CelTypeKind.TypeParameter"/>,
+    /// is the only thing that identifies it; for <see cref="CelTypeKind.Abstract"/>, the type of an
+    /// extension set, it is the full name too. For <see cref="CelTypeKind.TypeParameter"/>,
     /// <see cref="Name"/> is the name of the parameter within its overload.
     /// </para>
     /// <para>
@@ -241,6 +242,11 @@ public sealed class CelType : IEquatable<CelType>
         ArgumentException.ThrowIfNullOrEmpty(fullName);
         return new CelType(CelTypeKind.Object, fullName, []);
     }
+
+    // An abstract type of an extension set by its full name, with the parameters it has; none in this release. Only the sets
+    // create it, so there is no public factory.
+    internal static CelType AbstractNamed(string fullName, ImmutableArray<CelType> parameters) =>
+        new(CelTypeKind.Abstract, fullName, parameters);
 
     /// <summary>
     /// Creates a type parameter for a generic overload declaration, such as <c>T</c> in

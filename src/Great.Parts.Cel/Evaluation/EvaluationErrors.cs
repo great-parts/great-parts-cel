@@ -153,6 +153,13 @@ internal static class EvaluationErrors
     internal static CelValue FieldSelectionNotSupported(CelValueKind kind, string field, LineTable lines, int offset) =>
         Create(CelErrorCode.FieldSelectionNotSupported, FieldSelectionNotSupportedText, lines, offset, field, kind);
 
+    // The same for the value of the operand: a value of an abstract type is named by its type, any other by its kind.
+    internal static CelValue FieldSelectionNotSupported(CelValue operand, string field, LineTable lines, int offset) =>
+        operand.Kind == CelValueKind.Abstract
+            ? CelValue.FromError(new CelError(
+                CelErrorCode.FieldSelectionNotSupported, FieldSelectionNotSupportedText, lines, offset, field, ObjectName(operand, null), small: (byte)operand.Kind))
+            : FieldSelectionNotSupported(operand.Kind, field, lines, offset);
+
     // EvalInvalidComprehensionRange (3026): a range that is neither a list nor a map, at the range.
     internal static CelValue InvalidComprehensionRange(CelValue range, TypeIndex types, LineTable lines, int offset) =>
         CelValue.FromError(new CelError(
@@ -199,6 +206,11 @@ internal static class EvaluationErrors
     // an instance without one; null for a value of another kind, whose kind names it.
     private static object? ObjectName(CelValue value, TypeIndex? types)
     {
+        if (value.TryGetAbstract(out AbstractValue? content))
+        {
+            return content.Type.Name;
+        }
+
         if (value.Kind != CelValueKind.Object)
         {
             return null;
@@ -209,10 +221,12 @@ internal static class EvaluationErrors
     }
 
     // The name of the type of the value of an error by its kind; for an object value, the name kept in the second part.
-    private static string KindName(CelError error) =>
-        ErrorValueParts.KindOf(error) != CelValueKind.Object
-            ? ValueTypeNames.Of(ErrorValueParts.KindOf(error))
-            : error.Second is CelObjectType description ? description.Name : error.Second!.ToString()!;
+    private static string KindName(CelError error) => ErrorValueParts.KindOf(error) switch
+    {
+        CelValueKind.Object => error.Second is CelObjectType description ? description.Name : error.Second!.ToString()!,
+        CelValueKind.Abstract => (string)error.Second!,
+        CelValueKind kind => ValueTypeNames.Of(kind),
+    };
 
     // A key of one of the kinds of map keys, written as a CEL literal: int, uint, bool or string, as the printer of the
     // syntax tree writes a constant.

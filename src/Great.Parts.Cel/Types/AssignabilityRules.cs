@@ -155,9 +155,33 @@ internal static class AssignabilityRules
 
             // 5 and 8. Primitive types of the same kind; object types of the same full name.
             (CelTypeKind.Object, CelTypeKind.Object) => string.Equals(from.Name, to.Name, StringComparison.Ordinal),
+
+            // 8. Abstract types of the same full name, parameter by parameter.
+            (CelTypeKind.Abstract, CelTypeKind.Abstract) => string.Equals(from.Name, to.Name, StringComparison.Ordinal)
+                && AssignParameters(from, to, substitution, deducible, restricted),
             (CelTypeKind.List or CelTypeKind.Map or CelTypeKind.Type or CelTypeKind.TypeParameter or CelTypeKind.Optional, _) => false,
             _ => from.Kind == to.Kind,
         };
+    }
+
+    // The parameters of two abstract types of one name, one by one; the counts are equal when the names are, since a type of a
+    // set has a fixed number of parameters.
+    private static bool AssignParameters(CelType from, CelType to, TypeSubstitution substitution, ReadOnlySpan<CelType> deducible, bool restricted)
+    {
+        if (from.Parameters.Length != to.Parameters.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < from.Parameters.Length; i++)
+        {
+            if (!Assign(from.Parameters[i], to.Parameters[i], substitution, deducible, restricted))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // Tries a type against a type parameter: by its binding when it is bound, binding it when it is free. In a trial
@@ -231,9 +255,9 @@ internal static class AssignabilityRules
         return false;
     }
 
-    // The types that take null: null_type, wrappers, object types, and the types of time, optional and decimal that do once they are supported.
+    // The types that take null: null_type, wrappers, object types, abstract types, and the types of time, optional and decimal that do once they are supported.
     private static bool TakesNull(CelType type) => type.Kind is CelTypeKind.Null or CelTypeKind.Wrapper or CelTypeKind.Object
-        or CelTypeKind.Timestamp or CelTypeKind.Duration or CelTypeKind.Any or CelTypeKind.Optional;
+        or CelTypeKind.Timestamp or CelTypeKind.Duration or CelTypeKind.Any or CelTypeKind.Optional or CelTypeKind.Abstract;
 
     // The least upper bound of two types after the substitution.
     private static CelType General(CelType a, CelType b)

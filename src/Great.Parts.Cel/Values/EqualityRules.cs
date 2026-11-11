@@ -63,9 +63,23 @@ internal static class EqualityRules
             return ValueEquality.NotEqual;
         }
 
+        if (left.Kind == CelValueKind.Abstract)
+        {
+            return AbstractEqual(left, right, meter);
+        }
+
         return left.Kind == CelValueKind.Object
             ? ObjectRules.AreEqual(left, right, types, meter, out error, boundary)
             : SameKind(left, right, meter, out error, types, boundary);
+    }
+
+    // Two values of the kind Abstract: those of one abstract type compare by content, those of two types are unequal; eq is 1.
+    private static ValueEquality AbstractEqual(CelValue left, CelValue right, IEvaluationMeter? meter)
+    {
+        meter?.Charge(1);
+        _ = left.TryGetAbstract(out AbstractValue? leftContent);
+        _ = right.TryGetAbstract(out AbstractValue? rightContent);
+        return Result(leftContent!.ContentEquals(rightContent!));
     }
 
     /// <summary>

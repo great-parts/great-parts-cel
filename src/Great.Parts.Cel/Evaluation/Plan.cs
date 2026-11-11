@@ -10,13 +10,24 @@ namespace Great.Parts.Cel.Evaluation;
 // table of the text, the type index and the time zone database of the environment. It never changes, so it can be evaluated from any number of threads at once.
 internal sealed class Plan
 {
-    internal Plan(PlanNode root, int variableCount, int localCount, int stackSize, LineTable lines, TypeIndex types, CelTimeZoneDatabase? timeZones = null)
+    internal Plan(
+        PlanNode root,
+        int variableCount,
+        int localCount,
+        int stackSize,
+        LineTable lines,
+        TypeIndex types,
+        int slotCount = 0,
+        int blockCount = 0,
+        CelTimeZoneDatabase? timeZones = null)
     {
         Types = types;
         TimeZones = timeZones;
         Root = root;
         VariableCount = variableCount;
         LocalCount = localCount;
+        SlotCount = slotCount;
+        BlockCount = blockCount;
         StackSize = stackSize;
         Lines = lines;
     }
@@ -28,6 +39,12 @@ internal sealed class Plan
 
     // Two slots for each comprehension, its iteration variable and its accumulator.
     internal int LocalCount { get; }
+
+    // The cells of the slots of all blocks of the expression, one for each slot of each block.
+    internal int SlotCount { get; }
+
+    // The number of blocks of the expression, each with an epoch in the frame.
+    internal int BlockCount { get; }
 
     // The most argument values on the stack at one time.
     internal int StackSize { get; }

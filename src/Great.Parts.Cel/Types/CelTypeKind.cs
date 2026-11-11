@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Great.Parts.Cel.Types;
 
 /// <summary>
@@ -15,6 +17,10 @@ namespace Great.Parts.Cel.Types;
 /// The numeric values are part of the public contract and do not change.
 /// </para>
 /// </remarks>
+[SuppressMessage(
+    "Design",
+    "CA1027:Mark enums with FlagsAttribute",
+    Justification = "The numbers follow checked.proto and are not bit flags.")]
 public enum CelTypeKind
 {
     /// <summary>
@@ -116,4 +122,10 @@ public enum CelTypeKind
     /// </summary>
     Decimal = 18,
 #endif
+
+    /// <summary>
+    /// An abstract type of an extension set, such as <c>net.IP</c> of the <c>network</c> set: a named type that only the
+    /// functions of its set create and read. <see cref="CelType.Name"/> is its full name.
+    /// </summary>
+    Abstract = 19,
 }

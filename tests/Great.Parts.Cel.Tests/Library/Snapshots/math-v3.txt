@@ -1,0 +1,67 @@
+# The declarations of version 3 of the extension set math, in the order of the table. A published version never changes: a new function comes as a new version.
+# set <name> <version> | depends <set> | type <abstract type> | macro <name> <global or receiver> <argument count or *>
+# overload <function> <overload id> <global or receiver> (<parameter types, the receiver first>) -> <result type> [dyn] cost <five costs>
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a call charges before it runs
+# (the fixed units and the cost of the arguments) on probe arguments of size 0, 1, 10, 11 and 100: every string, bytes, list and map argument has that size at once,
+# an int is that size, a double is 1, a net.IP and a net.CIDR have a fixed value.
+set math 3
+macro math.greatest receiver *
+macro math.least receiver *
+overload math.@max math_@max_double global (double) -> double cost 1 1 1 1 1
+overload math.@max math_@max_int global (int) -> int cost 1 1 1 1 1
+overload math.@max math_@max_uint global (uint) -> uint cost 1 1 1 1 1
+overload math.@max math_@max_double_double global (double, double) -> double cost 1 1 1 1 1
+overload math.@max math_@max_int_int global (int, int) -> int cost 1 1 1 1 1
+overload math.@max math_@max_uint_uint global (uint, uint) -> uint cost 1 1 1 1 1
+overload math.@max math_@max_int_uint global (int, uint) -> dyn cost 1 1 1 1 1
+overload math.@max math_@max_int_double global (int, double) -> dyn cost 1 1 1 1 1
+overload math.@max math_@max_double_int global (double, int) -> dyn cost 1 1 1 1 1
+overload math.@max math_@max_double_uint global (double, uint) -> dyn cost 1 1 1 1 1
+overload math.@max math_@max_uint_int global (uint, int) -> dyn cost 1 1 1 1 1
+overload math.@max math_@max_uint_double global (uint, double) -> dyn cost 1 1 1 1 1
+overload math.@max math_@max_list_double global (list(double)) -> double cost 1 2 11 12 101
+overload math.@max math_@max_list_int global (list(int)) -> int cost 1 2 11 12 101
+overload math.@max math_@max_list_uint global (list(uint)) -> uint cost 1 2 11 12 101
+overload math.@min math_@min_double global (double) -> double cost 1 1 1 1 1
+overload math.@min math_@min_int global (int) -> int cost 1 1 1 1 1
+overload math.@min math_@min_uint global (uint) -> uint cost 1 1 1 1 1
+overload math.@min math_@min_double_double global (double, double) -> double cost 1 1 1 1 1
+overload math.@min math_@min_int_int global (int, int) -> int cost 1 1 1 1 1
+overload math.@min math_@min_uint_uint global (uint, uint) -> uint cost 1 1 1 1 1
+overload math.@min math_@min_int_uint global (int, uint) -> dyn cost 1 1 1 1 1
+overload math.@min math_@min_int_double global (int, double) -> dyn cost 1 1 1 1 1
+overload math.@min math_@min_double_int global (double, int) -> dyn cost 1 1 1 1 1
+overload math.@min math_@min_double_uint global (double, uint) -> dyn cost 1 1 1 1 1
+overload math.@min math_@min_uint_int global (uint, int) -> dyn cost 1 1 1 1 1
+overload math.@min math_@min_uint_double global (uint, double) -> dyn cost 1 1 1 1 1
+overload math.@min math_@min_list_double global (list(double)) -> double cost 1 2 11 12 101
+overload math.@min math_@min_list_int global (list(int)) -> int cost 1 2 11 12 101
+overload math.@min math_@min_list_uint global (list(uint)) -> uint cost 1 2 11 12 101
+overload math.ceil math_ceil_double global (double) -> double cost 1 1 1 1 1
+overload math.floor math_floor_double global (double) -> double cost 1 1 1 1 1
+overload math.round math_round_double global (double) -> double cost 1 1 1 1 1
+overload math.trunc math_trunc_double global (double) -> double cost 1 1 1 1 1
+overload math.isInf math_isInf_double global (double) -> bool cost 1 1 1 1 1
+overload math.isNaN math_isNaN_double global (double) -> bool cost 1 1 1 1 1
+overload math.isFinite math_isFinite_double global (double) -> bool cost 1 1 1 1 1
+overload math.abs math_abs_double global (double) -> double cost 1 1 1 1 1
+overload math.abs math_abs_int global (int) -> int cost 1 1 1 1 1
+overload math.abs math_abs_uint global (uint) -> uint cost 1 1 1 1 1
+overload math.sign math_sign_double global (double) -> double cost 1 1 1 1 1
+overload math.sign math_sign_int global (int) -> int cost 1 1 1 1 1
+overload math.sign math_sign_uint global (uint) -> uint cost 1 1 1 1 1
+overload math.bitAnd math_bitAnd_int_int global (int, int) -> int cost 1 1 1 1 1
+overload math.bitAnd math_bitAnd_uint_uint global (uint, uint) -> uint cost 1 1 1 1 1
+overload math.bitOr math_bitOr_int_int global (int, int) -> int cost 1 1 1 1 1
+overload math.bitOr math_bitOr_uint_uint global (uint, uint) -> uint cost 1 1 1 1 1
+overload math.bitXor math_bitXor_int_int global (int, int) -> int cost 1 1 1 1 1
+overload math.bitXor math_bitXor_uint_uint global (uint, uint) -> uint cost 1 1 1 1 1
+overload math.bitNot math_bitNot_int_int global (int) -> int cost 1 1 1 1 1
+overload math.bitNot math_bitNot_uint_uint global (uint) -> uint cost 1 1 1 1 1
+overload math.bitShiftLeft math_bitShiftLeft_int_int global (int, int) -> int cost 1 1 1 1 1
+overload math.bitShiftLeft math_bitShiftLeft_uint_int global (uint, int) -> uint cost 1 1 1 1 1
+overload math.bitShiftRight math_bitShiftRight_int_int global (int, int) -> int cost 1 1 1 1 1
+overload math.bitShiftRight math_bitShiftRight_uint_int global (uint, int) -> uint cost 1 1 1 1 1
+overload math.sqrt math_sqrt_double global (double) -> double cost 1 1 1 1 1
+overload math.sqrt math_sqrt_int global (int) -> double cost 1 1 1 1 1
+overload math.sqrt math_sqrt_uint global (uint) -> double cost 1 1 1 1 1

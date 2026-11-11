@@ -21,6 +21,13 @@ internal sealed class NodeFactory
     private ImmutableArray<int>.Builder? _macroIds;
     private ImmutableArray<MacroCall>.Builder? _macroCalls;
 
+    /// <summary>
+    /// The offset of a node this factory created.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The offset in UTF-16 code units from the start of the text.</returns>
+    internal int OffsetOf(ExprNode node) => _offsets[node.Id - 1];
+
     internal ConstantNode Constant(CelValue value, int offset) => new(NextId(offset), value);
 
     internal IdentNode Ident(string name, int offset) => new(NextId(offset), name);
@@ -68,7 +75,32 @@ internal sealed class NodeFactory
         ExprNode loopStep,
         ExprNode result,
         int offset) =>
-        new(NextId(offset), iterVar, iterRange, accuVar, accuInit, loopCondition, loopStep, result);
+        new(NextId(offset), iterVar, null, iterRange, accuVar, accuInit, loopCondition, loopStep, result);
+
+    /// <summary>
+    /// Creates a comprehension of two iteration variables: the index and the element of a list, the key and the value of a map.
+    /// </summary>
+    /// <param name="iterVar">The name of the first iteration variable.</param>
+    /// <param name="iterVar2">The name of the second iteration variable.</param>
+    /// <param name="iterRange">The range.</param>
+    /// <param name="accuVar">The name of the accumulator.</param>
+    /// <param name="accuInit">The initial value of the accumulator.</param>
+    /// <param name="loopCondition">The condition checked before each step.</param>
+    /// <param name="loopStep">The step.</param>
+    /// <param name="result">The result.</param>
+    /// <param name="offset">The offset of the node.</param>
+    /// <returns>The comprehension.</returns>
+    internal ComprehensionNode Comprehension(
+        string iterVar,
+        string iterVar2,
+        ExprNode iterRange,
+        string accuVar,
+        ExprNode accuInit,
+        ExprNode loopCondition,
+        ExprNode loopStep,
+        ExprNode result,
+        int offset) =>
+        new(NextId(offset), iterVar, iterVar2, iterRange, accuVar, accuInit, loopCondition, loopStep, result);
 
     /// <summary>
     /// Records a macro call as written under the id of its expansion, the last node created.

@@ -1,0 +1,26 @@
+# The declarations of version 5 of the extension set strings, in the order of the table. A published version never changes: a new function comes as a new version.
+# set <name> <version> | depends <set> | type <abstract type> | macro <name> <global or receiver> <argument count or *>
+# overload <function> <overload id> <global or receiver> (<parameter types, the receiver first>) -> <result type> [dyn] cost <five costs>
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a call charges before it runs
+# (the fixed units and the cost of the arguments) on probe arguments of size 0, 1, 10, 11 and 100: every string, bytes, list and map argument has that size at once,
+# an int is that size, a double is 1, a net.IP and a net.CIDR have a fixed value.
+set strings 5
+overload charAt string_char_at_int receiver (string, int) -> string cost 1 2 2 3 11
+overload indexOf string_index_of_string receiver (string, string) -> int cost 1 2 3 4 21
+overload indexOf string_index_of_string_int receiver (string, string, int) -> int cost 1 2 3 4 21
+overload lastIndexOf string_last_index_of_string receiver (string, string) -> int cost 1 2 3 4 21
+overload lastIndexOf string_last_index_of_string_int receiver (string, string, int) -> int cost 1 2 3 4 21
+overload lowerAscii string_lower_ascii receiver (string) -> string cost 1 2 2 3 11
+overload replace string_replace_string_string receiver (string, string, string) -> string cost 1 2 4 5 31
+overload replace string_replace_string_string_int receiver (string, string, string, int) -> string cost 1 2 4 5 31
+overload split string_split_string receiver (string, string) -> list(string) cost 1 2 3 4 21
+overload split string_split_string_int receiver (string, string, int) -> list(string) cost 1 2 3 4 21
+overload substring string_substring_int receiver (string, int) -> string cost 1 2 2 3 11
+overload substring string_substring_int_int receiver (string, int, int) -> string cost 1 2 2 3 11
+overload trim string_trim receiver (string) -> string cost 1 2 2 3 11
+overload upperAscii string_upper_ascii receiver (string) -> string cost 1 2 2 3 11
+overload join list_join receiver (list(string)) -> string cost 1 2 11 12 101
+overload join list_join_string receiver (list(string), string) -> string cost 1 3 12 14 111
+overload format string_format receiver (string, list(dyn)) -> string cost 1 3 12 14 111
+overload strings.quote strings_quote global (string) -> string cost 1 2 2 3 11
+overload reverse string_reverse receiver (string) -> string cost 1 2 2 3 11

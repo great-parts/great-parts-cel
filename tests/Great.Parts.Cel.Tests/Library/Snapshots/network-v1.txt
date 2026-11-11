@@ -1,0 +1,30 @@
+# The declarations of version 1 of the extension set network, in the order of the table. A published version never changes: a new function comes as a new version.
+# set <name> <version> | depends <set> | type <abstract type> | macro <name> <global or receiver> <argument count or *>
+# overload <function> <overload id> <global or receiver> (<parameter types, the receiver first>) -> <result type> [dyn] cost <five costs>
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a call charges before it runs
+# (the fixed units and the cost of the arguments) on probe arguments of size 0, 1, 10, 11 and 100: every string, bytes, list and map argument has that size at once,
+# an int is that size, a double is 1, a net.IP and a net.CIDR have a fixed value.
+set network 1
+type net.IP
+type net.CIDR
+overload ip string_to_ip global (string) -> net.IP cost 1 2 2 3 11
+overload ip cidr_ip receiver (net.CIDR) -> net.IP cost 1 1 1 1 1
+overload cidr string_to_cidr global (string) -> net.CIDR cost 1 2 2 3 11
+overload string ip_to_string global (net.IP) -> string cost 2 2 2 2 2
+overload string cidr_to_string global (net.CIDR) -> string cost 2 2 2 2 2
+overload isIP is_ip global (string) -> bool cost 1 2 2 3 11
+overload isCIDR is_cidr global (string) -> bool cost 1 2 2 3 11
+overload ip.isCanonical ip_is_canonical global (string) -> bool cost 1 2 2 3 11
+overload family ip_family receiver (net.IP) -> int cost 1 1 1 1 1
+overload isLoopback ip_is_loopback receiver (net.IP) -> bool cost 1 1 1 1 1
+overload isGlobalUnicast ip_is_global_unicast receiver (net.IP) -> bool cost 1 1 1 1 1
+overload isLinkLocalMulticast ip_is_link_local_multicast receiver (net.IP) -> bool cost 1 1 1 1 1
+overload isLinkLocalUnicast ip_is_link_local_unicast receiver (net.IP) -> bool cost 1 1 1 1 1
+overload isUnspecified ip_is_unspecified receiver (net.IP) -> bool cost 1 1 1 1 1
+overload containsIP cidr_contains_ip_ip receiver (net.CIDR, net.IP) -> bool cost 1 1 1 1 1
+overload containsIP cidr_contains_ip_string receiver (net.CIDR, string) -> bool cost 1 2 2 3 11
+overload containsCIDR cidr_contains_cidr receiver (net.CIDR, net.CIDR) -> bool cost 1 1 1 1 1
+overload containsCIDR cidr_contains_cidr_string receiver (net.CIDR, string) -> bool cost 1 2 2 3 11
+overload isMask cidr_is_mask receiver (net.CIDR) -> bool cost 1 1 1 1 1
+overload masked cidr_masked receiver (net.CIDR) -> net.CIDR cost 1 1 1 1 1
+overload prefixLength cidr_prefix_length receiver (net.CIDR) -> int cost 1 1 1 1 1

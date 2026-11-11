@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
+using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
 
@@ -73,18 +75,27 @@ public static class CelEnvironmentJson
     /// found while reading; empty when the description was applied.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="builder"/> is <see langword="null"/>.</exception>
-    public static ImmutableArray<CelError> Apply(CelEnvironmentBuilder builder, ReadOnlySpan<byte> utf8Json)
+    public static ImmutableArray<CelError> Apply(CelEnvironmentBuilder builder, ReadOnlySpan<byte> utf8Json) =>
+        Apply(builder, utf8Json, CelExtensions.Names, CelExtensions.Create);
+
+    // The same with the sets that a description may name and the way to make the set of a name and a version: the catalog of the
+    // library for the public method, a catalog of the tests otherwise.
+    internal static ImmutableArray<CelError> Apply(
+        CelEnvironmentBuilder builder,
+        ReadOnlySpan<byte> utf8Json,
+        FrozenSet<string> extensionNames,
+        Func<string, uint, CelExtension> createExtension)
     {
         ArgumentNullException.ThrowIfNull(builder);
         ReadOnlySpan<byte> json = utf8Json.StartsWith(ByteOrderMark) ? utf8Json[ByteOrderMark.Length..] : utf8Json;
-        EnvironmentDescription description = EnvironmentReader.Read(json);
+        EnvironmentDescription description = EnvironmentReader.Read(json, extensionNames);
         string label = Label(description);
         if (!description.Errors.IsEmpty)
         {
             return Errors(json, description, label);
         }
 
-        Call(builder, description, label, Positions(json, description, label));
+        Call(builder, description, label, Positions(json, description, label), createExtension);
         return [];
     }
 
@@ -101,8 +112,18 @@ public static class CelEnvironmentJson
 
     // The second phase: the calls of the builder, each with the label and the position of its declaration. The first phase
     // checked every condition of these calls, so none of them throws.
-    private static void Call(CelEnvironmentBuilder builder, EnvironmentDescription description, string label, Dictionary<int, CelSourceLocation> positions)
+    private static void Call(
+        CelEnvironmentBuilder builder,
+        EnvironmentDescription description,
+        string label,
+        Dictionary<int, CelSourceLocation> positions,
+        Func<string, uint, CelExtension> createExtension)
     {
+        foreach (PendingExtension extension in description.Extensions)
+        {
+            builder.AddExtension(createExtension(extension.Name, extension.Version), label, positions[extension.ByteIndex]);
+        }
+
         if (description.Container is { } container)
         {
             builder.UseContainer(container.Name, label, positions[container.ByteIndex]);
@@ -158,6 +179,11 @@ public static class CelEnvironmentJson
     private static Dictionary<int, CelSourceLocation> Positions(ReadOnlySpan<byte> json, EnvironmentDescription description, string label)
     {
         SortedSet<int> indexes = [];
+        foreach (PendingExtension extension in description.Extensions)
+        {
+            indexes.Add(extension.ByteIndex);
+        }
+
         if (description.Container is { } container)
         {
             indexes.Add(container.ByteIndex);

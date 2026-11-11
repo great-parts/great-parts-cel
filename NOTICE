@@ -64,7 +64,7 @@ not be used in advertising or otherwise to promote the sale, use or other
 dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
-The file tests/Great.Parts.Cel.Tests/Regex/Data/re2-search.txt is an unchanged copy of src/regexp/testdata/re2-search.txt of the Go programming language, release go1.27.3 (https://go.dev), Copyright 2009 The Go Authors, licensed under the BSD 3-Clause license of Go, whose text follows. The file is used by the tests only and is not part of the packages.
+The file tests/Great.Parts.Cel.Tests/Regex/Data/re2-search.txt is an unchanged copy of src/regexp/testdata/re2-search.txt of the Go programming language, release go1.27.3 (https://go.dev), and the file src/Great.Parts.Cel/Library/Extensions/Network/AddressParser.cs is a port of the functions ParseAddr, ParsePrefix, parseIPv4Fields and parseIPv6 in src/net/netip/netip.go of the same release, both Copyright 2009 The Go Authors, licensed under the BSD 3-Clause license of Go, whose text follows. The test file is used by the tests only and is not part of the packages; the parser is part of the packages.
 
 Copyright 2009 The Go Authors.
 

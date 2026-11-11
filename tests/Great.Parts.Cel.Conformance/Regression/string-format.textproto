@@ -1,0 +1,16 @@
+# Minimized case of a known divergence from cel-go in %s of bytes. The expectation of the case is the answer of cel-go.
+
+name: "string_format"
+description: "%s of a bytes value that is not valid UTF-8"
+section {
+  name: "bytes_argument"
+  description: "cel-go keeps the raw byte in a Go string; the library replaces it with U+FFFD, and bytes() of the result shows the difference"
+  test {
+    name: "invalid_utf8"
+    description: "string_format(string, list) value-mismatch"
+    expr: "bytes('%s'.format([b'\\xff']))"
+    value: {
+      bytes_value: "\377"
+    }
+  }
+}

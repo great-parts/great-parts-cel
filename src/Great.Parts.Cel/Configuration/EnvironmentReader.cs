@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
@@ -29,6 +30,12 @@ internal readonly record struct PendingContainer(string Name, int ByteIndex);
 internal readonly record struct PendingVariable(CelVariableDecl Declaration, int ByteIndex);
 
 /// <summary>
+/// An element of the array <c>extensions</c> whose name the catalog has and whose version is valid, and the byte index of its
+/// <c>{</c>.
+/// </summary>
+internal readonly record struct PendingExtension(string Name, uint Version, int ByteIndex);
+
+/// <summary>
 /// A function of the array <c>functions</c>, the byte index of the <c>{</c> of its element and those of its overloads, in the
 /// order of the overloads of the declaration.
 /// </summary>
@@ -41,10 +48,11 @@ internal sealed record PendingFunction(CelFunctionDecl Declaration, int ByteInde
 internal sealed record PendingObjectType(CelObjectType Type, int ByteIndex, ImmutableArray<int> FieldIndexes);
 
 /// <summary>
-/// What the first phase of <see cref="CelEnvironmentJson.Apply"/> read from an environment description.
+/// What the first phase of <see cref="CelEnvironmentJson.Apply(CelEnvironmentBuilder, ReadOnlySpan{byte})"/> read from an environment description.
 /// </summary>
 /// <param name="Name">The value of the key <c>name</c>, or <see langword="null"/> when the description has no such string.</param>
 /// <param name="Container">The pending call <c>UseContainer</c>, or <see langword="null"/> without one.</param>
+/// <param name="Extensions">The pending builder calls <c>AddExtension</c>, in the order of the array <c>extensions</c>.</param>
 /// <param name="Variables">The pending builder calls <c>AddVariable(name, type)</c>, in the order of the array <c>variables</c>.</param>
 /// <param name="Functions">The pending builder calls <c>AddFunction(declaration)</c>, in the order of the array <c>functions</c>.</param>
 /// <param name="ObjectTypes">The object types that form one provider, in the order of the array <c>objectTypes</c>.</param>
@@ -52,6 +60,7 @@ internal sealed record PendingObjectType(CelObjectType Type, int ByteIndex, Immu
 internal sealed record EnvironmentDescription(
     string? Name,
     PendingContainer? Container,
+    ImmutableArray<PendingExtension> Extensions,
     ImmutableArray<PendingVariable> Variables,
     ImmutableArray<PendingFunction> Functions,
     ImmutableArray<PendingObjectType> ObjectTypes,
@@ -69,6 +78,8 @@ internal sealed record EnvironmentDescription(
 internal sealed partial class EnvironmentReader
 {
     private readonly List<JsonError> _errors = [];
+    private readonly ImmutableArray<PendingExtension>.Builder _extensions = ImmutableArray.CreateBuilder<PendingExtension>();
+    private readonly FrozenSet<string> _extensionNames;
     private readonly ImmutableArray<PendingVariable>.Builder _variables = ImmutableArray.CreateBuilder<PendingVariable>();
     private readonly ImmutableArray<PendingFunction>.Builder _functions = ImmutableArray.CreateBuilder<PendingFunction>();
     private readonly ImmutableArray<PendingObjectType>.Builder _objectTypes = ImmutableArray.CreateBuilder<PendingObjectType>();
@@ -79,22 +90,25 @@ internal sealed partial class EnvironmentReader
     private bool _nameIsRepeated;
     private PendingContainer? _container;
 
-    private EnvironmentReader()
+    private EnvironmentReader(FrozenSet<string> extensionNames)
     {
+        _extensionNames = extensionNames;
     }
 
     /// <summary>
     /// Reads an environment description.
     /// </summary>
     /// <param name="json">The JSON text without the byte order mark.</param>
+    /// <param name="extensionNames">The names of the extension sets that the description may name.</param>
     /// <returns>What the description holds and its errors.</returns>
-    internal static EnvironmentDescription Read(ReadOnlySpan<byte> json)
+    internal static EnvironmentDescription Read(ReadOnlySpan<byte> json, FrozenSet<string> extensionNames)
     {
-        EnvironmentReader reader = new();
+        EnvironmentReader reader = new(extensionNames);
         reader.ReadText(json);
         return new EnvironmentDescription(
             reader._nameIsRepeated ? null : reader._name,
             reader._container,
+            reader._extensions.ToImmutable(),
             reader._variables.ToImmutable(),
             reader._functions.ToImmutable(),
             reader._objectTypes.ToImmutable(),

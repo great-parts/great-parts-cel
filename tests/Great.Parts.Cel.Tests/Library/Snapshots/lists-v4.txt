@@ -1,0 +1,30 @@
+# The declarations of version 4 of the extension set lists, in the order of the table. A published version never changes: a new function comes as a new version.
+# set <name> <version> | depends <set> | type <abstract type> | macro <name> <global or receiver> <argument count or *>
+# overload <function> <overload id> <global or receiver> (<parameter types, the receiver first>) -> <result type> [dyn] cost <five costs>
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a call charges before it runs
+# (the fixed units and the cost of the arguments) on probe arguments of size 0, 1, 10, 11 and 100: every string, bytes, list and map argument has that size at once,
+# an int is that size, a double is 1, a net.IP and a net.CIDR have a fixed value.
+set lists 4
+macro sortBy receiver 2
+overload slice list_slice receiver (list(T), int, int) -> list(T) cost 1 1 1 1 1
+overload flatten list_flatten receiver (list(list(T))) -> list(T) cost 1 2 11 12 101
+overload flatten list_flatten_int receiver (list(dyn), int) -> list(dyn) cost 1 2 11 12 101
+overload sort list_int_sort receiver (list(int)) -> list(int) cost 1 3 51 56 801
+overload sort list_uint_sort receiver (list(uint)) -> list(uint) cost 1 3 51 56 801
+overload sort list_double_sort receiver (list(double)) -> list(double) cost 1 3 51 56 801
+overload sort list_bool_sort receiver (list(bool)) -> list(bool) cost 1 3 51 56 801
+overload sort list_google.protobuf.Duration_sort receiver (list(duration)) -> list(duration) cost 1 3 51 56 801
+overload sort list_google.protobuf.Timestamp_sort receiver (list(timestamp)) -> list(timestamp) cost 1 3 51 56 801
+overload sort list_string_sort receiver (list(string)) -> list(string) cost 1 3 51 56 801
+overload sort list_bytes_sort receiver (list(bytes)) -> list(bytes) cost 1 3 51 56 801
+overload @sortByAssociatedKeys list_int_sortByAssociatedKeys receiver (list(T), list(int)) -> list(T) cost 1 3 51 56 801
+overload @sortByAssociatedKeys list_uint_sortByAssociatedKeys receiver (list(T), list(uint)) -> list(T) cost 1 3 51 56 801
+overload @sortByAssociatedKeys list_double_sortByAssociatedKeys receiver (list(T), list(double)) -> list(T) cost 1 3 51 56 801
+overload @sortByAssociatedKeys list_bool_sortByAssociatedKeys receiver (list(T), list(bool)) -> list(T) cost 1 3 51 56 801
+overload @sortByAssociatedKeys list_google.protobuf.Duration_sortByAssociatedKeys receiver (list(T), list(duration)) -> list(T) cost 1 3 51 56 801
+overload @sortByAssociatedKeys list_google.protobuf.Timestamp_sortByAssociatedKeys receiver (list(T), list(timestamp)) -> list(T) cost 1 3 51 56 801
+overload @sortByAssociatedKeys list_string_sortByAssociatedKeys receiver (list(T), list(string)) -> list(T) cost 1 3 51 56 801
+overload @sortByAssociatedKeys list_bytes_sortByAssociatedKeys receiver (list(T), list(bytes)) -> list(T) cost 1 3 51 56 801
+overload lists.range lists_range global (int) -> list(int) cost 1 2 11 12 101
+overload reverse list_reverse receiver (list(T)) -> list(T) cost 1 2 11 12 101
+overload distinct list_distinct receiver (list(T)) -> list(T) cost 1 2 11 12 101

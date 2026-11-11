@@ -201,7 +201,7 @@ internal static partial class ConversionRules
     // The name of the type of a value in the message of ResultConversion: of an object value its description, or the
     // .NET type of an instance without one.
     private static string TypeName(CelValue value, TypeIndex? types) =>
-        value.Kind == CelValueKind.Object ? ObjectRules.TypeName(value, types) : ValueTypeNames.Of(value.Kind);
+        ValueTypeRules.NameOf(value, types);
 
     /// <summary>
     /// Converts an argument of a typed delegate to its parameter type <typeparamref name="T"/>. The argument fits the
@@ -281,7 +281,7 @@ internal static partial class ConversionRules
     /// <param name="location">The position of the root of the expression.</param>
     /// <returns>The error of the stage <see cref="CelErrorStage.Evaluate"/>.</returns>
     internal static CelError ResultConversionError<T>(CelValue value, CelSourceLocation location) =>
-        ResultConversionError<T>(ValueTypeNames.Of(value.Kind), location);
+        ResultConversionError<T>(ValueTypeRules.NameOf(value, null), location);
 
     /// <summary>
     /// Creates the error <see cref="CelErrorCode.ResultConversion"/> naming the given CEL type.

@@ -33,12 +33,12 @@ internal static class BuildErrors
     internal static CelError MissingImplementation(string overloadId, string function, CelSourceLocation? sourceLocation = null) =>
         Create(CelErrorCode.MissingImplementation, "overload '" + overloadId + "' of function '" + function + "' has no implementation", sourceLocation);
 
-    // {declarationKind} is variable, overload or field; the hint is empty until the types of time, optional and decimal
-    // are supported.
-    internal static CelError TypeNotDeclared(string declarationKind, string name, string type, CelSourceLocation? sourceLocation = null) =>
+    // {declarationKind} is variable, overload or field; the hint is empty, or names the extension set that declares the type
+    // (from the part of the types of time, optional and decimal on, those too).
+    internal static CelError TypeNotDeclared(string declarationKind, string name, string type, CelSourceLocation? sourceLocation = null, string hint = "") =>
         Create(
             CelErrorCode.TypeNotDeclared,
-            declarationKind + " '" + name + "' has type '" + type + "', which no type source or extension of the environment declares",
+            declarationKind + " '" + name + "' has type '" + type + "', which no type source or extension of the environment declares" + hint,
             sourceLocation);
 
     internal static CelError DuplicateType(string name, string source1, string source2, CelSourceLocation? sourceLocation) =>
@@ -74,6 +74,35 @@ internal static class BuildErrors
             "name resolution container '" + container1 + "' of " + source1 + " conflicts with container '" + container2 + "' of " + source2,
             sourceLocation);
 
+    // {versions} are the numbers of the catalog in ascending order, written for the message.
+    internal static CelError UnknownExtensionVersion(string name, string version, string versions, CelSourceLocation? sourceLocation = null) =>
+        Create(
+            CelErrorCode.UnknownExtensionVersion,
+            "extension '" + name + "' has no version " + version + "; available versions: " + versions,
+            sourceLocation);
+
+    internal static CelError ExtensionVersionConflict(string name, string version1, string version2, CelSourceLocation? sourceLocation = null) =>
+        Create(CelErrorCode.ExtensionVersionConflict, "extension '" + name + "' is added in versions " + version1 + " and " + version2, sourceLocation);
+
+    internal static CelError DuplicateExtension(string name, string version, string source1, string source2, CelSourceLocation? sourceLocation = null) =>
+        Create(
+            CelErrorCode.DuplicateExtension,
+            "extension '" + name + "' version " + version + " is added as two different sets: " + source1 + " and " + source2,
+            sourceLocation);
+
+    // {dependent} is the label of the set that asks, such as extension strings v5.
+    internal static CelError MissingExtensionDependency(string dependent, string name, CelSourceLocation? sourceLocation = null) =>
+        Create(
+            CelErrorCode.MissingExtensionDependency,
+            dependent + " requires extension '" + name + "', which is not added to the environment",
+            sourceLocation);
+
+    // A function of the application with the form of a macro that a set of the environment brings.
+    internal static CelError ExtensionMacroConflict(string function, string source, string extension, string macro, CelSourceLocation? sourceLocation = null) =>
+        Create(
+            CelErrorCode.StandardLibraryConflict,
+            "function '" + function + "' of " + source + " conflicts with " + extension + ": it has the form of the macro '" + macro + "'",
+            sourceLocation);
     internal static CelError TimeZoneDatabaseConflict() =>
         Create(CelErrorCode.TimeZoneDatabaseConflict, "a different time zone database is already added to the environment");
 

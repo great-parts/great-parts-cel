@@ -30,6 +30,8 @@ internal sealed class OverloadBinding
         string source,
         bool isApplication = false,
         bool dynOnly = false,
+        bool shallowArguments = false,
+        CallValidator? validator = null,
         ConstantArgument? constantArgument = null)
     {
         Function = function;
@@ -40,10 +42,18 @@ internal sealed class OverloadBinding
         Source = source;
         IsApplication = isApplication;
         DynOnly = dynOnly;
+        ShallowArguments = shallowArguments;
+        Validator = validator;
         ConstantArgument = constantArgument;
         _topLevelTypes = TopLevel(declaration.ParameterTypes);
         _isIndexList = !isApplication && string.Equals(declaration.OverloadId, IndexListId, StringComparison.Ordinal);
     }
+
+    // The same binding with another declaration of the same overload, whose types the environment resolved.
+    internal OverloadBinding WithDeclaration(CelOverloadDecl declaration) =>
+        ReferenceEquals(declaration, Declaration)
+            ? this
+            : new(Function, declaration, Implementation, FixedCost, ArgumentCost, Source, IsApplication, DynOnly, ShallowArguments, Validator, ConstantArgument);
 
     // The name of the function in the syntax tree, such as _+_.
     internal string Function { get; }
@@ -67,6 +77,14 @@ internal sealed class OverloadBinding
     // Whether the overload is a candidate only when an argument has the static type dyn: the ordering
     // across int, uint and double.
     internal bool DynOnly { get; }
+
+    // Whether the planner marks no argument for the check at depth, whatever its static type: Matches checks the top level of
+    // each argument and the implementation reads the elements itself. False for every overload of the standard library.
+    internal bool ShallowArguments { get; }
+
+    // The check of a call at compilation that the checker runs after the traversal of the tree; null for none, as for every
+    // overload of the standard library.
+    internal CallValidator? Validator { get; }
 
     // The argument that is prepared once when a call has a string literal there; null for every overload but matches and
     // matches_string. An overload of the application never has one.

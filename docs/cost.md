@@ -147,6 +147,127 @@ Everything else that the expansion adds is part of the step and costs 0: the rea
 | `exists_one` | 1 for each step, without a short circuit |
 | `map` (2 and 3 arguments), `filter` | 1 for each step; the result is a list: 1 for the empty list and 1 for each element added |
 
+## Extension sets
+
+A call of a function of an extension set is charged like a call of the standard library: a fixed part and, where the cost grows with the data, a part computed from the arguments, both charged before the function runs; what the function builds while it runs is charged as the result grows, before the memory it needs is taken. An argument that is invalid without any work on the data gives its error after the constant unit alone. The rows of each set are given with the set, see [Extension sets](extensions.md).
+
+- **Macros of sets** are charged by their expansion, as the standard macros above are: the expressions that the author wrote by their own rows, 1 for each executed step, and what the expansion adds by the rows of its set.
+- **A set of the application** costs as the functions of the application do: 1 unit for a call and the cost function of the overload, see Functions of the application below.
+
+### Set `strings`
+
+A call passes over its strings: the part of the arguments is charged before the function runs, the part of the result before the result is created or, for `replace` and `split`, as the result is built. The lengths are in UTF-16 code units, although the indexes of these functions are in code points: finding the code point of an index takes a pass over the string, which the term ⌈Lₐ/10⌉ pays for. A result that equals the receiver, such as that of `replace` without a match, is charged as the copy it could have been. In the table, k is the number of parts that `split` makes.
+
+| Overloads | Units |
+| :- | :- |
+| `string_char_at_int`, `string_substring_int`, `string_substring_int_int`, `string_trim`, `string_lower_ascii`, `string_upper_ascii`, `string_reverse`, `strings_quote` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉; an index error comes after 1 + ⌈Lₐ/10⌉, since it has no result |
+| `string_index_of_string`, `string_index_of_string_int`, `string_last_index_of_string`, `string_last_index_of_string_int` | 1 + ⌈Lₐ/10⌉ |
+| `string_replace_string_string`, `string_replace_string_string_int` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with Lₐ the lengths of the three strings; the result is charged as it grows |
+| `string_split_string`, `string_split_string_int` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ + k, with Lᵣ the sum of the lengths of the parts; each part is charged, 1 and its share of Lᵣ, before it is created |
+| `list_join`, `list_join_string` | 1 + n + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with Lₐ the lengths of the elements and of the separator |
+| `string_format` | 1 + n + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with n the size of the list and Lₐ the length of the format string alone; the result, with the text of the nested lists and maps in it, is charged as it is built, so the units of a map are those of the length of its text; an error ends the call after the units charged so far |
+
+For example, `'a,b,c'.split(',')` costs 1 + 1 + 1 + 3 = 6, `['a', 'b'].join('-')` costs 1 + 2 + 1 + 1 = 5 beyond the list literal, and `'%s-%d'.format(['a', 1])` costs 1 + 2 + 1 + 1 = 5 beyond the list literal.
+
+### Set `sets`
+
+Each element that is looked up in the other list is an `in` over it: 1 unit and eq of each pair compared, up to the first equal element, each charged before the comparison. The call itself is 1 unit.
+
+| Overloads | Units |
+| :- | :- |
+| `list_sets_contains_list` | 1 + the sum, over the elements of the second list in order, of 1 + eq of the pairs compared with the first list; the first element that is missing ends the call |
+| `list_sets_intersects_list` | 1 + the sum, over the elements of the first list in order, of 1 + eq of the pairs compared with the second list; the first element that is found ends the call |
+| `list_sets_equivalent_list` | 1 + the sums of `contains(a, b)` and, when that is `true`, of `contains(b, a)`, each without its own 1 |
+
+For example, `sets.contains([1, 2, 3], [1, 2])` costs 1 + (1 + 1) + (1 + 2) = 6 beyond the two list literals.
+
+### Set `lists`
+
+A call is 1 unit and the part of its arguments that the call node charges before the function runs; what the function builds is charged before it is built. In the table n is the size of the list the call works on, and k the size of the result of `slice`, known from the indexes. The units of the size of a result are charged with the call, so a limit stops the call before the memory is taken.
+
+| Overloads | Units |
+| :- | :- |
+| `list_slice` | 1 + k; an index that is invalid gives its error after the 1 of the call, since it has no result |
+| `lists_range` | 1 + n for the argument n from 0 to 1,000,000; an argument below 0 or above the limit gives its error after the 1 of the call, before the formula is charged |
+| `list_reverse` | 1 + n |
+| `list_flatten`, `list_flatten_int` | 1 + v, with v the sum of the sizes of the lists that `flatten` descends into: the receiver, and the nested lists not deeper than the depth, which is 1 for `flatten()`. The size of the receiver is charged with the call, the size of each nested list before its elements are viewed |
+| `list_int_sort`, `list_uint_sort`, `list_double_sort`, `list_bool_sort`, `list_google.protobuf.Duration_sort`, `list_google.protobuf.Timestamp_sort` | 1 + n + n · ⌈log₂(n + 1)⌉, with ⌈log₂(n + 1)⌉ the bit length of n |
+| `list_string_sort`, `list_bytes_sort` | 1 + n + c · n · ⌈log₂(n + 1)⌉, with c = 1 + ⌈2 · Lmax/10⌉ for the longest element, found in one pass before the call is charged |
+| `list_<U>_sortByAssociatedKeys` | the same, with n and Lmax of the list of keys and c by the type `U` |
+| `list_distinct` | 1 + n + the units of the equality of each pair compared, each charged before the comparison; each element is compared with the ones kept, in order, up to the first equal one |
+
+The macro `sortBy` is charged by its expansion: the receiver; the empty list that is the range of the binding, 1, charged although no list is made; the `map` of the keys as the standard macro charges it — 1 for the empty list, 1 for each step and the expression of the key, 1 for each key added; and the call of `@sortByAssociatedKeys` by its row. The reads of the hidden names cost nothing.
+
+For example, `[3, 1, 2].sort()` costs the list literal 4 and the call 1 + 3 + 3 · 2 = 10, 14 in all, and `[3, 1, 2].sortBy(e, e)` costs 4 + 1 + 10 + 10 = 25.
+
+### Set `encoders`
+
+A call is 1 unit. The two functions of base64 add ⌈Lₐ/10⌉ for the length of their argument, charged before the function runs, and ⌈Lᵣ/10⌉ for the length of the result, charged before the result is created. `json.encode` is charged as its text grows: every node of the value gives at least one character, so the walk of the value is inside the charge, and the text of a map, which is first written in the order of its entries, is charged once, by its length.
+
+| Overloads | Units |
+| :- | :- |
+| `base64_encode_bytes` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with Lₐ the number of bytes and Lᵣ = 4 · ⌈Lₐ/3⌉ |
+| `base64_decode_string` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with Lₐ the length of the text and Lᵣ the number of bytes, known after a pass that validates the text and counts them, which an invalid text ends without a charge for the result |
+| `json_encode_dyn` | 1 + ⌈Lᵣ/10⌉, with Lᵣ the length of the text; a value that has no JSON ends the call after the units charged for the text written so far |
+
+For example, `base64.encode(b'abc')` costs 1 + 1 + 1 = 3, and `json.encode([])` costs 1 + 1 = 2 beyond the list literal.
+
+### Set `math`
+
+A call is 1 unit; the list forms of `math.@max` and `math.@min` add 1 for each element of the list, charged before the function reads the first element. The macros `math.greatest` and `math.least` are charged by their expansion: the arguments by their own rows, then the call of `math.@max` or `math.@min`, and for three arguments or more the list literal that holds them, which is a list of n elements, 1 + n.
+
+| Overloads | Units |
+| :- | :- |
+| `math_@max_double`, `math_@max_int`, `math_@max_uint`, the pairs and the mixed pairs of `math.@max`, and the same for `math.@min` | 1 |
+| `math_@max_list_double`, `math_@max_list_int`, `math_@max_list_uint`, `math_@min_list_double`, `math_@min_list_int`, `math_@min_list_uint` | 1 + n for a list of n elements |
+| `math_ceil_double`, `math_floor_double`, `math_round_double`, `math_trunc_double`, `math_isInf_double`, `math_isNaN_double`, `math_isFinite_double`, `math_abs_double`, `math_abs_int`, `math_abs_uint`, `math_sign_double`, `math_sign_int`, `math_sign_uint`, `math_sqrt_double`, `math_sqrt_int`, `math_sqrt_uint` | 1 |
+| `math_bitAnd_int_int`, `math_bitAnd_uint_uint`, `math_bitOr_int_int`, `math_bitOr_uint_uint`, `math_bitXor_int_int`, `math_bitXor_uint_uint`, `math_bitNot_int_int`, `math_bitNot_uint_uint`, `math_bitShiftLeft_int_int`, `math_bitShiftLeft_uint_int`, `math_bitShiftRight_int_int`, `math_bitShiftRight_uint_int` | 1 |
+
+An error of the function — a NaN, the empty list, the least `int` of `math.abs`, a negative offset — comes after the units of the call, which are charged before the function runs.
+
+For example, `math.greatest(i, j, 3)` with the variables `i` and `j` costs the two reads 2, the list literal 1 + 3 and the call of `math_@max_list_int` 1 + 3, 10 in all; `math.greatest(1, 2)` costs 1, the call of `math_@max_int_int`.
+
+### Set `bindings`
+
+`cel.bind` is a comprehension over an empty list, charged by its expansion: 1 for the empty list that is the range, charged although the evaluation creates no list, no step, the expressions of the author by their own rows, and 1 for each read of the bound name in the result. `cel.@block`, the function that no text can write, costs nothing itself: a slot costs what its expression costs, once, at its first read; each read of a slot is 1, as the read of a variable is; a slot that nothing reads costs nothing.
+
+| Overload or macro | Units |
+| :- | :- |
+| `cel.bind(name, value, result)` | 1 + the cost of `value` + the cost of `result`, each read of `name` in `result` counted as 1 |
+| `cel_block_list` | 0 beyond the slots that are read and the result |
+
+For example, `cel.bind(x, 1, x + 1)` costs 1 + 0 + (1 + 0 + 1) = 3.
+
+### Set `two-var-comprehensions`
+
+The macros of two variables are charged by their expansion, as the standard macros are: the range and the expressions that the author wrote — the predicate, the filter and the transformation — by their own rows, 1 for each step that is executed, the initial value of the accumulator, and the elements of a result that is built as they are added. The reads of the accumulator, and of the first variable that `transformMap` hands to `cel.@mapInsert`, are part of the step and cost 0; the reads of a name that the author wrote cost 1, as any read does.
+
+| Macro | Units |
+| :- | :- |
+| `all`, `exists` | 1 for each executed step; the steps after a short circuit are not executed |
+| `existsOne`, `exists_one` | 1 for each step, without a short circuit |
+| `transformList` | 1 for the empty list, 1 for each executed step and 1 for each element added |
+| `transformMap`, `transformMapEntry` | 1 for the empty map and 1 for each executed step, then the pairs by the rows of `cel.@mapInsert` below |
+
+| Overload | Units |
+| :- | :- |
+| `@mapInsert_map_key_value` | 2 for the pair put in and ⌈L/10⌉ more for a string key of length L, charged before the pair is put in; no constant unit |
+| `@mapInsert_map_map` | 2m for m pairs put in and ⌈L/10⌉ more for each string key of length L, pair by pair, after the enumeration of the second map that its row charges for a map view ordered by key or for a JSON object |
+
+A step that adds nothing, because its filter is false or the map of `transformMapEntry` has no pairs, costs the step and the expressions it evaluated. For example, `[7, 8, 9].transformMap(i, v, v)` costs the list literal 1 + 3, the empty map 1, and for each of the three steps 1, the read of `v` 1 and the pair 2: 4 + 1 + 12 = 17. `[1, 2].all(i, v, v > i)` costs the list literal 3 and for each of the two steps 1 and the comparison with its two reads, 1 + 3: 3 + 8 = 11.
+
+### Set `network`
+
+A call is 1 unit. The seven overloads that parse a string add ⌈Lₐ/10⌉ for its length, and the two conversions to text add ⌈Lᵣ/10⌉ for the length of the text, which is known from the family and the digits of the address before the text is made. Both are charged before the function runs, so a parse that fails has been paid for. A value of `net.IP` or `net.CIDR` is one object of at most 48 bytes, so no row needs more than the unit it has; the equality of two such values is 1.
+
+| Overloads | Units |
+| :- | :- |
+| `string_to_ip`, `string_to_cidr`, `is_ip`, `is_cidr`, `ip_is_canonical`, `cidr_contains_ip_string`, `cidr_contains_cidr_string` | 1 + ⌈Lₐ/10⌉, with Lₐ the length of the string |
+| `ip_to_string`, `cidr_to_string` | 1 + ⌈Lᵣ/10⌉, with Lᵣ the length of the text that is made |
+| `cidr_ip`, `ip_family`, `ip_is_loopback`, `ip_is_unspecified`, `ip_is_link_local_unicast`, `ip_is_link_local_multicast`, `ip_is_global_unicast`, `cidr_prefix_length`, `cidr_is_mask`, `cidr_masked`, `cidr_contains_ip_ip`, `cidr_contains_cidr` | 1 |
+
+For example, `ip('192.168.0.1')` costs 1 + 2 = 3, and `string(ip('1.2.3.4'))` costs 1 + 1 = 2 beyond the call of `ip`.
+
 ## Data of the application
 
 The rows below are charged by the node or the implementation that does the work, before it, as the rows of the sections above. The rows for a JSON object replace the cost of the same operations on a map, they are not added to it: the key lookup (an index, a selection, `has()`) instead of the class Read with a string key and the index of a map, `in` instead of `in` on a map, and "`size`, enumeration" instead of the `size` of a map. The row for the index of a JSON array replaces the unit that the index of a list costs.

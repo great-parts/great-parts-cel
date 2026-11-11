@@ -73,6 +73,21 @@ internal sealed record Call(string Function, IReadOnlyList<Expr> Args) : Expr
     /// takes in the expression; <see langword="null"/> for any other call. It is not printed and not read by a run.
     /// </summary>
     internal GeneratedPattern? Pattern { get; init; }
+
+    /// <summary>
+    /// For a call of a function of an extension set, the identifier of the overload that the generator aimed at; it is not
+    /// printed and not read by a run. <see langword="null"/> for a call of the standard library and for a call that is made to
+    /// be refused.
+    /// </summary>
+    internal string? Overload { get; init; }
+
+    /// <summary>
+    /// What the generator put in on purpose so that the expression is refused at parsing or at compilation on both sides:
+    /// <c>math-refused</c> for a call of <c>math.greatest</c> or <c>math.least</c> that the macro refuses, <c>format</c> for a
+    /// format string and a list literal, both constant, that the check of a call of <c>format</c> refuses.
+    /// <see langword="null"/> for any other call.
+    /// </summary>
+    internal string? Fault { get; init; }
 }
 
 /// <summary>A selection <c>e.f</c>.</summary>
@@ -85,12 +100,20 @@ internal sealed record Select(Expr Operand, string Field) : Expr;
 /// <param name="Field">The field: one of <see cref="ProfileTables.FieldNames"/>.</param>
 internal sealed record PresenceTest(Expr Operand, string Field) : Expr;
 
-/// <summary>A macro on a range: <c>r.all(v, p)</c>, <c>r.map(v, p, e)</c>.</summary>
-/// <param name="Macro">The macro: one of <see cref="ProfileTables.Macros"/>.</param>
-/// <param name="Range">The range, of the static type <c>list</c>, <c>map</c> or <c>dyn</c>.</param>
-/// <param name="Variable">The iteration variable: one of <see cref="ProfileTables.IterationVariables"/>.</param>
+/// <summary>
+/// A macro on a range: <c>r.all(v, p)</c>, <c>r.map(v, p, e)</c>; of an extension set the two-variable macros
+/// <c>r.all(i, v, p)</c> and <c>r.transformList(i, v, p, t)</c> (<see cref="SecondVariable"/>), <c>r.sortBy(v, k)</c> and
+/// <c>cel.bind(v, init, body)</c>, whose <see cref="Range"/> is the value that the name is bound to.
+/// </summary>
+/// <param name="Macro">The macro: one of <see cref="ProfileTables.Macros"/>, or a macro of an extension set.</param>
+/// <param name="Range">The range, of the static type <c>list</c>, <c>map</c> or <c>dyn</c>; for <c>cel.bind</c> the bound value.</param>
+/// <param name="Variable">The iteration variable: one of <see cref="ProfileTables.IterationVariables"/>, a name of a two-variable macro or of a binding.</param>
 /// <param name="Arguments">The arguments after the variable: a predicate, a transform, or a predicate and a transform.</param>
-internal sealed record Comprehension(string Macro, Expr Range, string Variable, IReadOnlyList<Expr> Arguments) : Expr;
+internal sealed record Comprehension(string Macro, Expr Range, string Variable, IReadOnlyList<Expr> Arguments) : Expr
+{
+    /// <summary>The second variable of a two-variable macro: the element or the value; <see langword="null"/> for any other macro.</summary>
+    internal string? SecondVariable { get; init; }
+}
 
 /// <summary>A list literal.</summary>
 /// <param name="Elements">The elements.</param>

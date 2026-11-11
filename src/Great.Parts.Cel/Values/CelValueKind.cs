@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Great.Parts.Cel.Values;
 
 /// <summary>
@@ -16,6 +18,10 @@ namespace Great.Parts.Cel.Values;
 /// default branch. The numeric values are part of the public contract and do not change.
 /// </para>
 /// </remarks>
+[SuppressMessage(
+    "Design",
+    "CA1027:Mark enums with FlagsAttribute",
+    Justification = "The numbers follow value.proto and are not bit flags.")]
 public enum CelValueKind
 {
     /// <summary>
@@ -106,4 +112,11 @@ public enum CelValueKind
     /// </summary>
     Decimal = 15,
 #endif
+
+    /// <summary>
+    /// A value of an abstract type of an extension set, such as <c>net.IP</c>. This release has no <c>TryGet…</c>
+    /// method for it: an expression reads it through the functions of its set, and an application receives it as a
+    /// <see cref="CelValue"/>.
+    /// </summary>
+    Abstract = 16,
 }

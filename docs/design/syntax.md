@@ -122,6 +122,10 @@ Each is a `ComprehensionNode` with `IterVar` `v`, `IterRange` `r` and `AccuVar` 
 
 `InvalidMacroCall` (1006), and the call is not expanded, when: the first argument of a comprehension macro is not a simple identifier (`argument must be a simple name`); it is `__result__`, the accumulator of cel-go without the hidden one (`iteration variable overwrites accumulator variable`); the argument of `has` is not a selection, `.?f` included (`argument must be a field selection`).
 
+## Macros of extension sets
+
+The macros of `math`, `lists`, `bindings` and of two iteration variables, their keys, expansions, the texts of their errors, and the second iteration variable of `ComprehensionNode` are on [extension-macros](extension-macros.md). The options of an environment hold them in the `MacroTable` that `Build` makes from the standard macros and those of the sets the environment has.
+
 ## Limits and the stack
 
 The values are those of the limits page ([limits](../limits.md)); none can be configured.
@@ -145,7 +149,7 @@ All have the stage `Parse`.
 | `NestingTooDeep` (1003) | `{depthKind} depth exceeds the limit of 250` | see "Limits" |
 | `TooManyErrors` (1004) | `more than 100 syntax errors; parsing stopped` | the place of the error it replaces |
 | `ReservedIdentifier` (1005) | `reserved identifier '{name}'` | the identifier |
-| `InvalidMacroCall` (1006) | `invalid call of macro '{macro}': {detail}` | the `(` of the call |
+| `InvalidMacroCall` (1006) | `invalid call of macro '{macro}': {detail}` | the `(` of the call; for a macro of an extension set, the node at which cel-go reports ([extension-macros](extension-macros.md#errors-of-the-expansion)) |
 | `SyntaxNotEnabled` (1007) | `'.?'`, `'[?'` or `'?' is not enabled: add the extension set optional`; `decimal literal is not enabled: enable decimal literals in the environment builder`, in `net10.0` `…: decimal requires .NET 11` | the `?`; the literal |
 | `InsufficientStack` (9000) | `insufficient execution stack to continue parsing` | the current token |
 

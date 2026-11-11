@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Immutable;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
@@ -40,11 +39,12 @@ public sealed class CelEnvironment
     // The declarations the environment was built from, for ToBuilder.
     private readonly DeclarationSet _declarationSet;
 
-    internal CelEnvironment(CelStandardLibrary standardLibrary, DeclarationSet declarationSet, DeclarationIndex declarations, PatternCache patternCache)
+    internal CelEnvironment(CelStandardLibrary standardLibrary, DeclarationSet declarationSet, DeclarationIndex declarations, SyntaxOptions syntax, PatternCache patternCache)
     {
         _standardLibrary = standardLibrary;
         _declarationSet = declarationSet;
         Declarations = declarations;
+        Syntax = syntax;
         PatternCache = patternCache;
     }
 
@@ -199,9 +199,13 @@ public sealed class CelEnvironment
         }
     }
 
-    // The declarations of the standard library version and of the application, indexed for checking
+    // The declarations of the standard library version, of the extension sets and of the application, indexed for checking
     // and evaluation.
     internal DeclarationIndex Declarations { get; }
+
+    // The syntax of the environment: SyntaxOptions.Standard unless an extension set brings macros or syntax. Every path that
+    // parses a text, Compile and Evaluate included, uses it.
+    internal SyntaxOptions Syntax { get; }
 
     // The programs of the patterns of matches that the programs of this environment have seen. Empty when the environment is built,
     // so a new environment and the one that ToBuilder().Build() gives each have a cache of their own; the same object that
@@ -222,14 +226,10 @@ public sealed class CelEnvironment
     /// </param>
     /// <returns>The parsed expression, or the errors of the stage <see cref="CelErrorStage.Parse"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
-    [SuppressMessage(
-        "Performance",
-        "CA1822:Mark members as static",
-        Justification = "An instance member of the environment by design (docs/design/facade.md, \"Internal entry points\"): parsing uses the syntax options of the environment. Every environment has SyntaxOptions.Standard until extension sets bring syntax (docs/design/syntax.md, \"Syntax options\"), and this suppression is removed with them.")]
     internal ParseResult Parse(string expression, SyntaxOptions? syntax = null)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        return ParseWithinBoundary(new Parser(expression, syntax ?? SyntaxOptions.Standard), static parser => parser.Run());
+        return ParseWithinBoundary(new Parser(expression, syntax ?? Syntax), static parser => parser.Run());
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using Great.Parts.Cel.Diagnostics;
 
 namespace Great.Parts.Cel.Declarations;
@@ -32,23 +33,33 @@ namespace Great.Parts.Cel.Declarations;
 /// of different sets that are the same or overlap are a build error
 /// <see cref="CelErrorCode.OverlappingOverloads"/> that names both sets.
 /// </para>
-/// <para>An extension set is immutable and can be shared between threads and environments.</para>
+/// <para>
+/// An extension set is immutable and can be shared between threads and environments. The rules that hold for every set, the
+/// catalog with the versions and the checks of the build are on the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md">Extension sets</see>.
+/// </para>
 /// </remarks>
 public sealed class CelExtension
 {
-    private CelExtension()
+    // The definition is null for a set of the catalog that has no such version; the available versions are those that the
+    // catalog has under the name, for the error UnknownExtensionVersion.
+    internal CelExtension(string name, uint version, ExtensionDefinition? definition, ImmutableArray<uint> availableVersions)
     {
+        Name = name;
+        Version = version;
+        Definition = definition;
+        AvailableVersions = availableVersions;
     }
 
     /// <summary>
     /// The name of the set, such as <c>strings</c>, which build errors show together with the version.
     /// </summary>
-    public string Name => throw new NotImplementedException();
+    public string Name { get; }
 
     /// <summary>
     /// The version of the set. Version numbers are unsigned, as in cel-go.
     /// </summary>
-    public uint Version => throw new NotImplementedException();
+    public uint Version { get; }
 
     /// <summary>
     /// Builds an extension set of the application, for example a group of functions shared by several
@@ -93,6 +104,47 @@ public sealed class CelExtension
         IReadOnlyDictionary<string, CelFunctionImplementation> implementations,
         params ReadOnlySpan<string> dependencies)
     {
-        throw new NotImplementedException();
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementations);
+        foreach (CelFunctionDecl function in functions)
+        {
+            ArgumentNullException.ThrowIfNull(function, nameof(functions));
+        }
+
+        foreach (KeyValuePair<string, CelFunctionImplementation> implementation in implementations)
+        {
+            ArgumentNullException.ThrowIfNull(implementation.Value, nameof(implementations));
+        }
+
+        foreach (string dependency in dependencies)
+        {
+            ArgumentException.ThrowIfNullOrEmpty(dependency, nameof(dependencies));
+        }
+
+        return new CelExtension(name, version, ApplicationExtension.Create(name, version, functions, implementations, dependencies), []);
+    }
+
+    // What the set is made of; null for a set of the catalog whose version the catalog lacks, which Build reports.
+    internal ExtensionDefinition? Definition { get; }
+
+    // The versions of the name that the catalog has, ascending; empty for a set of the application.
+    internal ImmutableArray<uint> AvailableVersions { get; }
+
+    // Whether the set was built with Create, not taken from the catalog.
+    internal bool IsApplication => Definition is ApplicationExtension;
+
+    // Two sets are the same set when they hold the same definition, or when both come from the catalog and have the same
+    // name and version, a missing definition included. A set of the application is the same only as itself.
+    internal bool IsSameSetAs(CelExtension other)
+    {
+        if (ReferenceEquals(this, other) || (Definition is not null && ReferenceEquals(Definition, other.Definition)))
+        {
+            return true;
+        }
+
+        return !IsApplication
+            && !other.IsApplication
+            && Version == other.Version
+            && string.Equals(Name, other.Name, StringComparison.Ordinal);
     }
 }

@@ -49,7 +49,7 @@ internal sealed class SelectPlanNode : PlanNode
 
         if (!operand.TryGetMap(out CelMap? map))
         {
-            return EvaluationErrors.FieldSelectionNotSupported(operand.Kind, _field, frame.Lines, Offset);
+            return EvaluationErrors.FieldSelectionNotSupported(operand, _field, frame.Lines, Offset);
         }
 
         if (frame.Metered)

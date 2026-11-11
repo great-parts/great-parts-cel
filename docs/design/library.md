@@ -93,6 +93,56 @@ internal readonly struct CallSite
 - The cost of a call is charged before the operation, in three ways. A cost known from the arguments — fixed units, lengths of strings and bytes, the size of a list — is `FixedCost` and `ArgumentCost`, which the call node charges before the implementation runs. Equality, `!=` and `in_list` charge eq of each pair before comparing it: `EqualityRules` takes the meter of the call site, and without a limit there is none. A result whose length is known only from its content charges its part through `CallSite.Charge` before it is created: the text of a number is formatted into a stack buffer first, `string_to_bytes` and `bytes_to_string` count the result with a pass that the part of the arguments already paid for. Without a limit nothing is computed.
 - ⌈x/10⌉ is computed as `(x + 9) / 10` in `ulong`.
 
+## Cost of the extension sets
+
+The overloads of the sets carry their cost as those of the standard library do ([extensions](extensions.md)): `FixedCost` and `ArgumentCost` are charged by the call node before the implementation runs, the rest through `CallSite.Charge` while it runs, each part before the memory or the work it pays for. A test compares every binding of the catalog with the table below, and a snapshot records the units of each overload on the probes of [tests](tests.md#snapshots-of-the-extension-sets). The units are the rows of the cost table of the documentation; `Lₐ`, `Lᵣ`, n and k are those of its notation.
+
+**Invalid arguments.** An argument that is invalid without any work on the data gives its error with the constant unit alone: `ArgumentCost` answers 0 for it. This holds for `lists.range` with n below 0 or above 1 000 000, for `slice` with an index that is negative, past the other or past the list, and for `flatten` with a negative depth. It does not hold for the string functions with an index or an offset: their bounds are in code points, whose check passes over the string, so the formula of the call is charged before the error.
+
+| Overloads | Units | Charged |
+| :- | :- | :- |
+| `string_char_at_int`, `string_substring_int`, `string_substring_int_int`, `string_trim`, `string_lower_ascii`, `string_upper_ascii`, `string_reverse`, `strings_quote` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ | the first two terms as the argument cost, the receiver being Lₐ; Lᵣ known after the scan that finds the result, charged once before the string is created |
+| `string_index_of_string`, `string_index_of_string_int`, `string_last_index_of_string`, `string_last_index_of_string_int` | 1 + ⌈Lₐ/10⌉ | Lₐ the lengths of the receiver and the argument; the search counts steps for its property, not units |
+| `string_replace_string_string`, `string_replace_string_string_int` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ | Lₐ the lengths of the three strings; Lᵣ as the result grows, ⌈(T + l)/10⌉ − ⌈T/10⌉ before each piece of length l is appended; the result that equals the receiver is charged as a copy |
+| `string_split_string`, `string_split_string_int` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ + k | Lₐ the receiver and the separator; Lᵣ the sum of the lengths of the parts and k their number, charged part by part before each is added |
+| `list_join`, `list_join_string` | 1 + n + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ | Lₐ the lengths of the elements and of the separator, one pass over the list in the argument cost; Lᵣ known from them before the string is created |
+| `string_format` | 1 + n + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ | [extension-format](extension-format.md#evaluation-and-cost) |
+| `math_@max_double`, `_int`, `_uint`, the pairs and the mixed pairs, the same for `@min`; every other overload of `math` except the list forms | 1 | the fixed cost |
+| `math_@max_list_double`, `_int`, `_uint`, and `@min` | 1 + n | the list size, in the argument cost |
+| `list_slice` | 1 + k, k the size of the result | k from the indexes, O(1) |
+| `lists_range` | 1 + n | n the argument |
+| `list_reverse` | 1 + n | |
+| `list_flatten`, `list_flatten_int` | 1 + v, v the sum of the sizes of the lists that `flatten` descends into: the receiver and the nested lists not deeper than the depth, which is 1 for `flatten()`. `[[1, 2], [3]].flatten()` is v = 2 + 2 + 1 = 5; `[[1, [2, 3]], [4]].flatten(2)` is v = 2 + 2 + 1 + 2 = 7 | the size of the receiver in the argument cost, the size of each nested list before its elements are viewed |
+| `list_<T>_sort` | 1 + n + c · n · ⌈log₂(n + 1)⌉ | c is 1 for the kinds `int`, `uint`, `double`, `bool`, `duration`, `timestamp`; 1 + ⌈2 · Lmax/10⌉ for `string` and `bytes`, Lmax the longest element, found in one pass in the argument cost; ⌈log₂(n + 1)⌉ is the bit length of n |
+| `list_<U>_sortByAssociatedKeys` | the same, n and Lmax of the list of keys, c by the kind `U` | |
+| `list_distinct` | 1 + n + Σ eq | the first two terms in the argument cost; eq of each pair compared, in the reference order of [extension-library](extension-library.md#lists), before the comparison |
+| `list_sets_contains_list`, `list_sets_intersects_list` | 1 + Σ (1 + Σ eq) | each looked-up element is an `in` by the row of `in_list`, in the order of [extensions](extensions.md#sets-version-0): `sets.contains([1, 2, 3], [1, 2])` is 6 |
+| `list_sets_equivalent_list` | 1 + the sum of the first `contains` and, when it is `true`, of the second, each without its constant 1 | `sets.equivalent([1, 2], [2, 1])` is 11 |
+| `base64_encode_bytes` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, Lᵣ = 4 · ⌈Lₐ/3⌉ | the whole in one step before the string is created |
+| `base64_decode_string` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ | Lᵣ the number of bytes, known after the pass that validates the text, charged before the array is created |
+| `json_encode_dyn` | 1 + ⌈Lᵣ/10⌉ | as the text grows; every node of the value gives a character, so the walk is inside the charge |
+| `cel_block_list` | 0 | the slots and the result pay for themselves ([evaluation](evaluation.md#blocks)) |
+| `@mapInsert_map_key_value` | 2 for the pair and ⌈L/10⌉ for a string key of length L | before the pair is put in; no constant unit |
+| `@mapInsert_map_map` | 2m for m pairs and ⌈L/10⌉ for each string key | pair by pair; before the first pair, the enumeration of a map view or of a JSON object as for the range of a comprehension |
+| `string_to_ip`, `string_to_cidr`, `is_ip`, `is_cidr`, `ip_is_canonical`, `cidr_contains_ip_string`, `cidr_contains_cidr_string` | 1 + ⌈Lₐ/10⌉ | the argument cost |
+| `ip_to_string`, `cidr_to_string` | 1 + ⌈Lᵣ/10⌉ | Lᵣ known before the text is made |
+| the other 12 overloads of `network` | 1 | the fixed cost |
+
+**Macros.** The cost of a macro is that of its expansion ([extension-macros](extension-macros.md#cost)):
+
+| Macro | Units beyond the expressions the author wrote |
+| :- | :- |
+| `math.greatest`, `math.least` | the call of `math.@max` or `math.@min`; with three arguments or more also the list literal of the arguments, 1 + n: `math.greatest(i, j, 3)` is the two reads 2, the list 1 + 3, the call of `math_@max_list_int` 1 + 3, 10 |
+| `sortBy` | the receiver; the empty list that is the range of the binding, 1; the `map` of the keys as the standard macro charges it — 1 for the empty list, 1 for each step and the key expression, 1 for each key added; the call of `@sortByAssociatedKeys` by its row. The reads of the hidden names are part of the expansion and cost nothing: `[3, 1, 2].sortBy(e, e)` is 4 + 1 + 10 + 10 = 25 |
+| `cel.bind` | the empty list that is the range, 1, charged although the planner may not create it; no step; each read of the bound name in the result 1: `cel.bind(x, 1, x + 1)` is 1 + 0 + (1 + 0 + 1) = 3 |
+| `all`, `exists`, `existsOne`, `exists_one` with two variables | 1 for each executed step; `exists_one` has no short circuit |
+| `transformList` | 1 for the empty list, 1 for each executed step, 1 for each element added |
+| `transformMap`, `transformMapEntry` | 1 for the empty map, 1 for each executed step, then the rows of `cel.@mapInsert`; the read of the first iteration variable that the expansion puts into `cel.@mapInsert(@result, i, t)` costs nothing |
+
+Measured memory is within B = 64 bytes for each unit in every row; the rows that allocate with the data — `replace`, `split`, `join`, `quote`, `slice`, `flatten`, `sort`, `range`, `distinct`, `format`, `json.encode`, the `transform` macros and the conversions to text of `network` — are listed in [tests](tests.md#cost-and-memory-of-the-extension-sets). A pooled array of the builders is rented in the steady state without allocation, and its first rental is not charged.
+
+**Members of `OverloadBinding` for the sets.** Two optional members join the binding of [Tables](#tables): `ShallowArguments`, whether the planner marks no argument for the check at depth ([extension-library](extension-library.md)), and `Validator`, a `CallValidator` that the checker runs after the traversal ([checking](checking.md#calls-that-the-checker-validates)). Both are `false` and `null` for every overload of the standard library, and the snapshot of a version does not record them.
+
 ## Numbers and text
 
 No culture takes part: the conversions use their own code or invariant formats.

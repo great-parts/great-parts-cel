@@ -11,6 +11,7 @@ public sealed class CelTypeKindTests
     [InlineData(CelTypeKind.String, 6)]
     [InlineData(CelTypeKind.Map, 12)]
     [InlineData(CelTypeKind.Optional, 17)]
+    [InlineData(CelTypeKind.Abstract, 19)]
     public static void Kind_HasItsPublishedNumber(CelTypeKind kind, int number)
     {
         Assert.Equal(number, (int)kind);

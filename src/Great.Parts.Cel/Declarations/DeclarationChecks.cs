@@ -10,8 +10,10 @@ namespace Great.Parts.Cel.Declarations;
 
 // The checks of Build over the whole set of declarations against a version of the standard library. Every
 // error found is reported, ordered by code and then by message, so the order of the builder calls changes
-// neither the environment nor the errors. A declaration that fails a name or type check is left out of the
-// later checks; its overload identifier still counts as declared, so it produces no second error.
+// neither the environment nor the errors. The extension sets go through their own checks first (ExtensionChecks); the
+// sets that remain bring their overloads, abstract types and variables to the checks below. A declaration that fails a name
+// or type check is left out of the later checks; its overload identifier still counts as declared, so it produces no second
+// error.
 internal sealed class DeclarationChecks
 {
     internal const string ApplicationSource = "application";
@@ -21,6 +23,15 @@ internal sealed class DeclarationChecks
     private DeclarationSet _set;
     private readonly LibraryDeclarations _library;
     private readonly List<CelError> _errors = [];
+
+    // The extension sets that passed their checks, ordered by name and version.
+    private ImmutableArray<ExtensionDefinition> _sets = [];
+
+    // The identifiers of the overloads of those sets, those left out of the checks included.
+    private readonly HashSet<string> _setIds = new(StringComparer.Ordinal);
+
+    // The abstract types of those sets by name, each with the set that declares it.
+    private readonly Dictionary<string, (AbstractTypeDeclaration Declaration, ExtensionDefinition Set)> _setTypes = new(StringComparer.Ordinal);
 
     // The identifiers of all overloads the application declares, those left out of the checks included.
     private readonly HashSet<string> _declaredIds = new(StringComparer.Ordinal);
@@ -38,23 +49,33 @@ internal sealed class DeclarationChecks
     // that names one of them is declared and produces no second error.
     private readonly HashSet<string> _typeNames = new(StringComparer.Ordinal);
 
-    private DeclarationChecks(DeclarationSet set, LibraryDeclarations library)
+    // The set that declares the abstract type of a name, for the hint of TypeNotDeclared; the catalog gives it. Null: no hints.
+    private readonly Func<string, string?>? _abstractTypeSets;
+
+    private DeclarationChecks(DeclarationSet set, LibraryDeclarations library, Func<string, string?>? abstractTypeSets)
     {
         _set = set;
         _library = library;
+        _abstractTypeSets = abstractTypeSets;
     }
 
-    // The errors of the set; when there are none, the variables with type parameters erased to dyn, the
-    // overloads of the application ordered by identifier, the container, empty without one, and the type index.
+    // The errors of the set; when there are none, the variables with type parameters erased to dyn, the overloads of the
+    // extension sets in the order of the sets and of their tables followed by those of the application ordered by identifier,
+    // the container, empty without one, the type index and the extension sets that the environment keeps.
     internal static ImmutableArray<CelError> Check(
         DeclarationSet set,
         LibraryDeclarations library,
         out ImmutableArray<CelVariableDecl> variables,
         out ImmutableArray<OverloadBinding> overloads,
         out string container,
-        out TypeIndex types)
+        out TypeIndex types,
+        out ImmutableArray<ExtensionDefinition> extensions,
+        Func<string, string?>? abstractTypeSets = null)
     {
-        var checks = new DeclarationChecks(set, library);
+        var checks = new DeclarationChecks(set, library, abstractTypeSets);
+        checks._sets = ExtensionChecks.Check(set.Extensions, checks._errors);
+        extensions = checks._sets;
+        checks.CheckSetTypes();
         if (set.TimeZoneConflict)
         {
             checks._errors.Add(BuildErrors.TimeZoneDatabaseConflict());
@@ -72,6 +93,30 @@ internal sealed class DeclarationChecks
         overloads = checks.Bindings();
         container = set.Containers.IsEmpty ? string.Empty : set.Containers[0].Value;
         return checks.Errors();
+    }
+
+    // The abstract types of the sets: a name of the standard library, or one that two sets declare, is DuplicateType naming
+    // both sources, the standard library first and otherwise the smaller source text. The types of the providers are checked
+    // against these names in CheckTypes.
+    private void CheckSetTypes()
+    {
+        foreach (ExtensionDefinition set in _sets)
+        {
+            foreach (AbstractTypeDeclaration declaration in set.AbstractTypes)
+            {
+                if (_library.ReservedNames.Contains(declaration.Name))
+                {
+                    _errors.Add(BuildErrors.DuplicateType(declaration.Name, StandardLibrarySource, set.Source, null));
+                }
+                else if (!_setTypes.TryAdd(declaration.Name, (declaration, set)))
+                {
+                    string first = _setTypes[declaration.Name].Set.Source;
+                    _errors.Add(string.CompareOrdinal(first, set.Source) < 0
+                        ? BuildErrors.DuplicateType(declaration.Name, first, set.Source, null)
+                        : BuildErrors.DuplicateType(declaration.Name, set.Source, first, null));
+                }
+            }
+        }
     }
 
     // The descriptions of the type sources: one CEL name and one .NET type for each description, no name of a type
@@ -96,6 +141,16 @@ internal sealed class DeclarationChecks
                 foreach (TypeDeclaration declaration in declarations)
                 {
                     _errors.Add(BuildErrors.DuplicateType(name, library, declaration.Source.Text, declaration.Position));
+                }
+            }
+            else if (_setTypes.TryGetValue(name, out (AbstractTypeDeclaration Declaration, ExtensionDefinition Set) ofSet))
+            {
+                foreach (TypeDeclaration declaration in declarations)
+                {
+                    string text = declaration.Source.Text;
+                    _errors.Add(string.CompareOrdinal(ofSet.Set.Source, text) < 0
+                        ? BuildErrors.DuplicateType(name, ofSet.Set.Source, text, declaration.Position)
+                        : BuildErrors.DuplicateType(name, text, ofSet.Set.Source, declaration.Position));
                 }
             }
             else
@@ -191,7 +246,7 @@ internal sealed class DeclarationChecks
 
         if (variables is null && functions is null)
         {
-            _set = new DeclarationSet(_set.Variables, _set.Functions, _set.Implementations, _set.Containers, remaining.DrainToImmutable(), _set.TypeSources);
+            _set = new DeclarationSet(_set.Variables, _set.Functions, _set.Implementations, _set.Containers, remaining.DrainToImmutable(), _set.TypeSources, _set.Extensions);
             return;
         }
 
@@ -201,7 +256,8 @@ internal sealed class DeclarationChecks
             [.. _set.Implementations, .. implementations ?? []],
             _set.Containers,
             remaining.DrainToImmutable(),
-            _set.TypeSources);
+            _set.TypeSources,
+            _set.Extensions);
     }
 
     // The typed implementations of AddFunctionImplementation whose parameter or result is a class, record, struct or interface
@@ -223,7 +279,7 @@ internal sealed class DeclarationChecks
 
         if (resolved is not null)
         {
-            _set = new DeclarationSet(_set.Variables, _set.Functions, resolved.MoveToImmutable(), _set.Containers, _set.Unmapped, _set.TypeSources);
+            _set = new DeclarationSet(_set.Variables, _set.Functions, resolved.MoveToImmutable(), _set.Containers, _set.Unmapped, _set.TypeSources, _set.Extensions);
         }
     }
 
@@ -322,7 +378,7 @@ internal sealed class DeclarationChecks
         {
             if (Undeclared(field.Type) is CelType undeclared)
             {
-                _errors.Add(BuildErrors.TypeNotDeclared("field", objectType.Name + "." + field.Name, undeclared.ToString(), source.PositionOf(field)));
+                _errors.Add(BuildErrors.TypeNotDeclared("field", objectType.Name + "." + field.Name, undeclared.ToString(), source.PositionOf(field), HintOf(undeclared)));
             }
         }
     }
@@ -345,9 +401,12 @@ internal sealed class DeclarationChecks
 
             if (Undeclared(variable.Type) is CelType undeclared)
             {
-                _errors.Add(BuildErrors.TypeNotDeclared("variable", variable.Name, undeclared.ToString(), sourced.Position));
+                _errors.Add(BuildErrors.TypeNotDeclared("variable", variable.Name, undeclared.ToString(), sourced.Position, HintOf(undeclared)));
                 continue;
             }
+
+            // A name that an abstract type of a surviving set carries declares that type.
+            CelType declaredType = Resolve(variable.Type);
 
             if (_library.ReservedNames.Contains(variable.Name))
             {
@@ -358,11 +417,27 @@ internal sealed class DeclarationChecks
             List<SourcedDeclaration<CelVariableDecl>> sameName = CollectionsMarshal.GetValueRefOrAddDefault(byName, variable.Name, out bool exists) ??= [];
             if (!exists)
             {
-                CelType type = AssignabilityRules.Erase(variable.Type);
+                CelType type = AssignabilityRules.Erase(declaredType);
                 erased.Add(ReferenceEquals(type, variable.Type) ? variable : new CelVariableDecl(variable.Name, type));
             }
 
             sameName.Add(sourced);
+        }
+
+        // The variables of the sets are declared by the library: their names are not checked, as those of its functions are not.
+        foreach (ExtensionDefinition set in _sets)
+        {
+            foreach (CelVariableDecl variable in set.Variables)
+            {
+                List<SourcedDeclaration<CelVariableDecl>> sameName = CollectionsMarshal.GetValueRefOrAddDefault(byName, variable.Name, out bool exists) ??= [];
+                if (!exists)
+                {
+                    CelType type = AssignabilityRules.Erase(variable.Type);
+                    erased.Add(ReferenceEquals(type, variable.Type) ? variable : new CelVariableDecl(variable.Name, type));
+                }
+
+                sameName.Add(new SourcedDeclaration<CelVariableDecl>(variable, set.Source, null));
+            }
         }
 
         foreach (List<SourcedDeclaration<CelVariableDecl>> sameName in byName.Values)
@@ -440,9 +515,9 @@ internal sealed class DeclarationChecks
             foreach (CelOverloadDecl overload in function.Overloads)
             {
                 _declaredIds.Add(overload.OverloadId);
-                if (validName && Passes(sourced, overload))
+                if (validName && Passes(function.Name, sourced.Source, sourced.Position, sourced.PartPosition(overload), overload))
                 {
-                    Add(new OverloadEntry(function.Name, overload, sourced.Source, sourced.PartPosition(overload)));
+                    Add(new OverloadEntry(function.Name, Resolve(overload), sourced.Source, sourced.PartPosition(overload)));
                 }
             }
         }
@@ -459,29 +534,75 @@ internal sealed class DeclarationChecks
                 ? BuildErrors.TypeNotDeclared("overload", unmapped.Name, unmapped.ClrType.ToString())
                 : BuildErrors.InvalidFunctionName(function, ApplicationSource));
         }
+
+        CheckSetFunctions();
     }
 
-    // Whether an overload passes the type check and does not have the form of a macro.
-    private bool Passes(SourcedDeclaration<CelFunctionDecl> sourced, CelOverloadDecl overload)
+    // The overloads of the sets that remain. A set of the application passes the checks of the application: the name of the
+    // function, the types and the form of a macro. The sets of the catalog are exempt: they declare math.@max and cel.@block,
+    // which no text can write. Every overload of a set is an entry of its own, never the same as another, since its
+    // implementation belongs to its set.
+    private void CheckSetFunctions()
     {
-        string function = sourced.Value.Name;
+        foreach (ExtensionDefinition set in _sets)
+        {
+            bool isApplication = set is ApplicationExtension;
+            foreach (OverloadBinding binding in set.Overloads)
+            {
+                _setIds.Add(binding.Declaration.OverloadId);
+                if (isApplication)
+                {
+                    if (!DeclarationNames.IsQualifiedIdentifier(binding.Function))
+                    {
+                        _errors.Add(BuildErrors.InvalidFunctionName(binding.Function, set.Source));
+                        continue;
+                    }
+
+                    if (!Passes(binding.Function, set.Source, null, null, binding.Declaration))
+                    {
+                        continue;
+                    }
+                }
+
+                Add(new OverloadEntry(binding.Function, Resolve(binding.Declaration), set.Source, null) { Set = set });
+            }
+        }
+    }
+
+    // Whether an overload passes the type check and does not have the form of a macro of the standard library or of a set.
+    private bool Passes(string function, string source, CelSourceLocation? position, CelSourceLocation? overloadPosition, CelOverloadDecl overload)
+    {
         if (Undeclared(overload) is CelType undeclared)
         {
-            _errors.Add(BuildErrors.TypeNotDeclared("overload", overload.OverloadId, undeclared.ToString(), sourced.PartPosition(overload)));
+            _errors.Add(BuildErrors.TypeNotDeclared("overload", overload.OverloadId, undeclared.ToString(), overloadPosition, HintOf(undeclared)));
             return false;
         }
 
         if (MacroForm(function, overload))
         {
             _errors.Add(BuildErrors.StandardLibraryConflict(
-                "function", function, sourced.Source, _library.VersionText, "it has the form of the macro '" + function + "'", sourced.Position));
+                "function", function, source, _library.VersionText, "it has the form of the macro '" + function + "'", position));
             return false;
+        }
+
+        int arguments = overload.ParameterTypes.Length - (overload.IsReceiverStyle ? 1 : 0);
+        foreach (ExtensionDefinition set in _sets)
+        {
+            foreach (MacroForm form in set.MacroForms)
+            {
+                if (form.Matches(function, overload.IsReceiverStyle, arguments))
+                {
+                    _errors.Add(BuildErrors.ExtensionMacroConflict(function, source, set.Source, form.Name, position));
+                    return false;
+                }
+            }
         }
 
         return true;
     }
 
     // An overload that is not the same as one already kept under its identifier; of two equal ones the first by source stays.
+    // An overload of a set is never the same as another.
     private void Add(OverloadEntry added)
     {
         List<OverloadEntry> sameId = CollectionsMarshal.GetValueRefOrAddDefault(_byId, added.Overload.OverloadId, out _) ??= [];
@@ -489,7 +610,10 @@ internal sealed class DeclarationChecks
         for (int i = 0; i < sameId.Count; i++)
         {
             OverloadEntry kept = sameId[i];
-            if (string.Equals(kept.Function, added.Function, StringComparison.Ordinal) && kept.Overload.SameAs(added.Overload))
+            if (kept.Set is null
+                && added.Set is null
+                && string.Equals(kept.Function, added.Function, StringComparison.Ordinal)
+                && kept.Overload.SameAs(added.Overload))
             {
                 if (added.CompareTo(kept) < 0)
                 {
@@ -610,7 +734,7 @@ internal sealed class DeclarationChecks
 
         foreach ((string id, List<ImplementationEntry> sameId) in _implementations)
         {
-            if (sameId.Count > 1 || _library.ById.ContainsKey(id))
+            if (sameId.Count > 1 || _library.ById.ContainsKey(id) || _setIds.Contains(id))
             {
                 _errors.Add(BuildErrors.DuplicateImplementation(id));
             }
@@ -631,19 +755,52 @@ internal sealed class DeclarationChecks
             }
         }
 
-        // Of the declarations of one identifier the first by source names the function; the error has the place of the first
-        // one from a description in JSON.
+        CheckMissingImplementations();
+        CheckSetImplementations();
+    }
+
+    // Of the declarations of one identifier the first by source names the function; the error has the place of the first one
+    // from a description in JSON. An overload of the version or of a set brings its own implementation.
+    private void CheckMissingImplementations()
+    {
         foreach ((string id, List<OverloadEntry> sameId) in _byId)
         {
-            if (!_library.ById.ContainsKey(id) && !_implementations.ContainsKey(id))
+            if (!_library.ById.ContainsKey(id) && !_setIds.Contains(id) && !_implementations.ContainsKey(id))
             {
                 _errors.Add(BuildErrors.MissingImplementation(id, sameId[0].Function, sameId.Find(static entry => entry.Position is not null)?.Position));
             }
         }
     }
 
-    // The overloads of the application with their implementations and the cost of a call: 1 unit and the
-    // cost function of the declaration. Empty when there are errors.
+    // The implementations of a set of the application belong to the set: an overload without one, and an implementation that
+    // no overload of the set has.
+    private void CheckSetImplementations()
+    {
+        foreach (ExtensionDefinition set in _sets)
+        {
+            if (set is not ApplicationExtension application)
+            {
+                continue;
+            }
+
+            foreach (string id in application.UnusedImplementations)
+            {
+                _errors.Add(BuildErrors.UnusedImplementation(id));
+            }
+
+            foreach (OverloadBinding binding in application.Overloads)
+            {
+                if (binding.Implementation is null && _byId.ContainsKey(binding.Declaration.OverloadId))
+                {
+                    _errors.Add(BuildErrors.MissingImplementation(binding.Declaration.OverloadId, binding.Function));
+                }
+            }
+        }
+    }
+
+    // The overloads of the extension sets as their tables have them, in the order of the sets, followed by those of the
+    // application with their implementations and the cost of a call: 1 unit and the cost function of the declaration. Empty
+    // when there are errors.
     private ImmutableArray<OverloadBinding> Bindings()
     {
         if (_errors.Count > 0)
@@ -652,13 +809,34 @@ internal sealed class DeclarationChecks
         }
 
         ImmutableArray<OverloadBinding>.Builder bindings = ImmutableArray.CreateBuilder<OverloadBinding>(_unique.Count);
+        foreach (ExtensionDefinition set in _sets)
+        {
+            if (set is ApplicationExtension)
+            {
+                // The types of an application set are as declared; a name of an abstract type is resolved as in any declaration.
+                foreach (OverloadBinding binding in set.Overloads)
+                {
+                    bindings.Add(binding.WithDeclaration(Resolve(binding.Declaration)));
+                }
+            }
+            else
+            {
+                bindings.AddRange(set.Overloads);
+            }
+        }
+
         foreach ((string id, OverloadEntry entry) in _unique)
         {
+            if (entry.Set is not null)
+            {
+                continue;
+            }
+
             OverloadImplementation implementation = _implementations[id][0].Implementation;
             bindings.Add(new OverloadBinding(entry.Function, entry.Overload, implementation, 1, entry.Overload.Cost, entry.Source, isApplication: true));
         }
 
-        return bindings.MoveToImmutable();
+        return bindings.ToImmutable();
     }
 
     // By code, then by message, ordinal; an error found twice is reported once.
@@ -742,7 +920,10 @@ internal sealed class DeclarationChecks
         }
 
         CelType erased = AssignabilityRules.Erase(declared);
+
+        // An abstract type has no .NET type: the parameter or the result is a CelValue or object, which the mapping calls dyn.
         return clrMapped.Equals(erased)
+            || (erased.Kind == CelTypeKind.Abstract && clrMapped.Kind == CelTypeKind.Dyn)
             || (takesNull && erased.Kind == CelTypeKind.Wrapper && clrMapped.Equals(erased.Parameters[0]));
     }
 
@@ -796,7 +977,8 @@ internal sealed class DeclarationChecks
     // declares yet.
     private CelType? Undeclared(CelType type)
     {
-        if ((type.Kind == CelTypeKind.Object && !_typeNames.Contains(type.Name)) || type.Kind is CelTypeKind.Any or CelTypeKind.Optional)
+        if ((type.Kind == CelTypeKind.Object && !_typeNames.Contains(type.Name) && !_setTypes.ContainsKey(type.Name))
+            || type.Kind is CelTypeKind.Any or CelTypeKind.Optional)
         {
             return type;
         }
@@ -812,10 +994,77 @@ internal sealed class DeclarationChecks
         return null;
     }
 
+    // The type with each name of an abstract type of a surviving set, an object type by name as ObjectNamed and the description
+    // of an environment write it, replaced by that abstract type, at any depth; the same instance when nothing is replaced.
+    private CelType Resolve(CelType type)
+    {
+        if (_setTypes.Count == 0)
+        {
+            return type;
+        }
+
+        if (type.Kind == CelTypeKind.Object && _setTypes.TryGetValue(type.Name, out (AbstractTypeDeclaration Declaration, ExtensionDefinition Set) ofSet))
+        {
+            return ofSet.Declaration.Type;
+        }
+
+        ImmutableArray<CelType>.Builder? replaced = null;
+        for (int i = 0; i < type.Parameters.Length; i++)
+        {
+            CelType parameter = type.Parameters[i];
+            CelType resolved = Resolve(parameter);
+            if (replaced is null && !ReferenceEquals(resolved, parameter))
+            {
+                replaced = ImmutableArray.CreateBuilder<CelType>(type.Parameters.Length);
+                for (int before = 0; before < i; before++)
+                {
+                    replaced.Add(type.Parameters[before]);
+                }
+            }
+
+            replaced?.Add(resolved);
+        }
+
+        return replaced is null ? type : new CelType(type.Kind, type.Name, replaced.MoveToImmutable());
+    }
+
+    // The declaration with its types resolved; the same instance when nothing is replaced.
+    private CelOverloadDecl Resolve(CelOverloadDecl overload)
+    {
+        if (_setTypes.Count == 0)
+        {
+            return overload;
+        }
+
+        ImmutableArray<CelType>.Builder parameters = ImmutableArray.CreateBuilder<CelType>(overload.ParameterTypes.Length);
+        bool changed = false;
+        foreach (CelType parameter in overload.ParameterTypes)
+        {
+            CelType resolved = Resolve(parameter);
+            changed |= !ReferenceEquals(resolved, parameter);
+            parameters.Add(resolved);
+        }
+
+        CelType result = Resolve(overload.ResultType);
+        return changed || !ReferenceEquals(result, overload.ResultType)
+            ? new CelOverloadDecl(overload.OverloadId, overload.IsReceiverStyle, parameters.MoveToImmutable(), result, overload.Cost)
+            : overload;
+    }
+
+    // The hint of TypeNotDeclared for an object type whose name the catalog gives to an abstract type of a set that the
+    // environment does not have: the set to add; empty for any other type.
+    private string HintOf(CelType type) =>
+        type.Kind == CelTypeKind.Object && _abstractTypeSets?.Invoke(type.Name) is string set
+            ? "; add the extension set '" + set + "'"
+            : string.Empty;
+
     // An overload that passed the checks: its function, its source and, for a description in JSON, its position. Two
     // overloads are ordered by the source text, ordinal, the position in the JSON text, then the function.
     private sealed record OverloadEntry(string Function, CelOverloadDecl Overload, string Source, CelSourceLocation? Position)
     {
+        // The set that declares the overload; null for an overload of the application or of a description in JSON.
+        internal ExtensionDefinition? Set { get; init; }
+
         internal int CompareTo(OverloadEntry other)
         {
             int bySource = string.CompareOrdinal(Source, other.Source);

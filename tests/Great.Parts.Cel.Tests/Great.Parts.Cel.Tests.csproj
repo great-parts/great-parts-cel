@@ -52,9 +52,9 @@
     <Content Include="Regex/Data/re2-search.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- The record of the overloads of version 1 of the standard library, which Library/LibrarySnapshotTests compares with the table. -->
+  <!-- The records of the overloads of version 1 of the standard library and of each version of the extension sets, which Library/LibrarySnapshotTests compares with the tables. -->
   <ItemGroup>
-    <Content Include="Library/Snapshots/standard-library-v1.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Library/Snapshots/*.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

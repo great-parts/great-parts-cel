@@ -1,0 +1,444 @@
+# Minimized cases of known divergences from cel-go in the order of equal keys and of NaN in sort and sortBy. The expectation of each case is the answer of cel-go.
+
+name: "list_sort"
+description: "The order of a list of 13 elements, above the 12 that Go sorts by insertion, where sort.Slice of cel-go is not stable"
+section {
+  name: "sort_by_equal_keys"
+  description: "sortBy over lists.range(13) with the key i % 2 in the type of the key: the library keeps the input order of equal keys, cel-go does not"
+  test {
+    name: "int_keys"
+    description: "list_int_sortByAssociatedKeys(list, list) value-mismatch"
+    expr: "lists.range(13).sortBy(i, i % 2)"
+    value: {
+      list_value: {
+        values: {
+          int64_value: 8
+        }
+        values: {
+          int64_value: 12
+        }
+        values: {
+          int64_value: 2
+        }
+        values: {
+          int64_value: 0
+        }
+        values: {
+          int64_value: 4
+        }
+        values: {
+          int64_value: 10
+        }
+        values: {
+          int64_value: 6
+        }
+        values: {
+          int64_value: 3
+        }
+        values: {
+          int64_value: 7
+        }
+        values: {
+          int64_value: 9
+        }
+        values: {
+          int64_value: 5
+        }
+        values: {
+          int64_value: 11
+        }
+        values: {
+          int64_value: 1
+        }
+      }
+    }
+  }
+  test {
+    name: "uint_keys"
+    description: "list_uint_sortByAssociatedKeys(list, list) value-mismatch"
+    expr: "lists.range(13).sortBy(i, uint(i % 2))"
+    value: {
+      list_value: {
+        values: {
+          int64_value: 8
+        }
+        values: {
+          int64_value: 12
+        }
+        values: {
+          int64_value: 2
+        }
+        values: {
+          int64_value: 0
+        }
+        values: {
+          int64_value: 4
+        }
+        values: {
+          int64_value: 10
+        }
+        values: {
+          int64_value: 6
+        }
+        values: {
+          int64_value: 3
+        }
+        values: {
+          int64_value: 7
+        }
+        values: {
+          int64_value: 9
+        }
+        values: {
+          int64_value: 5
+        }
+        values: {
+          int64_value: 11
+        }
+        values: {
+          int64_value: 1
+        }
+      }
+    }
+  }
+  test {
+    name: "double_keys"
+    description: "list_double_sortByAssociatedKeys(list, list) value-mismatch"
+    expr: "lists.range(13).sortBy(i, double(i % 2))"
+    value: {
+      list_value: {
+        values: {
+          int64_value: 8
+        }
+        values: {
+          int64_value: 12
+        }
+        values: {
+          int64_value: 2
+        }
+        values: {
+          int64_value: 0
+        }
+        values: {
+          int64_value: 4
+        }
+        values: {
+          int64_value: 10
+        }
+        values: {
+          int64_value: 6
+        }
+        values: {
+          int64_value: 3
+        }
+        values: {
+          int64_value: 7
+        }
+        values: {
+          int64_value: 9
+        }
+        values: {
+          int64_value: 5
+        }
+        values: {
+          int64_value: 11
+        }
+        values: {
+          int64_value: 1
+        }
+      }
+    }
+  }
+  test {
+    name: "bool_keys"
+    description: "list_bool_sortByAssociatedKeys(list, list) value-mismatch"
+    expr: "lists.range(13).sortBy(i, i % 2 == 0)"
+    value: {
+      list_value: {
+        values: {
+          int64_value: 9
+        }
+        values: {
+          int64_value: 1
+        }
+        values: {
+          int64_value: 3
+        }
+        values: {
+          int64_value: 5
+        }
+        values: {
+          int64_value: 7
+        }
+        values: {
+          int64_value: 11
+        }
+        values: {
+          int64_value: 2
+        }
+        values: {
+          int64_value: 4
+        }
+        values: {
+          int64_value: 6
+        }
+        values: {
+          int64_value: 8
+        }
+        values: {
+          int64_value: 0
+        }
+        values: {
+          int64_value: 10
+        }
+        values: {
+          int64_value: 12
+        }
+      }
+    }
+  }
+  test {
+    name: "duration_keys"
+    description: "list_google.protobuf.Duration_sortByAssociatedKeys(list, list) value-mismatch"
+    expr: "lists.range(13).sortBy(i, duration(string(i % 2) + 's'))"
+    value: {
+      list_value: {
+        values: {
+          int64_value: 8
+        }
+        values: {
+          int64_value: 12
+        }
+        values: {
+          int64_value: 2
+        }
+        values: {
+          int64_value: 0
+        }
+        values: {
+          int64_value: 4
+        }
+        values: {
+          int64_value: 10
+        }
+        values: {
+          int64_value: 6
+        }
+        values: {
+          int64_value: 3
+        }
+        values: {
+          int64_value: 7
+        }
+        values: {
+          int64_value: 9
+        }
+        values: {
+          int64_value: 5
+        }
+        values: {
+          int64_value: 11
+        }
+        values: {
+          int64_value: 1
+        }
+      }
+    }
+  }
+  test {
+    name: "timestamp_keys"
+    description: "list_google.protobuf.Timestamp_sortByAssociatedKeys(list, list) value-mismatch"
+    expr: "lists.range(13).sortBy(i, timestamp(i % 2))"
+    value: {
+      list_value: {
+        values: {
+          int64_value: 8
+        }
+        values: {
+          int64_value: 12
+        }
+        values: {
+          int64_value: 2
+        }
+        values: {
+          int64_value: 0
+        }
+        values: {
+          int64_value: 4
+        }
+        values: {
+          int64_value: 10
+        }
+        values: {
+          int64_value: 6
+        }
+        values: {
+          int64_value: 3
+        }
+        values: {
+          int64_value: 7
+        }
+        values: {
+          int64_value: 9
+        }
+        values: {
+          int64_value: 5
+        }
+        values: {
+          int64_value: 11
+        }
+        values: {
+          int64_value: 1
+        }
+      }
+    }
+  }
+  test {
+    name: "string_keys"
+    description: "list_string_sortByAssociatedKeys(list, list) value-mismatch"
+    expr: "lists.range(13).sortBy(i, string(i % 2))"
+    value: {
+      list_value: {
+        values: {
+          int64_value: 8
+        }
+        values: {
+          int64_value: 12
+        }
+        values: {
+          int64_value: 2
+        }
+        values: {
+          int64_value: 0
+        }
+        values: {
+          int64_value: 4
+        }
+        values: {
+          int64_value: 10
+        }
+        values: {
+          int64_value: 6
+        }
+        values: {
+          int64_value: 3
+        }
+        values: {
+          int64_value: 7
+        }
+        values: {
+          int64_value: 9
+        }
+        values: {
+          int64_value: 5
+        }
+        values: {
+          int64_value: 11
+        }
+        values: {
+          int64_value: 1
+        }
+      }
+    }
+  }
+  test {
+    name: "bytes_keys"
+    description: "list_bytes_sortByAssociatedKeys(list, list) value-mismatch"
+    expr: "lists.range(13).sortBy(i, bytes(string(i % 2)))"
+    value: {
+      list_value: {
+        values: {
+          int64_value: 8
+        }
+        values: {
+          int64_value: 12
+        }
+        values: {
+          int64_value: 2
+        }
+        values: {
+          int64_value: 0
+        }
+        values: {
+          int64_value: 4
+        }
+        values: {
+          int64_value: 10
+        }
+        values: {
+          int64_value: 6
+        }
+        values: {
+          int64_value: 3
+        }
+        values: {
+          int64_value: 7
+        }
+        values: {
+          int64_value: 9
+        }
+        values: {
+          int64_value: 5
+        }
+        values: {
+          int64_value: 11
+        }
+        values: {
+          int64_value: 1
+        }
+      }
+    }
+  }
+}
+section {
+  name: "sort_with_nan"
+  description: "sort of 13 doubles with a NaN: cel-go leaves the NaN after 9, the library merges and leaves it elsewhere; the map turns the NaN into 0.0, which a case cannot expect as itself"
+  test {
+    name: "double_nan"
+    description: "list_double_sort(list) value-mismatch"
+    expr: "[5.0, 0.0 / 0.0, 4.0, 3.0, 2.0, 1.0, 9.0, 8.0, 7.0, 6.0, 10.0, 12.0, 11.0].sort().map(x, x != x ? 0.0 : x)"
+    value: {
+      list_value: {
+        values: {
+          double_value: 1
+        }
+        values: {
+          double_value: 2
+        }
+        values: {
+          double_value: 3
+        }
+        values: {
+          double_value: 4
+        }
+        values: {
+          double_value: 5
+        }
+        values: {
+          double_value: 6
+        }
+        values: {
+          double_value: 7
+        }
+        values: {
+          double_value: 8
+        }
+        values: {
+          double_value: 9
+        }
+        values: {
+          double_value: 0
+        }
+        values: {
+          double_value: 10
+        }
+        values: {
+          double_value: 11
+        }
+        values: {
+          double_value: 12
+        }
+      }
+    }
+  }
+}

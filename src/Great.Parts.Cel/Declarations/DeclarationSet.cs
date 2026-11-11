@@ -5,7 +5,7 @@ namespace Great.Parts.Cel.Declarations;
 
 // The declarations collected by a builder, as a set: an environment keeps the set it was built from, and
 // a builder made from the environment starts with it. Repeated declarations are already removed; a variable, a
-// function and a container keep the source and the position in the JSON text that the build errors name.
+// function, a container and an extension set keep the source and the position in the JSON text that the build errors name.
 internal sealed class DeclarationSet
 {
     internal DeclarationSet(
@@ -15,6 +15,7 @@ internal sealed class DeclarationSet
         ImmutableArray<SourcedDeclaration<string>> containers,
         ImmutableArray<UnmappedDeclaration> unmapped,
         ImmutableArray<TypeSource> typeSources,
+        ImmutableArray<SourcedDeclaration<CelExtension>> extensions = default,
         CelTimeZoneDatabase? timeZones = null,
         bool timeZoneConflict = false)
     {
@@ -24,6 +25,7 @@ internal sealed class DeclarationSet
         Containers = containers;
         Unmapped = unmapped;
         TypeSources = typeSources;
+        Extensions = extensions.IsDefault ? [] : extensions;
         TimeZones = timeZones;
         TimeZoneConflict = timeZoneConflict;
     }
@@ -41,6 +43,9 @@ internal sealed class DeclarationSet
 
     // The type sources, each provider once, in the order of the calls.
     internal ImmutableArray<TypeSource> TypeSources { get; }
+
+    // The extension sets, each once by the rule of IsSameSetAs, in the order of the calls.
+    internal ImmutableArray<SourcedDeclaration<CelExtension>> Extensions { get; }
 
     // The first time zone database that UseTimeZones added; null without one.
     internal CelTimeZoneDatabase? TimeZones { get; }

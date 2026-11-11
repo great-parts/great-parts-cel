@@ -128,7 +128,7 @@ public sealed class GeneratorTests
     public void EveryFunctionAndOverloadStyleOfTheProfile_OccursAndNoOther()
     {
         List<Call> calls = [.. AllNodes().OfType<Call>()];
-        HashSet<string> profile = [.. ProfileTables.Overloads.Select(overload => overload.Function)];
+        HashSet<string> profile = [.. ProfileTables.Overloads.Where(overload => overload.Set is null).Select(overload => overload.Function)];
 
         Assert.All(calls, call => Assert.Contains(call.Function, profile));
         Assert.Contains(calls, call => call is { Function: ProfileTables.Matches, Receiver: true });
@@ -795,7 +795,8 @@ public sealed class GeneratorTests
         {
             for (ulong n = 0; n < (ulong)cases; n++)
             {
-                yield return CaseGenerator.Case(seed, n);
+                // The standard library profile, whatever n is: the tests of this class read it; ExtensionGeneratorTests reads the other.
+                yield return CaseGenerator.StandardCase(seed, n);
             }
         }
     }

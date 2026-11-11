@@ -34,10 +34,17 @@ Each namespace of the assembly is a directory, and the namespace of a file equal
 | `src/Great.Parts.Cel/Library/Regex/` | `Great.Parts.Cel.Library.Regex` | internal | yes |
 | `src/Great.Parts.Cel/Library/Time/` | `Great.Parts.Cel.Library.Time` | internal | yes |
 | `src/Great.Parts.Cel/Library/Decimals/` | `Great.Parts.Cel.Library.Decimals` | internal, `net11.0` only | yes |
+| `src/Great.Parts.Cel/Library/Extensions/` | `Great.Parts.Cel.Library.Extensions` | internal | yes |
+| `src/Great.Parts.Cel/Library/Extensions/Strings/` | `Great.Parts.Cel.Library.Extensions.Strings` | internal | yes |
+| `src/Great.Parts.Cel/Library/Extensions/Network/` | `Great.Parts.Cel.Library.Extensions.Network` | internal | yes |
 | `src/Great.Parts.Cel/Evaluation/` | `Great.Parts.Cel.Evaluation` | internal | yes |
 | `src/Great.Parts.Cel/PublicAPI/` | public API snapshot files | — | no |
 
 The public catalogs `CelStandardLibrary` and `CelExtensions` belong to the facade: they are handles to tables that live in `Library`.
+
+## Extension sets
+
+The extension sets and their functions are core: they are in `Library/**`, which the paths below already cover, and the new namespaces `Library.Extensions`, `Library.Extensions.Strings` and `Library.Extensions.Network` join `eng/layers.txt` ([extensions](extensions.md#layers)). What stays outside the core: the macros of the sets in `Syntax/ExtensionMacros.cs`, which are parser code ([extension-macros](extension-macros.md)); the model of a set in `Declarations/` ([extensions](extensions.md)); and `Values/AbstractValue.cs`, the base class of the values of an abstract type, which is part of the value model, while the rules that treat the kind `Abstract` — assignability, equality, the fit — are in the existing rule files ([extension-network](extension-network.md#abstract-types)). The public members `CelTypeKind.Abstract` and `CelValueKind.Abstract` are model files, not core.
 
 ## Rule files
 
@@ -107,6 +114,9 @@ Moving code across the line — a new rule file outside this naming, a rule in a
 | `src/Great.Parts.Cel/Checking/Checker.cs` | yes | type checking |
 | `src/Great.Parts.Cel/Library/StandardLibraryV1.cs` | yes | standard library |
 | `src/Great.Parts.Cel/Library/Regex/Compiler.cs` | yes | sub-namespace of `Library` |
+| `src/Great.Parts.Cel/Library/Extensions/Strings/StringFunctions.cs` | yes | sub-namespace of `Library` |
+| `src/Great.Parts.Cel/Syntax/ExtensionMacros.cs` | no | parser, the macros of the sets |
+| `src/Great.Parts.Cel/Values/AbstractValue.cs` | no | value model; its rules are in the rule files |
 | `src/Great.Parts.Cel/Types/AssignabilityRules.cs` | yes | rule file in `Types` |
 | `src/Great.Parts.Cel/Values/EqualityRules.cs` | yes | rule file in `Values` |
 | `src/Great.Parts.Cel/Values/ConversionRules.Result.cs` | yes | part of a rule file |

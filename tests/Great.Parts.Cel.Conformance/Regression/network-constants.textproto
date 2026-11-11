@@ -1,0 +1,28 @@
+# Minimized cases of known divergences from cel-go in the constant argument of ip and cidr. The expectation of each case is the answer of cel-go.
+
+name: "network_constants"
+description: "The constant argument of ip and cidr, which cel-go checks when the expression is compiled"
+section {
+  name: "invalid_constant"
+  description: "cel-go refuses an invalid constant at compile time; a compile error of cel-go is the expectation eval_error here"
+  test {
+    name: "cidr"
+    description: "string_to_cidr(string) stage-mismatch"
+    expr: "cidr('192.168.0.0/')"
+    eval_error: {
+      errors: {
+        message: "ERROR: <input>:1:6: invalid cidr argument: CIDR \"192.168.0.0/\" parse error during conversion from string: netip.ParsePrefix(\"192.168.0.0/\"): bad bits after slash: \"\"\n | cidr('192.168.0.0/')\n | .....^"
+      }
+    }
+  }
+  test {
+    name: "ip"
+    description: "string_to_ip(string) stage-mismatch"
+    expr: "ip('192.168.0.1.0')"
+    eval_error: {
+      errors: {
+        message: "ERROR: <input>:1:4: invalid ip argument: IP Address \"192.168.0.1.0\" parse error during conversion from string: ParseAddr(\"192.168.0.1.0\"): IPv4 address too long\n | ip('192.168.0.1.0')\n | ...^"
+      }
+    }
+  }
+}

@@ -81,7 +81,7 @@ internal static class Signature
     // The type of the value of an identifier: of its binding, type for a type identifier, error for an unbound variable.
     private static string IdentType(GeneratedCase divergent, Ident ident) =>
         divergent.Bindings.TryGetValue(ident.Name, out Value? value) ? ValueText.TypeName(value)
-        : ProfileTables.TypeIdentifiers.Contains(ident.Name) ? ProfileType.TypeType.Name()
+        : ProfileTables.TypeIdentifiers.Contains(ident.Name) || ProfileTables.AbstractTypeIdentifiers.Contains(ident.Name) ? ProfileType.TypeType.Name()
         : ErrorType;
 
     private static string Node(string node, IEnumerable<string> types) => node + "(" + string.Join(", ", types) + ")";
@@ -90,15 +90,17 @@ internal static class Signature
     // After minimization the child agrees on both sides, so either value gives the type; cel-go goes first.
     private static string ChildType(GeneratedCase divergent, Expr child, ICaseSide librarySide, ICaseSide oracleSide)
     {
-        string text = ExprPrinter.Print(child);
+        // A child of an abstract type is evaluated as string(child) and keeps the name of its type: the value of the string is no type.
+        string text = ExprPrinter.PrintCase(child);
+        string? abstractType = ProfileTables.AbstractResult(child)?.Name();
         SideOutcome oracle = oracleSide.Evaluate(text, divergent.Bindings);
         if (!oracle.IsError)
         {
-            return ValueText.TypeName(oracle.Result!);
+            return abstractType ?? ValueText.TypeName(oracle.Result!);
         }
 
         SideOutcome library = librarySide.Evaluate(text, divergent.Bindings);
-        return library.IsError ? ErrorType : ValueText.TypeName(library.Result!);
+        return library.IsError ? ErrorType : abstractType ?? ValueText.TypeName(library.Result!);
     }
 
     private static string LiteralType(Expr literal) => literal switch

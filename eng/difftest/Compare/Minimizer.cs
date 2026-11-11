@@ -129,6 +129,25 @@ internal static class Minimizer
         IReadOnlyList<Expr>? replacements = null;
         foreach (Expr body in macro.Arguments)
         {
+            if (macro.SecondVariable is { } second)
+            {
+                // A two-variable macro: a body that reads neither variable is itself an instance; otherwise only its closed nodes are,
+                // since an element and its index or key are not replaced one by one.
+                if (!Reads(body, macro.Variable) && !Reads(body, second))
+                {
+                    yield return body;
+                }
+                else
+                {
+                    foreach (Expr closed in ClosedNodes(body, [macro.Variable, second]))
+                    {
+                        yield return closed;
+                    }
+                }
+
+                continue;
+            }
+
             if (!Reads(body, macro.Variable))
             {
                 // Independent of the element: the argument itself, whatever the range holds.
@@ -239,6 +258,12 @@ internal static class Minimizer
     // The nodes that stand for the elements of the range of a macro, in the order of the elements.
     private static IReadOnlyList<Expr> Replacements(Comprehension macro, Func<Expr, Value?> rangeValue)
     {
+        // cel.bind: the name stands for its value, which is the one instance.
+        if (macro.Macro == ProfileTables.BindMacro)
+        {
+            return [macro.Range with { Parenthesized = true }];
+        }
+
         bool inDyn = macro.Range is Call { Function: ProfileTables.Dyn, Args: [_] };
         Expr literal = macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } argument] } ? argument : macro.Range;
         IReadOnlyList<Expr>? elements = literal switch
@@ -355,7 +380,7 @@ internal static class Minimizer
                 yield return closed;
             }
 
-            IReadOnlyList<string> inner = [.. scope, macro.Variable];
+            IReadOnlyList<string> inner = macro.SecondVariable is { } second ? [.. scope, macro.Variable, second] : [.. scope, macro.Variable];
             foreach (Expr closed in macro.Arguments.SelectMany(argument => ClosedNodes(argument, inner)))
             {
                 yield return closed;
@@ -396,7 +421,8 @@ internal static class Minimizer
     private static bool Reads(Expr node, string variable) => node switch
     {
         Ident ident => ident.Name == variable,
-        Comprehension macro => Reads(macro.Range, variable) || (macro.Variable != variable && macro.Arguments.Any(argument => Reads(argument, variable))),
+        Comprehension macro => Reads(macro.Range, variable)
+            || (macro.Variable != variable && macro.SecondVariable != variable && macro.Arguments.Any(argument => Reads(argument, variable))),
         _ => Children(node).Any(child => Reads(child, variable)),
     };
 
@@ -415,7 +441,7 @@ internal static class Minimizer
         Comprehension macro => macro with
         {
             Range = Replace(macro.Range, variable, replacement),
-            Arguments = macro.Variable == variable
+            Arguments = macro.Variable == variable || macro.SecondVariable == variable
                 ? macro.Arguments
                 : [.. macro.Arguments.Select(argument => Replace(argument, variable, replacement))],
         },

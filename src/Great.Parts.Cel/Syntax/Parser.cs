@@ -605,14 +605,21 @@ internal sealed class Parser
     }
 
     // Replaces a macro call by its expansion and records the call. Arguments of the wrong shape are InvalidMacroCall at
-    // the "(" of the call, which then stays a call. The expansion has the depth of the call it is written as.
+    // the node the macro names, by default the "(" of the call, and the call then stays a call; a macro that does not apply
+    // to the target leaves the call as it is. The expansion has the depth of the call it is written as.
     private ExprNode Expand(Macro macro, ExprNode? target, ImmutableArray<ExprNode> arguments, int parenthesis)
     {
         bool counts = target is not null;
-        string? invalid = macro.Check(arguments);
-        if (invalid is not null)
+        MacroCheck check = macro.Check(target, arguments);
+        if (check.IsNotApplicable)
         {
-            Report(CelErrorCode.InvalidMacroCall, "invalid call of macro '" + macro.Name + "': " + invalid, parenthesis);
+            return Call(macro.Name, target, arguments, parenthesis, counts);
+        }
+
+        if (check.IsError)
+        {
+            int place = check.Place is null ? parenthesis : _nodes.OffsetOf(check.Place);
+            Report(CelErrorCode.InvalidMacroCall, "invalid call of macro '" + macro.Name + "': " + check.Detail, place);
             return Call(macro.Name, target, arguments, parenthesis, counts);
         }
 

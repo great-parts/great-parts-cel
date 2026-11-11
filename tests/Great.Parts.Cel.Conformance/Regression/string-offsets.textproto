@@ -1,0 +1,24 @@
+# Minimized cases of known divergences from cel-go in the offset of indexOf and lastIndexOf. The expectation of each case is the answer of cel-go.
+
+name: "string_offsets"
+description: "The offset of indexOf and lastIndexOf that is past the end of the string"
+section {
+  name: "offset_past_end"
+  description: "cel-go returns -1 for an offset greater than the length of the string"
+  test {
+    name: "index_of"
+    description: "string_index_of_string_int(string, string, int) we-error"
+    expr: "'tacocat'.indexOf('a', 30)"
+    value: {
+      int64_value: -1
+    }
+  }
+  test {
+    name: "last_index_of"
+    description: "string_last_index_of_string_int(string, string, int) we-error"
+    expr: "'tacocat'.lastIndexOf('a', 30)"
+    value: {
+      int64_value: -1
+    }
+  }
+}

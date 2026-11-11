@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Eng.Difftest;
 using Great.Parts.Cel.Eng.Difftest.Profile;
 using Great.Parts.Cel.Eng.Difftest.Sides;
@@ -75,9 +78,31 @@ public sealed class ManifestTests
         using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot.Find(), ProfileTables.ManifestPath)));
 
         Assert.Equal(
-            ["container", "description", "name", "variables"],
+            ["container", "description", "extensions", "name", "variables"],
             manifest.RootElement.EnumerateObject().Select(member => member.Name).Order(StringComparer.Ordinal));
         Assert.DoesNotContain(manifest.RootElement.EnumerateObject(), member => RunManifest.RefusedMembers.Contains(member.Name));
+    }
+
+    // The manifest names the eight sets of the profile with their versions; the library reads the names and the versions with the
+    // catalog, the oracle with cel.FromConfig, so the two sides cannot hold different sets.
+    [Fact]
+    public void ManifestOfTheRepository_NamesTheSetsOfTheProfileWithTheVersionsOfTheCatalog()
+    {
+        using JsonDocument manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot.Find(), ProfileTables.ManifestPath)));
+        List<string> declared =
+        [
+            .. manifest.RootElement.GetProperty("extensions").EnumerateArray()
+                .Select(extension => extension.GetProperty("name").GetString() + "@" + extension.GetProperty("version").GetString()),
+        ];
+        CelExtension[] catalog =
+        [
+            CelExtensions.Strings(5), CelExtensions.Math(3), CelExtensions.Lists(4), CelExtensions.Sets(0), CelExtensions.Encoders(1),
+            CelExtensions.Bindings(1), CelExtensions.TwoVarComprehensions(0), CelExtensions.Network(1),
+        ];
+
+        Assert.Equal(ProfileTables.Extensions.Select(set => set.Name + "@" + set.Version), declared);
+        Assert.Equal(catalog.Select(set => set.Name + "@" + set.Version.ToString(CultureInfo.InvariantCulture)), declared);
+        Assert.DoesNotContain(declared, set => set.StartsWith("decimal@", StringComparison.Ordinal) || set.StartsWith("block@", StringComparison.Ordinal));
     }
 
     // The library side reads the very file that the oracle reads: its bytes go to Apply, its path to the oracle.

@@ -41,6 +41,11 @@ internal static class ErrorValueParts
         {
             reference = map;
         }
+        else if (value.TryGetAbstract(out AbstractValue? content))
+        {
+            // The message names the type of the value, not its content: the name of the type is the reference.
+            reference = content.Type.Name;
+        }
 
         return new CelError(code, format, lines, offset, first, reference, number, (byte)value.Kind);
     }
@@ -49,7 +54,7 @@ internal static class ErrorValueParts
     internal static CelValueKind KindOf(CelError error) => (CelValueKind)error.Small;
 
     // The value of an error that Create made, for the kinds bool, int, uint, double, string, list and map; for another
-    // kind only KindOf is kept.
+    // kind only KindOf is kept, and for an abstract value the name of its type, which is the second part.
     internal static CelValue ValueOf(CelError error) => KindOf(error) switch
     {
         CelValueKind.Bool => CelValue.FromBoolean(error.Number != 0),

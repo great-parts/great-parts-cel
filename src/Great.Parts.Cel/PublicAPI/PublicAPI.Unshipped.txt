@@ -183,6 +183,7 @@ Great.Parts.Cel.Types.CelType.Kind.get -> Great.Parts.Cel.Types.CelTypeKind
 Great.Parts.Cel.Types.CelType.Name.get -> string!
 Great.Parts.Cel.Types.CelType.Parameters.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Types.CelType!>
 Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.Abstract = 19 -> Great.Parts.Cel.Types.CelTypeKind
 Great.Parts.Cel.Types.CelTypeKind.Any = 10 -> Great.Parts.Cel.Types.CelTypeKind
 Great.Parts.Cel.Types.CelTypeKind.Bool = 2 -> Great.Parts.Cel.Types.CelTypeKind
 Great.Parts.Cel.Types.CelTypeKind.Bytes = 7 -> Great.Parts.Cel.Types.CelTypeKind
@@ -310,6 +311,7 @@ Great.Parts.Cel.Values.CelValue.TryGetTimestamp(out Great.Parts.Cel.Values.CelTi
 Great.Parts.Cel.Values.CelValue.TryGetType(out Great.Parts.Cel.Types.CelType? value) -> bool
 Great.Parts.Cel.Values.CelValue.TryGetUInt64(out ulong value) -> bool
 Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.Abstract = 16 -> Great.Parts.Cel.Values.CelValueKind
 Great.Parts.Cel.Values.CelValueKind.Bool = 1 -> Great.Parts.Cel.Values.CelValueKind
 Great.Parts.Cel.Values.CelValueKind.Bytes = 6 -> Great.Parts.Cel.Values.CelValueKind
 Great.Parts.Cel.Values.CelValueKind.Double = 4 -> Great.Parts.Cel.Values.CelValueKind

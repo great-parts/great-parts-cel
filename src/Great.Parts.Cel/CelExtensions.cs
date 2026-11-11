@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Frozen;
 #if NET11_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
 #endif
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Library.Extensions;
 
 namespace Great.Parts.Cel;
 
@@ -33,6 +35,12 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public static class CelExtensions
 {
+    // The names of the sets that an environment description in JSON accepts: those the library implements.
+    internal static FrozenSet<string> Names => ExtensionCatalog.Default.Names;
+
+    // The set of an environment description: the member of this class that has the name, called with the version.
+    internal static CelExtension Create(string name, uint version) => ExtensionCatalog.Default.Get(name, version);
+
     /// <summary>
     /// The <c>strings</c> extension set: string functions such as <c>charAt</c>, <c>indexOf</c>,
     /// <c>lowerAscii</c>, <c>replace</c>, <c>split</c>, <c>substring</c>, <c>trim</c>, <c>join</c>,
@@ -45,10 +53,7 @@ public static class CelExtensions
     /// </remarks>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Strings(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Strings(uint version) => ExtensionCatalog.Default.Get("strings", version);
 
     /// <summary>
     /// The <c>math</c> extension set: the macros <c>math.greatest</c> and <c>math.least</c>, rounding of
@@ -57,10 +62,7 @@ public static class CelExtensions
     /// </summary>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Math(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Math(uint version) => ExtensionCatalog.Default.Get("math", version);
 
     /// <summary>
     /// The <c>lists</c> extension set: <c>lists.range</c>, <c>slice</c>, <c>flatten</c>, <c>reverse</c>,
@@ -68,10 +70,7 @@ public static class CelExtensions
     /// </summary>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Lists(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Lists(uint version) => ExtensionCatalog.Default.Get("lists", version);
 
     /// <summary>
     /// The <c>sets</c> extension set: <c>sets.contains</c>, <c>sets.equivalent</c> and
@@ -79,10 +78,7 @@ public static class CelExtensions
     /// </summary>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Sets(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Sets(uint version) => ExtensionCatalog.Default.Get("sets", version);
 
     /// <summary>
     /// The <c>encoders</c> extension set: <c>base64.encode</c>, <c>base64.decode</c> and
@@ -90,10 +86,7 @@ public static class CelExtensions
     /// </summary>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Encoders(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Encoders(uint version) => ExtensionCatalog.Default.Get("encoders", version);
 
     /// <summary>
     /// The <c>bindings</c> extension set: the macro <c>cel.bind</c>, which binds a name to a value inside an
@@ -107,10 +100,7 @@ public static class CelExtensions
     /// </remarks>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Bindings(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Bindings(uint version) => ExtensionCatalog.Default.Get("bindings", version);
 
     /// <summary>
     /// The <c>optional</c> extension set: the type <c>optional_type(T)</c>, the functions
@@ -139,10 +129,7 @@ public static class CelExtensions
     /// </summary>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension TwoVarComprehensions(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension TwoVarComprehensions(uint version) => ExtensionCatalog.Default.Get("two-var-comprehensions", version);
 
     /// <summary>
     /// The <c>network</c> extension set: the abstract types <c>net.IP</c> and <c>net.CIDR</c>, the functions
@@ -151,10 +138,7 @@ public static class CelExtensions
     /// </summary>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Network(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Network(uint version) => ExtensionCatalog.Default.Get("network", version);
 
     /// <summary>
     /// The <c>protos</c> extension set: the macros <c>proto.getExt</c> and <c>proto.hasExt</c>, which read

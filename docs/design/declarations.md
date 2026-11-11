@@ -54,6 +54,26 @@ A conflicting pair is one error. In it the standard library comes before the app
 
 An overload of the application may extend a function of the standard library when it does not overlap it: `size` on an object of the application, `contains` with other argument types. Operators cannot be extended: their names fail 4015.
 
+## Extension sets in the declaration checks
+
+The sets of the builder go through the checks of [extensions](extensions.md#build-checks) first — 4003, 4004, 4005, 4018 — and only the surviving sets join the checks above. Their overloads are declarations like those of the standard library and the application, with the source `extension <name> v<version>` for a set of the catalog and `application` for a set of `CelExtension.Create`, which is a declaration of the application; the source of a catalog set sorts after `environment JSON` in the order of sources. What changes in each check:
+
+| Check | With sets |
+| :- | :- |
+| `DuplicateOverloadId` (4013) | the identifier is unique across the standard library, every surviving set, the application and a description in JSON; the message names both sources, so `string_to_ip` declared by the application is `overload id 'string_to_ip' is used by both application and extension network v1`. A test checks that the catalog has no repeated identifier |
+| `OverlappingOverloads` (4002) | two overloads of one function from different sets, or from a set and the application, that overlap after erasure; the message names both sources. Overloads of one set do not overlap by construction. The overloads of the catalog overlap neither each other nor the standard library — `reverse` of `strings` and of `lists` differ by the type of the receiver, `string` of `network` takes `net.IP` and `net.CIDR`, which no standard overload takes — and a test checks every pair of sets and each set against version 1 |
+| `StandardLibraryConflict` (4006) | an overload of an application set that overlaps one of the standard library, as for an application overload. A function of the application, in a set or not, that has the name, the call style and the argument count of a macro of the **environment** — of the standard library or of a surviving set — is `function '{name}' of {source} conflicts with extension {set} v{version}: it has the form of the macro '{macro}'` for a macro of a set (`{macro}` is the name of the macro without its namespace, as in 1006: `greatest` for `math.greatest`), the existing text for a standard one: the parser expands such a call, so the function would never run |
+| `InvalidFunctionName` (4015) | the names of the functions of an application set, as for the application; the catalog sets are exempt, since they declare `math.@max` and `cel.@block` |
+| `MissingImplementation` (4007), `UnusedImplementation` (4010) | for an application set, against the declarations and the implementations that were given to `CelExtension.Create`: the implementations of a set belong to the set |
+| `DuplicateImplementation` (4014) | also an implementation registered with `AddFunctionImplementation` for an overload of a set of the catalog, which brings its own |
+| `DuplicateType` (4001) | an object type of a provider whose full name is an abstract type of a surviving set, the set named as the other source |
+| `TypeNotDeclared` (4008) | a name that the catalog gives to an abstract type of a set that is not added gets the hint `; add the extension set '{set}'`; a name that a surviving set declares resolves to its abstract type ([extension-network](extension-network.md#abstract-types)) |
+| `ImplementationSignatureMismatch` (4011) | the typed implementations of an application set, as for the application; a catalog set has none |
+
+An application set is a set of declarations of the application: its overloads have `IsApplication` and everything that follows from it in [evaluation](evaluation.md#application-functions), the cost function of the overload included. A declaration that fails a name or type check is left out of the later checks, and so is a set that failed the checks of the sets.
+
+`CelExtension.Create` itself checks only what its documentation lists — null and empty arguments — and copies its arguments: a later change of the array, the dictionary or a declaration cannot change the set. The conflicts and the other build errors are reported by `Build`, which is the only place that sees the whole environment.
+
 ## Constant arguments
 
 Some overloads take an argument that is prepared once, when a call has it as a literal: the pattern of `matches` and `matches_string`. The layer table lets `Checking` and `Evaluation` refer to `Declarations` but not to `Library`, so the point that prepares such an argument is defined here, in three internal types, and filled in by the library:

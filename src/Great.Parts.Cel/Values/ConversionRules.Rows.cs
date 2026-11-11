@@ -320,18 +320,37 @@ internal static partial class ConversionRules
                 case CelValueKind.Type when value.TryGetType(out CelType? celType):
                     result = celType;
                     return true;
-                case CelValueKind.Timestamp when value.TryGetTimestamp(out CelTimestamp timestamp):
-                    result = timestamp;
-                    return true;
-                case CelValueKind.Duration when value.TryGetDuration(out CelDuration duration):
-                    result = duration;
-                    return true;
+                case CelValueKind.Timestamp or CelValueKind.Duration:
+                    return TryBoxTime(value, out result);
                 case CelValueKind.Object when value.TryGetObject(out object? instance):
                     result = instance;
+                    return true;
+                case CelValueKind.Abstract:
+                    // The natural mapping has no .NET type for an abstract value: it is the boxed CelValue.
+                    result = value;
                     return true;
                 default:
                     return false;
             }
+        }
+
+        // A timestamp or a duration as the boxed value of its own type.
+        private static bool TryBoxTime(CelValue value, out object? result)
+        {
+            if (value.TryGetTimestamp(out CelTimestamp timestamp))
+            {
+                result = timestamp;
+                return true;
+            }
+
+            if (value.TryGetDuration(out CelDuration duration))
+            {
+                result = duration;
+                return true;
+            }
+
+            result = null;
+            return false;
         }
 
         private protected override bool HoldsCore(CelType type) => true;

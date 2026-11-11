@@ -123,6 +123,7 @@ internal static class SyntaxTreeComparer
 
     private static string? Comprehension(ComprehensionNode left, ComprehensionNode right) =>
         Text(".iterVar", left.IterVar, right.IterVar)
+            ?? Text(".iterVar2", left.IterVar2 ?? "null", right.IterVar2 ?? "null")
             ?? Text(".accuVar", left.AccuVar, right.AccuVar)
             ?? Child(".iterRange", left.IterRange, right.IterRange)
             ?? Child(".accuInit", left.AccuInit, right.AccuInit)

@@ -19,7 +19,7 @@ internal readonly struct CallSite
 
     // The function name is the first part; the kinds are packed in the number with their count in the byte, or for
     // more than 16 arguments are an array of one byte per argument, the second part. An object argument is named by
-    // its description or its .NET type, kept in an array of names as the second part.
+    // its description or its .NET type, an abstract one by the name of its type, kept in an array of names as the second part.
     private static readonly Func<CelError, string> NoMatchingOverloadText = static error =>
     {
         var message = new StringBuilder("no such overload: ").Append((string)error.First!).Append('(');
@@ -35,7 +35,7 @@ internal readonly struct CallSite
 
             var kind = (CelValueKind)(kinds is null ? (error.Number >> (4 * i)) & 0xF : kinds[i]);
             object? name = objects?[i];
-            message.Append(name is null ? ValueTypeNames.Of(kind) : name is CelObjectType description ? description.Name : name.ToString());
+            message.Append(name is null ? KindName(kind) : name is CelObjectType description ? description.Name : name.ToString());
         }
 
         return message.Append(')').ToString();
@@ -43,6 +43,10 @@ internal readonly struct CallSite
 
     private readonly int _offset;
     private readonly LineTable _lines;
+
+    // The name of a kind in the message; an abstract value has its type name in the array of names, except among the kinds of more
+    // than 16 arguments, which have no names, and there only its kind is known.
+    private static string KindName(CelValueKind kind) => kind == CelValueKind.Abstract ? "abstract" : ValueTypeNames.Of(kind);
 
     internal CallSite(
         string function,
@@ -138,13 +142,22 @@ internal readonly struct CallSite
         object?[]? objects = null;
         for (int i = 0; i < arguments.Length; i++)
         {
-            packed |= (long)arguments[i].Kind << (4 * i);
+            CelValueKind kind = arguments[i].Kind;
             if (arguments[i].TryGetObject(out object? instance))
             {
                 // An object argument is named by its type, resolved now; only an argument of static type dyn gets here.
                 objects ??= new object?[arguments.Length];
                 objects[i] = (object?)ObjectRules.Describe(arguments[i], Types) ?? instance.GetType();
             }
+            else if (kind == CelValueKind.Abstract)
+            {
+                // The kind of an abstract value does not fit the four bits of its place; its type name stands in for it.
+                objects ??= new object?[arguments.Length];
+                objects[i] = ValueTypeRules.NameOf(arguments[i], Types);
+                kind = CelValueKind.Null;
+            }
+
+            packed |= (long)kind << (4 * i);
         }
 
         return Error(CelErrorCode.EvalNoMatchingOverload, NoMatchingOverloadText, Function, objects, packed, (byte)arguments.Length);

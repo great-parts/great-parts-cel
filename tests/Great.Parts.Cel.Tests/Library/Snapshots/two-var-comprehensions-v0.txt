@@ -1,0 +1,19 @@
+# The declarations of version 0 of the extension set two-var-comprehensions, in the order of the table. A published version never changes: a new function comes as a new version.
+# set <name> <version> | depends <set> | type <abstract type> | macro <name> <global or receiver> <argument count or *>
+# overload <function> <overload id> <global or receiver> (<parameter types, the receiver first>) -> <result type> [dyn] cost <five costs>
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a call charges before it runs
+# (the fixed units and the cost of the arguments) on probe arguments of size 0, 1, 10, 11 and 100: every string, bytes, list and map argument has that size at once,
+# an int is that size, a double is 1, a net.IP and a net.CIDR have a fixed value.
+set two-var-comprehensions 0
+macro all receiver 3
+macro exists receiver 3
+macro existsOne receiver 3
+macro exists_one receiver 3
+macro transformList receiver 3
+macro transformList receiver 4
+macro transformMap receiver 3
+macro transformMap receiver 4
+macro transformMapEntry receiver 3
+macro transformMapEntry receiver 4
+overload cel.@mapInsert @mapInsert_map_key_value global (map(K, V), K, V) -> map(K, V) cost 0 0 0 0 0
+overload cel.@mapInsert @mapInsert_map_map global (map(K, V), map(K, V)) -> map(K, V) cost 0 0 0 0 0

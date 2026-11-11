@@ -14,7 +14,7 @@ namespace Great.Parts.Cel.Values;
 internal sealed class EntryTableMap : CelMap
 {
     // The most entries of a map without an index.
-    private const int UnindexedLimit = 8;
+    internal const int UnindexedLimit = 8;
 
     private readonly KeyValuePair<CelValue, CelValue>[] _entries;
 
@@ -85,6 +85,29 @@ internal sealed class EntryTableMap : CelMap
         return entries.Length == 0 ? Empty : new EntryTableMap(entries, slots);
     }
 
+    /// <summary>
+    /// Creates a map from the entries and the index of a <see cref="MapBuilder"/>, which already refused every key that
+    /// cannot be a key and every repeated key. The map takes over the array, which is trimmed to the entries, and the index.
+    /// </summary>
+    /// <param name="entries">The array of the builder, whose first <paramref name="count"/> entries are the map.</param>
+    /// <param name="count">The number of entries.</param>
+    /// <param name="slots">The index of the builder: a power of two of slots, at least twice <paramref name="count"/> when the map has more than <see cref="UnindexedLimit"/> entries; otherwise it is not read.</param>
+    /// <returns>The map, <see cref="Empty"/> for no entries.</returns>
+    internal static EntryTableMap Seal(KeyValuePair<CelValue, CelValue>[] entries, int count, int[]? slots)
+    {
+        if (count == 0)
+        {
+            return Empty;
+        }
+
+        if (count < entries.Length)
+        {
+            Array.Resize(ref entries, count);
+        }
+
+        return new EntryTableMap(entries, count > UnindexedLimit ? slots : null);
+    }
+
     private protected override bool TryGetValueCore(CelValue key, out CelValue value)
     {
         int position = _slots is null ? Find(_entries, _entries.Length, key) : Find(_entries, _slots, key);
@@ -104,7 +127,7 @@ internal sealed class EntryTableMap : CelMap
     }
 
     // The position of the key among the first count entries, compared with each; -1 when it is not there.
-    private static int Find(KeyValuePair<CelValue, CelValue>[] entries, int count, CelValue key)
+    internal static int Find(KeyValuePair<CelValue, CelValue>[] entries, int count, CelValue key)
     {
         ReadOnlySpan<KeyValuePair<CelValue, CelValue>> span = entries.AsSpan(0, count);
         for (int position = 0; position < span.Length; position++)
@@ -120,7 +143,7 @@ internal sealed class EntryTableMap : CelMap
 
     // The position of the key by the index; -1 when it is not there. A probe without a hash, such as a double with a
     // fraction or a list, equals no key.
-    private static int Find(KeyValuePair<CelValue, CelValue>[] entries, int[] slots, CelValue key)
+    internal static int Find(KeyValuePair<CelValue, CelValue>[] entries, int[] slots, CelValue key)
     {
         if (!KeyHashRules.TryGetHash(key, out int hash))
         {
@@ -141,7 +164,7 @@ internal sealed class EntryTableMap : CelMap
     }
 
     // Adds the entry at the position to the index; false when its key equals the key of an earlier entry.
-    private static bool TryInsert(KeyValuePair<CelValue, CelValue>[] entries, int[] slots, int position)
+    internal static bool TryInsert(KeyValuePair<CelValue, CelValue>[] entries, int[] slots, int position)
     {
         CelValue key = entries[position].Key;
         _ = KeyHashRules.TryGetHash(key, out int hash);

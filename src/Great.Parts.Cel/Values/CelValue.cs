@@ -77,7 +77,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// </para>
     /// <para>
     /// Code compiled for .NET 10 can meet a kind it does not know, <c>Decimal</c>, when it runs on
-    /// .NET 11; a <see langword="switch"/> over the kind needs a default branch.
+    /// .NET 11; a <see langword="switch"/> over the kind needs a default branch. The same holds for
+    /// <see cref="CelValueKind.Abstract"/>, the kind of a value of an abstract type of an extension set.
     /// </para>
     /// </remarks>
     public CelValueKind Kind => _kind;
@@ -428,6 +429,16 @@ public readonly partial struct CelValue : IEquatable<CelValue>
         return new CelValue(CelValueKind.Error, error, 0, 0);
     }
 
+    // The value of an abstract type: the object is the whole value, so no payload is stored beside it.
+    internal static CelValue FromAbstract(AbstractValue value) => new(CelValueKind.Abstract, value, 0, 0);
+
+    // The object of a value of the kind Abstract; null for any other kind.
+    internal bool TryGetAbstract([NotNullWhen(true)] out AbstractValue? value)
+    {
+        value = _kind == CelValueKind.Abstract ? (AbstractValue?)_ref : null;
+        return value is not null;
+    }
+
 #if NET11_0_OR_GREATER
     /// <summary>
     /// Reads a <c>decimal</c> value exactly, with its digits and exponent. Only on .NET 11.
@@ -494,6 +505,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.Type => ((CelType)_ref!).Equals((CelType?)other._ref),
             CelValueKind.List or CelValueKind.Map or CelValueKind.Error => ReferenceEquals(_ref, other._ref),
             CelValueKind.Object => ObjectEquals(other),
+            CelValueKind.Abstract => ((AbstractValue)_ref!).ContentEquals((AbstractValue)other._ref!),
 
             // No factory creates values of the other kinds yet.
             _ => throw new NotImplementedException(),
@@ -529,6 +541,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.Object => _ref is ObjectPair pair
                 ? HashCode.Combine(RuntimeHelpers.GetHashCode(pair.Instance), RuntimeHelpers.GetHashCode(pair.Type))
                 : RuntimeHelpers.GetHashCode(_ref),
+            CelValueKind.Abstract => ((AbstractValue)_ref!).ContentHash(),
 
             // No factory creates values of the other kinds yet.
             _ => throw new NotImplementedException(),

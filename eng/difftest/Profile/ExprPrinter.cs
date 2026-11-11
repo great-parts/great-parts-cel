@@ -34,6 +34,16 @@ internal static class ExprPrinter
     }
 
     /// <summary>
+    /// Prints a case of a run: the expression, and for a node of an abstract type <c>string(node)</c>, since the oracle returns a
+    /// value as <c>cel.expr.Value</c>, which has no form for <c>net.IP</c> or <c>net.CIDR</c>. A generated case is never of an abstract
+    /// type; the minimizer asks for such a node as a case of its own.
+    /// </summary>
+    /// <param name="expr">The expression.</param>
+    /// <exception cref="ArgumentException">A literal carries a form that its value cannot take.</exception>
+    internal static string PrintCase(Expr expr) =>
+        ProfileTables.AbstractResult(expr) is null ? Print(expr) : ProfileTables.StringConversion + "(" + Print(expr) + ")";
+
+    /// <summary>
     /// Prints the literal of a <c>double</c> value in a notation; the digits are the shortest that read back to the magnitude,
     /// and a negative value, <c>-0.0</c> included, is <c>-</c> and its magnitude.
     /// </summary>
@@ -132,15 +142,7 @@ internal static class ExprPrinter
                 text.Append('.').Append(test.Field).Append(')');
                 break;
             case Comprehension comprehension:
-                WriteMemberOperand(text, comprehension.Range);
-                text.Append('.').Append(comprehension.Macro).Append('(').Append(comprehension.Variable);
-                foreach (Expr argument in comprehension.Arguments)
-                {
-                    text.Append(", ");
-                    Write(text, argument, needsParentheses: false);
-                }
-
-                text.Append(')');
+                WriteComprehension(text, comprehension);
                 break;
             default:
                 text.Append(LiteralText(expr));
@@ -151,6 +153,33 @@ internal static class ExprPrinter
         {
             text.Append(')');
         }
+    }
+
+    // A macro on a range, as a member call of the range; cel.bind(name, value, result) is a call whose value is an argument, not a receiver.
+    private static void WriteComprehension(StringBuilder text, Comprehension comprehension)
+    {
+        if (comprehension.Macro == ProfileTables.BindMacro)
+        {
+            text.Append(comprehension.Macro).Append('(').Append(comprehension.Variable).Append(", ");
+            Write(text, comprehension.Range, needsParentheses: false);
+        }
+        else
+        {
+            WriteMemberOperand(text, comprehension.Range);
+            text.Append('.').Append(comprehension.Macro).Append('(').Append(comprehension.Variable);
+            if (comprehension.SecondVariable is { } second)
+            {
+                text.Append(", ").Append(second);
+            }
+        }
+
+        foreach (Expr argument in comprehension.Arguments)
+        {
+            text.Append(", ");
+            Write(text, argument, needsParentheses: false);
+        }
+
+        text.Append(')');
     }
 
     private static string LiteralText(Expr literal) => literal switch
@@ -253,6 +282,7 @@ internal static class ExprPrinter
             or ProfileTables.DoubleConversion or ProfileTables.StringConversion or ProfileTables.BytesConversion
             or ProfileTables.BoolConversion or ProfileTables.TimestampConversion or ProfileTables.DurationConversion
             or ProfileTables.Matches => function,
+        _ when ProfileTables.IsExtensionGlobal(function) => function,
         _ => throw Invalid("the function " + function + " is not in the profile"),
     };
 

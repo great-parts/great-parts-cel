@@ -21,6 +21,13 @@ internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
     // Two slots for each comprehension: its iteration variable and its accumulator.
     private readonly CelValue[] _locals;
     private readonly bool[] _filled;
+
+    // The cells of the slots of the blocks, with the state of each: the epoch of the block shifted left by one, and its low bit
+    // set when the slot is evaluated; the epoch of each block; and the counter that gives a new epoch at each entry of a block.
+    private readonly CelValue[] _cells;
+    private readonly ulong[] _cellStates;
+    private readonly ulong[] _blockEpochs;
+    private ulong _epoch;
     private readonly CelValue[] _stack;
     private int _count;
 
@@ -40,6 +47,9 @@ internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
         _slots = Allocate<CelValue>(plan.VariableCount);
         _filled = Allocate<bool>(plan.VariableCount);
         _locals = Allocate<CelValue>(plan.LocalCount);
+        _cells = Allocate<CelValue>(plan.SlotCount);
+        _cellStates = Allocate<ulong>(plan.SlotCount);
+        _blockEpochs = Allocate<ulong>(plan.BlockCount);
         _stack = Allocate<CelValue>(plan.StackSize);
         Lines = plan.Lines;
         Types = plan.Types;
@@ -142,6 +152,25 @@ internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
 
     // The slot of an iteration variable or an accumulator.
     internal ref CelValue Local(int slot) => ref _locals[slot];
+
+    // Takes a new epoch for the block: its slots are unread until a node reads them. The first epoch is 1, so the zero state of a
+    // cell is never a state of an epoch.
+    internal void EnterBlock(int block) => _blockEpochs[block] = ++_epoch;
+
+    internal ulong BlockEpoch(int block) => _blockEpochs[block];
+
+    internal ulong SlotState(int cell) => _cellStates[cell];
+
+    internal CelValue SlotValue(int cell) => _cells[cell];
+
+    internal void SetSlotState(int cell, ulong state) => _cellStates[cell] = state;
+
+    // Keeps the value of a slot, or its error value, and marks the cell as evaluated.
+    internal void KeepSlot(int cell, CelValue value, ulong state)
+    {
+        _cells[cell] = value;
+        _cellStates[cell] = state;
+    }
 
     internal void Push(CelValue value) => _stack[_count++] = value;
 

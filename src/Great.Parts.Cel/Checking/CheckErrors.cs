@@ -66,6 +66,10 @@ internal static class CheckErrors
             "type '" + type + "' cannot be created by an expression: object literals are supported only for protobuf messages",
             location);
 
+    // InvalidFormatString (2010): the answer of the validator of a call of format.
+    internal static CelError InvalidFormatString(string detail, CelSourceLocation location) =>
+        Create(CelErrorCode.InvalidFormatString, "invalid format string: " + detail, location);
+
     // InvalidRegex (2009): the pattern of matches, a string literal, that the preparation refused. The text is complete: the preparer
     // of the library writes it, the same as the evaluation of a pattern from data. The place is the literal.
     internal static CelError InvalidRegex(string message, CelSourceLocation location) =>

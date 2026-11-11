@@ -1,0 +1,10 @@
+# The declarations of version 1 of the extension set encoders, in the order of the table. A published version never changes: a new function comes as a new version.
+# set <name> <version> | depends <set> | type <abstract type> | macro <name> <global or receiver> <argument count or *>
+# overload <function> <overload id> <global or receiver> (<parameter types, the receiver first>) -> <result type> [dyn] cost <five costs>
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a call charges before it runs
+# (the fixed units and the cost of the arguments) on probe arguments of size 0, 1, 10, 11 and 100: every string, bytes, list and map argument has that size at once,
+# an int is that size, a double is 1, a net.IP and a net.CIDR have a fixed value.
+set encoders 1
+overload base64.decode base64_decode_string global (string) -> bytes cost 1 2 2 3 11
+overload base64.encode base64_encode_bytes global (bytes) -> string cost 1 2 2 3 11
+overload json.encode json_encode_dyn global (dyn) -> string cost 1 1 1 1 1

@@ -1,21 +1,33 @@
+using System.Globalization;
 using Xunit;
 using static Great.Parts.Cel.Tests.Configuration.DescriptionTestSupport;
 
 namespace Great.Parts.Cel.Tests.Configuration;
 
-// The key extensions while the catalog of sets is empty: every name is an error at the value of name, and the version is
-// checked on its own. A part that brings a set adds a test of its name.
+// The key extensions: a name that the catalog does not have is an error at the value of name, and the version is checked on its
+// own. A part that brings a set adds a test of its name.
 public sealed class EnvironmentJsonExtensionTests
 {
     [Theory]
     [InlineData("nosuchset")]
-    [InlineData("strings")]
     [InlineData("regex")]
     [InlineData("block")]
     [InlineData("cel.lib.ext.strings")]
     [InlineData("Strings")]
     public static void NameOutsideTheCatalog_IsAnErrorAtTheValueThatNamesIt(string name) =>
         AssertError($$"""{"extensions": [{"name": ^"{{name}}", "version": "1"}]}""", $"'{name}'");
+
+    [Theory]
+    [InlineData("strings", "5")]
+    [InlineData("sets", "0")]
+    public static void NameOfASetOfTheLibrary_AddsTheSetOfItsVersion(string name, string version)
+    {
+        CelEnvironmentBuilder builder = NewBuilder();
+
+        Assert.Empty(Apply(builder, $$"""{"extensions": [{"name": "{{name}}", "version": "{{version}}"}]}"""));
+
+        Assert.Equal(new[] { CelExtensions.Create(name, uint.Parse(version, CultureInfo.InvariantCulture)) }, builder.Extensions);
+    }
 
     [Theory]
     [InlineData("\"latest\"")]

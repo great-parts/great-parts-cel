@@ -78,6 +78,57 @@ An overload that the library table marks *only with `dyn`* — the 24 overloads 
 
 All candidates are recorded in the reference map of the call in index order; the checker does not choose among them. The type of the call is the result type of the first candidate after the substitution; when a later candidate's result type differs, the type is `dyn`. No candidate is `NoMatchingOverload` with the argument types after the substitution, free variables written as `dyn`. A call with an argument of type `error` is not looked up and has the type `error`.
 
+## Extension sets in the index
+
+`DeclarationIndex` merges the table of the standard library, the surviving sets of the environment and the declarations of the application ([extensions](extensions.md#what-an-environment-keeps-of-the-sets)):
+
+- **overloads** by function name, call style and argument count, as above, in this order: the standard library in the order of its table; the sets by name (ordinal) and version, each in the order of its table; then the application by overload identifier. The order of the candidates, which evaluation uses to dispatch and which decides the type of a call whose candidates differ, does not depend on the order of the builder calls;
+- **function names** — the frozen set also holds the names of the sets, qualified ones included: `math.ceil`, `math.@max`, `strings.quote`, `lists.range`, `sets.contains`, `base64.encode`, `json.encode`, `ip.isCanonical`, `cel.@block`, `cel.@mapInsert`. The receiver-call rule of "Name resolution" finds them: in `math.ceil(x)` and `ip.isCanonical(s)` the chain `math` or `ip` is first tried as the prefix of a qualified function name, and when that is declared the call is a global call, even where a variable has the name of the prefix;
+- **type identifiers of the sets** — `net.IP` and `net.CIDR`, each an identifier of the static type `type(T)` with its type value, as `int` is. A name is tried as a variable first, so a variable of the same name hides the identifier; a selection chain such as `net.IP` resolves by the longest declared prefix;
+- **variables of internal sets**, which none of the sets of this part has.
+
+## Comprehensions of two variables
+
+The macros of two iteration variables create `ComprehensionNode`s with `IterVar2` ([extension-macros](extension-macros.md#the-second-iteration-variable)). The rule for a comprehension above holds with these changes: the range is checked in the enclosing scopes; the scope of the loop declares the first variable, the second one and the accumulator, in this order; and the variables get their types from the range:
+
+| Range | First variable | Second variable |
+| :- | :- | :- |
+| `list(E)` | `int` | `E` |
+| `map(K, V)` | `K` | `V` |
+| `dyn`, `error`, a type parameter | `dyn` | `dyn` |
+| another type | `error` | `error` — `InvalidComprehensionRange` (2005) at the range |
+
+`[1, 2].all(i, v, v > i)` has `i` of the type `int` and `v` of the type `int`; `{'a': 1}.all(k, v, k == v)` is `NoMatchingOverload` for `_==_(string, int)` at the comparison. Everything else — the loop condition, the step, the result, the type of the comprehension — is as for one variable. A comprehension with two variables over a `map` literal or a variable uses the key and the value the way the expansion reads them; `cel.@mapInsert(map(K, V), K, V)` and `cel.@mapInsert(map(K, V), map(K, V))` are overloads like any other, so the accumulator `{}`, of the type `map(_var0, _var1)`, gets `K` and `V` from the first insertion.
+
+## Calls that the checker validates
+
+An overload binding may carry a `CallValidator` ([extension-format](extension-format.md#check-at-compilation)): a function of a neutral description of a call, `CallShape`, which answers `Ok` or an error code with a detail. The checker keeps for each call whose chosen candidates include such a binding the pair of the node and the binding, and runs them after the traversal of the tree, when it has found no error, in the order of the nodes by offset; each gets the **final** types of its parts, with the substitution applied and the variables that are still free replaced by `dyn`. The validators run before the check against the expected type. Their errors join the list in the order of offsets, with the stage `Check` and the place of the call, or the offset that the answer names; a call that a validator rejected keeps the type that the candidates gave it, since the traversal is over.
+
+```text
+namespace Great.Parts.Cel.Declarations
+internal delegate CallValidation CallValidator(CallShape call)
+internal readonly record struct CallValidation(CelErrorCode Code, string Detail, int? Offset)    // Code = 0: nothing wrong; Offset null: the call
+internal readonly record struct CallShape(ValueShape? Receiver, ImmutableArray<ValueShape> Arguments)
+internal sealed record ValueShape(
+    int Offset,                                                // the offset of its node
+    CelType Type,                                              // the final static type
+    string? StringConstant,                                    // the value of a string literal, else null
+    ImmutableArray<ValueShape>? Elements,                      // the elements of a list literal, else null
+    bool HasOptionalElements,                                  // a list literal with an optional element
+    ImmutableArray<(ValueShape Key, ValueShape Value)>? Entries)    // the entries of a map literal, else null
+```
+
+Two bindings of this part have a validator:
+
+| Overload | What it checks | Code |
+| :- | :- | :- |
+| `string_format` | a string literal as the receiver and a list literal as the only argument: the format string against the elements ([extension-format](extension-format.md#check-at-compilation)) | `InvalidFormatString` (2010), `invalid format string: {detail}` |
+| `cel_block_list` | the first argument is a list literal without optional elements; the planner reads the slots from it ([evaluation](evaluation.md#blocks)) | `NoMatchingOverload` (2001), with its usual text `found no matching overload for 'cel.@block' applied to '({argumentTypes})'`: no overload fits an argument that is not a list literal, and no new code is needed |
+
+`cel.@block` cannot be written in text, so this error is only for a tree built with `NodeFactory`, as the tests of the set do.
+
+**Slot references.** The checker has no rule for `@index`N: it is an identifier like any other. The variables `@index0` to `@index29`, of the type `dyn`, are declared by the internal set `block` together with the macro `cel.block`, and that set is not in the library yet. In this part a tree with slot references is built with `NodeFactory` and planned by `Planner.PlanWithoutTypeCheck` ([evaluation](evaluation.md#blocks)); a tree with `@index`N that goes through the checker is rejected as any undeclared identifier, by the rule of [name resolution](#name-resolution). The type of a block is the type of its second argument, the parameter `T` of `cel.@block`; the type of a slot is the type of its expression.
+
 ## The type `error` and the list of errors
 
 A node with an error gets the type `error`, assignable to every type, and produces no further errors; a list, a map or a call with such a part gets the type `error` too. Checking goes on after an error, so a compilation returns every check error of the text. The list is ordered by offset; errors at one offset keep the order in which the checker found them. This is not always the order of the traversal: a call is checked after its arguments, so `size(1.all(x, true))` gives `NoMatchingOverload` at the call (offset 4) before `InvalidComprehensionRange` at the range (offset 5), though the range fails first. cel-go v0.32.0 orders its issues the same way, stably by line and column. A checked expression exists only when there is no error. All have the stage `Check`.

@@ -32,11 +32,33 @@ internal static class ValueTypeRules
         CelValueKind.List => ListType,
         CelValueKind.Map => MapType,
         CelValueKind.Type => TypeType,
+        CelValueKind.Abstract => AbstractTypeOf(value),
         CelValueKind.Timestamp => CelType.Timestamp,
         CelValueKind.Duration => CelType.Duration,
 
         // Optional values, objects and decimals come with their parts.
         _ => throw new NotImplementedException(),
+    };
+
+    // The type of the object of a value of the kind Abstract.
+    private static CelType AbstractTypeOf(CelValue value)
+    {
+        _ = value.TryGetAbstract(out AbstractValue? content);
+        return content!.Type;
+    }
+
+    /// <summary>
+    /// The name of the type of a value as a message writes it: the description of an object value, the full name of an
+    /// abstract type, the name of the kind of any other value.
+    /// </summary>
+    /// <param name="value">A value that is not an error value.</param>
+    /// <param name="types">The type index of the environment, which describes object values; <see langword="null"/> outside an evaluation.</param>
+    /// <returns>The name.</returns>
+    internal static string NameOf(CelValue value, TypeIndex? types) => value.Kind switch
+    {
+        CelValueKind.Object => ObjectRules.TypeName(value, types),
+        CelValueKind.Abstract => AbstractTypeOf(value).Name,
+        _ => ValueTypeNames.Of(value.Kind),
     };
 
     /// <summary>
@@ -111,7 +133,7 @@ internal static class ValueTypeRules
     {
         if (!FitsTopLevel(value, type, types))
         {
-            return value.Kind == CelValueKind.Object ? ObjectRules.TypeName(value, types) : ValueTypeNames.Of(value.Kind);
+            return NameOf(value, types);
         }
 
         if (value.TryGetList(out CelList? list) && !type.Parameters.IsEmpty && Descends(type.Parameters[0]))
@@ -240,6 +262,14 @@ internal static class ValueTypeRules
     private static TypeFit FitsItem(CelValue item, CelType type, IEvaluationMeter? meter, TypeIndex? types) =>
         item.TryGetError(out CelError? error) ? TypeFit.OfElementError(error) : Fits(item, type, meter, false, types);
 
+    // Whether the type of an abstract value has the name and the parameters of the declared abstract type.
+    private static bool AbstractFits(CelValue value, CelType declared)
+    {
+        CelType actual = AbstractTypeOf(value);
+        return string.Equals(actual.Name, declared.Name, StringComparison.Ordinal)
+            && actual.Parameters.AsSpan().SequenceEqual(declared.Parameters.AsSpan());
+    }
+
     // Whether every value of the recorded type of a view that the input rows made fits the declared type without `dyn`: the
     // view then needs no descent. A wrapper takes null and its parameter, so a view of nullable elements does not fit a
     // declared primitive.
@@ -308,6 +338,7 @@ internal static class ValueTypeRules
             CelTypeKind.List => kind == CelValueKind.List,
             CelTypeKind.Map => kind == CelValueKind.Map,
             CelTypeKind.Type => kind == CelValueKind.Type,
+            CelTypeKind.Abstract => kind == CelValueKind.Null || (kind == CelValueKind.Abstract && AbstractFits(value, type)),
             CelTypeKind.Timestamp => kind == CelValueKind.Timestamp,
             CelTypeKind.Duration => kind == CelValueKind.Duration,
 

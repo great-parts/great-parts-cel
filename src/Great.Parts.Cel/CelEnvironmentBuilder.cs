@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Library;
+using Great.Parts.Cel.Library.Extensions;
 using Great.Parts.Cel.Library.Regex;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -54,6 +58,9 @@ public sealed class CelEnvironmentBuilder
 
     // The type sources, each provider once.
     private readonly List<TypeSource> _typeSources = [];
+
+    // The extension sets, each set once: the same set added again keeps the source that comes first.
+    private readonly List<SourcedDeclaration<CelExtension>> _extensions = [];
 
     // The first time zone database added, which stays; and whether a different one was added later, which Build reports.
     private CelTimeZoneDatabase? _timeZones;
@@ -704,14 +711,18 @@ public sealed class CelEnvironmentBuilder
     /// Adds an extension set with its explicit version, such as <c>CelExtensions.Strings(version: 5)</c>.
     /// </summary>
     /// <remarks>
-    /// The rules and build errors of extension sets are on <see cref="CelExtension"/>.
+    /// The rules and build errors of extension sets are on <see cref="CelExtension"/>, and the sets, their versions and
+    /// their functions on the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md">Extension sets</see>.
+    /// The call only collects the set: adding the same set twice adds nothing, and the conflicts are build errors reported by
+    /// <see cref="Build"/>, so the order of the calls changes neither the environment nor the errors.
     /// </remarks>
     /// <param name="extension">The extension set.</param>
     /// <returns>This builder.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="extension"/> is <see langword="null"/>.</exception>
     public CelEnvironmentBuilder AddExtension(CelExtension extension)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(extension);
+        return AddExtension(SourcedDeclaration<CelExtension>.InApplication(extension));
     }
 
     /// <summary>
@@ -782,7 +793,7 @@ public sealed class CelEnvironmentBuilder
     /// <returns>The environment or the build errors.</returns>
     public CelBuildResult Build()
     {
-        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped], [.. _typeSources], _timeZones, _timeZoneConflict);
+        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped], [.. _typeSources], [.. _extensions], _timeZones, _timeZoneConflict);
         LibraryDeclarations library = _standardLibrary.Declarations;
         ImmutableArray<CelError> errors = DeclarationChecks.Check(
             declarations,
@@ -790,15 +801,34 @@ public sealed class CelEnvironmentBuilder
             out ImmutableArray<CelVariableDecl> variables,
             out ImmutableArray<OverloadBinding> overloads,
             out string container,
-            out TypeIndex types);
+            out TypeIndex types,
+            out ImmutableArray<ExtensionDefinition> extensions,
+            ExtensionCatalog.SetOfAbstractType);
         if (!errors.IsEmpty)
         {
             return new(errors);
         }
 
         var patternCache = new PatternCache();
-        DeclarationIndex index = DeclarationIndex.Create([.. library.Overloads, .. overloads], variables, library.TypeIdentifiers, container, types, patternCache);
-        return new(new CelEnvironment(_standardLibrary, declarations, index, patternCache));
+        DeclarationIndex index = DeclarationIndex.Create(
+            [.. library.Overloads, .. overloads], variables, TypeIdentifiers(library, extensions), container, types, patternCache);
+        return new(new CelEnvironment(_standardLibrary, declarations, index, CatalogExtension.SyntaxOf(extensions), patternCache));
+    }
+
+    // The type identifiers of the version and those that the abstract types of the sets add, each the identifier of its type.
+    private static FrozenDictionary<string, CelType> TypeIdentifiers(LibraryDeclarations library, ImmutableArray<ExtensionDefinition> extensions)
+    {
+        Dictionary<string, CelType>? merged = null;
+        foreach (ExtensionDefinition extension in extensions)
+        {
+            foreach (AbstractTypeDeclaration declaration in extension.AbstractTypes)
+            {
+                merged ??= new Dictionary<string, CelType>(library.TypeIdentifiers, StringComparer.Ordinal);
+                merged.Add(declaration.Name, declaration.Type);
+            }
+        }
+
+        return merged is null ? library.TypeIdentifiers : merged.ToFrozenDictionary(StringComparer.Ordinal);
     }
 
     // A builder with the declarations of an environment.
@@ -811,6 +841,7 @@ public sealed class CelEnvironmentBuilder
         _containers.AddRange(declarations.Containers);
         _unmapped.AddRange(declarations.Unmapped);
         _typeSources.AddRange(declarations.TypeSources);
+        _extensions.AddRange(declarations.Extensions);
         _timeZones = declarations.TimeZones;
     }
 
@@ -859,6 +890,22 @@ public sealed class CelEnvironmentBuilder
         }
     }
 
+    // The extension sets collected so far, each once, ordered by name (ordinal) and then by version.
+    internal ImmutableArray<CelExtension> Extensions
+    {
+        get
+        {
+            CelExtension[] extensions = new CelExtension[_extensions.Count];
+            for (int i = 0; i < extensions.Length; i++)
+            {
+                extensions[i] = _extensions[i].Value;
+            }
+
+            Array.Sort(extensions, CompareExtensions);
+            return ImmutableCollectionsMarshal.AsImmutableArray(extensions);
+        }
+    }
+
     // The name resolution container: the first non-empty one declared, or the empty string without one.
     internal string Container => _containers.Count == 0 ? string.Empty : _containers[0].Value;
 
@@ -870,6 +917,11 @@ public sealed class CelEnvironmentBuilder
         Keep(_containers, new SourcedDeclaration<string>(container, source, position), static (kept, added) => string.Equals(kept, added, StringComparison.Ordinal));
         return this;
     }
+
+    // Adds the extension set that an element of the array extensions of an environment description declares, with the label of the
+    // description and the position of the element in the JSON text.
+    internal CelEnvironmentBuilder AddExtension(CelExtension extension, string source, CelSourceLocation position) =>
+        AddExtension(new SourcedDeclaration<CelExtension>(extension, source, position));
 
     internal CelEnvironmentBuilder AddVariable(CelVariableDecl declaration, string source, CelSourceLocation position) =>
         AddVariable(new SourcedDeclaration<CelVariableDecl>(declaration, source, position));
@@ -921,6 +973,25 @@ public sealed class CelEnvironmentBuilder
         // The typed delegate is checked against the inferred overload like a typed implementation.
         _functions.Add(SourcedDeclaration<CelFunctionDecl>.InApplication(function!));
         return AddImplementation(entry!);
+    }
+
+    private CelEnvironmentBuilder AddExtension(SourcedDeclaration<CelExtension> extension)
+    {
+        Keep(_extensions, extension, static (kept, added) => kept.IsSameSetAs(added));
+        return this;
+    }
+
+    // By name, then version, then the source of the definition, so two different sets of one name and version have a fixed order.
+    private static int CompareExtensions(CelExtension left, CelExtension right)
+    {
+        int byName = string.CompareOrdinal(left.Name, right.Name);
+        if (byName != 0)
+        {
+            return byName;
+        }
+
+        int byVersion = left.Version.CompareTo(right.Version);
+        return byVersion != 0 ? byVersion : string.CompareOrdinal(left.Definition?.Source, right.Definition?.Source);
     }
 
     private CelEnvironmentBuilder AddVariable(SourcedDeclaration<CelVariableDecl> declaration)
