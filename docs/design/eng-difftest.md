@@ -33,7 +33,7 @@ docker compose -f eng/compose.yaml run --rm difftest [--seed <n>] [--budget <tim
 | :- | :- | :- |
 | `--seed` | the date in UTC as `yyyyMMdd` | the seed of the run; case `n` depends on the seed and `n` alone |
 | `--budget` | `5m` | the time of the whole run, minimization included; the long run before a release gives `2h` |
-| `--case` | none | run only case `n` of the seed, to reproduce it: the same seed and `n` give the same minimized case and the same signature ([Outcomes and signatures](#outcomes-and-signatures)) |
+| `--case` | none | run only case `n` of the seed, to reproduce it: the same seed and `n` give the same minimized case and the same signature ([Outcomes and signatures](#outcomes-and-signatures)); the run leaves `pending.textproto` unwritten and prints the text it would have instead |
 | `--numbers-only` | off | print only the journal line and write no file; for the workflows, whose log is public, so no output names a case ([Findings and output](#findings-and-output)) |
 
 | Item | Value |
@@ -169,7 +169,7 @@ Types are the CEL type names that `type()` gives, without parameters: `int`, `ui
 
 A signature is known when the column `Signature` of the registry of known differences `tests/Great.Parts.Cel.Conformance/Regression/known-differences.md` or of the corpus skip list `Regression/skips.md` has it. The run keeps the first case of each new signature.
 
-These cases go to `tests/Great.Parts.Cel.Conformance/Regression/pending.textproto`, which every run rewrites. The oracle writes them (request `case`) with the answer of cel-go as the expectation, named `pending/new/<seed>-<n>`. The file is part of the corpus, so `eng/test` fails with `ENG801` until each case is fixed or recorded. A compile error of cel-go goes into `eval_error`: a `SimpleTest` cannot expect a compile error. So a library that gives an error of evaluation passes such a case, and a case of a signature with a compile error of cel-go and an error of evaluation of the library, as `matches(string, error) stage-mismatch`, is not recorded in the skip list, since an entry for a passing case is `ENG802`: the registry has the signature and the corpus keeps the case, which the library passes.
+These cases go to `tests/Great.Parts.Cel.Conformance/Regression/pending.textproto`, which every run without `--case` rewrites. The oracle writes them (request `case`) with the answer of cel-go as the expectation, named `pending/new/<seed>-<n>`. The file is part of the corpus, so `eng/test` fails with `ENG801` until each case is fixed or recorded. A compile error of cel-go goes into `eval_error`: a `SimpleTest` cannot expect a compile error. So a library that gives an error of evaluation passes such a case, and a case of a signature with a compile error of cel-go and an error of evaluation of the library, as `matches(string, error) stage-mismatch`, is not recorded in the skip list, since an entry for a passing case is `ENG802`: the registry has the signature and the corpus keeps the case, which the library passes.
 
 The file is committed in its empty form, without cases, byte for byte as below, with LF line ends. A run without new signatures writes exactly this form, so the working copy stays clean. A run with `--numbers-only` does not touch the file.
 
@@ -249,7 +249,7 @@ The log is public, so the run has `--numbers-only` and the step summary holds th
 
 ### Reproducing a case
 
-The journal line of the summary has what a maintainer needs: `seed`, `commit` and `new-cases`, the numbers of the kept cases. Case `n` depends on the seed and `n` alone, so the maintainer checks out `commit`, runs `docker compose -f eng/compose.yaml run --rm difftest --seed <seed> --case <n>` and gets the same minimized case and the same signature, with the text of the case and the finding that `--numbers-only` kept out of the public log. Nothing else of the run is needed. A run that ends in `ENG821` has `cases=0` and no case to reproduce: the Go of the oracle is wrong.
+The journal line of the summary has what a maintainer needs: `seed`, `commit` and `new-cases`, the numbers of the kept cases. Case `n` depends on the seed and `n` alone, so the maintainer checks out `commit`, runs `docker compose -f eng/compose.yaml run --rm difftest --seed <seed> --case <n>` and gets the same minimized case and the same signature, with the text of the case on standard output (the working tree stays clean) and the finding that `--numbers-only` kept out of the public log. Nothing else of the run is needed. A run that ends in `ENG821` has `cases=0` and no case to reproduce: the Go of the oracle is wrong.
 
 ## Tests
 

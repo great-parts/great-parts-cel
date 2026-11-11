@@ -8,7 +8,9 @@
 # that runs eng/run gets them: test, mutate, docs, difftest and min-sdk.
 # The project name carries the name of the working copy, so runs from different working copies never share containers, networks
 # or the service oracle (docs/design/eng-test.md, "Linked worktrees"); the main working copy keeps the name of eng/compose.yaml.
-# Compose lowercases the name. The named volumes keep their names in every project.
+# Compose lowercases the name. The named volumes keep their names in every project; the project of the main working copy
+# creates them, so here they are external: Compose takes them as they are and does not warn that another project made them.
+# A machine that has never run eng/compose.yaml from the main working copy creates them once: docker volume create <name>.
 name: great-parts-cel-eng-${ENG_WORKTREE_NAME:?set ENG_WORKTREE_NAME to the name of the working copy directory}
 
 x-git: &git
@@ -37,3 +39,14 @@ services:
     volumes: *git
   min-sdk:
     volumes: *git
+
+volumes:
+  nuget:
+    name: great-parts-cel-eng_nuget
+    external: true
+  gomod:
+    name: great-parts-cel-eng_gomod
+    external: true
+  gobuild:
+    name: great-parts-cel-eng_gobuild
+    external: true

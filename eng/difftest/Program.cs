@@ -205,12 +205,17 @@ internal static class Program
             cases++;
         }
 
-        // Step 5: pending.textproto, the findings and the journal line.
+        // Step 5: pending.textproto, the findings and the journal line. A run with --case reproduces a case and leaves the
+        // working tree as it is: it prints the text pending.textproto would have instead of writing the file.
         PendingText pending = PendingFile.Build(search.NewSignatures);
         IReadOnlyList<Finding> findings = [.. zoneFindings, .. PendingFile.Findings(search.NewSignatures, pending)];
-        if (!options.NumbersOnly)
+        if (!options.NumbersOnly && options.Case is null)
         {
             PendingFile.Write(root, pending);
+        }
+        else if (search.NewSignatures.Count > 0)
+        {
+            Print(setup.Output, options, pending.Text.TrimEnd('\n'));
         }
 
         foreach (Finding finding in findings)

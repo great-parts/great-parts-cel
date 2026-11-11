@@ -304,7 +304,7 @@ public sealed class OracleConnectionTests
     }
 
     [Fact]
-    public void AgreeingCase_IsExitCode0WithTheJournalLineAndTheEmptyPendingFile()
+    public void AgreeingCase_IsExitCode0WithTheJournalLineAndLeavesThePendingFileUnwritten()
     {
         using FakeOracle fake = new([Handshake], answer: _ => """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
         using TempDirectory root = Repository();
@@ -315,7 +315,7 @@ public sealed class OracleConnectionTests
         Assert.Equal(0, exitCode);
         Assert.Empty(error);
         Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.32.0 cases=1 signatures new=0 (S1=0, S2=0) known=0 new-cases=\n", output);
-        Assert.Equal(PendingFile.EmptyForm, File.ReadAllText(Path.Combine(root.Path, PendingFile.Path)));
+        Assert.False(File.Exists(Path.Combine(root.Path, PendingFile.Path)));
         Assert.Single(fake.Requests);
         Assert.Contains($"\"expr\":{JsonSerializer.Serialize(CaseGenerator.Case(7, 3).Text)}", fake.Requests[0], StringComparison.Ordinal);
     }
@@ -521,7 +521,8 @@ public sealed class OracleConnectionTests
     }
 
     // A case of seed 7 with a library side that diverges from the fake oracle on every case that reads the bound variable i1;
-    // the fake oracle writes the case of a new signature as its name and expression.
+    // the fake oracle writes the case of a new signature as its name and expression. A run with --case leaves pending.textproto
+    // unwritten and prints its text, so the pending text is taken from the output.
     private static (int ExitCode, string Output, string Pending, List<string> Requests) RunWithLibraryThatDivergesOnI1(string number)
     {
         using FakeOracle fake = new([Handshake], answer: request => request.GetProperty("op").GetString() == "case"
@@ -531,7 +532,8 @@ public sealed class OracleConnectionTests
         (int exitCode, string output, string error) = Run(root, fake.Port, Limit, new LibraryThatDivergesOnI1(), ["--case", number]);
         fake.Join();
         Assert.Empty(error);
-        return (exitCode, output, File.ReadAllText(Path.Combine(root.Path, PendingFile.Path)), fake.Requests);
+        Assert.False(File.Exists(Path.Combine(root.Path, PendingFile.Path)));
+        return (exitCode, output, output, fake.Requests);
     }
 
     // Case 3 of seed 7 with a library side that diverges from the fake oracle on its first evaluation only, so the minimized
