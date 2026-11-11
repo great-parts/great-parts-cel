@@ -227,6 +227,52 @@ jobs:
         if: ${{ !cancelled() }}
         run: dotnet run --project eng/checks -c Release --no-build -- links --report artifacts/docs/lychee-external.json
 
+  # The check min-sdk (docs/design/eng-test.md, "min-sdk"): the source generator of the package loads into the compiler of the oldest
+  # SDK of a user of the net10.0 package. The solution is built and packed on the host, as eng/test does before it; the sample
+  # application is built by the Compose service min-sdk, which runs the compiled eng/run on the image with the SDK 10.0.100. The job
+  # runs on every push and pull request: the package depends on the generator and on the library, not only on the paths of eng/.
+  min-sdk:
+    name: min-sdk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: dotnet restore Great.Parts.Cel.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build Great.Parts.Cel.slnx -c Release --no-restore
+
+      # The same pack as the step "packages" of eng/checks: the packages of the Release build in artifacts/packages.
+      - name: Pack
+        run: dotnet pack Great.Parts.Cel.slnx -c Release --no-build -o artifacts/packages
+
+      - name: min-sdk (Compose)
+        run: docker compose -f eng/compose.yaml run --rm -T min-sdk
+
+  # The control set of mutation testing (docs/design/eng-mutate.md, "Control set"): Stryker.NET on the code of eng/checks, every mutant
+  # of which the tests of eng/tests detect. It runs the Compose service mutate with the configuration of the set, which has no since,
+  # so it needs no history. The job runs on every push and pull request, in parallel with the others, and is not longer than the
+  # Native AOT cells.
+  stryker-control:
+    name: Stryker control set
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Control set (Compose)
+        run: docker compose -f eng/compose.yaml run --rm -T mutate eng/stryker-control.json
+
   # Signed-off-by of every commit that reaches main (push: before..after, merges and bots included) and of every commit of a pull
   # request except those of Dependabot. A new branch or the first push has before = 0000..., then all commits of after are checked.
   signoff:

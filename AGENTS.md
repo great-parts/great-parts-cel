@@ -6,8 +6,12 @@ Instructions for AI coding agents that work in this repository. For people: [CON
 
 Everything runs in containers; a local .NET SDK is not needed. From the repository root:
 
-- `docker compose -f eng/compose.yaml run --rm test`: the full check. Build, all tests under JIT for `net10.0` and `net11.0`, the repository checks, Native AOT on linux-x64. A change is done when it passes.
-- `docker compose -f eng/compose.yaml run --rm docs`: the examples, the error codes page and the links. Needed when a path of "Triggers" in `docs/design/eng-docs.md` changes, such as `README.md`, `docs/` or `src/`.
+The full check of a change is CI (`.github/workflows/ci.yml`): on every push to `main` and every pull request it builds, runs all tests under JIT for `net10.0` and `net11.0` and under Native AOT on linux-x64, the repository checks, the documentation checks, the `min-sdk` check and the control set of mutation testing; the differential run against cel-go, `eng/difftest`, is the workflow `.github/workflows/difftest-main.yml` on every push to `main`. Do not run the full check, `eng/difftest` included, locally before you finish a change. The commands stay for a run by hand:
+
+- `docker compose -f eng/compose.yaml run --rm test`: build, all tests under JIT for `net10.0` and `net11.0`, the repository checks, Native AOT on linux-x64.
+- `docker compose -f eng/compose.yaml run --rm docs`: the examples, the error codes page and the links. A change of a path of "Triggers" in `docs/design/eng-docs.md`, such as `README.md`, `docs/` or `src/`, changes the result.
+- `docker compose -f eng/compose.yaml run --rm min-sdk` (after `test`) and `docker compose -f eng/compose.yaml run --rm mutate eng/stryker-control.json`: the `min-sdk` check and the control set of mutation testing, see `docs/design/eng-test.md` and `docs/design/eng-mutate.md`.
+- `docker compose -f eng/compose.yaml run --rm difftest`: the differential run against cel-go, `docs/design/eng-difftest.md`. CI runs it on every push to `main`; run it locally by hand only, and reproduce a case of a run with `--seed <seed> --case <n>`.
 - From a linked worktree add `-f eng/compose.worktree.yaml`, see `docs/design/eng-test.md`, "Linked worktrees".
 
 ## Where things are

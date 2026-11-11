@@ -1,6 +1,6 @@
 # eng/difftest
 
-`eng/difftest` is the differential run against cel-go. It generates random cases, evaluates each with the library and with the oracle ([eng-oracle.md](eng-oracle.md)), shrinks every divergence to a subexpression that still diverges while its children agree, and reports divergences whose signature is not known yet. A change of the core is checked with it ([core.md](core.md)); the nightly run uses it with a longer budget.
+`eng/difftest` is the differential run against cel-go. It generates random cases, evaluates each with the library and with the oracle ([eng-oracle.md](eng-oracle.md)), shrinks every divergence to a subexpression that still diverges while its children agree, and reports divergences whose signature is not known yet. A change of the core is checked with it ([core.md](core.md)) in CI on every push to `main` ([Run on a push to main](#run-on-a-push-to-main)); the nightly run uses it with a longer budget.
 
 ## Project
 
@@ -34,13 +34,13 @@ docker compose -f eng/compose.yaml run --rm difftest [--seed <n>] [--budget <tim
 | `--seed` | the date in UTC as `yyyyMMdd` | the seed of the run; case `n` depends on the seed and `n` alone |
 | `--budget` | `5m` | the time of the whole run, minimization included; the long run before a release gives `2h` |
 | `--case` | none | run only case `n` of the seed, to reproduce it: the same seed and `n` give the same minimized case and the same signature ([Outcomes and signatures](#outcomes-and-signatures)) |
-| `--numbers-only` | off | print only the journal line and write no file; for the nightly workflow, whose log is public, so no output names a case ([Findings and output](#findings-and-output)) |
+| `--numbers-only` | off | print only the journal line and write no file; for the workflows, whose log is public, so no output names a case ([Findings and output](#findings-and-output)) |
 
 | Item | Value |
 | :- | :- |
 | Image stage | `sdk`, without Go ([eng-test.md](eng-test.md)) |
 | Depends on | the service `oracle` from the image `golang`: Compose starts it first, and it ends itself after the session ([eng-oracle.md](eng-oracle.md#container)) |
-| Command | `eng/run difftest` builds `eng/difftest`, runs it with the options and returns its exit code unchanged; the nightly workflow runs the same command |
+| Command | `eng/run difftest` builds `eng/difftest`, runs it with the options and returns its exit code unchanged; the workflows run the same command |
 | Time limit | `eng/run` limits the run to the budget × 1.2 + 36 s, counted from the start of the program, so the wait for the oracle (up to a minute) is inside it. A run that is not over by then is killed with its process tree, and the command ends with `difftest: failed: timeout after <N> s in step <step>` and exit code 1, not 2 ([eng-test.md](eng-test.md#time-limits)). The value of `--budget` is read by `eng/run` as by the program; an invalid value gives the limit of the default budget, and the program ends at once with exit code 2 |
 | Linked worktree | the second Compose file, as for `eng/test` ([eng-test.md](eng-test.md#linked-worktrees)) |
 
@@ -196,6 +196,27 @@ With `--numbers-only` standard output has the journal line alone: no `log` line 
 The log of the workflow is public, and a divergence can be an input that crashes a parser. So the run has `--numbers-only`: standard output holds the journal line alone ([Findings and output](#findings-and-output)), and the step summary of the run holds that line and the budget, nothing else. A new signature shows in the line as a count and the numbers of its cases (`new=2 (S1=1, S2=1) known=3 new-cases=1207,88391`); the case itself is reproduced on a machine of the maintainers with the same seed and `--case <n>`, and the text of a case reaches an issue only after the divergence is fixed.
 
 The result of the workflow is the exit code of `eng/difftest`, passed through `eng/run` unchanged: 0 without new signatures is green; 1 (a new signature, a failed build or a step that ran out of time) and 2 (a failed oracle or an invalid input) are red. A run that ends with 0 and no journal line is red too. The release takes a green manual run, 2 hours or more, on the commit of the tag.
+
+## Run on a push to main
+
+`.github/workflows/difftest-main.yml` runs `eng/difftest` on every push to `main`, with the command of the container check, as the nightly run does. A change of the core is checked against cel-go here, in CI, and not on a developer machine: the run is not made before the push, on a branch or on a pull request, and the commands of this page stay for a manual run and for the reproduction of one case ([Reproducing a case](#reproducing-a-case)).
+
+| Item | Value |
+| :- | :- |
+| Trigger | `push` to `main`; no `pull_request`, no `schedule`, no inputs |
+| Runner | `ubuntu-latest` |
+| Command | `docker compose -f eng/compose.yaml run --rm -T difftest --numbers-only --budget 10m --seed <seed>` |
+| Checkout | the whole history, as in the nightly run |
+| Budget | `10m`. The run replaces the run of the closing of a change of the core, which a developer machine made with the default budget of 5 minutes; the budget is twice as long, so a push draws at least as many cases as the run it replaces even on a slower runner. A push is checked after it has landed, so a long run costs only time: the job does not hold up another job of `ci`. The value is the variable `BUDGET` of the workflow; the first runs show the number of cases, and the budget changes there |
+| Time limits | `eng/run` limits the run to 12.6 minutes (budget × 1.2 + 36 s, [Invocation](#invocation)); the job limit is 40 minutes, which holds the build of the image, the build of `eng/difftest`, the wait for a quiet host and a cold module cache of Go as well |
+| Seed | the first 8 hex digits of the commit read as a whole number, from 0 to 4 294 967 295. Every push draws other cases, where the date of the nightly run would give the same cases to every push of a day. The seed is in the journal line and in the title of the step summary |
+| Concurrency | one run at a time; a started run is not cancelled, and of the pushes that wait only the newest runs |
+
+The log is public, so the run has `--numbers-only` and the step summary holds the journal line alone, as in the nightly run ([Nightly run](#nightly-run)). The result is the exit code of `eng/difftest`: 0 without new signatures is green; 1 (a new signature, a failed build or a step that ran out of time) and 2 are red; 0 with no journal line is red too. A red run on `main` is fixed by the next commit, as any red job of `ci`.
+
+### Reproducing a case
+
+The journal line of the summary has what a maintainer needs: `seed`, `commit` and `new-cases`, the numbers of the kept cases. Case `n` depends on the seed and `n` alone, so the maintainer checks out `commit`, runs `docker compose -f eng/compose.yaml run --rm difftest --seed <seed> --case <n>` and gets the same minimized case and the same signature, with the text of the case and the finding that `--numbers-only` kept out of the public log. Nothing else of the run is needed. A run that ends in `ENG821` has `cases=0` and no case to reproduce: the Go of the oracle is wrong.
 
 ## Tests
 

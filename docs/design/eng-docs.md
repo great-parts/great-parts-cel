@@ -30,7 +30,7 @@ The XML documentation links a page of `docs/` by its address on GitHub, `https:/
 
 ## Triggers
 
-The command is run on the final `head` of a task, after `eng/test`, when the change touches a path of the list below; the check is `git diff --name-only main...HEAD -- <paths>`. They are the paths on which the result depends: the documents and the sources that lychee and `examples` read, the settings of lychee, the code of the checks that read the report, the steps and the container of the command, and the files that fix the build of the examples and of the error codes.
+CI runs the checks of this page, with the external links, on every push to `main` and on every pull request, in the job `Docs` of `ci.yml` ([eng-test.md](eng-test.md#ci)); it takes about 70 s. The command of the container is for a manual run, when a change touches a path of the list below; the check is `git diff --name-only main...HEAD -- <paths>`. They are the paths on which the result depends: the documents and the sources that lychee and `examples` read, the settings of lychee, the code of the checks that read the report, the steps and the container of the command, and the files that fix the build of the examples and of the error codes.
 
 | Path | Why |
 | :- | :- |
@@ -47,7 +47,7 @@ The command is run on the final `head` of a task, after `eng/test`, when the cha
 | `Directory.Build.props`, `Directory.Packages.props` | the settings and the package versions of the build of step 1 |
 | `.github/workflows/ci.yml` | the cell of the examples and of the external links |
 
-Not triggers: `tests/`, `eng/tests/`, `eng/difftest/`, `eng/oracle/`, `eng/analyzers/`, `eng/min-sdk/`, `eng/packages/`, `eng/ratchet.json`, `eng/layers.txt`, `eng/BannedSymbols.txt`, `eng/stryker-control.json`, `stryker-config.json`, `.editorconfig`, `NuGet.config`, `.config/dotnet-tools.json`; the files of the root that lychee does not read — `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `AGENTS.md`. A failing test of the checks is shown by `eng/test` on the same `head`. The external links are not checked by the run on the host: the cell of CI checks them on `main`.
+Not triggers: `tests/`, `eng/tests/`, `eng/difftest/`, `eng/oracle/`, `eng/analyzers/`, `eng/min-sdk/`, `eng/packages/`, `eng/ratchet.json`, `eng/layers.txt`, `eng/BannedSymbols.txt`, `eng/stryker-control.json`, `stryker-config.json`, `.editorconfig`, `NuGet.config`, `.config/dotnet-tools.json`; the files of the root that lychee does not read — `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `AGENTS.md`. A failing test of the checks is shown by the jobs of the tests of `ci.yml`. The external links are not checked by the run on the host: the job `Docs` of CI checks them.
 
 ## examples
 

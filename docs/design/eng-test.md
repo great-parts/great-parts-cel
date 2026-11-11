@@ -1,6 +1,6 @@
 # eng/test and the containers of eng/
 
-`eng/test` is the one full check of a change: it builds the solution, runs every test under JIT, runs the source and package checks, and runs the tests of the two projects that are published under Native AOT on linux-x64, comparing their test count with the JIT run. There is no separate command for Native AOT. It runs in a Linux container with the .NET 11 SDK, the .NET 10 runtime and the native toolchain, without Go; it is run once, on the final `head` of a task. The same container setup serves `eng/docs` ([eng-docs.md](eng-docs.md)) and `eng/mutate` ([eng-mutate.md](eng-mutate.md)); other components add their services to the same Compose file and their commands to the same project.
+`eng/test` is the one full check of a change: it builds the solution, runs every test under JIT, runs the source and package checks, and runs the tests of the two projects that are published under Native AOT on linux-x64, comparing their test count with the JIT run. There is no separate command for Native AOT. It runs in a Linux container with the .NET 11 SDK, the .NET 10 runtime and the native toolchain, without Go. The full check of a change is made by CI on every pull request and on every push to `main` ([CI](#ci)); the command stays for a manual run on a machine with Docker. The same container setup serves `eng/docs` ([eng-docs.md](eng-docs.md)) and `eng/mutate` ([eng-mutate.md](eng-mutate.md)); other components add their services to the same Compose file and their commands to the same project.
 
 ## Commands
 
@@ -179,7 +179,37 @@ docker compose -f eng/compose.yaml run --rm test
 docker compose -f eng/compose.yaml run --rm min-sdk
 ```
 
-The service is not part of `test` and CI does not run it. It is run when the generator first ships, when the generator gets its pipeline, and when the Roslyn version of the generator or the oldest supported SDK changes.
+The service is not part of `test`; CI runs it in its own job ([CI](#ci)). A manual run is useful when the generator or the Roslyn version of the generator changes, or when the oldest supported SDK changes.
+
+## CI
+
+`.github/workflows/ci.yml` is the full check of a change. It runs on every pull request and on every push to `main`; a change is not checked by the containers of `eng/` before it is pushed, `eng/difftest` for a change of the core of the library included: the differential run is its own workflow, `.github/workflows/difftest-main.yml`, on every push to `main` ([eng-difftest.md](eng-difftest.md#run-on-a-push-to-main)). Locally only single tests and the reproduction of one case of `eng/difftest` are run. The commands of this page stay for a manual run.
+
+| Job | Runs | Same as |
+| :- | :- | :- |
+| `JIT <os> <target>`, Ubuntu and macOS, `net10.0` and `net11.0` | restore in locked mode, build, every test project under JIT; in the cell Ubuntu `net11.0` also the tests of `eng/` and `suppressions duplicates ratchet packages` | the build, the JIT run and the checks of `test` |
+| `AOT linux-x64 <target>`, `net10.0` and `net11.0` | build, JIT run of the published projects, the Native AOT publish and run, `test-count` | stage 2 (publish lanes) and stage 3 of `test` |
+| `Docs` | the build of the library, `examples`, `error-codes`, lychee offline and `links`, then lychee for external links and `links` | `docs`, with the external links ([eng-docs.md](eng-docs.md)) |
+| `min-sdk` | restore, build, `dotnet pack`, then the service `min-sdk` ([min-sdk](#min-sdk)) | the order `test`, `min-sdk` of a manual run |
+| `Stryker control set` | the service `mutate` with `eng/stryker-control.json` ([eng-mutate.md](eng-mutate.md#control-set)) | `eng/mutate eng/stryker-control.json` |
+| `Signed-off-by` | `eng/checks signoff` on the new commits | |
+
+The differential run `difftest-main` is not a job of `ci`: it runs on a push to `main` only, never on a pull request, and has its own section ([eng-difftest.md](eng-difftest.md#run-on-a-push-to-main)).
+
+The cells run the commands of the steps of `eng/run` directly, without containers and without the waits and the step limits of `eng/run`: a job has its own limit, `timeout-minutes`. The runners have no SDK 11, so `actions/setup-dotnet` installs the SDK of `global.json` and the SDK 10.0.x. The jobs `min-sdk` and `Stryker control set` run the Compose services with `docker compose -f eng/compose.yaml run --rm -T <service>`, as the runs of `eng/difftest` do; the log of the run shows the summary line of `eng/run`.
+
+`min-sdk` and the control set run on every push and pull request, not by the paths of a change. The result of `min-sdk` depends on the library and on the generator, which are most of the repository, and the control set depends on a list of paths that is long and changes ([eng-mutate.md](eng-mutate.md#triggers)), so a filter by paths would be a second place to keep right. The jobs run at the same time as the others, so they do not make the run longer by much. Time of the jobs on a hosted runner (jobs of the run of 2026-11-09, `ci` on `main`; `min-sdk` and `Stryker control set` are an estimate from the steps of the same kind, to be replaced by the first runs):
+
+| Job | Time |
+| :- | :- |
+| `JIT Ubuntu`, one cell | 143 s to 229 s |
+| `JIT macOS`, one cell | 243 s to 249 s |
+| `AOT linux-x64`, one cell | 331 s to 337 s |
+| `Docs` | 71 s |
+| `min-sdk` | about 5 minutes: build of the solution 110 s to 150 s, the wait of `eng/run` for a quiet host 60 s, the image and the steps of `min-sdk` (16 s for the command) |
+| `Stryker control set` | about 8 minutes: the wait 60 s, the build of `eng/checks`, the preparation of Stryker.NET 179 s to 200 s, then 0.25 s per mutant |
+
+The limits of the jobs (`timeout-minutes`) are 30 minutes for `min-sdk` and 40 minutes for the control set, well above the estimates. The limits of the steps of `eng/run` ([Time limits](#time-limits)) apply inside the containers; they come from a run on a developer machine, so a step that runs out of time on a runner raises its limit in `eng/run/Timeouts.cs`.
 
 ## Output and exit code
 

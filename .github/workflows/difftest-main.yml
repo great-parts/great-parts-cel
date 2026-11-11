@@ -1,0 +1,71 @@
+# The differential run against cel-go on every push to main (docs/design/eng-difftest.md, "Run on a push to main"): the check of a change of the
+# core of the library against the reference implementation, which no job of ci.yml makes. It runs the command of the container check,
+# eng/difftest, through eng/compose.yaml: the oracle is cel-go in the golang image of the service oracle, so the workflow has no Go setup.
+# The log of this workflow is public: the run has --numbers-only, so no output names a case, and the step summary holds the journal
+# line alone: the seed, the commit, the version of the oracle, the counts and the numbers of the cases of new signatures.
+name: difftest-main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# One run at a time, and a started run is not cancelled: a run that waits is replaced by the run of a newer push.
+concurrency:
+  group: difftest-main
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  # Ten minutes of cases. The limit of eng/run for the run, the budget x 1.2 + 36 s, is 12.6 minutes; the image build and the cold module
+  # cache of Go take the rest of the job limit.
+  BUDGET: 10m
+
+jobs:
+  difftest:
+    name: Differential run
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      # eng/run reads git: the commit of the journal line and the state of the tree, so the history and the branch main are there.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Differential run (eng/difftest)
+        run: |
+          set -u
+          # The seed is the first 8 hex digits of the commit as a whole number: every push draws other cases, and the journal line
+          # names the seed and the commit, so a case is reproduced with the same seed and --case.
+          seed=$((16#${GITHUB_SHA:0:8}))
+          arguments=(--numbers-only --budget "$BUDGET" --seed "$seed")
+
+          output="$RUNNER_TEMP/difftest.txt"
+          status=0
+          docker compose -f eng/compose.yaml run --rm -T difftest "${arguments[@]}" > "$output" || status=$?
+          cat "$output"
+
+          # The journal line is the whole result: no other line goes to the summary.
+          journal=$(grep -oE 'difftest seed=[0-9]+ commit=.*' "$output" | tail -n 1 || true)
+          {
+            echo "### difftest, budget $BUDGET, seed $seed"
+            echo
+            if [ -n "$journal" ]; then
+              echo '```text'
+              echo "$journal"
+              echo '```'
+            else
+              echo "No journal line: the run ended without one (exit code $status)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # 0: no new signature; 1: a finding or a failed step (a new signature is the finding of the run); 2: the run could not
+          # be made. Every other code is a failure too, and so is a run that ended with 0 and no journal line.
+          if [ "$status" -eq 0 ] && [ -z "$journal" ]; then
+            exit 1
+          fi
+          exit "$status"
