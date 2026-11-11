@@ -33,6 +33,10 @@ public sealed class EvaluationAllocationTests
         .AddField("price", CelType.Double, static line => CelValue.FromDouble(line.Price))
         .Build();
 
+    private static readonly CelObjectType CustomerType = new CelObjectTypeBuilder<Customer>("shop.Customer")
+        .AddField("email", CelType.String, static customer => CelValue.FromString(customer.Email))
+        .Build();
+
     private static readonly CelObjectType OrderType = new CelObjectTypeBuilder<Order>("shop.Order")
         .AddField("id", CelType.String, static order => CelValue.FromString(order.Id))
         .AddField("status", CelType.String, static order => CelValue.FromString(order.Status))
@@ -41,10 +45,12 @@ public sealed class EvaluationAllocationTests
         .AddField("discount", CelType.Double, static order => CelValue.FromDouble(order.Discount.GetValueOrDefault()), static order => order.Discount is not null)
         .AddField("lines", CelType.ListOf(LineType.Type), static order => order.LineValues)
         .AddField("created", CelType.Timestamp, static order => CelValue.FromTimestamp(CelTimestamp.FromDateTimeOffset(order.Created)))
+        .AddField("customer", CustomerType.Type, static order => order.CustomerValue)
+        .AddField("policy", CelType.String, static order => CelValue.FromString(order.Policy))
         .Build();
 
     private static readonly CelEnvironment Environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
-        .AddTypes(CelTypeProvider.Create("shop", OrderType, LineType))
+        .AddTypes(CelTypeProvider.Create("shop", OrderType, LineType, CustomerType))
         .AddVariable("order", OrderType.Type)
         .AddVariable("now", CelType.Timestamp)
         .Build()
@@ -104,6 +110,18 @@ public sealed class EvaluationAllocationTests
         // E4: the two lists that filter and map create, with the arrays that grow while they are built: a function of the lines that pass.
         Add(table, "E4, 10 lines", 10, Scenario.Of<CelValue>("order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)", Mapped, E4Budget));
         Add(table, "E4, 100 lines", 100, Scenario.Of<CelValue>("order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)", Mapped, E4Budget));
+
+        // E5: matches with a pattern that is a literal. The literal is prepared when the program is compiled, so the evaluation reads the
+        // email and runs the engine on it: the arrays of the engine are rented from the pool and come back, and the result is a bool. The
+        // budget is 0 bytes; a number above 0 is a defect of the library (an array that is not rented, a pattern that is prepared again at
+        // each call), and the code changes, not the budget.
+        Add(table, "E5, 10 lines", 10, Scenario.Of<bool>("order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')", _ => true, _ => 0));
+        Add(table, "E5, 100 lines", 100, Scenario.Of<bool>("order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')", _ => true, _ => 0));
+
+        // E5p: the same with the pattern read from a field of the order. The first evaluation, which the measurement does not count,
+        // puts the pattern in the cache of the environment; a hit in the cache allocates nothing, so the budget is 0 as well.
+        Add(table, "E5p, 10 lines", 10, Scenario.Of<bool>("order.customer.email.matches(order.policy)", _ => true, _ => 0));
+        Add(table, "E5p, 100 lines", 100, Scenario.Of<bool>("order.customer.email.matches(order.policy)", _ => true, _ => 0));
 
         // E6: a presence test and subtraction of doubles: no new value, with the discount and without it.
         Add(table, "E6", 10, Scenario.Of<double>("has(order.discount) ? order.total - order.discount : order.total", _ => 1400.0, _ => 0));
@@ -273,6 +291,7 @@ public sealed class EvaluationAllocationTests
                 passing += items[i].Qty > 10 ? 1 : 0;
             }
 
+            var customer = new Customer { Email = "alice@example.com" };
             var order = new Order
             {
                 Id = "ORD-0001",
@@ -283,6 +302,8 @@ public sealed class EvaluationAllocationTests
                 Created = Created,
                 Lines = items,
                 LineValues = CelValue.FromList(CelList.Create(pairs)),
+                CustomerValue = CelValue.FromObject(CustomerType, customer),
+                Policy = "^[^@]+@[^@]+[.][a-z]+$",
             };
             // The variable now is one hour after the moment of the order.
             CelBindings bindings = new CelBindings()
@@ -319,5 +340,15 @@ public sealed class EvaluationAllocationTests
 
         // The list of the pairs of the lines, built once with the order, which the read of `lines` returns.
         public CelValue LineValues { get; init; }
+
+        // The object of the customer, built once with the order, as the list of the lines is.
+        public CelValue CustomerValue { get; init; }
+
+        public string Policy { get; init; } = string.Empty;
+    }
+
+    private sealed class Customer
+    {
+        public string Email { get; init; } = string.Empty;
     }
 }

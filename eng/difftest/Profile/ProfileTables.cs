@@ -40,7 +40,7 @@ internal sealed record ProfileOverload(
 
 /// <summary>
 /// The tables of the profile (docs/design/eng-difftest.md, "Profile"): the variables of the manifest, the functions of the
-/// standard library version 1 without <c>matches</c> and their overloads, the macros, the type identifiers, and
+/// standard library version 1 and their overloads, the macros, the type identifiers, and
 /// the limits of a generated case.
 /// </summary>
 internal static class ProfileTables
@@ -132,6 +132,9 @@ internal static class ProfileTables
 
     /// <summary>The function <c>endsWith</c>, on a receiver.</summary>
     internal const string EndsWith = "endsWith";
+
+    /// <summary>The function <c>matches</c>: global <c>matches(s, p)</c> and on a receiver <c>s.matches(p)</c>.</summary>
+    internal const string Matches = "matches";
 
     /// <summary>The function <c>type</c>.</summary>
     internal const string TypeOf = "type";
@@ -275,7 +278,7 @@ internal static class ProfileTables
     /// <summary>The kinds of the value of a <c>dyn</c> variable: the scalar kinds, <c>null</c>, a list and a map.</summary>
     internal static IReadOnlyList<ProfileType> DynKinds { get; } = [.. ScalarKinds, ProfileType.ListType, ProfileType.MapType];
 
-    // The table of the standard library version 1 without matches, as the library and cel-go v0.32.0 have it.
+    // The table of the standard library version 1, as the library and cel-go v0.32.0 have it.
     private static List<ProfileOverload> BuildOverloads()
     {
         const ProfileType A = ProfileType.ParameterAType;
@@ -392,6 +395,8 @@ internal static class ProfileTables
             new("string_to_uint64", UintConversion, [Str], Uint),
             new("contains_string", Contains, [Str, Str], Bool, Receiver: true),
             new("ends_with_string", EndsWith, [Str, Str], Bool, Receiver: true),
+            new("matches", Matches, [Str, Str], Bool),
+            new("matches_string", Matches, [Str, Str], Bool, Receiver: true),
             new("starts_with_string", StartsWith, [Str, Str], Bool, Receiver: true),
         ]);
 

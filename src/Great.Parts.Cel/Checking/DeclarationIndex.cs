@@ -38,13 +38,16 @@ internal sealed class DeclarationIndex
     // given to Create.
     private readonly FrozenDictionary<(string Function, bool IsReceiverStyle, int ArgumentCount), ImmutableArray<OverloadBinding>> _overloads;
 
+    // The cache of patterns of the environment, kept as an object that the checker and the planner hand on: this layer does not
+    // refer to the library that defines it.
     private DeclarationIndex(
         FrozenDictionary<string, CelVariableDecl> variables,
         FrozenDictionary<string, CelType> typeIdentifiers,
         FrozenSet<string> functions,
         FrozenDictionary<(string Function, bool IsReceiverStyle, int ArgumentCount), ImmutableArray<OverloadBinding>> overloads,
         string container,
-        TypeIndex types)
+        TypeIndex types,
+        object? patternCache)
     {
         _variables = variables;
         _variablesBySpan = variables.GetAlternateLookup<ReadOnlySpan<char>>();
@@ -55,6 +58,7 @@ internal sealed class DeclarationIndex
         _overloads = overloads;
         Container = container;
         Types = types;
+        PatternCache = patternCache;
     }
 
     // The name resolution container; empty without one.
@@ -62,6 +66,10 @@ internal sealed class DeclarationIndex
 
     // The type index of the type sources: object types, enumeration constants and descriptions by .NET type.
     internal TypeIndex Types { get; }
+
+    // The cache of patterns that the environment created with its index; null for an index made without one, for the tests of
+    // checking and evaluation.
+    internal object? PatternCache { get; }
 
     // An index without type identifiers and container, for the tests of checking and evaluation.
     internal static DeclarationIndex Create(ImmutableArray<OverloadBinding> overloads, ImmutableArray<CelVariableDecl> variables) =>
@@ -76,7 +84,8 @@ internal sealed class DeclarationIndex
         ImmutableArray<CelVariableDecl> variables,
         FrozenDictionary<string, CelType> typeIdentifiers,
         string container,
-        TypeIndex? types = null)
+        TypeIndex? types = null,
+        object? patternCache = null)
     {
         types ??= TypeIndex.Empty;
         if (types.ObjectTypes.Count != 0)
@@ -112,7 +121,8 @@ internal sealed class DeclarationIndex
             functions.ToFrozenSet(StringComparer.Ordinal),
             overloadsByCall.ToFrozenDictionary(entry => entry.Key, entry => entry.Value.ToImmutable()),
             container,
-            types);
+            types,
+            patternCache);
     }
 
     internal bool TryGetVariable(string name, [NotNullWhen(true)] out CelVariableDecl? variable) =>

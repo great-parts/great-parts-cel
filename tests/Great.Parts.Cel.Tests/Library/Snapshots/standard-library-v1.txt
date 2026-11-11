@@ -1,0 +1,168 @@
+# The overloads of version 1 of the standard library, in the order of the table. A line is
+# function | overload id | global or receiver | (parameter types, the receiver first) -> result type | dyn or - | five costs
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a
+# call charges on the probe arguments of size 0, 1, 10, 11 and 100: every string, bytes, list and map argument has that size at once,
+# the pattern of matches is that many "a" too, a timestamp is 1970-01-01T00:00:00Z, a duration is 1s, any other argument is one fixed value.
+# A line changes only by review: an identifier, a signature or a cost of a shipped version does not change.
+_?_:_ | conditional | global | (bool, A, A) -> A | - | 0 0 0 0 0
+_&&_ | logical_and | global | (bool, bool) -> bool | - | 0 0 0 0 0
+_||_ | logical_or | global | (bool, bool) -> bool | - | 0 0 0 0 0
+!_ | logical_not | global | (bool) -> bool | - | 1 1 1 1 1
+@not_strictly_false | not_strictly_false | global | (bool) -> bool | - | 0 0 0 0 0
+_==_ | equals | global | (A, A) -> bool | - | 1 1 1 1 1
+_!=_ | not_equals | global | (A, A) -> bool | - | 1 1 1 1 1
+_+_ | add_bytes | global | (bytes, bytes) -> bytes | - | 1 3 5 7 41
+_+_ | add_double | global | (double, double) -> double | - | 1 1 1 1 1
+_+_ | add_duration_duration | global | (duration, duration) -> duration | - | 1 1 1 1 1
+_+_ | add_duration_timestamp | global | (duration, timestamp) -> timestamp | - | 1 1 1 1 1
+_+_ | add_timestamp_duration | global | (timestamp, duration) -> timestamp | - | 1 1 1 1 1
+_+_ | add_int64 | global | (int, int) -> int | - | 1 1 1 1 1
+_+_ | add_list | global | (list(A), list(A)) -> list(A) | - | 1 3 21 23 201
+_+_ | add_string | global | (string, string) -> string | - | 1 3 5 7 41
+_+_ | add_uint64 | global | (uint, uint) -> uint | - | 1 1 1 1 1
+_/_ | divide_double | global | (double, double) -> double | - | 1 1 1 1 1
+_/_ | divide_int64 | global | (int, int) -> int | - | 1 1 1 1 1
+_/_ | divide_uint64 | global | (uint, uint) -> uint | - | 1 1 1 1 1
+_%_ | modulo_int64 | global | (int, int) -> int | - | 1 1 1 1 1
+_%_ | modulo_uint64 | global | (uint, uint) -> uint | - | 1 1 1 1 1
+_*_ | multiply_double | global | (double, double) -> double | - | 1 1 1 1 1
+_*_ | multiply_int64 | global | (int, int) -> int | - | 1 1 1 1 1
+_*_ | multiply_uint64 | global | (uint, uint) -> uint | - | 1 1 1 1 1
+-_ | negate_double | global | (double) -> double | - | 1 1 1 1 1
+-_ | negate_int64 | global | (int) -> int | - | 1 1 1 1 1
+_-_ | subtract_double | global | (double, double) -> double | - | 1 1 1 1 1
+_-_ | subtract_duration_duration | global | (duration, duration) -> duration | - | 1 1 1 1 1
+_-_ | subtract_int64 | global | (int, int) -> int | - | 1 1 1 1 1
+_-_ | subtract_timestamp_duration | global | (timestamp, duration) -> timestamp | - | 1 1 1 1 1
+_-_ | subtract_timestamp_timestamp | global | (timestamp, timestamp) -> duration | - | 1 1 1 1 1
+_-_ | subtract_uint64 | global | (uint, uint) -> uint | - | 1 1 1 1 1
+_<_ | less_bool | global | (bool, bool) -> bool | - | 1 1 1 1 1
+_<_ | less_int64 | global | (int, int) -> bool | - | 1 1 1 1 1
+_<_ | less_int64_double | global | (int, double) -> bool | dyn | 1 1 1 1 1
+_<_ | less_int64_uint64 | global | (int, uint) -> bool | dyn | 1 1 1 1 1
+_<_ | less_uint64 | global | (uint, uint) -> bool | - | 1 1 1 1 1
+_<_ | less_uint64_double | global | (uint, double) -> bool | dyn | 1 1 1 1 1
+_<_ | less_uint64_int64 | global | (uint, int) -> bool | dyn | 1 1 1 1 1
+_<_ | less_double | global | (double, double) -> bool | - | 1 1 1 1 1
+_<_ | less_double_int64 | global | (double, int) -> bool | dyn | 1 1 1 1 1
+_<_ | less_double_uint64 | global | (double, uint) -> bool | dyn | 1 1 1 1 1
+_<_ | less_string | global | (string, string) -> bool | - | 1 2 3 4 21
+_<_ | less_bytes | global | (bytes, bytes) -> bool | - | 1 2 3 4 21
+_<_ | less_timestamp | global | (timestamp, timestamp) -> bool | - | 1 1 1 1 1
+_<_ | less_duration | global | (duration, duration) -> bool | - | 1 1 1 1 1
+_<=_ | less_equals_bool | global | (bool, bool) -> bool | - | 1 1 1 1 1
+_<=_ | less_equals_int64 | global | (int, int) -> bool | - | 1 1 1 1 1
+_<=_ | less_equals_int64_double | global | (int, double) -> bool | dyn | 1 1 1 1 1
+_<=_ | less_equals_int64_uint64 | global | (int, uint) -> bool | dyn | 1 1 1 1 1
+_<=_ | less_equals_uint64 | global | (uint, uint) -> bool | - | 1 1 1 1 1
+_<=_ | less_equals_uint64_double | global | (uint, double) -> bool | dyn | 1 1 1 1 1
+_<=_ | less_equals_uint64_int64 | global | (uint, int) -> bool | dyn | 1 1 1 1 1
+_<=_ | less_equals_double | global | (double, double) -> bool | - | 1 1 1 1 1
+_<=_ | less_equals_double_int64 | global | (double, int) -> bool | dyn | 1 1 1 1 1
+_<=_ | less_equals_double_uint64 | global | (double, uint) -> bool | dyn | 1 1 1 1 1
+_<=_ | less_equals_string | global | (string, string) -> bool | - | 1 2 3 4 21
+_<=_ | less_equals_bytes | global | (bytes, bytes) -> bool | - | 1 2 3 4 21
+_<=_ | less_equals_timestamp | global | (timestamp, timestamp) -> bool | - | 1 1 1 1 1
+_<=_ | less_equals_duration | global | (duration, duration) -> bool | - | 1 1 1 1 1
+_>_ | greater_bool | global | (bool, bool) -> bool | - | 1 1 1 1 1
+_>_ | greater_int64 | global | (int, int) -> bool | - | 1 1 1 1 1
+_>_ | greater_int64_double | global | (int, double) -> bool | dyn | 1 1 1 1 1
+_>_ | greater_int64_uint64 | global | (int, uint) -> bool | dyn | 1 1 1 1 1
+_>_ | greater_uint64 | global | (uint, uint) -> bool | - | 1 1 1 1 1
+_>_ | greater_uint64_double | global | (uint, double) -> bool | dyn | 1 1 1 1 1
+_>_ | greater_uint64_int64 | global | (uint, int) -> bool | dyn | 1 1 1 1 1
+_>_ | greater_double | global | (double, double) -> bool | - | 1 1 1 1 1
+_>_ | greater_double_int64 | global | (double, int) -> bool | dyn | 1 1 1 1 1
+_>_ | greater_double_uint64 | global | (double, uint) -> bool | dyn | 1 1 1 1 1
+_>_ | greater_string | global | (string, string) -> bool | - | 1 2 3 4 21
+_>_ | greater_bytes | global | (bytes, bytes) -> bool | - | 1 2 3 4 21
+_>_ | greater_timestamp | global | (timestamp, timestamp) -> bool | - | 1 1 1 1 1
+_>_ | greater_duration | global | (duration, duration) -> bool | - | 1 1 1 1 1
+_>=_ | greater_equals_bool | global | (bool, bool) -> bool | - | 1 1 1 1 1
+_>=_ | greater_equals_int64 | global | (int, int) -> bool | - | 1 1 1 1 1
+_>=_ | greater_equals_int64_double | global | (int, double) -> bool | dyn | 1 1 1 1 1
+_>=_ | greater_equals_int64_uint64 | global | (int, uint) -> bool | dyn | 1 1 1 1 1
+_>=_ | greater_equals_uint64 | global | (uint, uint) -> bool | - | 1 1 1 1 1
+_>=_ | greater_equals_uint64_double | global | (uint, double) -> bool | dyn | 1 1 1 1 1
+_>=_ | greater_equals_uint64_int64 | global | (uint, int) -> bool | dyn | 1 1 1 1 1
+_>=_ | greater_equals_double | global | (double, double) -> bool | - | 1 1 1 1 1
+_>=_ | greater_equals_double_int64 | global | (double, int) -> bool | dyn | 1 1 1 1 1
+_>=_ | greater_equals_double_uint64 | global | (double, uint) -> bool | dyn | 1 1 1 1 1
+_>=_ | greater_equals_string | global | (string, string) -> bool | - | 1 2 3 4 21
+_>=_ | greater_equals_bytes | global | (bytes, bytes) -> bool | - | 1 2 3 4 21
+_>=_ | greater_equals_timestamp | global | (timestamp, timestamp) -> bool | - | 1 1 1 1 1
+_>=_ | greater_equals_duration | global | (duration, duration) -> bool | - | 1 1 1 1 1
+_[_] | index_list | global | (list(A), int) -> A | - | 1 1 1 1 1
+_[_] | index_map | global | (map(A, B), A) -> B | - | 1 1 1 1 1
+@in | in_list | global | (A, list(A)) -> bool | - | 1 2 11 12 101
+@in | in_map | global | (A, map(A, B)) -> bool | - | 1 1 1 1 1
+size | size_bytes | global | (bytes) -> int | - | 1 1 1 1 1
+size | bytes_size | receiver | (bytes) -> int | - | 1 1 1 1 1
+size | size_list | global | (list(A)) -> int | - | 1 1 1 1 1
+size | list_size | receiver | (list(A)) -> int | - | 1 1 1 1 1
+size | size_map | global | (map(A, B)) -> int | - | 1 1 1 1 1
+size | map_size | receiver | (map(A, B)) -> int | - | 1 1 1 1 1
+size | size_string | global | (string) -> int | - | 1 2 2 3 11
+size | string_size | receiver | (string) -> int | - | 1 2 2 3 11
+type | type | global | (A) -> type(A) | - | 1 1 1 1 1
+bool | bool_to_bool | global | (bool) -> bool | - | 1 1 1 1 1
+bool | string_to_bool | global | (string) -> bool | - | 1 2 2 3 11
+bytes | bytes_to_bytes | global | (bytes) -> bytes | - | 1 1 1 1 1
+bytes | string_to_bytes | global | (string) -> bytes | - | 1 3 3 5 21
+double | double_to_double | global | (double) -> double | - | 1 1 1 1 1
+double | int64_to_double | global | (int) -> double | - | 1 1 1 1 1
+double | string_to_double | global | (string) -> double | - | 1 2 2 3 11
+double | uint64_to_double | global | (uint) -> double | - | 1 1 1 1 1
+duration | duration_to_duration | global | (duration) -> duration | - | 1 1 1 1 1
+duration | string_to_duration | global | (string) -> duration | - | 1 2 2 3 11
+dyn | to_dyn | global | (A) -> dyn | - | 1 1 1 1 1
+int | int64_to_int64 | global | (int) -> int | - | 1 1 1 1 1
+int | double_to_int64 | global | (double) -> int | - | 1 1 1 1 1
+int | duration_to_int64 | global | (duration) -> int | - | 1 1 1 1 1
+int | string_to_int64 | global | (string) -> int | - | 1 2 2 3 11
+int | timestamp_to_int64 | global | (timestamp) -> int | - | 1 1 1 1 1
+int | uint64_to_int64 | global | (uint) -> int | - | 1 1 1 1 1
+string | string_to_string | global | (string) -> string | - | 1 1 1 1 1
+string | bool_to_string | global | (bool) -> string | - | 2 2 2 2 2
+string | bytes_to_string | global | (bytes) -> string | - | 1 3 3 5 21
+string | double_to_string | global | (double) -> string | - | 2 2 2 2 2
+string | duration_to_string | global | (duration) -> string | - | 2 2 2 2 2
+string | int64_to_string | global | (int) -> string | - | 2 2 2 2 2
+string | timestamp_to_string | global | (timestamp) -> string | - | 3 3 3 3 3
+string | uint64_to_string | global | (uint) -> string | - | 2 2 2 2 2
+timestamp | timestamp_to_timestamp | global | (timestamp) -> timestamp | - | 1 1 1 1 1
+timestamp | int64_to_timestamp | global | (int) -> timestamp | - | 1 1 1 1 1
+timestamp | string_to_timestamp | global | (string) -> timestamp | - | 1 2 2 3 11
+uint | uint64_to_uint64 | global | (uint) -> uint | - | 1 1 1 1 1
+uint | double_to_uint64 | global | (double) -> uint | - | 1 1 1 1 1
+uint | int64_to_uint64 | global | (int) -> uint | - | 1 1 1 1 1
+uint | string_to_uint64 | global | (string) -> uint | - | 1 2 2 3 11
+contains | contains_string | receiver | (string, string) -> bool | - | 1 2 3 4 21
+endsWith | ends_with_string | receiver | (string, string) -> bool | - | 1 2 3 4 21
+startsWith | starts_with_string | receiver | (string, string) -> bool | - | 1 2 3 4 21
+matches | matches | global | (string, string) -> bool | - | 4 5 19 22 1059
+matches | matches_string | receiver | (string, string) -> bool | - | 4 5 19 22 1059
+getFullYear | timestamp_to_year | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getFullYear | timestamp_to_year_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getMonth | timestamp_to_month | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getMonth | timestamp_to_month_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getDayOfYear | timestamp_to_day_of_year | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getDayOfYear | timestamp_to_day_of_year_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getDayOfMonth | timestamp_to_day_of_month | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getDayOfMonth | timestamp_to_day_of_month_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getDate | timestamp_to_day_of_month_1_based | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getDate | timestamp_to_day_of_month_1_based_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getDayOfWeek | timestamp_to_day_of_week | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getDayOfWeek | timestamp_to_day_of_week_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getHours | timestamp_to_hours | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getHours | timestamp_to_hours_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getHours | duration_to_hours | receiver | (duration) -> int | - | 1 1 1 1 1
+getMinutes | timestamp_to_minutes | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getMinutes | timestamp_to_minutes_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getMinutes | duration_to_minutes | receiver | (duration) -> int | - | 1 1 1 1 1
+getSeconds | timestamp_to_seconds | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getSeconds | timestamp_to_seconds_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getSeconds | duration_to_seconds | receiver | (duration) -> int | - | 1 1 1 1 1
+getMilliseconds | timestamp_to_milliseconds | receiver | (timestamp) -> int | - | 1 1 1 1 1
+getMilliseconds | timestamp_to_milliseconds_with_tz | receiver | (timestamp, string) -> int | - | 1 2 2 3 11
+getMilliseconds | duration_to_milliseconds | receiver | (duration) -> int | - | 1 1 1 1 1

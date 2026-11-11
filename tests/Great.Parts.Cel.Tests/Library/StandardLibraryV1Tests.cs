@@ -13,7 +13,7 @@ using Xunit;
 
 namespace Great.Parts.Cel.Tests.Library;
 
-// The table of the standard library, version 1, without matches: each overload with its function,
+// The table of the standard library, version 1: each overload with its function,
 // identifier, signature and cost, in the order of cel-go.
 public sealed class StandardLibraryV1Tests
 {
@@ -157,6 +157,8 @@ public sealed class StandardLibraryV1Tests
         contains | contains_string | string.contains(string) -> bool | 1 + ⌈Lₐ/10⌉
         endsWith | ends_with_string | string.endsWith(string) -> bool | 1 + ⌈Lₐ/10⌉
         startsWith | starts_with_string | string.startsWith(string) -> bool | 1 + ⌈Lₐ/10⌉
+        matches | matches | (string, string) -> bool | parse + build + match
+        matches | matches_string | string.matches(string) -> bool | parse + build + match
         getFullYear | timestamp_to_year | timestamp.getFullYear() -> int | 1
         getFullYear | timestamp_to_year_with_tz | timestamp.getFullYear(string) -> int | 1 + ⌈Lₐ/10⌉
         getMonth | timestamp_to_month | timestamp.getMonth() -> int | 1
@@ -184,7 +186,8 @@ public sealed class StandardLibraryV1Tests
         """;
 
     // The argument of each parameter type for the cost and kind checks: a string of 21 code units, bytes of 15
-    // bytes, a list of 3 elements, a map of one entry with the key 7; a type parameter takes an int.
+    // bytes, a list of 3 elements, a map of one entry with the key 7; a type parameter takes an int. The two strings of
+    // matches are a pattern of 21 literal characters, whose program has 22 instructions with the match, and a subject.
     private const string Text = "abcdefghijklmnopqrstu";
 
     private static readonly byte[] Bytes = Encoding.ASCII.GetBytes("abcdefghijklmno");
@@ -299,6 +302,11 @@ public sealed class StandardLibraryV1Tests
             "1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉" => 1 + Tenths(argumentLength) + Tenths(Length(result)),
             "1 + ⌈Lᵣ/10⌉" => 1 + Tenths(Length(result)),
             "1 + n" when result.TryGetList(out CelList? list) => 1 + (ulong)list.Count,
+
+            // The pattern is not a literal: the parse 1 + ⌈L/10⌉, the build ⌈m/4⌉ and the match 1 + ⌈(n + 1) · m/10⌉, with m the
+            // 21 instructions of the literal characters and the one of the match.
+            "parse + build + match" => (1 + Tenths(Length(arguments[1]))) + ((Length(arguments[1]) + 1 + 3) / 4)
+                + 1 + Tenths((Length(arguments[0]) + 1) * (Length(arguments[1]) + 1)),
             _ => throw new InvalidOperationException(formula),
         };
     }

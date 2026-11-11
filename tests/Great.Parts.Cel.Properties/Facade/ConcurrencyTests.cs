@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using CsCheck;
@@ -11,6 +12,7 @@ using Great.Parts.Cel.Properties.Generators;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using Xunit;
+using PatternCache = Great.Parts.Cel.Library.Regex.PatternCache;
 
 namespace Great.Parts.Cel.Properties.Facade;
 
@@ -19,7 +21,10 @@ namespace Great.Parts.Cel.Properties.Facade;
 // an order of their own: the evaluation of one program per text on its bindings, Compile of the texts, the one-step call, and
 // GetOrCompile with Evaluate of one compilation cache whose capacities hold 16 entries. The texts read the application data of
 // the generator — objects of the application with their descriptions, carriers of types described at run time, JsonElement — so
-// the threads read the same instances, descriptions and documents at once.
+// the threads read the same instances, descriptions and documents at once. A quarter of the texts call matches — a literal
+// pattern, a pattern from a variable in both call styles, a macro over a list of strings, and a literal that is refused — and each
+// binding holds a pattern of a set three times as large as the cache of patterns of the environment, valid, refused and over the
+// size limit, so that the cache evicts while the threads read and insert. The one environment is the one cache they share.
 public sealed partial class ConcurrencyTests
 {
     private const ulong Seed = 20261110;
@@ -29,14 +34,24 @@ public sealed partial class ConcurrencyTests
     private const int BindingsPerText = 16;
     private const int CacheEntries = 16;
     private const ulong CostLimit = 20;
+    private const int MatchesTextsEvery = 4;
 
     // The environment of the generator with two application functions: a typed delegate and a CelFunctionImplementation.
     private static readonly CelEnvironment Environment = TypedExpressions.Declare(new CelEnvironmentBuilder(CelStandardLibrary.V1))
+        .AddVariable("p", CelType.String)
+        .AddVariable("ss", CelType.ListOf(CelType.String))
         .AddFunction("half", (long value) => value / 2)
         .AddFunction(new CelFunctionDecl("pick", CelOverloadDecl.Global("pick_dyn_int", [CelType.Dyn, CelType.Int], CelType.Dyn)))
         .AddFunctionImplementation("pick_dyn_int", Pick)
         .Build()
         .GetEnvironmentOrThrow();
+
+    // The patterns that the bindings draw from: three times the capacity of the cache, each distinct, in four kinds in turn — two valid,
+    // one refused (an unclosed group, a nested repetition, a count over the limit) and one over the size limit of a program.
+    private static readonly string[] MatchPatterns = BuildMatchPatterns();
+
+    private static readonly CelValue Subjects = CelValue.FromList(CelList.Create(
+        [CelValue.FromString(""), CelValue.FromString("ab"), CelValue.FromString("abc"), CelValue.FromString("İı"), CelValue.FromString("é😀"), CelValue.FromString("B")]));
 
     [GeneratedRegex(@"(?<![\w.'])[ogj](?![\w'])")]
     private static partial Regex ApplicationVariable();
@@ -61,6 +76,30 @@ public sealed partial class ConcurrencyTests
                 Assert.Fail(string.Create(CultureInfo.InvariantCulture, $"{nameof(ParallelEqualsSequential)}: seed {Seed}, case {i}: {reason}"));
             }
         }
+    }
+
+    private static string[] BuildMatchPatterns()
+    {
+        string[] refused = ["(", "a**", "a{1001}"];
+        var overSize = new StringBuilder();
+        for (int repeat = 0; repeat < 101; repeat++)
+        {
+            overSize.Append("a{1000}");
+        }
+
+        string[] patterns = new string[PatternCache.DefaultMaxPatterns * 3];
+        for (int i = 0; i < patterns.Length; i++)
+        {
+            patterns[i] = (i % 4) switch
+            {
+                0 => string.Create(CultureInfo.InvariantCulture, $"a|b{{{i % 6}}}c{i}"),
+                1 => string.Create(CultureInfo.InvariantCulture, $"(?i)^\\pL*{i}$"),
+                2 => refused[i / 4 % refused.Length] + i.ToString(CultureInfo.InvariantCulture),
+                _ => overSize + i.ToString(CultureInfo.InvariantCulture),
+            };
+        }
+
+        return patterns;
     }
 
     private static CelValue Pick(ReadOnlySpan<CelValue> arguments) =>
@@ -160,7 +199,7 @@ public sealed partial class ConcurrencyTests
             {
                 var random = new PCG((uint)k, seed);
                 string integer = Generated(random, CelType.Int);
-                _texts[k] = (k % 3) switch
+                _texts[k] = k % MatchesTextsEvery == MatchesTextsEvery - 1 ? MatchesText(k / MatchesTextsEvery) : (k % 3) switch
                 {
                     0 => $"half({integer})",
                     1 => $"pick({Generated(random, TypedExpressions.Targets[random.Next((uint)TypedExpressions.Targets.Length)])}, {integer})",
@@ -171,9 +210,14 @@ public sealed partial class ConcurrencyTests
                 for (int j = 0; j < BindingsPerText; j++)
                 {
                     (_bindings[k][j], _bindingTexts[k][j]) = TypedExpressions.Bind(random);
+                    string pattern = MatchPatterns[random.Next((uint)MatchPatterns.Length)];
+                    _bindings[k][j].Add("p", CelValue.FromString(pattern)).Add("ss", Subjects);
+                    _bindingTexts[k][j] += " with p " + (pattern.Length > 40 ? pattern[..40] + "..." : pattern);
                 }
 
-                _programs[k] = Environment.Compile<CelValue>(_texts[k]).Program;
+                // A text that does not compile has no program; its Compile scenario still runs.
+                CelCompileResult<CelValue> compiled = Environment.Compile<CelValue>(_texts[k]);
+                _programs[k] = compiled.IsSuccess ? compiled.Program : null;
             }
         }
 
@@ -241,6 +285,17 @@ public sealed partial class ConcurrencyTests
             Result evaluated = Outcome(result.Program.Evaluate(_bindings[item.Text][item.Binding], item.Options));
             return evaluated with { Text = Outcome(result) + "; " + evaluated.Text };
         }
+
+        // The five forms of a call of matches, in turn: a literal pattern, the receiver style and the global style with the pattern of the
+        // binding, a macro over a list of strings, and a literal that is refused, which is a compile error in every scenario.
+        private static string MatchesText(int form) => (form % 5) switch
+        {
+            0 => "matches(s, 'a.c|é.*')",
+            1 => "s.matches(p)",
+            2 => "matches(s, p)",
+            3 => "ss.filter(e, matches(e, p))",
+            _ => "matches(s, '(')",
+        };
 
         private static string Generated(PCG random, CelType target) =>
             TypedExpressions.Of(target).Generate(random, null!, out _).Text;

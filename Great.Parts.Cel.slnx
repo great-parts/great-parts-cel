@@ -6,6 +6,7 @@
     <Project Path="eng/findings/Great.Parts.Cel.Eng.Findings.csproj" />
     <Project Path="eng/run/Great.Parts.Cel.Eng.Run.csproj" />
     <Project Path="eng/tests/Great.Parts.Cel.Eng.Tests.csproj" />
+    <Project Path="eng/unicode/Great.Parts.Cel.Eng.Unicode.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj" />

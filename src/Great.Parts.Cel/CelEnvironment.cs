@@ -6,6 +6,7 @@ using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Evaluation;
+using Great.Parts.Cel.Library.Regex;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -39,11 +40,12 @@ public sealed class CelEnvironment
     // The declarations the environment was built from, for ToBuilder.
     private readonly DeclarationSet _declarationSet;
 
-    internal CelEnvironment(CelStandardLibrary standardLibrary, DeclarationSet declarationSet, DeclarationIndex declarations)
+    internal CelEnvironment(CelStandardLibrary standardLibrary, DeclarationSet declarationSet, DeclarationIndex declarations, PatternCache patternCache)
     {
         _standardLibrary = standardLibrary;
         _declarationSet = declarationSet;
         Declarations = declarations;
+        PatternCache = patternCache;
     }
 
     /// <summary>
@@ -200,6 +202,11 @@ public sealed class CelEnvironment
     // The declarations of the standard library version and of the application, indexed for checking
     // and evaluation.
     internal DeclarationIndex Declarations { get; }
+
+    // The programs of the patterns of matches that the programs of this environment have seen. Empty when the environment is built,
+    // so a new environment and the one that ToBuilder().Build() gives each have a cache of their own; the same object that
+    // Declarations hands to the checker and the planner.
+    internal PatternCache PatternCache { get; }
 
     // The time zone database that the application gave, or null when the environment has none.
     internal CelTimeZoneDatabase? TimeZones => _declarationSet.TimeZones;

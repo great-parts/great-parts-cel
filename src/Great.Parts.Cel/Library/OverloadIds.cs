@@ -81,4 +81,7 @@ internal static class OverloadIds
     internal const string ContainsString = "contains_string";
     internal const string EndsWithString = "ends_with_string";
     internal const string StartsWithString = "starts_with_string";
+
+    internal const string Matches = "matches";
+    internal const string MatchesString = "matches_string";
 }

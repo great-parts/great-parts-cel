@@ -24,7 +24,8 @@ The table is a contract: the units of an operation are the same in every version
 | Lₐ | the sum of the lengths of the string and `bytes` arguments, the receiver included |
 | Lᵣ | the length of a string or `bytes` result; it is charged before the result is created, or part by part as the result is built, so that the charges add up to ⌈Lᵣ/10⌉ |
 | n | the number of elements of a list or of pairs of a map |
-| L | the length of a string key of a map |
+| L | the length of a string key of a map, or of the text of a pattern of `matches` |
+| m | the size of the program of a pattern of `matches`, see [`matches`](#matches) |
 | eq(a, b) | the cost of comparing two values, see [Equality and order](#equality-and-order) |
 
 ## Nodes of an expression
@@ -89,6 +90,7 @@ The identifiers are those of the page [Standard library](standard-library.md).
 | `size_bytes`, `bytes_size`, `size_list`, `list_size`, `size_map`, `map_size` | Constant | 1 |
 | `size_string`, `string_size` | Text | 1 + ⌈Lₐ/10⌉: the size counts code points, which takes a pass over the string |
 | `contains_string`, `ends_with_string`, `starts_with_string` | Text | 1 + ⌈Lₐ/10⌉ |
+| `matches`, `matches_string` | `matches` | the steps of the section [`matches`](#matches) |
 | `type`, `to_dyn` | Constant | 1 |
 | `bool_to_bool`, `bytes_to_bytes`, `double_to_double`, `int64_to_int64`, `string_to_string`, `uint64_to_uint64`, `timestamp_to_timestamp`, `duration_to_duration` | Constant | 1: the identity, the value is not copied |
 | `int64_to_double`, `uint64_to_double`, `double_to_int64`, `uint64_to_int64`, `double_to_uint64`, `int64_to_uint64` | Constant | 1 |
@@ -109,6 +111,24 @@ The overloads of time are on the page [Standard library](standard-library.md#tim
 - `string(timestamp)` and `string(duration)` produce at most 30 characters, so their charge is at most 1 + 3 = 4; it is made from the value, before the string is created.
 - A call that the compiler folds, such as `duration('72h')` or `timestamp('2009-02-13T23:31:30Z')`, charges what the call charges at evaluation: folding changes the work of the program, not its cost.
 - A receiver without a zone, the arithmetic, the comparison and the conversions between a time value and an `int` take constant time and no memory that grows with the data.
+
+## `matches`
+
+A call of `matches` has up to three steps. n is the length of the string being searched and L the length of the text of the pattern, both in UTF-16 code units; m is the size of the program of the pattern, the number of its instructions plus the ranges of its classes that are not shared tables, see the page [Limits](limits.md#pattern-of-matches).
+
+| Step | When | Units |
+| :- | :- | :- |
+| the parse of a pattern of length L | at evaluation, when the pattern is not a constant | 1 + ⌈L/10⌉ |
+| the build of the program of size m | at evaluation, right after the parse, when the parse succeeds and m is within the limit | ⌈m/4⌉ |
+| the search in a string of length n | at every evaluation | 1 + ⌈(n + 1) · m/10⌉ |
+
+- Each step is charged before the work it pays for, so m is known when the build is charged, and a limit that stops the evaluation stops it before the parse, the build or the search.
+- A pattern that is a string literal is read when the program is compiled, so an evaluation charges only the search.
+- A pattern that is not a literal pays the parse and the build at every evaluation, a hit in the cache of patterns included: the cache changes nothing that is charged. A pattern that is refused pays the parse alone, from the cache as well as the first time.
+- The operands are charged by their own rows: a literal 0 and a variable 1.
+- The divisors 10 and 4 are calibrated: one unit of the search is about ten steps of the engine, and ⌈m/4⌉ is about the 16 bytes of program for each instruction, see [Calibration](#calibration).
+
+With the pattern `abc` (m = 4) and the string `xabcx` (n = 5): as a literal the call costs the search, 1 + ⌈6 · 4/10⌉ = 4, and 5 with the read of the string; from a variable it costs the parse 1 + 1 = 2, the build 1 and the search 4, which is 7, and 9 with the reads of the string and of the pattern.
 
 ## Macros
 
@@ -215,3 +235,14 @@ The units are calibrated by a property test that compares `GC.GetAllocatedBytesF
 | `contains` with a pattern longer than 256 | 9.2 |
 
 A map literal did not fit 1 + n: a pair is two values of 32 bytes, so the index that finds a key in constant time did not fit 64 bytes for each unit; the unit count of a map is therefore 1 + 2n. The creation of an error value allocates at most 64 bytes, one object without strings or arrays, whose text and position are built when the error is read, so a refusal of an operation of 1 unit, such as `1 / 0`, fits. An error value itself is not charged.
+
+`matches` at n = 0, a string of no characters, for patterns of the sizes m = 1, 10, 100, 1,000, 10,000 and 100,000 (`net10.0`, JIT, Release; the bytes of a call of the program after the bytes of a call of a program that reads the same variables and compares them, so that the frame and the result are not counted, and the units of the whole expression, among them the reads of the operands):
+
+| Case | Bytes per unit |
+| :- | :- |
+| a pattern that is a literal | 0 |
+| a pattern from data that is found in the cache of patterns | 0 |
+| a pattern from data that is not in the cache: the parse, the build and the program that the cache keeps, 16 bytes for each instruction | 45.6 at most, 44.4 to 46.0 for the sizes from 10 |
+| the first evaluation of a size in a process, which takes the arrays of the engine from the pool of arrays for the first time (once, not a rate) | 189 at most for a pattern from data, 318 for a literal |
+
+The arrays of the engine and of the parser come from `ArrayPool<int>.Shared` and go back to it, so in the steady state a search allocates nothing and the rate is 0; what a miss allocates is the program that stays in the cache, which the units of the build pay for at 64 bytes each (⌈m/4⌉ units for 16 · m bytes). The divisor of the search, 10, is the time: about 10 ns for each unit at the size limit, as the page [Limits](limits.md#pattern-of-matches) shows. The measurement also checked each formula of the table of the `matches` section: with the cost limit equal to the units of the whole expression the call runs, and with one unit less it stops.

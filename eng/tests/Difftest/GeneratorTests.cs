@@ -29,7 +29,7 @@ public sealed class GeneratorTests
     // The cases per seed of the test of the forms rarer still: dyn() around an iteration variable that is the range of a macro.
     private const int RareCases = 50000;
 
-    private static readonly ulong[] Seeds = [1, 20261104, ulong.MaxValue];
+    internal static readonly ulong[] Seeds = [1, 20261104, ulong.MaxValue];
 
     // One literal per line: the kind, the value, the form, and the printed text, or "!" when the printer refuses the form.
     // int | value | form | text; uint | value | form | suffix | text; double | value | form | text;
@@ -98,14 +98,15 @@ public sealed class GeneratorTests
     // ---- The generator ----
 
     // The library's type checker is the checker these tests have without Go: every case compiles, and its type is one of the
-    // target types of the profile; every target type is the type of some root.
+    // target types of the profile; every target type is the type of some root. A case with a literal pattern of matches that the
+    // generator made with a fault does not compile by design: MatchesGeneratorTests checks it.
     [Fact]
     public void EveryCase_TypeChecksAndEveryTargetTypeOccurs()
     {
         CelEnvironment environment = Environment();
         HashSet<CelTypeKind> resultKinds = [];
 
-        foreach (GeneratedCase generated in Sample())
+        foreach (GeneratedCase generated in Sample().Where(generated => !MatchesGeneratorTests.HasRefusedLiteralPattern(generated)))
         {
             CelCompileResult<CelValue> compiled = environment.Compile<CelValue>(generated.Text);
 
@@ -130,7 +131,9 @@ public sealed class GeneratorTests
         HashSet<string> profile = [.. ProfileTables.Overloads.Select(overload => overload.Function)];
 
         Assert.All(calls, call => Assert.Contains(call.Function, profile));
-        Assert.DoesNotContain(calls, call => call.Function == "matches");
+        Assert.Contains(calls, call => call is { Function: ProfileTables.Matches, Receiver: true });
+        Assert.Contains(calls, call => call is { Function: ProfileTables.Matches, Receiver: false });
+        Assert.All(calls.Where(call => call.Function == ProfileTables.Matches), call => Assert.Equal(2, call.Args.Count));
         Assert.Equal(profile.Order(StringComparer.Ordinal), calls.Select(call => call.Function).Distinct().Order(StringComparer.Ordinal));
         Assert.Contains(calls, call => call is { Function: ProfileTables.Size, Receiver: true });
         Assert.Contains(calls, call => call is { Function: ProfileTables.Size, Receiver: false });
@@ -241,14 +244,21 @@ public sealed class GeneratorTests
         Assert.All(cases, generated => Assert.InRange(MacroNesting(generated.Expression), 0, ProfileTables.MaxMacroNesting));
         Assert.Equal(ProfileTables.MaxDepth, cases.Max(generated => Depth(generated.Expression)));
         Assert.Equal(ProfileTables.MaxMacroNesting, cases.Max(generated => MacroNesting(generated.Expression)));
-        Assert.All(cases.SelectMany(generated => Nodes(generated.Expression)), node => Assert.InRange(TextLength(node), 0, node is StringLiteral ? TimeStrings.MaxCodePoints : LimitOf(node)));
+        // A pattern of matches is longer than a string of the profile, up to its 20 atoms (MatchesGeneratorTests), and so is the text
+        // that the variable s1 is bound to when a call takes it as its pattern.
         Assert.All(
-            cases.SelectMany(generated => Nodes(generated.Expression)).OfType<Call>().SelectMany(call => call.Args.Select(arg => (call, arg))).Where(pair => pair.arg is StringLiteral),
+            cases.SelectMany(generated => MatchesGeneratorTests.NodesWithoutPatterns(generated.Expression)),
+            node => Assert.InRange(TextLength(node), 0, node is StringLiteral ? TimeStrings.MaxCodePoints : LimitOf(node)));
+        Assert.All(
+            cases.SelectMany(generated => MatchesGeneratorTests.NodesWithoutPatterns(generated.Expression)).OfType<Call>()
+                .SelectMany(call => call.Args.Select(arg => (call, arg))).Where(pair => pair.arg is StringLiteral && !MatchesGeneratorTests.IsPatternOf(pair.call, pair.arg)),
             pair => Assert.True(
                 TextLength(pair.arg) <= ProfileTables.MaxCodePoints || TimeFunctions.Contains(pair.call.Function),
                 ExprPrinter.Print(pair.call)));
         Assert.All(
-            cases.SelectMany(generated => generated.Bindings).Where(binding => binding.Key != ProfileTables.ZoneVariable).SelectMany(binding => Values(binding.Value)),
+            cases.SelectMany(generated => generated.Bindings
+                .Where(binding => binding.Key != ProfileTables.ZoneVariable && !(binding.Key == "s1" && MatchesGeneratorTests.TakesS1AsPattern(generated)))
+                .Select(binding => binding.Value)).SelectMany(Values),
             value => Assert.InRange(TextLength(value), 0, LimitOf(value)));
         Assert.All(
             cases.SelectMany(generated => generated.Bindings).Where(binding => binding.Key == ProfileTables.ZoneVariable).SelectMany(binding => Values(binding.Value)),
@@ -779,7 +789,7 @@ public sealed class GeneratorTests
 
     // ---- Helpers ----
 
-    private static IEnumerable<GeneratedCase> Sample(int cases = Cases)
+    internal static IEnumerable<GeneratedCase> Sample(int cases = Cases)
     {
         foreach (ulong seed in Seeds)
         {
@@ -791,7 +801,7 @@ public sealed class GeneratorTests
     }
 
     // The environment of the run manifest of the repository, as the library side of a run builds it.
-    private static CelEnvironment Environment()
+    internal static CelEnvironment Environment()
     {
         CelEnvironmentBuilder builder = new(CelStandardLibrary.V1);
         Assert.Empty(CelEnvironmentJson.Apply(builder, File.ReadAllBytes(Path.Combine(RepositoryRoot.Find(), ProfileTables.ManifestPath))));
@@ -814,7 +824,7 @@ public sealed class GeneratorTests
         _ => [],
     };
 
-    private static IEnumerable<Expr> Nodes(Expr expr) => Children(expr).SelectMany(Nodes).Prepend(expr);
+    internal static IEnumerable<Expr> Nodes(Expr expr) => Children(expr).SelectMany(Nodes).Prepend(expr);
 
     private static int Depth(Expr expr) => 1 + Children(expr).Select(Depth).DefaultIfEmpty(0).Max();
 

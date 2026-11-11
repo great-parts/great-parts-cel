@@ -66,6 +66,11 @@ internal static class CheckErrors
             "type '" + type + "' cannot be created by an expression: object literals are supported only for protobuf messages",
             location);
 
+    // InvalidRegex (2009): the pattern of matches, a string literal, that the preparation refused. The text is complete: the preparer
+    // of the library writes it, the same as the evaluation of a pattern from data. The place is the literal.
+    internal static CelError InvalidRegex(string message, CelSourceLocation location) =>
+        Create(CelErrorCode.InvalidRegex, message, location);
+
     // InsufficientStack (9000): the node that checking did not go into.
     internal static CelError InsufficientStack(CelSourceLocation location) =>
         Create(CelErrorCode.InsufficientStack, "insufficient execution stack to continue type checking", location);

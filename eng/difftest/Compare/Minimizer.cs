@@ -31,7 +31,9 @@ internal enum NodeVerdict
 /// in the same way under those of its children on which both sides give an error, depth first, before the next child of the
 /// root. A node found so becomes the case without any condition. Under a macro only its range is searched, as the children
 /// are those of <see cref="Children"/>. When nothing diverges by these rules and the root is a macro, the first instance of a
-/// body of the macro that makes the case smaller and is accepted becomes the case (<see cref="BodyInstances"/>). A case is
+/// body of the macro that makes the case smaller and is accepted becomes the case (<see cref="BodyInstances"/>): the body
+/// itself when it does not read the iteration variable; else the body with the element in place of the variable for each
+/// element of the range, or with a zero literal when the range is empty; then each closed node of the body. A case is
 /// smaller than another when it has fewer macro nodes, or as many and a shorter text. Each node below the root is classified
 /// at most once by the descent from a root. The result depends on the case and the outcomes of the sides alone, not on time or
 /// on random choices, so the same case gives the same minimized case and the same signature. A failed side ends the
@@ -102,7 +104,12 @@ internal static class Minimizer
     /// <c>filter</c>) the elements are those of its value that the library gives: for a list, the index <c>range[i]</c> for
     /// each position <c>i</c> from 0; for a map, <c>dyn(k)</c> for each key <c>k</c> in the order the library iterates the map.
     /// A range whose value is not a list or a map (an error, an unbound variable, a scalar) has no instances of the arguments
-    /// that read the variable. Nothing for a node that is not a macro.
+    /// that read the variable. A range with no element — a literal without elements, in <c>dyn()</c> or not, or any other range
+    /// whose value is an empty list or an empty map — gives an argument that reads the variable one instance for each zero
+    /// literal of the profile that fits the static type of the variable (<see cref="ZeroInstances"/>). After the instances of
+    /// the elements, an argument that reads the variable also has, in the order of the source, one instance for each closed
+    /// node of it (<see cref="ClosedNodes"/>): a maximal node that reads no iteration variable of the macros above it, which is
+    /// evaluated by itself, once, with the same bindings and without any substitution. Nothing for a node that is not a macro.
     /// </summary>
     /// <param name="node">The node.</param>
     /// <param name="rangeValue">
@@ -130,6 +137,11 @@ internal static class Minimizer
             foreach (Expr replacement in replacements)
             {
                 yield return Replace(body, macro.Variable, replacement);
+            }
+
+            foreach (Expr closed in ClosedNodes(body, [macro.Variable]))
+            {
+                yield return closed;
             }
         }
     }
@@ -234,20 +246,94 @@ internal static class Minimizer
         };
         if (elements is not null)
         {
-            return [.. elements.Select(element => inDyn ? new Call(ProfileTables.Dyn, [element]) : element with { Parenthesized = true })];
+            return elements.Count == 0
+                ? ZeroInstances(macro)
+                : [.. elements.Select(element => inDyn ? new Call(ProfileTables.Dyn, [element]) : element with { Parenthesized = true })];
         }
 
         // Any other range: the elements are those of its value, which both sides give alike since the range agrees.
         Value? value = rangeValue(macro.Range);
         return value?.KindCase switch
         {
+            Value.KindOneofCase.ListValue when value.ListValue.Values.Count == 0 => ZeroInstances(macro),
             Value.KindOneofCase.ListValue =>
                 [.. Enumerable.Range(0, value.ListValue.Values.Count)
                     .Select(index => new Call(ProfileTables.Index, [macro.Range, new IntLiteral(index, IntegerForm.DecimalDigits)]))],
+            Value.KindOneofCase.MapValue when value.MapValue.Entries.Count == 0 => ZeroInstances(macro),
             Value.KindOneofCase.MapValue =>
                 [.. value.MapValue.Entries.Select(entry => KeyLiteral(entry.Key)).OfType<Expr>().Select(key => new Call(ProfileTables.Dyn, [key]))],
             _ => [],
         };
+    }
+
+    // The nodes that stand for the element of an empty range, a guess that is judged like any instance: the zero literal that
+    // fits the static type of the iteration variable, which is the type of the element of the list or of the key of the map
+    // that the range declares: dyn for a range in dyn(), the declared type of a variable of the manifest. Any other type, and a
+    // range whose type is not known (an empty literal that is not in dyn()), has no instance.
+    private static IReadOnlyList<Expr> ZeroInstances(Comprehension macro)
+    {
+        StaticType? type = macro.Range switch
+        {
+            Call { Function: ProfileTables.Dyn } => StaticType.Dyn,
+            Ident ident => ProfileTables.Variables.FirstOrDefault(variable => variable.Name == ident.Name) switch
+            {
+                { Type: ProfileType.ListType } list => list.Declared.Element,
+                { Type: ProfileType.MapType } map => map.Declared.Key,
+                { Type: ProfileType.DynType } => StaticType.Dyn,
+                _ => null,
+            },
+            _ => null,
+        };
+        return type is null || ZeroLiteral(type) is not { } zero ? [] : [zero];
+    }
+
+    /// <summary>The zero literal of the profile that fits a static type, <see langword="null"/> for any other type.</summary>
+    /// <param name="type">The static type of the iteration variable.</param>
+    internal static Expr? ZeroLiteral(StaticType type) => type.Kind switch
+    {
+        ProfileType.StringType => EmptyString(),
+        ProfileType.IntType => new IntLiteral(0, IntegerForm.DecimalDigits),
+        ProfileType.UintType => new UintLiteral(0, IntegerForm.DecimalDigits, 'u'),
+        ProfileType.DoubleType => new DoubleLiteral(0.0, DoubleForm.Plain),
+        ProfileType.BoolType => new BoolLiteral(false),
+        ProfileType.BytesType => new BytesLiteral([], 'b', new TextForm(Quote.Apostrophe, null, [])),
+        ProfileType.DynType => new Call(ProfileTables.Dyn, [EmptyString()]),
+        _ => null,
+    };
+
+    private static StringLiteral EmptyString() => new(string.Empty, new TextForm(Quote.Apostrophe, null, []));
+
+    // The maximal nodes of an expression that read none of the variables in scope, in the order of the source: a node that
+    // reads one is searched in its children, and in the range and the arguments of a macro, whose own variable is in scope for
+    // its arguments. Such a node is evaluated by itself, with the bindings of the case.
+    private static IEnumerable<Expr> ClosedNodes(Expr node, IReadOnlyList<string> scope)
+    {
+        if (!scope.Any(variable => Reads(node, variable)))
+        {
+            yield return node;
+            yield break;
+        }
+
+        if (node is Comprehension macro)
+        {
+            foreach (Expr closed in ClosedNodes(macro.Range, scope))
+            {
+                yield return closed;
+            }
+
+            IReadOnlyList<string> inner = [.. scope, macro.Variable];
+            foreach (Expr closed in macro.Arguments.SelectMany(argument => ClosedNodes(argument, inner)))
+            {
+                yield return closed;
+            }
+
+            yield break;
+        }
+
+        foreach (Expr closed in Children(node).SelectMany(child => ClosedNodes(child, scope)))
+        {
+            yield return closed;
+        }
     }
 
     // The literal of a key of a map: an int, a uint, a bool or a string; null for any other value.

@@ -8,3 +8,10 @@
 # The empty form of pending.textproto keeps LF in every checkout: a test compares the form that eng/difftest writes with
 # this file byte for byte, and the form has LF line ends (docs/design/eng-difftest.md, "Known signatures and the corpus").
 tests/Great.Parts.Cel.Conformance/Regression/pending.textproto text eol=lf
+# The generated Unicode tables and the reference of Go keep LF in every checkout: eng/unicode --check compares the bytes of the files,
+# and the tests read the reference as a file (docs/design/unicode-tables.md, "The form of the output").
+src/Great.Parts.Cel/Library/Unicode/*.g.cs text eol=lf
+eng/unicode/reference/go-1.27.3.txt text eol=lf
+# The corpus of RE2 keeps LF in every checkout: the test compares the hash of the bytes of the file that Go ships
+# (tests/Great.Parts.Cel.Tests/Regex/Re2SearchCorpusTests.cs).
+tests/Great.Parts.Cel.Tests/Regex/Data/re2-search.txt text eol=lf

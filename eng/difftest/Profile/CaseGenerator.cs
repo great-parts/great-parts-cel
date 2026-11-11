@@ -53,7 +53,10 @@ internal sealed class CaseGenerator : Gen<GeneratedCase>
         {
             if (!pcg.OneIn(UnboundOneIn))
             {
-                bindings[variable.Name] = ProfileValues.Binding(pcg, variable);
+                // A call of matches that takes s1 as its subject or its pattern has its text bound to it.
+                bindings[variable.Name] = variable.Name == "s1" && builder.S1Binding is { } text
+                    ? new Value { StringValue = text }
+                    : ProfileValues.Binding(pcg, variable);
             }
         }
 

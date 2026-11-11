@@ -1185,15 +1185,6 @@ Cases of the pinned cel-spec commit (tests/cel-spec/COMMIT) that may fail in the
 | sets_ext/intersects/single_not_equal | * * * | Not implemented yet: sets_ext. | | |
 | sets_ext/intersects/strings | * * * | Not implemented yet: sets_ext. | | |
 | sets_ext/intersects/strings_false | * * * | Not implemented yet: sets_ext. | | |
-| string/matches/basic | * * * | Not implemented yet: string. | | |
-| string/matches/empty_arg | * * * | Not implemented yet: string. | | |
-| string/matches/empty_empty | * * * | Not implemented yet: string. | | |
-| string/matches/empty_target | * * * | Not implemented yet: string. | | |
-| string/matches/re_alt | * * * | Not implemented yet: string. | | |
-| string/matches/re_concat | * * * | Not implemented yet: string. | | |
-| string/matches/re_rep | * * * | Not implemented yet: string. | | |
-| string/matches/unicode | * * * | Not implemented yet: string. | | |
-| string/matches/unicode_smp | * * * | Not implemented yet: string. | | |
 | string_ext/ascii_casing/lowerascii | * * * | Not implemented yet: string_ext. | | |
 | string_ext/ascii_casing/lowerascii_unicode | * * * | Not implemented yet: string_ext. | | |
 | string_ext/ascii_casing/lowerascii_unicode_with_space | * * * | Not implemented yet: string_ext. | | |

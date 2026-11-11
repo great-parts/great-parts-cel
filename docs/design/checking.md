@@ -92,6 +92,7 @@ A node with an error gets the type `error`, assignable to every type, and produc
 | `InvalidComprehensionRange` (2005) | `expression of type '{type}' cannot be the range of a comprehension (must be list, map, or dyn)` | the range |
 | `NotAType` (2006) | `'{name}' is not a type` | the message literal |
 | `TypeNotConstructible` (2008) | `type '{type}' cannot be created by an expression: object literals are supported only for protobuf messages` | the message literal |
+| `InvalidRegex` (2009) | `invalid regular expression at offset {offset}: {reason}`, from the preparation of a constant argument, below | the string literal of the pattern |
 | `InsufficientStack` (9000) | `insufficient execution stack to continue type checking` | the node not checked |
 | `InternalError` (9001) | `internal error during type checking; the original exception is in CelError.Exception` | the node being checked |
 
@@ -100,6 +101,17 @@ Types in messages use the text form of [types](types.md). The container in 2000 
 ## Checked expression
 
 `CheckedExpression` holds the parsed expression (tree, positions and line table), the reference map, the type map with every type parameter replaced — free ones by `dyn` — and `ResultType`, the type of the root, which `CelProgram<T>.ResultType` reports.
+
+## Constant arguments
+
+An overload may name one argument that the checker prepares at compilation: `OverloadBinding.ConstantArgument`, `null` for every overload but `matches` and `matches_string`, holds the index of the argument — the receiver counts as an argument, so it is 1 for both — and a preparer ([declarations](declarations.md), "Constant arguments"). The checker calls it in `Resolve`, after the candidates of a call are recorded and the call has its type, so only a call that type checking accepted is looked at: `matches(1, '(')` is `NoMatchingOverload` and its pattern is not read.
+
+- **When.** Every candidate of the call has a constant argument, at the same index — an overload of the application of the same name does not, and then nothing is prepared and the call is left to evaluation, which must choose among the overloads by the values — and the node at that index is a string literal. A string literal is a constant node of the kind `string` in any of its forms: quoted, raw, triple-quoted, between parentheses (the tree has no node for the parentheses). Nothing else is a constant: not a variable, not a call, even `dyn('(')` and `string('(')`, not a concatenation, a `?:`, an element of a list or of a map, or the variable of a macro. The checker does no folding, so the class of the outcome — compile error or evaluation error — is decided by the form of the text alone.
+- **What it does.** `Prepare(value, cache)` takes the value of the literal, after the escapes of CEL are read, and the cache of patterns of the environment, and returns either a prepared object or the text of an error. On an error the checker adds `InvalidRegex` (2009), stage `Check`, with that text and the position of the literal: its first character, the `r` or the quote of a raw or triple-quoted one, the character after the parenthesis for a literal in parentheses. The call keeps its type `bool` and its candidates, since type checking of the call succeeded; only the preparation failed. On success the reference of the call keeps the prepared object, which the planner takes ([evaluation](evaluation.md), "Constant arguments").
+- **Where in the walk.** After the arguments of the call have been checked, so every literal of the text is looked at once, whether or not the call is ever evaluated: in a branch that is never taken, in a macro body, in an operand of `&&` or `||`. The errors join the others of the check in the list ordered by offset: `matches('a', '(') && matches(1, 'b')` has `InvalidRegex` at the first pattern and `NoMatchingOverload` at the second call, in the order of the text.
+- **What it never does.** It does not run for a call that has an argument of type `error`, which is not looked up, and `EvaluateWithoutTypeCheck` does not run it at all ([evaluation](evaluation.md), "Evaluation without type checking").
+
+The cache of patterns comes from the declaration index, which the environment created with it ([declarations](declarations.md)); the checker only hands it to the preparer. Preparation is not charged and has no limit of its own besides those of the pattern and of the expression ([regex-syntax](regex-syntax.md)); a literal is at most as long as the expression.
 
 ## Expected type
 
@@ -111,6 +123,6 @@ Before each recursive step the checker calls `RuntimeHelpers.TryEnsureSufficient
 
 ## Not in this part
 
-Literals of protobuf messages and their fields; `FieldNotAccessible` (2007), with the generator and `decimal`; `optional` selections and indexes; the second iteration variable; constant arguments prepared at planning (`matches`). Each comes with its part.
+Literals of protobuf messages and their fields; `FieldNotAccessible` (2007), with the generator and `decimal`; `optional` selections and indexes; the second iteration variable. Each comes with its part.
 
 Related pages: [types](types.md), [declarations](declarations.md), [objects](objects.md), [library](library.md), [evaluation](evaluation.md), [values](values.md), [facade](facade.md).

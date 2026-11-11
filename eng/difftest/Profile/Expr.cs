@@ -67,6 +67,12 @@ internal sealed record Call(string Function, IReadOnlyList<Expr> Args) : Expr
 {
     /// <summary>Whether the call is on its receiver, the first argument: <c>s.contains(t)</c>, <c>e.size()</c>.</summary>
     internal bool Receiver { get; init; }
+
+    /// <summary>
+    /// For a call of <c>matches</c>, the pattern that the generator made for it and the fault it put in, whatever form the pattern
+    /// takes in the expression; <see langword="null"/> for any other call. It is not printed and not read by a run.
+    /// </summary>
+    internal GeneratedPattern? Pattern { get; init; }
 }
 
 /// <summary>A selection <c>e.f</c>.</summary>

@@ -13,10 +13,18 @@ internal static class Invocation
 {
     // Calls the overload at the node offset; charges says whether the call pays its cost, which the calls
     // that the expansion of a standard macro adds do not.
-    internal static CelValue Call(Frame frame, OverloadBinding overload, ReadOnlySpan<CelValue> arguments, int offset, bool charges)
+    // The prepared object and the cache of patterns are those of the plan node of the call.
+    internal static CelValue Call(
+        Frame frame,
+        OverloadBinding overload,
+        ReadOnlySpan<CelValue> arguments,
+        int offset,
+        bool charges,
+        object? prepared = null,
+        object? cache = null)
     {
         // A call that the expansion of a standard macro adds charges nothing, also inside its implementation.
-        var site = new CallSite(overload.Function, offset, frame.Lines, charges ? frame.Meter : null, frame.Types, frame, frame.TimeZones);
+        var site = new CallSite(overload.Function, offset, frame.Lines, charges ? frame.Meter : null, frame.Types, frame, frame.TimeZones, prepared, cache);
         if (overload.IsApplication)
         {
             return CallApplication(frame, overload, arguments, in site, offset);

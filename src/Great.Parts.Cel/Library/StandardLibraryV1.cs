@@ -166,6 +166,11 @@ internal static class StandardLibraryV1
         table.Add(Member("endsWith", OverloadIds.EndsWithString, [@string, @string], @bool, Strings.EndsWith, 1, Costs.Text));
         table.Add(Member("startsWith", OverloadIds.StartsWithString, [@string, @string], @bool, Strings.StartsWith, 1, Costs.Text));
 
+        // matches charges its parse, build and match through the call site, as the cost depends on what the pattern turns out to be;
+        // a pattern that is a string literal is prepared when the expression is checked.
+        table.Add(Global("matches", OverloadIds.Matches, [@string, @string], @bool, Matches.Implementation, 0, null, Matches.Constant));
+        table.Add(Member("matches", OverloadIds.MatchesString, [@string, @string], @bool, Matches.Implementation, 0, null, Matches.Constant));
+
         // The receivers of timestamp and duration.
         TimeOverloads.AddReceivers(table, Source);
 
@@ -238,8 +243,9 @@ internal static class StandardLibraryV1
         CelType resultType,
         OverloadImplementation? implementation,
         ulong fixedCost,
-        CelCostFunction? argumentCost = null) =>
-        new(function, new CelOverloadDecl(overloadId, false, parameterTypes, resultType), implementation, fixedCost, argumentCost, Source);
+        CelCostFunction? argumentCost = null,
+        ConstantArgument? constantArgument = null) =>
+        new(function, new CelOverloadDecl(overloadId, false, parameterTypes, resultType), implementation, fixedCost, argumentCost, Source, constantArgument: constantArgument);
 
     // An overload called on its receiver, which is the first parameter.
     private static OverloadBinding Member(
@@ -249,6 +255,7 @@ internal static class StandardLibraryV1
         CelType resultType,
         OverloadImplementation implementation,
         ulong fixedCost,
-        CelCostFunction? argumentCost = null) =>
-        new(function, new CelOverloadDecl(overloadId, true, parameterTypes, resultType), implementation, fixedCost, argumentCost, Source);
+        CelCostFunction? argumentCost = null,
+        ConstantArgument? constantArgument = null) =>
+        new(function, new CelOverloadDecl(overloadId, true, parameterTypes, resultType), implementation, fixedCost, argumentCost, Source, constantArgument: constantArgument);
 }

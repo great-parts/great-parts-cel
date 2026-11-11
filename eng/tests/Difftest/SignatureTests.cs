@@ -207,6 +207,54 @@ public sealed class SignatureTests
         FindingAssert.None(PendingFile.Findings(search.NewSignatures, pending));
     }
 
+    // The two known signatures of matches (the records of the registry of the class cel-go-bug): the expressions that the registry
+    // names give them through the descent of every other case, so the profile needs no code of its own for them.
+    [Theory]
+    [InlineData("abc", "(", "check", "evaluation", "matches(string, string) stage-mismatch")]
+    [InlineData("(", "a", "value", "compile", "matches(string, string) we-value")]
+    public static void MatchesWithAnInvalidLiteral_GivesAKnownSignatureAndNoNewOne(string subject, string pattern, string library, string oracle, string signature)
+    {
+        Expr subjectLiteral = new StringLiteral(subject, new TextForm(Quote.Apostrophe, null, [.. subject.Select(_ => Escape.Literal)]));
+        Expr patternLiteral = new StringLiteral(pattern, new TextForm(Quote.Apostrophe, null, [.. pattern.Select(_ => Escape.Literal)]));
+        Expr root = new Call(ProfileTables.Matches, [subjectLiteral, patternLiteral]);
+        SideOutcome Outcome(string kind) => kind switch
+        {
+            "check" => SideOutcome.CompileError(CompileStage.Check, "invalid regular expression at offset 0: missing closing )"),
+            "compile" => SideOutcome.CompileError(CompileStage.Program, "invalid regular expression"),
+            "evaluation" => SideOutcome.EvaluationError("error parsing regexp: missing closing ): `(`"),
+            _ => SideOutcome.Of(Bool(false)),
+        };
+        (FakeSide librarySide, FakeSide oracleSide) = Sides(
+            (root, Outcome(library), Outcome(oracle)),
+            (subjectLiteral, SideOutcome.Of(Str(subject)), SideOutcome.Of(Str(subject))),
+            (patternLiteral, SideOutcome.Of(Str(pattern)), SideOutcome.Of(Str(pattern))));
+        DivergenceSearch search = new(librarySide, oracleSide, new FakeRecorder(), KnownSignatures.Of(signature));
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal(signature, divergence?.Signature);
+        Assert.Equal([signature], search.KnownSignaturesFound);
+        Assert.Empty(search.NewSignatures);
+        FindingAssert.None(PendingFile.Findings(search.NewSignatures, PendingFile.Build(search.NewSignatures)));
+    }
+
+    [Fact]
+    public void MatchesFromAReceiverWithAnInvalidLiteral_IsACompileErrorOnBothSidesAndAgrees()
+    {
+        Expr subject = new StringLiteral("abc", new TextForm(Quote.Apostrophe, null, [Escape.Literal, Escape.Literal, Escape.Literal]));
+        Expr pattern = new StringLiteral("(", new TextForm(Quote.Apostrophe, null, [Escape.Literal]));
+        Expr root = new Call(ProfileTables.Matches, [subject, pattern]) { Receiver = true };
+        SideOutcome refused = SideOutcome.CompileError(CompileStage.Check, "invalid regular expression");
+        (FakeSide library, FakeSide oracle) = Sides((root, refused, SideOutcome.CompileError(CompileStage.Program, "invalid regular expression")));
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Null(divergence);
+        Assert.Empty(search.NewSignatures);
+        Assert.Equal("'abc'.matches('(')", ExprPrinter.Print(root));
+    }
+
     [Fact]
     public void AgreeingOutcomes_GiveNoDivergence()
     {
@@ -629,10 +677,11 @@ public sealed class SignatureTests
         Expr list = new ListLiteral([one, two], TrailingComma: false);
         Expr map = new MapLiteral([new MapEntry(key, one)], TrailingComma: false);
 
-        Assert.Equal(["(1) > 0", "(2) > 0"], Printed(new Comprehension(ProfileTables.All, list, "v", [positive])));
-        Assert.Equal(["dyn(1) > 0", "dyn(2) > 0"], Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [list]), "v", [positive])));
-        Assert.Equal(["('a') > 0"], Printed(new Comprehension(ProfileTables.All, map, "v", [positive])));
-        Assert.Equal(["dyn('a') > 0"], Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [map]), "v", [positive])));
+        // The last instance is the closed node 0, the literal of the argument.
+        Assert.Equal(["(1) > 0", "(2) > 0", "0"], Printed(new Comprehension(ProfileTables.All, list, "v", [positive])));
+        Assert.Equal(["dyn(1) > 0", "dyn(2) > 0", "0"], Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [list]), "v", [positive])));
+        Assert.Equal(["('a') > 0", "0"], Printed(new Comprehension(ProfileTables.All, map, "v", [positive])));
+        Assert.Equal(["dyn('a') > 0", "0"], Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [map]), "v", [positive])));
     }
 
     [Fact]
@@ -646,10 +695,10 @@ public sealed class SignatureTests
         Expr transform = new Call(ProfileTables.Add, [v, v]);
 
         Assert.Equal(
-            ["(1) > 1", "(2) > 1", "(1) + (1)", "(2) + (2)"],
+            ["(1) > 1", "(2) > 1", "1", "(1) + (1)", "(2) + (2)"],
             Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, transform])));
-        Assert.Equal(["(1) > 1", "(2) > 1", "1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, one])));
-        Assert.Equal(["1", "(1) > 1", "(2) > 1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [one, predicate])));
+        Assert.Equal(["(1) > 1", "(2) > 1", "1", "1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [predicate, one])));
+        Assert.Equal(["1", "(1) > 1", "(2) > 1", "1"], Printed(new Comprehension(ProfileTables.MapMacro, range, "v", [one, predicate])));
         Assert.Equal(["1"], Printed(new Comprehension(ProfileTables.All, range, "v", [one])));
         Assert.Empty(Printed(new Call(ProfileTables.Add, [v, v])));
     }
@@ -705,7 +754,7 @@ public sealed class SignatureTests
             return ListOf(Int(5));
         }).Select(ExprPrinter.Print)];
 
-        Assert.Equal(["lx[0] > 1", "lx[0] + lx[0]"], instances);
+        Assert.Equal(["lx[0] > 1", "1", "lx[0] + lx[0]"], instances);
         Assert.Equal(1, rangeCalls);
     }
 
@@ -718,7 +767,7 @@ public sealed class SignatureTests
         Expr inner = new Comprehension(ProfileTables.All, new ListLiteral([v], TrailingComma: false), "v", [new Call(ProfileTables.Greater, [v, one])]);
         Expr outer = new Comprehension(ProfileTables.All, new ListLiteral([one], TrailingComma: false), "v", [inner]);
 
-        Assert.Equal(["[(1)].all(v, v > 1)"], Printed(outer));
+        Assert.Equal(["[(1)].all(v, v > 1)", "1"], Printed(outer));
     }
 
     // The instances agree: the divergence is in the macro itself, and the case stays the macro.
@@ -787,6 +836,154 @@ public sealed class SignatureTests
 
         Assert.Equal(root, divergence?.Case.Expression);
         Assert.Equal("comprehension(list) we-error", divergence?.Signature);
+        Assert.Single(search.NewSignatures);
+    }
+
+    // ---- Minimization under a macro: closed nodes and an empty range ----
+
+    // Case 10481 of seed 20261109: the argument of the macro reads the variable, the range is empty, and the divergence is in a
+    // node that reads neither v nor w, so no element reaches it. The closed node is an instance of its own, and the case is the
+    // known divergence of the node.
+    [Fact]
+    public void Macro_WithADivergenceInAClosedNodeOfAnArgumentThatReadsTheVariable_IsMinimizedToTheClosedNode()
+    {
+        Expr subject = Quoted("a");
+        Expr pattern = Quoted("b");
+        Expr closed = new Call("matches", [subject, pattern]);
+        Expr inner = new Comprehension(ProfileTables.Exists, new Ident("v"), "w", [closed]);
+        Expr source = new Call(ProfileTables.Dyn, [new ListLiteral([], TrailingComma: false)]);
+        SideOutcome error = SideOutcome.EvaluationError("no such overload: matches");
+
+        AssertMinimizedToKnown(
+            new Comprehension(ProfileTables.Filter, source, "v", [inner]),
+            closed,
+            error,
+            "matches(string, string) we-error",
+            "matches('a', 'b')",
+            Agree(subject, Str("a")),
+            Agree(pattern, Str("b")),
+            Agree(source, ListOf()));
+    }
+
+    // The closed nodes are the maximal nodes of the argument that read no variable of a macro above them, in the order of the
+    // source: the node under a nested macro counts when it reads neither its variable nor the outer one, and a node that reads
+    // the variable of the macro that encloses it is searched for closed nodes in its children.
+    [Fact]
+    public void BodyInstances_OfAnArgumentThatReadsTheVariable_EndWithItsClosedNodesInTheOrderOfTheSource()
+    {
+        Expr v = new Ident("v");
+        Expr w = new Ident("w");
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr two = new IntLiteral(2, IntegerForm.DecimalDigits);
+        Expr three = new IntLiteral(3, IntegerForm.DecimalDigits);
+        Expr closedMacro = new Comprehension(ProfileTables.All, new ListLiteral([two], TrailingComma: false), "w", [new Call(ProfileTables.Greater, [w, three])]);
+        Expr inner = new Comprehension(ProfileTables.Exists, v, "w", [new Call(ProfileTables.Greater, [new Call(ProfileTables.Add, [w, one]), v])]);
+        Expr body = new Call(ProfileTables.LogicalAnd, [inner, closedMacro]);
+        Expr range = new ListLiteral([three], TrailingComma: false);
+
+        Assert.Equal(
+            ["(3).exists(w, w + 1 > (3)) && [2].all(w, w > 3)", "1", "[2].all(w, w > 3)"],
+            Printed(new Comprehension(ProfileTables.Filter, range, "v", [body])));
+    }
+
+    // Case 99729 of seed 20261109: the variable is the key of an empty map of strings, and the argument reads it. The zero
+    // literal of string stands in its place, and the instance is the known divergence of the pattern, which no key ever reaches.
+    [Fact]
+    public void Macro_OverAnEmptyMapVariable_IsMinimizedToTheBodyWithTheZeroLiteralOfTheKeyType()
+    {
+        Expr pattern = Quoted("(?<=a)b");
+        Expr empty = Quoted(string.Empty);
+        Expr ms = new Ident("ms");
+        Expr root = new Comprehension(ProfileTables.ExistsOne, ms, "v", [new Call("matches", [new Ident("v"), pattern])]);
+        SideOutcome error = SideOutcome.EvaluationError("no such overload: matches");
+
+        AssertMinimizedToKnown(
+            root,
+            new Call("matches", [empty, pattern]),
+            error,
+            "matches(string, string) we-error",
+            "matches('', '(?<=a)b')",
+            Agree(empty, Str(string.Empty)),
+            Agree(pattern, Str("(?<=a)b")),
+            Agree(ms, Map()));
+    }
+
+    // A range without elements gives an argument that reads the variable one instance for the zero literal of the type of the
+    // variable: the key type of a map, the element type of a list, dyn in dyn(); for a range of an unknown type, none.
+    [Fact]
+    public void BodyInstances_OverARangeWithoutElements_PutTheZeroLiteralOfTheTypeOfTheVariable()
+    {
+        Expr v = new Ident("v");
+        Expr body = new Call(ProfileTables.Equal, [v, v]);
+        Expr dynEmpty = new Call(ProfileTables.Dyn, [new ListLiteral([], TrailingComma: false)]);
+
+        Assert.Equal(["'' == ''"], Printed(new Comprehension(ProfileTables.All, new Ident("ms"), "v", [body]), Map()));
+        Assert.Equal(["0 == 0"], Printed(new Comprehension(ProfileTables.All, new Ident("mx"), "v", [body]), Map()));
+        Assert.Equal(["0 == 0"], Printed(new Comprehension(ProfileTables.All, new Ident("li"), "v", [body]), ListOf()));
+        Assert.Equal(["'' == ''"], Printed(new Comprehension(ProfileTables.All, new Ident("ls"), "v", [body]), ListOf()));
+        Assert.Equal(["dyn('') == dyn('')"], Printed(new Comprehension(ProfileTables.All, new Ident("lx"), "v", [body]), ListOf()));
+        Assert.Equal(["dyn('') == dyn('')"], Printed(new Comprehension(ProfileTables.All, dynEmpty, "v", [body])));
+        Assert.Equal(
+            ["dyn('') == dyn('')"],
+            Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [new Ident("ms")]), "v", [body]), Map()));
+        Assert.Equal(
+            ["dyn('') == dyn('')"],
+            Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [new MapLiteral([], TrailingComma: false)]), "v", [body])));
+
+        // The range is an empty literal that is not in dyn(), a variable that is not a list or a map, or a range of another kind.
+        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new ListLiteral([], TrailingComma: false), "v", [body])));
+        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new MapLiteral([], TrailingComma: false), "v", [body])));
+        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new Ident("unknown"), "v", [body]), ListOf()));
+        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Add, [new Ident("li"), new Ident("li")]), "v", [body]), ListOf()));
+        Assert.Empty(Printed(new Comprehension(ProfileTables.All, new Ident("i1"), "v", [body]), ListOf()));
+    }
+
+    // The zero literals of the profile, by the static type of the variable; a type without a zero literal has none.
+    [Fact]
+    public void ZeroLiteral_IsTheZeroOfEachScalarKindOfTheProfile()
+    {
+        Assert.Equal("''", ExprPrinter.Print(Minimizer.ZeroLiteral(StaticType.Of(ProfileType.StringType))!));
+        Assert.Equal("0", ExprPrinter.Print(Minimizer.ZeroLiteral(StaticType.Of(ProfileType.IntType))!));
+        Assert.Equal("0u", ExprPrinter.Print(Minimizer.ZeroLiteral(StaticType.Of(ProfileType.UintType))!));
+        Assert.Equal("0.0", ExprPrinter.Print(Minimizer.ZeroLiteral(StaticType.Of(ProfileType.DoubleType))!));
+        Assert.Equal("false", ExprPrinter.Print(Minimizer.ZeroLiteral(StaticType.Of(ProfileType.BoolType))!));
+        Assert.Equal("b''", ExprPrinter.Print(Minimizer.ZeroLiteral(StaticType.Of(ProfileType.BytesType))!));
+        Assert.Equal("dyn('')", ExprPrinter.Print(Minimizer.ZeroLiteral(StaticType.Dyn)!));
+        Assert.Null(Minimizer.ZeroLiteral(StaticType.Of(ProfileType.NullType)));
+        Assert.Null(Minimizer.ZeroLiteral(StaticType.Of(ProfileType.TypeType)));
+        Assert.Null(Minimizer.ZeroLiteral(StaticType.ListOf(StaticType.Dyn)));
+        Assert.Null(Minimizer.ZeroLiteral(StaticType.MapOf(StaticType.Dyn, StaticType.Dyn)));
+    }
+
+    // An unknown divergence in a closed node or under the zero literal stays the macro, with the signature of the macro: the
+    // new instances are judged as every instance is.
+    [Theory]
+    [InlineData("closed")]
+    [InlineData("zero")]
+    public static void Macro_WithAnUnknownDivergenceInAClosedNodeOrUnderTheZeroLiteral_StaysTheMacro(string where)
+    {
+        Expr subject = Quoted("a");
+        Expr pattern = Quoted("b");
+        Expr closed = new Call("matches", [subject, pattern]);
+        Expr source = new Call(ProfileTables.Dyn, [new ListLiteral([], TrailingComma: false)]);
+        Expr body = where == "closed"
+            ? new Comprehension(ProfileTables.Exists, new Ident("v"), "w", [closed])
+            : new Call("matches", [new Ident("v"), pattern]);
+        Expr root = new Comprehension(ProfileTables.Filter, source, "v", [body]);
+        Expr instance = where == "closed"
+            ? closed
+            : new Call("matches", [new Call(ProfileTables.Dyn, [Quoted(string.Empty)]), pattern]);
+        SideOutcome error = SideOutcome.EvaluationError("no such overload: matches");
+        (FakeSide library, FakeSide oracle) = Sides(
+            (root, error, SideOutcome.Of(ListOf())),
+            (instance, error, SideOutcome.Of(Bool(false))),
+            Agree(source, ListOf()));
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
+
+        Divergence? divergence = search.Check(RunSeed, CaseNumber, Case(root));
+
+        Assert.Equal(root, divergence?.Case.Expression);
+        Assert.StartsWith("comprehension(list)", divergence?.Signature, StringComparison.Ordinal);
         Assert.Single(search.NewSignatures);
     }
 
@@ -870,7 +1067,7 @@ public sealed class SignatureTests
         Value map = Map((Int(-1), Int(0)), (new Value { Uint64Value = 2 }, Int(0)), (Bool(true), Int(0)), (Str("it's"), Int(0)));
 
         Assert.Equal(
-            ["dyn(-1) == 1", "dyn(2u) == 1", "dyn(true) == 1", "dyn('it\\'s') == 1"],
+            ["dyn(-1) == 1", "dyn(2u) == 1", "dyn(true) == 1", "dyn('it\\'s') == 1", "1"],
             Printed(new Comprehension(ProfileTables.All, new Ident("mx"), "v", [body]), map));
     }
 
@@ -890,7 +1087,8 @@ public sealed class SignatureTests
             Printed(new Comprehension(ProfileTables.MapMacro, sum, "v", [body]), ListOf(Int(5))));
     }
 
-    // A range whose value is an error, is unbound or is a scalar has no instances; the library is asked for it once.
+    // A range whose value is an error, is unbound or is a scalar has no instances of the argument that reads the variable, only
+    // the closed node 0 of the argument; the library is asked for the range once.
     [Fact]
     public void Macro_WhoseRangeIsNeitherAListNorAMap_HasNoBodyInstances()
     {
@@ -908,7 +1106,7 @@ public sealed class SignatureTests
                 Verdicts(candidate =>
                 {
                     asked.Add(candidate.Text);
-                    return candidate.Text != "lx";
+                    return candidate.Text is not ("lx" or "0");
                 }),
                 (_, _) => true,
                 candidate =>
@@ -919,7 +1117,7 @@ public sealed class SignatureTests
                 });
 
             Assert.Same(divergent, minimized);
-            Assert.Equal(["lx"], asked);
+            Assert.Equal(["lx", "0"], asked);
             Assert.Equal(1, rangeCalls);
         }
     }
@@ -1156,6 +1354,10 @@ public sealed class SignatureTests
     private static Call Index(Expr range, int index) => new Call(ProfileTables.Index, [range, new IntLiteral(index, IntegerForm.DecimalDigits)]);
 
     private static Expr Parenthesized(Expr expr) => expr with { Parenthesized = true };
+
+    // A string literal in apostrophes, each character as itself.
+    private static StringLiteral Quoted(string value) =>
+        new(value, new TextForm(Quote.Apostrophe, null, [.. value.Select(_ => Escape.Literal)]));
 
     private static Value Int(long value) => new() { Int64Value = value };
 

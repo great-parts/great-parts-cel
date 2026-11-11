@@ -97,6 +97,17 @@ The copy holds n values of 32 bytes, and the sort runs in place, so the memory s
 
 Steps 2 and 3 run inside the exception boundary: an exception becomes `ApplicationException`, which keeps it in `CelError.Exception`. It passes through only `OutOfMemoryException`, the internal `CostLimitException` and an `OperationCanceledException` whose token is the canceled token of the evaluation.
 
+## Constant arguments
+
+A call whose `Reference` carries a prepared object ([checking](checking.md), "Constant arguments") is planned with it: the node of the call, `CallPlanNode`, or `DispatchPlanNode` when the candidates are several, keeps the prepared object in a field and gives it, with the cache of patterns of the environment, to the `CallSite` it makes for each evaluation, as `Prepared` and `Cache` ([declarations](declarations.md), "Constant arguments"). The plan holds the cache, which it takes from the declaration index when it is planned. The prepared object is immutable and shared by every evaluation and thread; the cache can evict the entry it came from and the plan still holds the program. The argument itself is planned as any literal, a `ConstantPlanNode` of cost 0, and evaluated in its place among the arguments, so the order of evaluation, strictness and the kind check of `Matches` are those of any call; the implementation uses `Prepared` and does not read the literal again.
+
+- **A literal pattern that is prepared** costs the match alone ([library](library.md)): the parse and the build were made at compilation. Its refusal never reaches evaluation, since the compilation failed with `InvalidRegex` and there is no plan.
+- **A pattern that is not a literal** — a variable, `dyn('(')`, `string('(')`, a concatenation, a `?:`, an element of a list or of a map, any call — has no prepared object. The implementation parses it after the operands have been evaluated and an error value among them has been returned, looks it up in the cache and builds it, and the refusal is `EvalInvalidRegex` at the call, never earlier: a branch that is not evaluated gives none, `false && matches('a', p)` with `p` bound to `(` is `false`, and `matches('a', p) || true` is `true` since `||` takes the error as it takes any.
+- **The place** of `EvalInvalidRegex` is the call: for the form from a receiver too, the `(` after the name, which is the position the planner gives to every call node; in a macro, the `(` in the text, whichever element it is evaluated for.
+- **Events and cancellation.** A call of `matches` is no event of the frame: the steps of the engine are not counted, and a cancellation is seen at the next event after the call. The work of one call is what its cost pays for.
+
+The preparation is a property of the checked plan. It is not folded from a value: nothing that is not a string literal is prepared, so the same expression gives the same class of outcome with and without a cache, in any environment.
+
 ## Frame
 
 `CelValue Plan.Evaluate(IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken)` creates a `Frame` for one evaluation on one thread, evaluates the root and returns its value or error value. The bindings are a read-only dictionary by name: the facade passes the one inside `CelBindings` (see [facade](facade.md)); the internal `CelProgram<T>.Plan` gives the plan of a program to the tests. The frame holds:
@@ -205,7 +216,8 @@ Types of values in messages are the names of runtime types without parameters ([
 
 - names resolve at evaluation as [checking](checking.md) resolves them at compilation, with "has a value in the bindings" in place of "is declared": comprehension variables first, then the qualified names of an identifier or a selection chain, the longest first, each by the candidates of the container; for each candidate a value in the bindings, else a type identifier of the version. No candidate is `Unbound` for the name as written. Values are not checked against declared types;
 - a selection on a value is a `SelectPlanNode`, which finds a field of an object by name; variables of an object type apply the place rule at the first read; a message literal is planned with protobuf literals and is `InternalError` until then;
-- comprehensions and the special calls are planned as with type checking; any other call becomes a `DispatchPlanNode` over all overloads of its name, call style and argument count in the declaration index, the overloads only with `dyn` included; without static types every argument is marked. A function without such overloads is `EvalNoMatchingOverload` once the arguments are evaluated without error.
+- comprehensions and the special calls are planned as with type checking; any other call becomes a `DispatchPlanNode` over all overloads of its name, call style and argument count in the declaration index, the overloads only with `dyn` included; without static types every argument is marked. A function without such overloads is `EvalNoMatchingOverload` once the arguments are evaluated without error;
+- no argument is prepared: there is no checked expression whose references could hold a prepared object, and nothing here calls the preparers of [declarations](declarations.md). `matches('abc', '(')` is `EvalInvalidRegex` at the call, the literal pattern handled as a pattern from data; `matches(1, 'a')` is `EvalNoMatchingOverload` (`no such overload: matches(int, string)`) and so are `matches('abc', 1)`, `matches('abc')` and `'abc'.matches(1)`, from the dispatch over `matches` and `matches_string` by call style and argument count.
 
 So `f_unknown(17)` evaluates to `EvalNoMatchingOverload`, and `x` without a binding to `Unbound`. The value of the root is returned as it is, without conversion to a .NET type.
 
@@ -213,9 +225,9 @@ So `f_unknown(17)` evaluates to `EvalNoMatchingOverload`, and `x` without a bind
 
 | Part | This part | Later |
 | :- | :- | :- |
-| nodes | all nodes above, fields of objects and presence on them included | message literals of protobuf; `optional` selection and index; comprehensions of two variables; constant arguments prepared at planning (`matches`) |
+| nodes | all nodes above, fields of objects and presence on them included | message literals of protobuf; `optional` selection and index; comprehensions of two variables |
 | values read | bindings by name, checked against the declared type at any depth; objects of types described at run time and of descriptions with a .NET type; collections of the application; `JsonElement` | members of .NET types and their place rule inside collections (generator), protobuf messages, `decimal`; time is read from bindings and fields as scalars ([Time](#time)) |
-| calls | the standard library with time, application functions | extension sets, `matches` |
+| calls | the standard library with time and `matches`, application functions | extension sets |
 | cost and cancellation | the meter, the event counter, the rows of application data above | the rows of later parts |
 
 Related pages: [checking](checking.md), [library](library.md), [values](values.md), [objects](objects.md), [types](types.md), [declarations](declarations.md), [facade](facade.md), [core](core.md).

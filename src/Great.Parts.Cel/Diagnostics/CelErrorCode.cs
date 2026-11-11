@@ -156,9 +156,10 @@ public enum CelErrorCode
     /// <summary>
     /// A constant <c>matches</c> pattern is invalid: an RE2 syntax error, a construct that RE2 does not support, or a
     /// pattern over a limit given on the
-    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>. The
-    /// message gives the offset in the pattern and the kind of error. The pattern is compiled while the program is
-    /// planned. Location: the pattern literal.
+    /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md#pattern-of-matches">Limits</see>.
+    /// The message gives the offset in the pattern and the kind of error; the syntax is on the page
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md#matches">Standard library</see>.
+    /// The pattern is compiled while the program is planned. Location: the pattern literal.
     /// </summary>
     InvalidRegex = 2009,
 
@@ -336,7 +337,8 @@ public enum CelErrorCode
 
     /// <summary>
     /// The same as <see cref="InvalidRegex"/> for a <c>matches</c> pattern that is not a constant and is
-    /// compiled during evaluation. Location: the call of <c>matches</c>.
+    /// compiled during evaluation; a refused pattern is refused at every evaluation, from the cache of patterns of the
+    /// environment as well. Location: the call of <c>matches</c>.
     /// </summary>
     EvalInvalidRegex = 3021,
 

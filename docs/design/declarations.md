@@ -54,6 +54,28 @@ A conflicting pair is one error. In it the standard library comes before the app
 
 An overload of the application may extend a function of the standard library when it does not overlap it: `size` on an object of the application, `contains` with other argument types. Operators cannot be extended: their names fail 4015.
 
+## Constant arguments
+
+Some overloads take an argument that is prepared once, when a call has it as a literal: the pattern of `matches` and `matches_string`. The layer table lets `Checking` and `Evaluation` refer to `Declarations` but not to `Library`, so the point that prepares such an argument is defined here, in three internal types, and filled in by the library:
+
+```text
+namespace Great.Parts.Cel.Declarations
+internal delegate ConstantPreparation ConstantPreparer(string value, object? cache);
+
+internal sealed class ConstantArgument
+    int Index                      // the argument, the receiver counting as 0: 1 for matches and matches_string
+    ConstantPreparer Prepare
+
+internal readonly struct ConstantPreparation
+    object? Prepared               // the prepared object, immutable and safe to share; null on an error
+    string? Error                  // the complete text of the error, or null
+```
+
+- **On the overload.** `OverloadBinding` has `ConstantArgument? ConstantArgument`, a constructor parameter that is `null` unless the library table sets it: only `matches` and `matches_string` do. An overload of the application never has one, whatever its function is named; a call whose candidates are not all overloads with a constant argument is prepared by none ([checking](checking.md), "Constant arguments").
+- **Who calls it and with what.** The checker calls `Prepare(value, cache)` in the step of type checking, once for each literal in the argument at `Index`, with the value of the literal after the escapes of CEL are read and the cache of the environment. The preparer is a method of `Library/Matches.cs`: it looks the text up in the cache of patterns, parses and builds on a miss, adds the entry, and returns the program in `Prepared`, or the text of the refusal — the same text that an evaluation of a pattern from data gives, `invalid regular expression at offset {offset}: {reason}` — in `Error`. It charges nothing and cannot throw for a pattern: every refusal is a `RegexError`.
+- **Where the result is kept.** The checker puts `Prepared` in the `Reference` of the call; the planner takes it from there and gives it to the node of the call, which gives it to the implementation as `CallSite.Prepared` ([evaluation](evaluation.md), "Constant arguments"). `CallSite` also has `Cache`, the same cache, for the implementation that must prepare a pattern from data; both are `object?` and only `Library/Matches.cs` reads them.
+- **The cache of the environment.** `CelEnvironment` has the field `PatternCache`, created empty by `CelEnvironmentBuilder.Build` together with the environment ([regex-engine](regex-engine.md), "The cache of patterns"), and the declaration index keeps it as an `object` that the checker and the planner hand on. `ToBuilder().Build()` makes a new environment and so a new, empty cache; the cache is no part of what makes two environments equal. No public member changes.
+
 ## The environment and `ToBuilder`
 
 The environment keeps the declaration set it was built from. `ToBuilder` returns a new builder with the same version, variables, functions, implementations and container; `Build` on it with nothing added gives an equal environment — the same declarations, the same index order, the same results for every expression — and the earlier environment and its programs do not change. `CelStandardLibrary.V1.Version` is 1.

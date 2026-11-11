@@ -251,7 +251,8 @@ internal static class ExprPrinter
     {
         ProfileTables.Size or ProfileTables.TypeOf or ProfileTables.Dyn or ProfileTables.IntConversion or ProfileTables.UintConversion
             or ProfileTables.DoubleConversion or ProfileTables.StringConversion or ProfileTables.BytesConversion
-            or ProfileTables.BoolConversion or ProfileTables.TimestampConversion or ProfileTables.DurationConversion => function,
+            or ProfileTables.BoolConversion or ProfileTables.TimestampConversion or ProfileTables.DurationConversion
+            or ProfileTables.Matches => function,
         _ => throw Invalid("the function " + function + " is not in the profile"),
     };
 

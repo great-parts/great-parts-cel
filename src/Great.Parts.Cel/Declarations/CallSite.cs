@@ -51,7 +51,9 @@ internal readonly struct CallSite
         IEvaluationMeter? meter = null,
         TypeIndex? types = null,
         IApplicationBoundary? boundary = null,
-        CelTimeZoneDatabase? timeZones = null)
+        CelTimeZoneDatabase? timeZones = null,
+        object? prepared = null,
+        object? cache = null)
     {
         Function = function;
         _offset = offset;
@@ -60,6 +62,8 @@ internal readonly struct CallSite
         Types = types;
         Boundary = boundary;
         TimeZones = timeZones;
+        Prepared = prepared;
+        Cache = cache;
     }
 
     // The function name, for messages.
@@ -79,6 +83,14 @@ internal readonly struct CallSite
     // The time zone database of the environment, which the receivers of time with a zone resolve names against; null when the
     // environment has none.
     internal CelTimeZoneDatabase? TimeZones { get; }
+
+    // The object that the checker prepared from the constant argument of the call, shared by every evaluation; null when the
+    // call has none. Only the implementation that asked for the preparation reads it.
+    internal object? Prepared { get; }
+
+    // The cache of patterns of the environment, for the implementation that prepares a pattern from data; null outside an
+    // evaluation. Only Library/Matches.cs reads it.
+    internal object? Cache { get; }
 
     // Whether the evaluation has a cost limit.
     internal bool HasLimit => Meter is not null;

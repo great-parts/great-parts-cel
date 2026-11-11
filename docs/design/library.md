@@ -2,7 +2,7 @@
 
 `Great.Parts.Cel.Library` holds the standard library of each version: the type identifiers, the declarations of its functions and overloads, their implementations and their costs. An environment names its version in `new CelEnvironmentBuilder(CelStandardLibrary.V1)`; the public `CelStandardLibrary.V1` is a handle to the table of version 1 in this namespace (see [core](core.md)).
 
-This part has version 1 without `matches`: twelve type identifiers and 160 overloads — the 113 of the earlier parts and the 47 of time. The standard macros are expanded by the parser ([syntax](syntax.md)) and evaluated by the comprehension node ([evaluation](evaluation.md)). Identifiers, signatures and semantics are those of the [standard library](../standard-library.md) page, costs those of the [cost](../cost.md) page; this page says how they are built. The time functions are in `Library.Time`, `matches` goes to `Library.Regex` and `Library.Unicode`, extension sets to their own tables.
+This part has version 1: twelve type identifiers and 162 overloads — the 113 of the earlier parts, the 47 of time and the 2 of `matches`. The standard macros are expanded by the parser ([syntax](syntax.md)) and evaluated by the comprehension node ([evaluation](evaluation.md)). Identifiers, signatures and semantics are those of the [standard library](../standard-library.md) page, costs those of the [cost](../cost.md) page; this page says how they are built. The time functions are in `Library.Time`, `matches` in `Library.Regex` and `Library.Unicode`, extension sets go to their own tables.
 
 | File | Content |
 | :- | :- |
@@ -146,6 +146,50 @@ The 47 overloads of time have the identifiers of cel-go, letter for letter: 9 co
 - The prefix function of a pattern up to 256 code units lives on the stack, a longer one in an array of m `int`s: 4m bytes, within B = 64 bytes for each of the m/10 units that the pattern alone adds to the cost.
 - The step counter is a parameter that the property test reads; the library passes a local and ignores it. It is a `long`: the bound 4 · (n + m) of long inputs does not fit an `int`.
 
+## `matches` and `matches_string`
+
+Two overloads of one function: `matches` is the global call `matches(string, string) -> bool`, `matches_string` the call from a receiver `string.matches(string) -> bool`. Both mean: some part of the subject matches the pattern, by the syntax and the semantics of RE2 ([regex-syntax](regex-syntax.md)) run by the linear engine ([regex-engine](regex-engine.md)). In the table they follow `starts_with_string`, in the order of cel-go, and the library has 162 overloads with them. The subject is the first argument in both forms, the receiver counting as one; the pattern is the second.
+
+| File | Content |
+| :- | :- |
+| `src/Great.Parts.Cel/Library/Matches.cs` | the implementation shared by both overloads: the three charges, the cache, the engine |
+
+`OverloadIds` has `Matches` and `MatchesString` as constants of `matches` and `matches_string`. Each binding has `FixedCost` 0 and no `ArgumentCost`: the cost depends on what the pattern turns out to be, so the implementation charges it through `CallSite.Charge`, step by step. Each binding also carries the constant argument at index 1 ([declarations](declarations.md), "Constant arguments"), which makes a pattern that is a string literal be prepared at compilation.
+
+**Steps.** The implementation reads the subject and the pattern as strings — another kind is `EvalNoMatchingOverload`, as for every implementation — and then:
+
+1. **A prepared pattern.** `CallSite.Prepared` holds the program of a pattern that was a literal, so nothing is parsed or built. The only charge is the match.
+2. **A pattern from data.** The pattern has L UTF-16 code units. The implementation charges the parse, `1 + ⌈L/10⌉`, and only then looks the pattern up in the cache of the environment, `CallSite.Cache`. A hit gives an entry of a program, with its size m, or an entry of an error. A miss parses the pattern ([regex-engine](regex-engine.md), "The cache of patterns"): an error is kept as an entry of the cache; a program, with the size m known after the parse and checked against the limit, goes on.
+3. **A refused pattern** — an entry of an error, found or just made — is `EvalInvalidRegex` (3021). Nothing more is charged.
+4. **The charges of the build and of the match.** The size m is known after the parse, and so is everything the two charges need, so both are made before the program is built: the build `⌈m/4⌉`, then the match `1 + ⌈(n + 1) · m/10⌉`, n the length of the subject in UTF-16 code units.
+5. **The build and the match.** On a miss the implementation builds the program and keeps it in the cache; then it runs the engine and returns the `bool`.
+
+Each charge comes before the work it pays for, so a limit that stops the evaluation stops it before the parse, the build or the match. Both charges of step 4 are made before the build, so a limit that the match would pass stops the call before a program is built or kept: nothing is built, nothing is kept in the cache and every rented array is returned, whichever of the three charges stops it. The order of the charges and the result are the same as with the build in between; only the work and the cache differ. Without a limit no formula is computed. The cache changes no charge: a hit pays the parse and the build as a miss does, and an entry of an error pays the parse alone, whether it was made now or by an earlier evaluation. n, L and m are the lengths and the size of the standard; the step counter of the engine is not a charge.
+
+**Cost.** The whole table of the operations of `matches`, in units; the nodes around the call — a literal 0, a variable read 1, the other operands by their own rows — are charged by the nodes:
+
+| Operation | Units | When |
+| :- | :- | :- |
+| the pattern is a string literal, prepared at compilation | the match, `1 + ⌈(n + 1) · m/10⌉` | each evaluation; the parse and the build were made at compilation and are not charged |
+| the pattern is not a literal: a variable, `dyn('…')`, a concatenation, a `?:`, an element of a list or a map, any call | the parse `1 + ⌈L/10⌉`, the build `⌈m/4⌉`, the match `1 + ⌈(n + 1) · m/10⌉` | each evaluation, the cache hit included |
+| the pattern from data is refused: a syntax error, a construct outside RE2, a count, the height or the size over the limit | the parse `1 + ⌈L/10⌉` only | each evaluation, from the cache as well |
+| the call is evaluated without type checking, the pattern a literal or not | as the pattern that is not a literal | each evaluation |
+| an operand is an error value, or an operand of another kind (`EvalNoMatchingOverload`) | nothing beyond the operands | — |
+
+With the pattern `abc` (m = 4) and the subject `xabcx` (n = 5): as a literal the call costs the match, `1 + ⌈6 · 4/10⌉ = 4`, and 5 with the read of the subject; from a variable it costs the parse `1 + 1 = 2`, the build 1 and the match 4, which is 7, and 9 with the reads of the subject and of the pattern. The ⌈x/10⌉ and ⌈m/4⌉ are computed as `(x + 9) / 10` and `(m + 3) / 4` in `ulong`. A sum that overflows is a limit exceeded, as everywhere.
+
+**Memory.** The parse and the engine take their arrays from `ArrayPool<int>.Shared`; what a call allocates and keeps is the program of a miss — 16 bytes for each unit of m, which the build charge pays — and the entry of the cache, the node of its dictionary and its slot in the ring, one constant amount of a few tens of bytes, which the units of the parse and the match cover. A hit allocates nothing in steady state. The allocation test of cost and memory ([tests](tests.md)) has `matches` rows on subjects of 0, 1, 10, 100 and 1 000 units and on patterns of the sizes 2, 10, 100 and 1 000; as for every case that ends in an error value, a refused pattern adds the constant `ErrorBytes` of that test: the error value, the entry of an error in the cache and the one string that a Perl error holds are a constant that does not grow with the data and is not charged.
+
+**Errors.** `EvalInvalidRegex` (3021), at the call — its `(` for the receiver form too — with the message `invalid regular expression at offset {offset}: {reason}`; the offset and the reason are those of the `RegexError` in the entry, held by reference, so the error value allocates nothing for them and the message is made when it is read ([evaluation](evaluation.md), "Errors as values"). The same text, with the code `InvalidRegex` (2009) at the literal of the pattern, is the compile error of a prepared pattern ([checking](checking.md)); the two do not differ in text. `EvalNoMatchingOverload` (3000) as for any call, with the types of the values by name.
+
+**Without type checking.** `EvaluateWithoutTypeCheck` plans no preparation, so a literal pattern is a pattern from data: a literal with an error is `EvalInvalidRegex` at the call; a value that is not a string is `EvalNoMatchingOverload` by the dispatch over all overloads of the name ([evaluation](evaluation.md), "Evaluation without type checking"); `matches('abc')` with one argument is `EvalNoMatchingOverload` too.
+
+**A constant that is not a literal.** `dyn('(')`, `string('(')`, `'(' + ''` and `true ? '(' : 'a'` have the value of a literal but are not prepared: their error is `EvalInvalidRegex`, at evaluation. The planner does not fold them: folding would make the class of the outcome — compile error or evaluation error — differ from that of the oracle, which looks only at string literals.
+
+**The snapshot.** The overloads of version 1 are kept in a file that a test compares with the table, so a later change of an identifier, a signature or a cost is seen: `tests/Great.Parts.Cel.Tests/Library/Snapshots/standard-library-v1.txt`, one line for each overload, in the order of the table: the function, the identifier, `global` or `receiver`, the parameter types and the result type in their text form, `dyn` when the overload is a candidate only with a `dyn` argument, and the cost — the units that a call charges, fixed and by arguments and through `CallSite.Charge`, on probe arguments: every argument of the kinds `string`, `bytes`, `list` and `map` of size 0, 1, 10, 11 and 100 at once, the other kinds one fixed value, written as five numbers; for `matches` the subject and the pattern are `a` repeated that many times.
+
+The format of a line, which every increment that adds overloads keeps: six fields separated by ` | ` — the function, the identifier, `global` or `receiver`, `(parameter types, the receiver first) -> result type`, `dyn` for an overload that is a candidate only with a `dyn` argument and `-` for any other, and the five costs separated by single spaces, in the order of the sizes 0, 1, 10, 11, 100. A line that begins with `#` is a comment, and the file begins with the comments that state this format. The probes are a list of N elements, each the `int` 1; a map of N entries, the keys the `int`s 0 to N − 1 and the values the `int` 1; `string` and `bytes` of N characters `a`; `bool` is `true`, `uint` is 7, `double` is 2.5, and every other kind, a type parameter included, is the `int` 7. The cost is what the call charges whatever the probe gives, an error included: the fixed units, the cost of the arguments and what the implementation charges through the call site. `LibrarySnapshotTests.StandardLibraryV1` reads the file and the table and names every line that differs, with both texts. The developer who writes the test makes the lines from the table once and reads their numbers against the cost page; each part that adds overloads adds its lines in the order of the table. Before a release the file grows; after it a line changes only by review.
+
 ## Rows of the standard library page, section 7, to rules and examples
 
 Every row of the tables 7.1, 7.2 and 7.3 of the [standard library](../standard-library.md) page has a rule above and an example. The examples are in `tests/Great.Parts.Cel.Tests/Examples/`; the rows of `TimeConversionTests`, `TimeReceiverTests` and `TimeArithmeticTests` are labeled by the overload identifier, so a row is found by it.
@@ -163,4 +207,4 @@ Every row of the tables 7.1, 7.2 and 7.3 of the [standard library](../standard-l
 | 4 `google.protobuf.Timestamp`, `google.protobuf.Duration` | "Tables" | `Library/TimeTypeIdentifierTests`; a variable of that name in `Declarations/TimeDeclarationTests` |
 | the cost page, section 5, the rows of time | "Time", "Cost" | `Library/TimeCostTableTests` |
 
-Related pages: [evaluation](evaluation.md), [checking](checking.md), [values](values.md), [time zones](time-zones.md), [declarations](declarations.md), [core](core.md).
+Related pages: [regex-syntax](regex-syntax.md), [regex-engine](regex-engine.md), [evaluation](evaluation.md), [checking](checking.md), [values](values.md), [time zones](time-zones.md), [declarations](declarations.md), [core](core.md).

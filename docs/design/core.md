@@ -67,6 +67,14 @@ Code that a later part of the library adds to `Values` follows the same rule: lo
 | `src/Great.Parts.Cel/Values/CalendarRules.cs` | the proleptic Gregorian calendar: days and dates, weekday, day of the year | the receivers of `timestamp`, the grammar of RFC 3339 |
 | `src/Great.Parts.Cel/Values/TimeZoneRules.cs`, `TimeZoneRules.Tzif.cs`, `TimeZoneRules.Posix.cs` | the resolution of a zone name; reading TZif; the POSIX TZ rule; the offset of a zone at an instant ([time zones](time-zones.md)) | `UseTimeZones`, the receivers with a zone |
 
+## Regex and Unicode
+
+`Library/Regex/` and `Library/Unicode/` are internal sub-namespaces of `Library`, so both are core by the paths below: a defect in them is a wrong answer of `matches`, not a visible error, and a change goes through `eng/difftest`. They hold the code of [regex-syntax](regex-syntax.md) and [regex-engine](regex-engine.md) and the generated tables of [unicode-tables](unicode-tables.md).
+
+- **Layers** (`eng/layers.txt`, unchanged): `Library.Regex` references `Library.Unicode`, `Declarations`, `Values` and `Diagnostics`; `Library.Unicode` references no namespace of the library; `Library` references both. `Checking` and `Evaluation` reference neither: they reach the preparation of a pattern through the types of `Declarations` ([declarations](declarations.md), "Constant arguments"), which the library fills in.
+- **Generated files.** `src/Great.Parts.Cel/Library/Unicode/*.g.cs` are written by the generator in `eng/unicode/`, which is not core; the files are, since they match `Library/**`, so a regenerated table is checked like a change of the code that reads it. The source checks skip them ([eng-checks-source](eng-checks-source.md#generated-code)).
+- **No other directory** is added: the parse, the engine and the cache are files of `Library/Regex/`, and the implementation of the two overloads is `Library/Matches.cs` ([library](library.md)).
+
 ## Core paths
 
 Paths are relative to the repository root, with `/` separators, as git prints them. `*` matches any characters except `/`; `**` matches any number of whole path segments. Matching is case-sensitive.

@@ -1,0 +1,190 @@
+# Minimized cases of known divergences from cel-go in the pattern of matches. The expectation of each case is the answer of cel-go.
+
+name: "matches_pattern"
+description: "The pattern of matches, which cel-go checks through its validator of regular expression literals and limits by a larger program"
+section {
+  name: "validator"
+  description: "The validator of cel-go reads the first argument of a call as the pattern, which in the global form is the subject; a compile error of cel-go is the expectation eval_error here"
+  test {
+    name: "constant_pattern_error"
+    description: "matches(string, string) stage-mismatch"
+    expr: "matches('abc', '(')"
+    eval_error: {
+      errors: {
+        message: "error parsing regexp: missing closing ): `(`"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_bytes_subject"
+    description: "matches(bytes, string) stage-mismatch"
+    expr: "matches(dyn(b'a'), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_bool_subject"
+    description: "matches(bool, string) stage-mismatch"
+    expr: "matches(dyn(true), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_int_subject"
+    description: "matches(int, string) stage-mismatch"
+    expr: "matches(dyn(1), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_list_subject"
+    description: "matches(list, string) stage-mismatch"
+    expr: "matches(dyn([1]), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_map_subject"
+    description: "matches(map, string) stage-mismatch"
+    expr: "matches(dyn({'a': 1}), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_null_type_subject"
+    description: "matches(null_type, string) stage-mismatch"
+    expr: "matches(dyn(null), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_type_subject"
+    description: "matches(type, string) stage-mismatch"
+    expr: "matches(dyn(int), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_uint_subject"
+    description: "matches(uint, string) stage-mismatch"
+    expr: "matches(dyn(1u), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_double_subject"
+    description: "matches(double, string) stage-mismatch"
+    expr: "matches(dyn(1.5), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload: matches"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_error_subject"
+    description: "matches(error, string) stage-mismatch"
+    expr: "matches({'a': dyn(1)}['k'], '(')"
+    eval_error: {
+      errors: {
+        message: "no such key: k"
+      }
+    }
+  }
+  test {
+    name: "subject_read_as_pattern"
+    description: "matches(string, string) we-value"
+    expr: "matches('(', 'a')"
+    eval_error: {
+      errors: {
+        message: "ERROR: <input>:1:9: invalid matches argument\n | matches('(', 'a')\n | ........^"
+      }
+    }
+  }
+  test {
+    name: "subject_read_as_pattern_error_pattern"
+    description: "matches(string, error) stage-mismatch"
+    expr: "matches('(', {'a': dyn(1)}['k'])"
+    eval_error: {
+      errors: {
+        message: "ERROR: <input>:1:9: invalid matches argument\n | matches('(', {'a': dyn(1)}['k'])\n | ........^"
+      }
+    }
+  }
+}
+section {
+  name: "program_size"
+  description: "A pattern of 101 parts [a-z]{1000} is a program over the limit of 100,000 instructions of the library, and far below the limit of cel-go, which gives false"
+  test {
+    name: "global_call"
+    description: "matches(string, string) we-error"
+    expr: "matches('x', s1)"
+    type_env: {
+      name: "s1"
+      ident: {
+        type: {
+          primitive: STRING
+        }
+      }
+    }
+    bindings: {
+      key: "s1"
+      value: {
+        value: {
+          string_value: "[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}"
+        }
+      }
+    }
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "receiver_call"
+    description: "matches_string(string, string) we-error"
+    expr: "'x'.matches(s1)"
+    type_env: {
+      name: "s1"
+      ident: {
+        type: {
+          primitive: STRING
+        }
+      }
+    }
+    bindings: {
+      key: "s1"
+      value: {
+        value: {
+          string_value: "[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}[a-z]{1000}"
+        }
+      }
+    }
+    value: {
+      bool_value: false
+    }
+  }
+}

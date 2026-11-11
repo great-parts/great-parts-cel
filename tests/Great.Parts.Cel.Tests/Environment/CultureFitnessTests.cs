@@ -51,6 +51,22 @@ public sealed class CultureFitnessTests
     public static void Strings_AreComparedByCodePoints(string culture, string expression, bool expected) =>
         InCulture(culture, () => Assert.Equal(expected, Environment.Evaluate<bool>(expression, new CelBindings()).GetValueOrThrow()));
 
+    // The folding of case in matches is that of the tables of the library (the simple folding of Unicode), whatever the culture: the
+    // dotted capital I and the dotless small i do not fold to i under tr-TR, and the Kelvin sign and the long s do fold.
+    [Theory]
+    [InlineData("tr-TR", "'I'.matches('(?i)i')", true)]
+    [InlineData("tr-TR", "'i'.matches('(?i)I')", true)]
+    [InlineData("tr-TR", "'ı'.matches('(?i)i')", false)]
+    [InlineData("tr-TR", "'İ'.matches('(?i)i')", false)]
+    [InlineData("tr-TR", "'i'.matches('(?i)İ')", false)]
+    [InlineData("tr-TR", "'TITLE'.matches('(?i)^title$')", true)]
+    [InlineData("tr-TR", "'\u212A'.matches('(?i)^k$')", true)]
+    [InlineData("tr-TR", "'\u017F'.matches('(?i)^[a-z]$')", true)]
+    [InlineData("tr-TR", "'ı'.matches('(?i)^[a-z]$')", false)]
+    [InlineData("tr-TR", "matches('1.5', '^[0-9]+[.][0-9]+$')", true)]
+    public static void Matches_IgnoresTheCulture(string culture, string expression, bool expected) =>
+        InCulture(culture, () => Assert.Equal(expected, Environment.Evaluate<bool>(expression, new CelBindings()).GetValueOrThrow()));
+
     [Theory]
     [InlineData("tr-TR", "[1, 2][1234]", null, CelErrorCode.IndexOutOfRange, "index 1234 out of range [0, 2)")]
     [InlineData("tr-TR", "int(1.5e19)", null, CelErrorCode.ConversionRange, "1.5e+19 is out of the range of int")]

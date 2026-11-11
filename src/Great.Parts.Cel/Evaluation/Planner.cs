@@ -318,7 +318,9 @@ internal sealed class Planner
     // has the index overloads of the library that type checking did not keep.
     private PlanNode VisitCheckedCall(CallNode call, int offset, out int stackSize)
     {
-        ImmutableArray<OverloadBinding> candidates = _checked!.References[call.Id].Candidates;
+        Reference reference = _checked!.References[call.Id];
+        ImmutableArray<OverloadBinding> candidates = reference.Candidates;
+        object? prepared = reference.Prepared;
         bool qualified = call.Target is null || (!candidates.IsEmpty && !candidates[0].Declaration.IsReceiverStyle);
         ImmutableArray<ExprNode> argumentNodes = qualified ? call.Arguments : [call.Target!, .. call.Arguments];
         ImmutableArray<PlanNode> arguments = VisitAll(argumentNodes, out stackSize);
@@ -342,7 +344,7 @@ internal sealed class Planner
                 return folded;
             }
 
-            return new CallPlanNode(offset, candidates[0], Marks(candidates[0], argumentTypes), !_added, arguments);
+            return new CallPlanNode(offset, candidates[0], Marks(candidates[0], argumentTypes), !_added, arguments, prepared, _declarations.PatternCache);
         }
 
         ImmutableArray<ImmutableArray<bool>>.Builder marks = ImmutableArray.CreateBuilder<ImmutableArray<bool>>(candidates.Length);
@@ -351,7 +353,7 @@ internal sealed class Planner
             marks.Add(Marks(candidate, argumentTypes));
         }
 
-        return new DispatchPlanNode(offset, call.Function, candidates, marks.MoveToImmutable(), !_added, arguments);
+        return new DispatchPlanNode(offset, call.Function, candidates, marks.MoveToImmutable(), !_added, arguments, prepared, _declarations.PatternCache);
     }
 
     // A call of timestamp or duration on a string literal, run once at planning on a call site with no limit and no
@@ -439,7 +441,7 @@ internal sealed class Planner
             marks.Add(all);
         }
 
-        return new DispatchPlanNode(offset, call.Function, candidates, marks.MoveToImmutable(), !_added, arguments);
+        return new DispatchPlanNode(offset, call.Function, candidates, marks.MoveToImmutable(), !_added, arguments, null, _declarations.PatternCache);
     }
 
     private static string ChainName(IdentNode root, List<SelectNode> chain)

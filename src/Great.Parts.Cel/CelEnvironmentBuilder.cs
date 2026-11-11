@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Library.Regex;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
@@ -795,8 +796,9 @@ public sealed class CelEnvironmentBuilder
             return new(errors);
         }
 
-        DeclarationIndex index = DeclarationIndex.Create([.. library.Overloads, .. overloads], variables, library.TypeIdentifiers, container, types);
-        return new(new CelEnvironment(_standardLibrary, declarations, index));
+        var patternCache = new PatternCache();
+        DeclarationIndex index = DeclarationIndex.Create([.. library.Overloads, .. overloads], variables, library.TypeIdentifiers, container, types, patternCache);
+        return new(new CelEnvironment(_standardLibrary, declarations, index, patternCache));
     }
 
     // A builder with the declarations of an environment.

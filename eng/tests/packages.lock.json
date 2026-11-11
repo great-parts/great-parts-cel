@@ -155,6 +155,9 @@
       "great.parts.cel.eng.run": {
         "type": "Project"
       },
+      "great.parts.cel.eng.unicode": {
+        "type": "Project"
+      },
       "CsCheck": {
         "type": "CentralTransitive",
         "requested": "[4.9.1, )",

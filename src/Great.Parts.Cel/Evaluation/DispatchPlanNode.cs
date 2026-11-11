@@ -19,15 +19,24 @@ internal sealed class DispatchPlanNode : PlanNode
     private readonly ImmutableArray<ImmutableArray<bool>> _marks;
     private readonly bool _charges;
 
+    // The object that type checking prepared from the constant argument of the call, and the cache of patterns of the environment;
+    // both are given to the call site of each evaluation.
+    private readonly object? _prepared;
+    private readonly object? _cache;
+
     internal DispatchPlanNode(
         int offset,
         string function,
         ImmutableArray<OverloadBinding> candidates,
         ImmutableArray<ImmutableArray<bool>> marks,
         bool charges,
-        ImmutableArray<PlanNode> arguments)
+        ImmutableArray<PlanNode> arguments,
+        object? prepared = null,
+        object? cache = null)
         : base(offset, 0)
     {
+        _prepared = prepared;
+        _cache = cache;
         _function = function;
         _marks = marks;
         _charges = charges;
@@ -61,7 +70,7 @@ internal sealed class DispatchPlanNode : PlanNode
             TypeFit fit = candidate.Matches(values, _marks[i].AsSpan(), frame.Meter, frame.Types);
             if (fit.IsFit)
             {
-                return Invocation.Call(frame, candidate, values, Offset, _charges);
+                return Invocation.Call(frame, candidate, values, Offset, _charges, _prepared, _cache);
             }
 
             // An error value of an element is the result of the call: no later candidate is tried.

@@ -29,7 +29,8 @@ internal sealed class OverloadBinding
         CelCostFunction? argumentCost,
         string source,
         bool isApplication = false,
-        bool dynOnly = false)
+        bool dynOnly = false,
+        ConstantArgument? constantArgument = null)
     {
         Function = function;
         Declaration = declaration;
@@ -39,6 +40,7 @@ internal sealed class OverloadBinding
         Source = source;
         IsApplication = isApplication;
         DynOnly = dynOnly;
+        ConstantArgument = constantArgument;
         _topLevelTypes = TopLevel(declaration.ParameterTypes);
         _isIndexList = !isApplication && string.Equals(declaration.OverloadId, IndexListId, StringComparison.Ordinal);
     }
@@ -65,6 +67,10 @@ internal sealed class OverloadBinding
     // Whether the overload is a candidate only when an argument has the static type dyn: the ordering
     // across int, uint and double.
     internal bool DynOnly { get; }
+
+    // The argument that is prepared once when a call has a string literal there; null for every overload but matches and
+    // matches_string. An overload of the application never has one.
+    internal ConstantArgument? ConstantArgument { get; }
 
     // Whether argument values fit the declared parameter types: the top level of every argument, and at
     // any depth each argument that the planner marked, charging the descent to the meter. An argument

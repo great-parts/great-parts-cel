@@ -454,7 +454,9 @@ internal sealed class Checker
             return null;
         }
 
-        _references.Add(call.Id, Reference.ToCandidates(_candidates.Count == overloads.Length ? overloads : [.. _candidates]));
+        ImmutableArray<OverloadBinding> kept = _candidates.Count == overloads.Length ? overloads : [.. _candidates];
+        object? prepared = PrepareConstant(call, kept, isReceiverStyle);
+        _references.Add(call.Id, Reference.ToCandidates(kept, prepared));
         CelType type = SubstitutionRules.Apply(_substitution, _candidateResults[0], freeToDyn: false);
         for (int i = 1; i < _candidateResults.Count; i++)
         {
@@ -465,6 +467,44 @@ internal sealed class Checker
         }
 
         return type;
+    }
+
+    // The preparation of the constant argument of a call that type checking accepted: when every candidate names the same argument
+    // and the node there is a string literal, the preparer of the overload takes the value of the literal, and an error is
+    // InvalidRegex at the literal; the object it returns is kept in the reference of the call. Nothing else is a constant: not a
+    // variable, a call such as dyn('('), a concatenation or an element of a list, and nothing is folded, so the class of the outcome
+    // depends on the form of the text alone. A candidate of the application has no constant argument, so a call it can take is
+    // prepared by none.
+    private object? PrepareConstant(CallNode call, ImmutableArray<OverloadBinding> candidates, bool isReceiverStyle)
+    {
+        if (candidates.IsEmpty || candidates[0].ConstantArgument is not { } constant)
+        {
+            return null;
+        }
+
+        for (int i = 1; i < candidates.Length; i++)
+        {
+            if (candidates[i].ConstantArgument is not { } other || other.Index != constant.Index)
+            {
+                return null;
+            }
+        }
+
+        // The receiver counts as the argument 0; a call of a qualified function name has no receiver.
+        ExprNode? node = isReceiverStyle ? (constant.Index == 0 ? call.Target : call.Arguments[constant.Index - 1]) : call.Arguments[constant.Index];
+        if (node is not ConstantNode { Value: var value } || !value.TryGetString(out string? text))
+        {
+            return null;
+        }
+
+        ConstantPreparation preparation = constant.Prepare(text, _declarations.PatternCache);
+        if (preparation.Error is { } error)
+        {
+            _errors.Add(CheckErrors.InvalidRegex(error, Location(node)));
+            return null;
+        }
+
+        return preparation.Prepared;
     }
 
     // Tries the argument types, the receiver first, against the parameter types of the overload, its type

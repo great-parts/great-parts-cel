@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The generator of the Unicode tables (docs/design/unicode-tables.md): reads three files of the Unicode Character Database and
+    writes src/Great.Parts.Cel/Library/Unicode/*.g.cs. JIT only, not packed, no packages.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Great.Parts.Cel.Eng.Unicode</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!-- The tests of eng/tests run the readers, the model, the output and Program in their own process. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Great.Parts.Cel.Eng.Tests" />
+  </ItemGroup>
+
+</Project>

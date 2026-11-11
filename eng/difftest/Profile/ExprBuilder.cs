@@ -56,6 +56,9 @@ internal sealed class ExprBuilder
         .GroupBy(overload => overload.Result)
         .ToDictionary(byResult => byResult.Key, byResult => byResult.GroupBy(overload => overload.Function).Select(byFunction => byFunction.ToArray()).ToArray());
 
+    // The overloads of matches: the global form and the form from a receiver.
+    private static readonly ProfileOverload[] MatchesOverloads = [.. ProfileTables.Overloads.Where(overload => overload.Function == ProfileTables.Matches)];
+
     // The conversions whose string argument is, half the time, a number or a bool in the text forms of the standard library page.
     private static readonly HashSet<string> TextConversions = new(StringComparer.Ordinal)
     {
@@ -73,6 +76,12 @@ internal sealed class ExprBuilder
     /// <summary>Creates a builder that draws every choice from a random source.</summary>
     /// <param name="pcg">The random source.</param>
     internal ExprBuilder(PCG pcg) => this.pcg = pcg;
+
+    /// <summary>
+    /// The text that the variable <c>s1</c> is bound to when a call of <c>matches</c> of the expression takes it as its subject or as
+    /// its pattern, so the binding is a string that the call matches or is; <see langword="null"/> when no call does.
+    /// </summary>
+    internal string? S1Binding { get; private set; }
 
     private enum Form
     {
@@ -583,6 +592,11 @@ internal sealed class ExprBuilder
             return null;
         }
 
+        if (overload.Function == ProfileTables.Matches)
+        {
+            return MatchesCall(overload, null, depth, limit);
+        }
+
         int dynAt = overload.DynOnly ? pcg.Below(count) : -1;
         List<Expr> args = [];
         int nodes = 1;
@@ -736,7 +750,7 @@ internal sealed class ExprBuilder
         (Built range, StaticType? variableType) = Range(depth + 1, limit - 2);
         string variable = ProfileTables.IterationVariables[scope.Count];
         scope.Add((variable, variableType));
-        Built predicate = Make(ProfileType.BoolType, depth + 1, limit - 1 - range.Nodes);
+        Built predicate = Predicate(variable, variableType, depth + 1, limit - 1 - range.Nodes);
         scope.RemoveAt(scope.Count - 1);
         macros--;
         return new Built(new Comprehension(macro, range.Expr, variable, [predicate.Expr]), 1 + range.Nodes + predicate.Nodes, StaticType.Of(ProfileType.BoolType));
@@ -761,7 +775,7 @@ internal sealed class ExprBuilder
         StaticType? element = variableType;
         if (macro == ProfileTables.Filter || predicateAndTransform)
         {
-            Built predicate = Make(ProfileType.BoolType, depth + 1, limit - nodes - (predicateAndTransform ? 1 : 0));
+            Built predicate = Predicate(variable, variableType, depth + 1, limit - nodes - (predicateAndTransform ? 1 : 0));
             arguments.Add(predicate.Expr);
             nodes += predicate.Nodes;
         }
@@ -787,7 +801,7 @@ internal sealed class ExprBuilder
     // the type type — or the type type is wrapped in dyn(): the variable is then dyn.
     private (Built Range, StaticType? Variable) TransformRange(int depth, int limit)
     {
-        switch (pcg.Below(6))
+        switch (pcg.Below(7))
         {
             case 0:
                 return (Wrap(ListOfAny(depth + 1, limit - 1)), StaticType.Dyn);
@@ -797,6 +811,10 @@ internal sealed class ExprBuilder
             case 2 when pcg.OneIn(2) && VariableOf(ProfileType.ListType) is { } listVariable:
                 // A list variable has a fixed order too: li.map(v, …), lx.filter(v, …); a map variable has none.
                 return (listVariable, listVariable.Type!.Element);
+            case 6 when limit >= 3 && depth + 1 < ProfileTables.MaxDepth:
+                // A list of strings: the iteration variable is a string, the subject of matches.
+                Built strings = ElementList(ProfileType.StringType, depth + 1, limit - 1).List;
+                return (strings, strings.Type?.Element);
             default:
                 Built list = ListOfAny(depth + 1, limit - 1);
                 return list.Type?.Element is null or { Kind: ProfileType.TypeType }
@@ -811,10 +829,11 @@ internal sealed class ExprBuilder
     // built a level deeper and a node smaller, so that dyn() always fits around it (the caller checks the room).
     private (Built Range, StaticType? Variable) Range(int depth, int limit)
     {
-        Built range = pcg.Below(4) switch
+        Built range = pcg.Below(5) switch
         {
             0 or 1 => Make(ProfileType.ListType, depth + 1, limit - 1),
             2 => Make(ProfileType.MapType, depth + 1, limit - 1),
+            4 when limit >= 3 && depth + 1 < ProfileTables.MaxDepth => ElementList(ProfileType.StringType, depth + 1, limit - 1).List,
             _ => DynExpr(depth, limit),
         };
         StaticType? variable = range.Type switch
@@ -877,6 +896,140 @@ internal sealed class ExprBuilder
             ? new Built(new IntLiteral(pcg.Below(4), IntegerForm.DecimalDigits), 1, StaticType.Of(ProfileType.IntType))
             : Make(pcg.Pick(ProfileTables.KeyTypes), depth + 1, limit - 1 - container.Nodes);
         return new Built(new Call(ProfileTables.Index, [container.Expr, key.Expr]), 1 + container.Nodes + key.Nodes, null);
+    }
+
+    // ---- matches ----
+
+    // The predicate of a macro: a call of matches whose subject is the iteration variable when the variable is a string, one time in
+    // three; otherwise a node of the type bool. The node is at depth.
+    private Built Predicate(string variable, StaticType? variableType, int depth, int limit)
+    {
+        if (variableType is { Kind: ProfileType.StringType } && limit >= 3 && pcg.OneIn(3))
+        {
+            Built subject = new(new Ident(variable), 1, variableType);
+            if (MatchesCall(pcg.Pick(MatchesOverloads), subject, depth, limit) is { } call)
+            {
+                return call with { Expr = Maybe(call.Expr) };
+            }
+        }
+
+        return Make(ProfileType.BoolType, depth, limit);
+    }
+
+    // A call of matches at a depth, global or from a receiver, with its subject — the given one or any string expression — and a
+    // pattern of one of the forms of the profile; null when there is no room for the three nodes.
+    private Built? MatchesCall(ProfileOverload overload, Built? given, int depth, int limit)
+    {
+        int subjectNodes = given?.Nodes ?? 1;
+        if (limit < subjectNodes + 2)
+        {
+            return null;
+        }
+
+        (Built pattern, GeneratedPattern generated) = MatchesPattern(depth, limit - 1 - subjectNodes);
+        Built subject = given ?? MatchesSubject(depth, limit - 1 - pattern.Nodes);
+        return new Built(
+            new Call(ProfileTables.Matches, [subject.Expr, pattern.Expr]) { Receiver = overload.Receiver, Pattern = generated },
+            1 + subject.Nodes + pattern.Nodes,
+            StaticType.Of(ProfileType.BoolType));
+    }
+
+    // The pattern: a string literal, 60 times in 100, otherwise one of the forms that are not a literal: dyn('…'), a concatenation
+    // of two literals cut between two code points, string('…'), a conditional on true, the variable s1 bound to the text. The forms
+    // with literals below the call need two levels and 2 to 4 nodes of room, else the pattern is a literal.
+    private (Built Node, GeneratedPattern Pattern) MatchesPattern(int depth, int budget)
+    {
+        GeneratedPattern generated = PatternGenerator.Generate(pcg);
+        Built literal = new(PatternLiteral(generated.Text), 1, StaticType.Of(ProfileType.StringType));
+        if (pcg.Below(100) < 60)
+        {
+            return (literal, generated);
+        }
+
+        switch (pcg.Below(5))
+        {
+            case 0 when S1Binding is null:
+                S1Binding = generated.Text;
+                return (VariableNode(ProfileTables.Variables.Single(variable => variable.Name == "s1")), generated);
+            case 1 when budget >= 2 && depth + 2 <= ProfileTables.MaxDepth:
+                return (Wrap(literal), generated);
+            case 2 when budget >= 3 && depth + 2 <= ProfileTables.MaxDepth:
+                return (Concatenated(generated.Text), generated);
+            case 3 when budget >= 2 && depth + 2 <= ProfileTables.MaxDepth:
+                return (new Built(new Call(ProfileTables.StringConversion, [literal.Expr]), 2, StaticType.Of(ProfileType.StringType)), generated);
+            case 4 when budget >= 4 && depth + 2 <= ProfileTables.MaxDepth:
+                // The branch that is not taken may be refused: it is never read.
+                Built other = new(PatternLiteral(PatternGenerator.Generate(pcg).Text), 1, StaticType.Of(ProfileType.StringType));
+                return (
+                    new Built(
+                        new Call(ProfileTables.Conditional, [new BoolLiteral(true), literal.Expr, other.Expr]),
+                        4,
+                        StaticType.Of(ProfileType.StringType)),
+                    generated);
+            default:
+                return (literal, generated);
+        }
+    }
+
+    // text1 + text2 with the text cut between two code points.
+    private Built Concatenated(string text)
+    {
+        List<int> cuts = [0];
+        foreach (Rune rune in text.EnumerateRunes())
+        {
+            cuts.Add(cuts[^1] + rune.Utf16SequenceLength);
+        }
+
+        int cut = pcg.Pick(cuts);
+        Expr first = StringLiteral(text[..cut]);
+        Expr second = StringLiteral(text[cut..]);
+        return new Built(new Call(ProfileTables.Add, [first, second]), 3, StaticType.Of(ProfileType.StringType));
+    }
+
+    // The subject: a string literal of the alphabet of subjects, a string variable — s1 when no pattern is bound to it, bound to a
+    // subject — or any expression of the type string, the iteration variable of a macro included.
+    private Built MatchesSubject(int depth, int budget)
+    {
+        int choice = pcg.Below(10);
+        if (choice < 3)
+        {
+            return new Built(StringLiteral(PatternGenerator.Subject(pcg)), 1, StaticType.Of(ProfileType.StringType));
+        }
+
+        if (choice < 5)
+        {
+            if (S1Binding is null && pcg.OneIn(2))
+            {
+                S1Binding = PatternGenerator.Subject(pcg);
+                return VariableNode(ProfileTables.Variables.Single(variable => variable.Name == "s1"));
+            }
+
+            return VariableOf(ProfileType.StringType) ?? Atom(ProfileType.StringType);
+        }
+
+        return Make(ProfileType.StringType, depth + 1, budget);
+    }
+
+    // The literal of a pattern: raw when its text can stand in raw quotes, two times in three; otherwise with the escapes of the
+    // string forms that a pattern needs: for a backslash, for a quote, for a line feed, and the long Unicode form for the rest.
+    private StringLiteral PatternLiteral(string text)
+    {
+        List<int> codePoints = [.. text.EnumerateRunes().Select(rune => rune.Value)];
+        Quote[] rawQuotes = [.. Enum.GetValues<Quote>().Where(quote => codePoints.TrueForAll(codePoint => TextUnits.CanBeLiteral(codePoint, quote, raw: true)))];
+        if (rawQuotes.Length > 0 && pcg.Below(3) < 2)
+        {
+            return new StringLiteral(text, new TextForm(pcg.Pick(rawQuotes), RawPrefix() ?? 'r', [.. codePoints.Select(_ => Escape.Literal)]));
+        }
+
+        Quote quote = pcg.Pick(Enum.GetValues<Quote>());
+        List<Escape> units = [];
+        foreach (int codePoint in codePoints)
+        {
+            List<Escape> forms = TextUnits.StringForms(codePoint, quote, raw: false);
+            units.Add(forms.Contains(Escape.Literal) ? Escape.Literal : forms.Contains(Escape.Character) ? Escape.Character : Escape.UnicodeLong);
+        }
+
+        return new StringLiteral(text, new TextForm(quote, null, units));
     }
 
     // ---- Literals ----

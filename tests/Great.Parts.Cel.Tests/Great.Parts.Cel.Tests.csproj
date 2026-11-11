@@ -41,6 +41,22 @@
     <PackageReference Include="xunit.v3.aot" />
   </ItemGroup>
 
+  <!-- The reference of the Unicode tables that Go writes, and the version the tables are generated for (Regex/UnicodeTablesTests). -->
+  <ItemGroup>
+    <Content Include="../../eng/unicode/reference/go-1.27.3.txt" Link="Regex/Data/go-1.27.3.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../eng/unicode/inputs.txt" Link="Regex/Data/unicode-inputs.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The search tests of RE2 as Go 1.27.3 keeps them, which Regex/Re2SearchCorpusTests reads as a file next to the test assembly. -->
+  <ItemGroup>
+    <Content Include="Regex/Data/re2-search.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The record of the overloads of version 1 of the standard library, which Library/LibrarySnapshotTests compares with the table. -->
+  <ItemGroup>
+    <Content Include="Library/Snapshots/standard-library-v1.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
   </ItemGroup>

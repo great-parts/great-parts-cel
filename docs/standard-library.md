@@ -2,7 +2,7 @@
 
 This page lists what the standard library `CelStandardLibrary.V1` declares and how each function behaves: the type identifiers, the macros, and the functions and operators with their overloads. An environment names the version it uses in `new CelEnvironmentBuilder(CelStandardLibrary.V1)`.
 
-Not in this version of the page: the function `matches` and the extension sets, which have their own page. They are added to the library in a later release; until then a call to them is a type checking error.
+Not in this version of the page: the extension sets, which have their own page. They are added to the library in a later release; until then a call to them is a type checking error.
 
 The sources are the language definition of CEL (`doc/langdef.md` of cel-spec), cited by section title, and the CEL implementation in Go, cel-go v0.32.0, which is the reference where the language definition is silent. The costs of the overloads are on the page [Cost](cost.md), the error codes on the page [Error codes](error-codes.md), and the limits on the page [Limits](limits.md).
 
@@ -154,8 +154,35 @@ The size of a string counts Unicode code points, a surrogate pair counting once;
 | `contains_string` | `contains` | `string.contains(string) -> bool` | whether the receiver has the argument as a substring | none |
 | `ends_with_string` | `endsWith` | `string.endsWith(string) -> bool` | whether the receiver ends with the argument | none |
 | `starts_with_string` | `startsWith` | `string.startsWith(string) -> bool` | whether the receiver starts with the argument | none |
+| `matches` | `matches` | `(string, string) -> bool` | whether some part of the string matches the pattern, see [`matches`](#matches) | `InvalidRegex` (2009) for a pattern that is a string constant, `EvalInvalidRegex` (3021) for another pattern |
+| `matches_string` | `matches` | `string.matches(string) -> bool` | the same | the same |
 
 The search for a substring takes time linear in the lengths of the string and of the substring in the worst case, so the cost on the page [Cost](cost.md) holds for every input.
+
+### `matches`
+
+`matches(s, p)` and `s.matches(p)` are true when some part of the string `s` matches the pattern `p`. It is a search, not a test of the whole string: `'xabcx'.matches('abc')` is true, and `'xabcx'.matches('^abc$')` is false. The anchors `^`, `$`, `\A` and `\z` pin the pattern to the ends of the string.
+
+**Syntax.** The pattern is a regular expression of RE2, read as the package `regexp/syntax` of Go 1.27.3 reads it with the flags of Perl, and the library has its own parser and its own engine; the answer is the same as that of Go. It accepts:
+
+- literals and the escapes `\a \f \t \n \r \v`, `\x7F`, `\x{10FFFF}`, octal `\123`, `\Q…\E`, and a backslash before a punctuation character;
+- classes `[…]` and `[^…]` with ranges, the POSIX classes `[[:alpha:]]` and `[[:^alpha:]]`, and `\d \D \s \S \w \W`, which are ASCII classes: `\d` is `[0-9]`, `\s` is `[\t\n\f\r ]` and `\w` is `[0-9A-Za-z_]`;
+- the classes of Unicode `\pN`, `\p{Greek}`, `\PN` and `\p{^Greek}`, with the general categories and the scripts of the Unicode Character Database, version 17.0.0, and the names `Any`, `Assigned`, `Ascii` and `Lc`;
+- groups `(re)`, `(?:re)`, `(?P<name>re)` and `(?<name>re)`; a group matches as its body, since the result is only whether there is a match;
+- the flags `(?i)`, `(?m)`, `(?s)` and `(?U)`, a flag group `(?i:re)` and a negation `(?i-m)`; `(?i)` folds case by the simple case folding of Unicode, whatever the culture of the process, and `(?U)` and the lazy forms `*?`, `+?`, `??` and `{n,m}?` change nothing, since the answer does not depend on which match the search takes;
+- the repetitions `*`, `+`, `?`, `{n}`, `{n,}` and `{n,m}`;
+- the anchors `^ $ \A \z \b \B`; without `(?m)` the `$` is the end of the string, not the place before a final line feed; `\b` and `\B` are ASCII;
+- alternatives `a|b`; the empty pattern matches every string; `.` matches any character but a line feed unless `(?s)` is set.
+
+The string and the pattern are read by code points of UTF-16; a lone surrogate in the string is read as U+FFFD, and in the pattern it is an error.
+
+**Errors.** The constructs that RE2 does not support are errors of the pattern where `regexp/syntax` of Go refuses them: look-ahead and look-behind (`(?=`, `(?!`, `(?<=`, `(?<!`), atomic groups, branch reset, comments `(?#`, conditionals, recursion and calls, the control verbs `(*FAIL)` and the like, backreferences `\1` and `\k<name>`, the repetition of a repetition (`a**`, `a*+`, `a{2}*`), the escapes `\C`, `\Z`, `\G`, `\K`, `\X` and the other escapes that Go has not, an unclosed group or class, a bad range, an unknown name of `\p`, a count over 1,000 and the other limits of the page [Limits](limits.md#pattern-of-matches). A few forms that the syntax page of RE2 lists as unsupported are read by Go as plain text, and the library reads them as Go does: `x{}`, `x{-}`, `x=`, `%(x)` and `\zs`. The rule is that the library has an error where Go has one.
+
+A pattern that is a string literal is read when the program is compiled: its error is `InvalidRegex` (2009) at the literal, and a text with such an error gives no program. A pattern that is not a literal — a variable, a concatenation, `dyn('…')`, an element of a list — is read when the call is evaluated, and its error is `EvalInvalidRegex` (3021) at the call. The message is `invalid regular expression at offset N: reason`: the offset is in UTF-16 code units of the value of the pattern, after the escapes of CEL are read, and the reason is the error of Go (for an unsupported construct, `unsupported Perl syntax: ` and the start of the construct). A pattern is checked in full when it is read, whether or not the call would match anything.
+
+**Time and memory.** The engine does not backtrack: the time of a call is at most proportional to the length of the string times the size of the pattern, and its memory to the size of the pattern, so a pattern that is exponential in a backtracking engine, such as `(a*)*b`, costs no more than any other of its size. The cost units of a call are on the page [Cost](cost.md#matches). An environment keeps the programs of the patterns that were not literals in a cache of its own, shared by its programs and empty at the start; a hit in the cache changes neither the result nor the cost.
+
+**Difference from cel-go.** The size of a pattern, counted as the instructions of its program, is limited to 100,000. The CEL implementation in Go limits it to about 3.3 million instructions, so a pattern between the two limits has a value there and is an error here. The result of a pattern that both accept is the same.
 
 ### Type, `dyn` and conversions
 

@@ -17,9 +17,23 @@ internal sealed class CallPlanNode : PlanNode
     private readonly bool _checks;
     private readonly bool _charges;
 
-    internal CallPlanNode(int offset, OverloadBinding overload, ImmutableArray<bool> marks, bool charges, ImmutableArray<PlanNode> arguments)
+    // The object that type checking prepared from the constant argument of the call, and the cache of patterns of the environment;
+    // both are given to the call site of each evaluation.
+    private readonly object? _prepared;
+    private readonly object? _cache;
+
+    internal CallPlanNode(
+        int offset,
+        OverloadBinding overload,
+        ImmutableArray<bool> marks,
+        bool charges,
+        ImmutableArray<PlanNode> arguments,
+        object? prepared = null,
+        object? cache = null)
         : base(offset, charges ? overload.FixedCost : 0)
     {
+        _prepared = prepared;
+        _cache = cache;
         _marks = marks;
         _checks = marks.Contains(true);
         _charges = charges;
@@ -46,7 +60,7 @@ internal sealed class CallPlanNode : PlanNode
         ReadOnlySpan<CelValue> values = frame.Peek(Arguments.Length);
         TypeFit fit = _checks ? Overload.Matches(values, _marks.AsSpan(), frame.Meter, frame.Types) : TypeFit.Yes;
         CelValue result = fit.IsFit
-            ? Invocation.Call(frame, Overload, values, Offset, _charges)
+            ? Invocation.Call(frame, Overload, values, Offset, _charges, _prepared, _cache)
             : EvaluationErrors.NotMatched(fit, Overload.Function, values, frame, Offset);
         frame.Pop(Arguments.Length);
         return result;
