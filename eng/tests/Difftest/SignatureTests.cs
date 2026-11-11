@@ -1087,10 +1087,11 @@ public sealed class SignatureTests
             Printed(new Comprehension(ProfileTables.MapMacro, sum, "v", [body]), ListOf(Int(5))));
     }
 
-    // A range whose value is an error, is unbound or is a scalar has no instances of the argument that reads the variable, only
-    // the closed node 0 of the argument; the library is asked for the range once.
+    // A range whose value is an error, is unbound or is a scalar gives the argument that reads the variable one instance for each
+    // zero literal of the profile, whatever the type of the variable, and then the closed node 0 of the argument; the library is
+    // asked for the range once.
     [Fact]
-    public void Macro_WhoseRangeIsNeitherAListNorAMap_HasNoBodyInstances()
+    public void Macro_WhoseRangeIsNeitherAListNorAMap_HasTheZeroLiteralsOfTheProfileAsInstances()
     {
         Expr lx = new Ident("lx");
         Expr root = new Comprehension(ProfileTables.All, lx, "v", [new Call(ProfileTables.Greater, [new Ident("v"), new IntLiteral(0, IntegerForm.DecimalDigits)])]);
@@ -1106,7 +1107,7 @@ public sealed class SignatureTests
                 Verdicts(candidate =>
                 {
                     asked.Add(candidate.Text);
-                    return candidate.Text is not ("lx" or "0");
+                    return candidate.Text == divergent.Text;
                 }),
                 (_, _) => true,
                 candidate =>
@@ -1117,7 +1118,7 @@ public sealed class SignatureTests
                 });
 
             Assert.Same(divergent, minimized);
-            Assert.Equal(["lx", "0"], asked);
+            Assert.Equal(["lx", "'' > 0", "0 > 0", "0u > 0", "0.0 > 0", "false > 0", "b'' > 0", "dyn('') > 0", "0"], asked);
             Assert.Equal(1, rangeCalls);
         }
     }
@@ -1170,6 +1171,162 @@ public sealed class SignatureTests
         Assert.Equal(["lx.filter(w, w)"], asked);
         Assert.Equal(2, Minimizer.MacroNodes(root));
         Assert.Equal(2, Minimizer.MacroNodes(Minimizer.BodyInstances(root, _ => ListOf(Int(1))).Single()));
+    }
+
+    // ---- Minimization under a macro over a range that is not a list or a map ----
+
+    // The instances of a range whose value is not a list or a map are the zero literals of the profile in the order of
+    // ZeroLiteral, whatever the type of the variable and whatever the range holds: no value, a scalar, null.
+    [Fact]
+    public void BodyInstances_OverARangeThatIsNeitherAListNorAMap_PutEveryZeroLiteralOfTheProfile()
+    {
+        Expr v = new Ident("v");
+        Expr body = new Call(ProfileTables.Equal, [v, v]);
+        Expr macro = new Comprehension(ProfileTables.All, new Ident("lx"), "v", [body]);
+        string[] expected = ["'' == ''", "0 == 0", "0u == 0u", "0.0 == 0.0", "false == false", "b'' == b''", "dyn('') == dyn('')"];
+
+        foreach (Value? value in new Value?[] { null, Int(3), Str("abc"), new Value { NullValue = NullValue.NullValue } })
+        {
+            Assert.Equal(expected, Printed(macro, value));
+        }
+    }
+
+    // Cases 100758, 63618, 775671 and 1274797 of seeds 1028936231 and 168408093: the known divergence matches(string, string)
+    // stage-mismatch (the library refuses the constant pattern when the expression is compiled, cel-go fails when the call is
+    // evaluated) sits under a macro over a range that gives no element, so the macro is minimized to the instance of its body
+    // with the zero literal of the profile. The range is an unbound variable, an index into a map literal whose value is an
+    // error, a scalar under dyn(), and, in a nested macro, a conditional whose value is an error.
+    [Fact]
+    public void Macro_OverAnUnboundVariable_IsMinimizedToTheMatchesWithTheZeroLiteral()
+    {
+        Expr ls = new Ident("ls");
+        SideOutcome unbound = SideOutcome.EvaluationError("no such attribute(s): ls");
+        Expr root = new Comprehension(ProfileTables.ExistsOne, ls, "v", [MatchesOf(new Ident("v"))]);
+
+        AssertMinimizedToMatches(root, [root, MatchesOf(Quoted(string.Empty))], "matches('', '(')", (ls, unbound, unbound));
+    }
+
+    [Fact]
+    public void Macro_OverAnIndexIntoAMapLiteralWhoseValueIsAnError_IsMinimizedToTheMatchesWithTheZeroLiteral()
+    {
+        Expr ls = new Ident("ls");
+        Expr x1 = new Ident("x1");
+        Expr map = new MapLiteral([new MapEntry(Quoted("a"), ls), new MapEntry(new IntLiteral(1, IntegerForm.DecimalDigits), x1)], TrailingComma: false);
+        Expr range = new Call(ProfileTables.Index, [map, Quoted("k")]);
+        SideOutcome unbound = SideOutcome.EvaluationError("no such attribute(s): x1");
+        Expr root = new Comprehension(ProfileTables.Exists, range, "v", [MatchesOf(new Ident("v"))]);
+
+        AssertMinimizedToMatches(
+            root,
+            [root, MatchesOf(Quoted(string.Empty))],
+            "matches('', '(')",
+            (ls, unbound, unbound),
+            (x1, unbound, unbound),
+            (map, unbound, unbound),
+            (range, unbound, unbound));
+    }
+
+    [Fact]
+    public void Macro_OverNullUnderDyn_IsMinimizedToTheMatchesWithTheZeroLiteral()
+    {
+        Expr x2 = new Ident("x2");
+        Expr range = new Call(ProfileTables.Dyn, [x2]);
+        Value none = new() { NullValue = NullValue.NullValue };
+        Expr root = new Comprehension(ProfileTables.Exists, range, "v", [MatchesOf(new Ident("v"))]);
+
+        AssertMinimizedToMatches(root, [root, MatchesOf(Quoted(string.Empty))], "matches('', '(')", Agree(x2, none), Agree(range, none));
+    }
+
+    // The body of the outer macro does not read its variable, so it is an instance of itself, and the nested macro has a
+    // conditional for a range, whose value is an error.
+    [Fact]
+    public void NestedMacro_OverAConditionalWhoseValueIsAnError_IsMinimizedToTheMatchesWithTheZeroLiteral()
+    {
+        Expr ls = new Ident("ls");
+        Expr lx = new Ident("lx");
+        Expr conditional = new Call(ProfileTables.Conditional, [new Ident("b1"), ls, lx]);
+        SideOutcome unbound = SideOutcome.EvaluationError("no such attribute(s): lx");
+        Expr inner = new Comprehension(ProfileTables.All, conditional, "w", [MatchesOf(new Ident("w"))]);
+        Expr source = new ListLiteral([new Call(ProfileTables.Dyn, [new NullLiteral()]), new UintLiteral(1, IntegerForm.DecimalDigits, 'u')], TrailingComma: false);
+        Expr root = new Comprehension(ProfileTables.Filter, source, "v", [inner]);
+
+        AssertMinimizedToMatches(
+            root,
+            [root, inner, MatchesOf(Quoted(string.Empty))],
+            "matches('', '(')",
+            (ls, unbound, unbound),
+            (lx, unbound, unbound),
+            (conditional, unbound, unbound));
+    }
+
+    // Case 775671 of seed 168408093: the range of the nested macro is a list literal with elements, and its body reads the
+    // variable of the outer macro through the elements, so after the zero literal of the outer macro the descent goes on to the
+    // element of the nested range and reaches matches(string, string).
+    [Fact]
+    public void NestedMacro_UnderANullRangeUnderDyn_IsMinimizedThroughTheZeroLiteralAndTheElement()
+    {
+        Expr x1 = new Ident("x1");
+        Expr x2 = new Ident("x2");
+        Expr r = new Ident("r");
+        Expr range = new Call(ProfileTables.Dyn, [x2]);
+        Value none = new() { NullValue = NullValue.NullValue };
+        SideOutcome unbound = SideOutcome.EvaluationError("no such attribute(s): x1");
+        Expr NestedRange(Expr first) => new ListLiteral([new Call(ProfileTables.Add, [first, r]), x1], TrailingComma: false);
+        Expr Nested(Expr first) => new Comprehension(ProfileTables.Exists, NestedRange(first), "w", [MatchesOf(new Ident("w"))]);
+        Expr root = new Comprehension(ProfileTables.Exists, range, "v", [Nested(new Ident("v"))]);
+        Expr zeroed = Nested(Quoted(string.Empty));
+        Expr sum = Parenthesized(new Call(ProfileTables.Add, [Quoted(string.Empty), r]));
+
+        AssertMinimizedToMatches(
+            root,
+            [root, zeroed, MatchesOf(sum)],
+            "matches(('' + r), '(')",
+            Agree(x2, none),
+            Agree(range, none),
+            (x1, unbound, unbound),
+            (NestedRange(Quoted(string.Empty)), unbound, unbound),
+            Agree(sum, Str("a")));
+    }
+
+    // The instance of a type other than the variable does not compile on either side: the two agree, and it is dropped; the next
+    // zero literal in the order is tried, here dyn('').
+    [Fact]
+    public void ZeroLiteralInstance_ThatAgrees_IsDroppedAndTheNextOneIsTried()
+    {
+        Expr x2 = new Ident("x2");
+        Expr range = new Call(ProfileTables.Dyn, [x2]);
+        Value none = new() { NullValue = NullValue.NullValue };
+        Expr root = new Comprehension(ProfileTables.Exists, range, "v", [MatchesOf(new Ident("v"))]);
+        Expr dynEmpty = new Call(ProfileTables.Dyn, [Quoted(string.Empty)]);
+
+        AssertMinimizedToMatches(
+            root,
+            [root, MatchesOf(dynEmpty)],
+            "matches(dyn(''), '(')",
+            Agree(x2, none),
+            Agree(range, none),
+            Agree(dynEmpty, Str(string.Empty)));
+    }
+
+    // A divergence of the instance that nobody knows, and that is not the signature of the macro, stays the macro.
+    [Fact]
+    public void Macro_OverAnUnboundVariable_WithAnUnknownDivergenceUnderTheBody_StaysTheMacro()
+    {
+        Expr ls = new Ident("ls");
+        SideOutcome unbound = SideOutcome.EvaluationError("no such attribute(s): ls");
+        Expr root = new Comprehension(ProfileTables.ExistsOne, ls, "v", [MatchesOf(new Ident("v"))]);
+
+        (Divergence? divergence, DivergenceSearch search) = SearchUnderMacro(
+            [],
+            root,
+            [root, MatchesOf(Quoted(string.Empty))],
+            (ls, unbound, unbound),
+            Agree(Quoted(string.Empty), Str(string.Empty)),
+            Agree(Quoted("("), Str("(")));
+
+        Assert.Equal(root, divergence?.Case.Expression);
+        Assert.Equal("comprehension(error) stage-mismatch", divergence?.Signature);
+        Assert.Single(search.NewSignatures);
     }
 
     // ---- ENG822 ----
@@ -1300,6 +1457,39 @@ public sealed class SignatureTests
         Assert.Equal(known, divergence?.Signature);
         Assert.Equal(text, divergence?.Case.Text);
         Assert.Empty(search.NewSignatures);
+    }
+
+    // matches(subject, '('): a constant pattern that RE2 refuses.
+    private static Call MatchesOf(Expr subject) => new Call(ProfileTables.Matches, [subject, Quoted("(")]);
+
+    // The library refuses the constant pattern of matches when the expression is compiled and cel-go fails when the call is
+    // evaluated; the nodes that diverge so are `diverging`, `others` are the outcomes of the other nodes, and every node that is
+    // not named agrees.
+    private static (Divergence? Divergence, DivergenceSearch Search) SearchUnderMacro(
+        string[] known, Expr root, Expr[] diverging, params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] others)
+    {
+        SideOutcome refused = SideOutcome.CompileError(CompileStage.Check, "invalid regular expression at offset 0: missing closing )");
+        SideOutcome failed = SideOutcome.EvaluationError("error parsing regexp: missing closing ): `(`");
+        (FakeSide library, FakeSide oracle) = Sides([.. diverging.Select(node => (node, refused, failed)), .. others]);
+        DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of(known));
+        return (search.Check(RunSeed, CaseNumber, Case(root)), search);
+    }
+
+    // The case is minimized to the text with the known signature of matches, and no signature is new.
+    private static void AssertMinimizedToMatches(
+        Expr root, Expr[] diverging, string text, params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] others)
+    {
+        const string known = "matches(string, string) stage-mismatch";
+        (Divergence? divergence, DivergenceSearch search) = SearchUnderMacro(
+            [known],
+            root,
+            diverging,
+            [.. others, Agree(Quoted(string.Empty), Str(string.Empty)), Agree(Quoted("("), Str("("))]);
+
+        Assert.Equal(known, divergence?.Signature);
+        Assert.Equal(text, divergence?.Case.Text);
+        Assert.Empty(search.NewSignatures);
+        Assert.Equal([known], search.KnownSignaturesFound);
     }
 
     // The delegate of the minimizer that takes a case that a test names for divergent and any other for agreeing.

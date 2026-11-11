@@ -103,13 +103,15 @@ internal static class Minimizer
     /// the static types stay. For any other range (a variable, <c>dyn(x1)</c>, <c>lx + []</c>, the result of <c>map</c> or
     /// <c>filter</c>) the elements are those of its value that the library gives: for a list, the index <c>range[i]</c> for
     /// each position <c>i</c> from 0; for a map, <c>dyn(k)</c> for each key <c>k</c> in the order the library iterates the map.
-    /// A range whose value is not a list or a map (an error, an unbound variable, a scalar) has no instances of the arguments
-    /// that read the variable. A range with no element — a literal without elements, in <c>dyn()</c> or not, or any other range
-    /// whose value is an empty list or an empty map — gives an argument that reads the variable one instance for each zero
-    /// literal of the profile that fits the static type of the variable (<see cref="ZeroInstances"/>). After the instances of
-    /// the elements, an argument that reads the variable also has, in the order of the source, one instance for each closed
-    /// node of it (<see cref="ClosedNodes"/>): a maximal node that reads no iteration variable of the macros above it, which is
-    /// evaluated by itself, once, with the same bindings and without any substitution. Nothing for a node that is not a macro.
+    /// A range whose value is not a list or a map (an error, an unbound variable, a scalar) gives an argument that reads the
+    /// variable one instance for each zero literal of the profile, whatever the type of the variable
+    /// (<see cref="AnyZeroInstances"/>). A range with no element — a literal without elements, in <c>dyn()</c> or not, or any
+    /// other range whose value is an empty list or an empty map — gives an argument that reads the variable one instance for
+    /// each zero literal of the profile that fits the static type of the variable (<see cref="ZeroInstances"/>). After the
+    /// instances of the elements, an argument that reads the variable also has, in the order of the source, one instance for
+    /// each closed node of it (<see cref="ClosedNodes"/>): a maximal node that reads no iteration variable of the macros above
+    /// it, which is evaluated by itself, once, with the same bindings and without any substitution. Nothing for a node that is
+    /// not a macro.
     /// </summary>
     /// <param name="node">The node.</param>
     /// <param name="rangeValue">
@@ -262,9 +264,28 @@ internal static class Minimizer
             Value.KindOneofCase.MapValue when value.MapValue.Entries.Count == 0 => ZeroInstances(macro),
             Value.KindOneofCase.MapValue =>
                 [.. value.MapValue.Entries.Select(entry => KeyLiteral(entry.Key)).OfType<Expr>().Select(key => new Call(ProfileTables.Dyn, [key]))],
-            _ => [],
+            _ => AnyZeroInstances(),
         };
     }
+
+    // The nodes that stand for the element of a range whose value is not a list or a map (an error, an unbound variable, a
+    // scalar under dyn): one for each zero literal of the profile in the order of ZeroLiteral, whatever the type of the
+    // variable, since the range may be any node (an index into a map literal, a conditional) and its type is not known to the
+    // descent. An instance of another type than the variable does not compile on either side, so the two agree and it is
+    // dropped; it is a guess that is judged like any instance.
+    private static IReadOnlyList<Expr> AnyZeroInstances() =>
+    [
+        .. new[]
+        {
+            StaticType.Of(ProfileType.StringType),
+            StaticType.Of(ProfileType.IntType),
+            StaticType.Of(ProfileType.UintType),
+            StaticType.Of(ProfileType.DoubleType),
+            StaticType.Of(ProfileType.BoolType),
+            StaticType.Of(ProfileType.BytesType),
+            StaticType.Dyn,
+        }.Select(ZeroLiteral).OfType<Expr>(),
+    ];
 
     // The nodes that stand for the element of an empty range, a guess that is judged like any instance: the zero literal that
     // fits the static type of the iteration variable, which is the type of the element of the list or of the key of the map
