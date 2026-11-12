@@ -18,7 +18,8 @@ namespace Great.Parts.Cel.Eng.Difftest;
 /// <param name="Budget">The time of the whole run, minimization included.</param>
 /// <param name="Case">The only case to run, or <see langword="null"/> for cases 0, 1, 2, … until the budget is spent.</param>
 /// <param name="NumbersOnly">Whether to print only the journal line and write no file.</param>
-internal sealed record RunOptions(ulong Seed, TimeSpan Budget, ulong? Case, bool NumbersOnly);
+/// <param name="ShowFindings">Whether a run with <c>--numbers-only</c> also prints the text of the new signatures and the findings.</param>
+internal sealed record RunOptions(ulong Seed, TimeSpan Budget, ulong? Case, bool NumbersOnly, bool ShowFindings = false);
 
 /// <summary>What a run works with besides its options: the streams, the two sides and the commit.</summary>
 /// <param name="Output">Standard output: the <c>log</c> lines of the oracle, the findings and the journal line.</param>
@@ -94,6 +95,7 @@ internal static class Program
     private const string BudgetOption = "--budget";
     private const string CaseOption = "--case";
     private const string NumbersOnlyOption = "--numbers-only";
+    private const string FindingsOption = "--findings";
 
     // The number of instants that ENG822 draws from the seed; five fixed instants join them.
     private const int ZoneInstants = 256;
@@ -216,12 +218,12 @@ internal static class Program
         }
         else if (search.NewSignatures.Count > 0)
         {
-            Print(setup.Output, options, pending.Text.TrimEnd('\n'));
+            PrintFinding(setup.Output, options, pending.Text.TrimEnd('\n'));
         }
 
         foreach (Finding finding in findings)
         {
-            Print(setup.Output, options, finding.ToString());
+            PrintFinding(setup.Output, options, finding.ToString());
         }
 
         setup.Output.WriteLine(JournalLine(options, commit, oracle.Handshake, cases, search.NewSignatures, search.KnownSignaturesFound.Count));
@@ -276,6 +278,16 @@ internal static class Program
         }
     }
 
+    // The text of the new signatures and the findings: --numbers-only prints them only with --findings, which a maintainer asks for
+    // when a run of the workflow has new signatures and the case numbers of the journal line are all there is to read.
+    private static void PrintFinding(TextWriter output, RunOptions options, string line)
+    {
+        if (!options.NumbersOnly || options.ShowFindings)
+        {
+            output.WriteLine(line);
+        }
+    }
+
     /// <summary>Parses the command line.</summary>
     /// <param name="args">The command line.</param>
     /// <param name="now">The current time; its date in UTC is the seed without <c>--seed</c>.</param>
@@ -289,18 +301,20 @@ internal static class Program
         TimeSpan budget = DefaultBudget;
         ulong? single = null;
         bool numbersOnly = false;
+        bool showFindings = false;
         for (int i = 0; i < args.Count; i++)
         {
             string option = args[i];
-            if (option == NumbersOnlyOption)
+            if (option is NumbersOnlyOption or FindingsOption)
             {
-                numbersOnly = true;
+                numbersOnly |= option == NumbersOnlyOption;
+                showFindings |= option == FindingsOption;
                 continue;
             }
 
             if (option is not (SeedOption or BudgetOption or CaseOption))
             {
-                problem = $"unknown option '{option}'; the options are {SeedOption} <n>, {BudgetOption} <time>, {CaseOption} <n> and {NumbersOnlyOption}";
+                problem = $"unknown option '{option}'; the options are {SeedOption} <n>, {BudgetOption} <time>, {CaseOption} <n>, {NumbersOnlyOption} and {FindingsOption}";
                 return false;
             }
 
@@ -314,7 +328,7 @@ internal static class Program
             }
         }
 
-        options = new RunOptions(seed, budget, single, numbersOnly);
+        options = new RunOptions(seed, budget, single, numbersOnly, showFindings);
         problem = string.Empty;
         return true;
     }

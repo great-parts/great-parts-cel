@@ -549,6 +549,22 @@ public sealed class OracleConnectionTests
         Assert.Equal(requests, requestsAgain);
     }
 
+    // --numbers-only prints no signature and no text; with --findings it prints them, and the journal line stays the last line.
+    [Fact]
+    public void NumbersOnly_PrintsTheNewSignaturesAndTheirTextOnlyWithFindings()
+    {
+        string number = SignatureTests.CallReadingI1(7).ToString(CultureInfo.InvariantCulture);
+
+        (_, string quiet, _, _) = RunWithLibraryThatDivergesOnI1(number, "--numbers-only");
+        (int exitCode, string shown, _, _) = RunWithLibraryThatDivergesOnI1(number, "--numbers-only", "--findings");
+
+        Assert.Equal(1, exitCode);
+        Assert.StartsWith("difftest seed=7 ", quiet, StringComparison.Ordinal);
+        Assert.Contains("new divergence signature 'ident(int) value-mismatch' (S1)", shown, StringComparison.Ordinal);
+        Assert.Contains($"name: \"7-{number}\"\nexpr: \"i1\"", shown, StringComparison.Ordinal);
+        Assert.StartsWith("difftest seed=7 ", shown.TrimEnd('\n').Split('\n')[^1], StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ExceptionOfTheLibraryInStep2_IsExitCode2NamingItsTypeBeforeTheOracle()
     {
@@ -609,13 +625,13 @@ public sealed class OracleConnectionTests
     // A case of seed 7 with a library side that diverges from the fake oracle on every case that reads the bound variable i1;
     // the fake oracle writes the case of a new signature as its name and expression. A run with --case leaves pending.textproto
     // unwritten and prints its text, so the pending text is taken from the output.
-    private static (int ExitCode, string Output, string Pending, List<string> Requests) RunWithLibraryThatDivergesOnI1(string number)
+    private static (int ExitCode, string Output, string Pending, List<string> Requests) RunWithLibraryThatDivergesOnI1(string number, params string[] more)
     {
         using FakeOracle fake = new([Handshake], answer: request => request.GetProperty("op").GetString() == "case"
             ? $$"""{"id":ID,"textproto":{{JsonSerializer.Serialize($"name: \"{request.GetProperty("name").GetString()}\"\nexpr: \"{request.GetProperty("expr").GetString()}\"")}}}"""
             : """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
         using TempDirectory root = Repository();
-        (int exitCode, string output, string error) = Run(root, fake.Port, Limit, new LibraryThatDivergesOnI1(), ["--case", number]);
+        (int exitCode, string output, string error) = Run(root, fake.Port, Limit, new LibraryThatDivergesOnI1(), ["--case", number, .. more]);
         fake.Join();
         Assert.Empty(error);
         Assert.False(File.Exists(Path.Combine(root.Path, PendingFile.Path)));

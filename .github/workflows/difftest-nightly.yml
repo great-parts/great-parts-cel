@@ -21,6 +21,10 @@ on:
         description: "Seed of the run, a whole number. Without it: the date in UTC as yyyyMMdd."
         type: string
         required: false
+      findings:
+        description: "Print the text of the new signatures and the findings in the log, which is public: for the analysis of a run with new signatures, with the seed and the budget of that run."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,6 +60,7 @@ jobs:
           # environment, never through the text of the script.
           BUDGET: ${{ inputs.budget || '20m' }}
           SEED: ${{ inputs.seed }}
+          FINDINGS: ${{ inputs.findings }}
         run: |
           set -u
           if ! [[ "$BUDGET" =~ ^[0-9]+[smh]$ ]]; then
@@ -69,6 +74,9 @@ jobs:
               exit 2
             fi
             arguments+=(--seed "$SEED")
+          fi
+          if [ "$FINDINGS" = "true" ]; then
+            arguments+=(--findings)
           fi
 
           output="$RUNNER_TEMP/difftest.txt"

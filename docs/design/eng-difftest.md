@@ -26,7 +26,7 @@ The namespaces have no cycles (`ARCH001`): `Corpus` uses `Compare` and `Sides`, 
 ## Invocation
 
 ```text
-docker compose -f eng/compose.yaml run --rm difftest [--seed <n>] [--budget <time>] [--case <n>] [--numbers-only]
+docker compose -f eng/compose.yaml run --rm difftest [--seed <n>] [--budget <time>] [--case <n>] [--numbers-only] [--findings]
 ```
 
 | Option | Default | Meaning |
@@ -35,6 +35,7 @@ docker compose -f eng/compose.yaml run --rm difftest [--seed <n>] [--budget <tim
 | `--budget` | `5m` | the time of the whole run, minimization included; the long run before a release gives `2h` |
 | `--case` | none | run only case `n` of the seed, to reproduce it: the same seed and `n` give the same minimized case and the same signature ([Outcomes and signatures](#outcomes-and-signatures)); the run leaves `pending.textproto` unwritten and prints the text it would have instead |
 | `--numbers-only` | off | print only the journal line and write no file; for the workflows, whose log is public, so no output names a case ([Findings and output](#findings-and-output)) |
+| `--findings` | off | with `--numbers-only`, also print the text of the new signatures (the minimized case, its bindings) and the findings, before the journal line; the manual run of the nightly workflow takes it as the input `findings`, to analyse a run whose journal line has new signatures, with its seed and a budget that reaches its cases |
 
 | Item | Value |
 | :- | :- |
@@ -293,7 +294,7 @@ The profile does not change: it has no message type, no variable of the type `an
 
 | Item | Value |
 | :- | :- |
-| Triggers | `schedule` at 01:17 UTC every night; `workflow_dispatch` with the inputs `budget` and `seed` |
+| Triggers | `schedule` at 01:17 UTC every night; `workflow_dispatch` with the inputs `budget`, `seed` and `findings` (`--findings`, off by default) |
 | Branch | `main` only: a manual run from another branch is skipped |
 | Runner | `ubuntu-latest` |
 | Command | `docker compose -f eng/compose.yaml run --rm -T difftest --numbers-only --budget <budget> [--seed <n>]` |
