@@ -33,7 +33,8 @@ internal enum NodeVerdict
 /// are those of <see cref="Children"/>. When nothing diverges by these rules and the root is a macro, the first instance of a
 /// body of the macro that makes the case smaller and is accepted becomes the case (<see cref="BodyInstances"/>): the body
 /// itself when it does not read the iteration variable; else the body with the element in place of the variable for each
-/// element of the range, or with a zero literal when the range is empty; then each closed node of the body. A case is
+/// element of the range (both variables of a macro of two variables), or with a zero literal when the range is empty; then each
+/// closed node of the body. A case is
 /// smaller than another when it has fewer macro nodes, or as many and a shorter text. Each node below the root is classified
 /// at most once by the descent from a root. The result depends on the case and the outcomes of the sides alone, not on time or
 /// on random choices, so the same case gives the same minimized case and the same signature. A failed side ends the
@@ -113,8 +114,11 @@ internal static class Minimizer
     /// <c>dyn()</c>), one instance for each zero literal of the profile (<see cref="AnyZeroInstances"/>). After the
     /// instances of the elements, an argument that reads the variable also has, in the order of the source, one instance for
     /// each closed node of it (<see cref="ClosedNodes"/>): a maximal node that reads no iteration variable of the macros above
-    /// it, which is evaluated by itself, once, with the same bindings and without any substitution. Nothing for a node that is
-    /// not a macro.
+    /// it, which is evaluated by itself, once, with the same bindings and without any substitution. A macro of two variables
+    /// has the same instances, with both variables replaced at once for each element, by a pair of nodes that stand for the index
+    /// or the key and for the element or the value (<see cref="PairReplacements"/>); a body that reads neither variable is itself
+    /// the instance, and the range with no element, or whose value is not a list or a map, gives each pair of the zero literals
+    /// of the profile. Nothing for a node that is not a macro.
     /// </summary>
     /// <param name="node">The node.</param>
     /// <param name="rangeValue">
@@ -129,22 +133,29 @@ internal static class Minimizer
         }
 
         IReadOnlyList<Expr>? replacements = null;
+        IReadOnlyList<(Expr First, Expr Second)>? pairs = null;
         foreach (Expr body in macro.Arguments)
         {
             if (macro.SecondVariable is { } second)
             {
-                // A two-variable macro: a body that reads neither variable is itself an instance; otherwise only its closed nodes are,
-                // since an element and its index or key are not replaced one by one.
+                // A two-variable macro: a body that reads neither variable is itself an instance; otherwise there is an instance for
+                // each element, with both variables replaced at once (the index or the key, and the element or the value), then each
+                // closed node of the body.
                 if (!Reads(body, macro.Variable) && !Reads(body, second))
                 {
                     yield return body;
+                    continue;
                 }
-                else
+
+                pairs ??= PairReplacements(macro, rangeValue);
+                foreach ((Expr first, Expr other) in pairs)
                 {
-                    foreach (Expr closed in ClosedNodes(body, [macro.Variable, second]))
-                    {
-                        yield return closed;
-                    }
+                    yield return Replace(body, new Dictionary<string, Expr> { [macro.Variable] = first, [second] = other });
+                }
+
+                foreach (Expr closed in ClosedNodes(body, [macro.Variable, second]))
+                {
+                    yield return closed;
                 }
 
                 continue;
@@ -294,6 +305,70 @@ internal static class Minimizer
         };
     }
 
+    // The pairs of nodes that stand for the two variables of a two-variable macro, for each element of its range in order: the index
+    // and the element of a list, the key and the value of a map. A literal range gives its own nodes (in dyn() each in dyn(), else
+    // each in parentheses, then the pairs with a string literal once more with each string literal in dyn()); any other range whose
+    // value is a list or a map gives the position and range[position], or dyn(key) and range[dyn(key)] in the order of the library;
+    // a range with no element, or whose value is not a list or a map, gives each pair of zero literals of the profile, the first of
+    // the pair varying slowest. A pair of other types than the variables does not compile on either side, so the two agree and it is
+    // dropped: like the instances of a one-variable macro, it is a guess judged as any instance.
+    private static IReadOnlyList<(Expr First, Expr Second)> PairReplacements(Comprehension macro, Func<Expr, Value?> rangeValue)
+    {
+        bool inDyn = macro.Range is Call { Function: ProfileTables.Dyn, Args: [_] };
+        Expr literal = macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } argument] } ? argument : macro.Range;
+        IReadOnlyList<(Expr First, Expr Second)>? entries = literal switch
+        {
+            ListLiteral list => [.. list.Elements.Select((element, index) => (Position(index), element))],
+            MapLiteral map => [.. map.Entries.Select(entry => (entry.Key, entry.Value))],
+            _ => null,
+        };
+        if (entries is not null)
+        {
+            return entries.Count == 0 ? ZeroPairs() : ElementPairs(entries, inDyn);
+        }
+
+        Value? value = rangeValue(macro.Range);
+        return value?.KindCase switch
+        {
+            Value.KindOneofCase.ListValue when value.ListValue.Values.Count == 0 => ZeroPairs(),
+            Value.KindOneofCase.ListValue =>
+                [.. Enumerable.Range(0, value.ListValue.Values.Count).Select(index => (Position(index), (Expr)new Call(ProfileTables.Index, [macro.Range, Position(index)])))],
+            Value.KindOneofCase.MapValue when value.MapValue.Entries.Count == 0 => ZeroPairs(),
+            Value.KindOneofCase.MapValue =>
+                [.. value.MapValue.Entries.Select(entry => KeyLiteral(entry.Key)).OfType<Expr>()
+                    .Select(key => ((Expr)new Call(ProfileTables.Dyn, [key]), (Expr)new Call(ProfileTables.Index, [macro.Range, new Call(ProfileTables.Dyn, [key])])))],
+            _ => ZeroPairs(),
+        };
+    }
+
+    private static IntLiteral Position(int index) => new(index, IntegerForm.DecimalDigits);
+
+    // The pairs for the elements of a literal range with elements: in dyn() each node in dyn(); otherwise each node in parentheses,
+    // then, for each pair that has a string literal, the pair with each string literal in dyn() and the other node in parentheses
+    // (the validator of regular expression literals of cel-go reads a string literal that is the first argument of matches as a
+    // pattern, as for the instances of a one-variable macro).
+    private static IReadOnlyList<(Expr First, Expr Second)> ElementPairs(IReadOnlyList<(Expr First, Expr Second)> entries, bool inDyn)
+    {
+        static Expr InDyn(Expr node) => new Call(ProfileTables.Dyn, [node]);
+        static Expr InParentheses(Expr node) => node with { Parenthesized = true };
+        static Expr StringInDyn(Expr node) => node is StringLiteral ? InDyn(node) : InParentheses(node);
+
+        return inDyn
+            ? [.. entries.Select(entry => (InDyn(entry.First), InDyn(entry.Second)))]
+            :
+            [
+                .. entries.Select(entry => (InParentheses(entry.First), InParentheses(entry.Second))),
+                .. entries.Where(entry => entry.First is StringLiteral || entry.Second is StringLiteral).Select(entry => (StringInDyn(entry.First), StringInDyn(entry.Second))),
+            ];
+    }
+
+    // The pairs for a range with no element or with no list or map in it: each pair of the zero literals of the profile.
+    private static IReadOnlyList<(Expr First, Expr Second)> ZeroPairs()
+    {
+        IReadOnlyList<Expr> zeros = AnyZeroInstances();
+        return [.. zeros.SelectMany(first => zeros.Select(second => (first, second)))];
+    }
+
     // The nodes that stand for the elements of a literal range with elements. In dyn() each element in dyn(). Otherwise each element
     // in parentheses, then each element that is a string literal in dyn(): the validator of regular expression literals of cel-go
     // reads a string literal that is the first argument of matches as a pattern, so with the subject in parentheses cel-go may
@@ -438,24 +513,33 @@ internal static class Minimizer
     };
 
     // The node with each free read of the variable replaced; a macro that declares the same variable keeps its arguments.
-    private static Expr Replace(Expr node, string variable, Expr replacement) => node switch
+    private static Expr Replace(Expr node, string variable, Expr replacement) =>
+        Replace(node, new Dictionary<string, Expr> { [variable] = replacement });
+
+    // The node with each free read of the variables replaced at once, each by its own node; a macro that declares a variable keeps
+    // its arguments free of the replacement of that variable.
+    private static Expr Replace(Expr node, IReadOnlyDictionary<string, Expr> replacements) => node switch
     {
-        Ident ident when ident.Name == variable => replacement,
-        Call call => call with { Args = [.. call.Args.Select(argument => Replace(argument, variable, replacement))] },
-        ListLiteral list => list with { Elements = [.. list.Elements.Select(element => Replace(element, variable, replacement))] },
+        Ident ident when replacements.TryGetValue(ident.Name, out Expr? replacement) => replacement,
+        Call call => call with { Args = [.. call.Args.Select(argument => Replace(argument, replacements))] },
+        ListLiteral list => list with { Elements = [.. list.Elements.Select(element => Replace(element, replacements))] },
         MapLiteral map => map with
         {
-            Entries = [.. map.Entries.Select(entry => new MapEntry(Replace(entry.Key, variable, replacement), Replace(entry.Value, variable, replacement)))],
+            Entries = [.. map.Entries.Select(entry => new MapEntry(Replace(entry.Key, replacements), Replace(entry.Value, replacements)))],
         },
-        Select select => select with { Operand = Replace(select.Operand, variable, replacement) },
-        PresenceTest test => test with { Operand = Replace(test.Operand, variable, replacement) },
+        Select select => select with { Operand = Replace(select.Operand, replacements) },
+        PresenceTest test => test with { Operand = Replace(test.Operand, replacements) },
         Comprehension macro => macro with
         {
-            Range = Replace(macro.Range, variable, replacement),
-            Arguments = macro.Variable == variable || macro.SecondVariable == variable
-                ? macro.Arguments
-                : [.. macro.Arguments.Select(argument => Replace(argument, variable, replacement))],
+            Range = Replace(macro.Range, replacements),
+            Arguments = Free(macro, replacements) is { Count: > 0 } inner
+                ? [.. macro.Arguments.Select(argument => Replace(argument, inner))]
+                : macro.Arguments,
         },
         _ => node,
     };
+
+    // The replacements that reach the arguments of a macro: those of the variables that it does not declare.
+    private static Dictionary<string, Expr> Free(Comprehension macro, IReadOnlyDictionary<string, Expr> replacements) =>
+        replacements.Where(pair => pair.Key != macro.Variable && pair.Key != macro.SecondVariable).ToDictionary(pair => pair.Key, pair => pair.Value);
 }

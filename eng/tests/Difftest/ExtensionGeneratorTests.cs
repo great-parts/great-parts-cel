@@ -405,7 +405,8 @@ public sealed class ExtensionGeneratorTests
     }
 
     // The instances of a body: cel.bind puts the value in place of the name; of a two-variable macro, a body that reads neither
-    // variable is itself an instance, otherwise only its closed nodes are.
+    // variable is itself an instance, otherwise there is an instance for each element with both variables replaced at once, then each
+    // closed node of the body.
     [Fact]
     public void BodiesOfCelBindAndOfTwoVariableMacros_AreInstancesAsTheMinimizerTakesThem()
     {
@@ -416,12 +417,18 @@ public sealed class ExtensionGeneratorTests
         Expr range = new ListLiteral([Literal(1)], TrailingComma: false);
 
         Assert.Equal(["(7) > 0", "0"], Printed(bind));
-        Assert.Equal(["0", "true"], Printed(new Comprehension("all", range, "i", [reads]) { SecondVariable = "e" }));
+        Assert.Equal(["(1) > 0 && true", "0", "true"], Printed(new Comprehension("all", range, "i", [reads]) { SecondVariable = "e" }));
         Assert.Equal(["1 > 0"], Printed(new Comprehension("exists", range, "i", [independent]) { SecondVariable = "e" }));
-        // The inner macro declares j and e and reads the t of the outer one: the outer macro has the range of the inner one as its only
-        // closed node.
+        // The inner macro declares j and e and reads the t of the outer one: the t of the inner macro is replaced, its own e is not, and
+        // the outer macro has the range of the inner one as its only closed node.
         Expr inner = new Comprehension("all", range, "j", [new Call(ProfileTables.Greater, [new Ident("e"), new Ident("t")])]) { SecondVariable = "e" };
-        Assert.Equal(["[1]"], Printed(new Comprehension("all", range, "i", [inner]) { SecondVariable = "t" }));
+        Assert.Equal(["[1].all(j, e, e > (1))", "[1]"], Printed(new Comprehension("all", range, "i", [inner]) { SecondVariable = "t" }));
+        // The index and the element of a list, in dyn() each in dyn(); the key and the value of a map, and a string literal once more in dyn().
+        Expr body = new Call(ProfileTables.Add, [new Ident("i"), new Ident("e")]);
+        Expr strings = new MapLiteral([new MapEntry(new StringLiteral("k", Plain("k")), new StringLiteral("v", Plain("v")))], TrailingComma: false);
+        Assert.Equal(["(0) + (1)"], Printed(new Comprehension("all", range, "i", [body]) { SecondVariable = "e" }));
+        Assert.Equal(["dyn(0) + dyn(1)"], Printed(new Comprehension("all", new Call(ProfileTables.Dyn, [range]), "i", [body]) { SecondVariable = "e" }));
+        Assert.Equal(["('k') + ('v')", "dyn('k') + dyn('v')"], Printed(new Comprehension("all", strings, "i", [body]) { SecondVariable = "e" }));
     }
 
     // ---- Helpers ----

@@ -1,0 +1,16 @@
+# Minimized cases of known divergences from cel-go in negation. The expectation of each case is the answer of cel-go.
+
+name: "negation"
+description: "The negation of a value that is not a number"
+section {
+  name: "duration"
+  description: "cel-go negates a duration whose static type is not known, as its negation dispatches on the trait of the value; the language definition has negation for int and double only"
+  test {
+    name: "dyn_duration"
+    description: "-_(duration) we-error"
+    expr: "-dyn(duration('1s')) == duration('-1s')"
+    value: {
+      bool_value: true
+    }
+  }
+}

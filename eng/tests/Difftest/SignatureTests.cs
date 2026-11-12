@@ -21,13 +21,13 @@ namespace Great.Parts.Cel.Eng.Tests.Difftest;
 // expression text.
 public sealed class SignatureTests
 {
-    private const ulong RunSeed = 20261104;
-    private const ulong CaseNumber = 1207;
+    internal const ulong RunSeed = 20261104;
+    internal const ulong CaseNumber = 1207;
 
     // The outcome of both fake sides for an expression that a test does not name.
     private static readonly SideOutcome Agreed = SideOutcome.Of(Int(0));
 
-    private static readonly Expr I1 = new Ident("i1");
+    internal static readonly Expr I1 = new Ident("i1");
 
     // ---- ENG820 and the kinds ----
 
@@ -1514,8 +1514,8 @@ public sealed class SignatureTests
             Agree(range, ListOf(Int(0))));
     }
 
-    // A body that reads a variable of a macro of two variables has no instance for the element, since the element and its index or
-    // key are not replaced one by one: only its closed nodes are instances, and a divergence of a closed node is the case.
+    // A body that reads a variable of a macro of two variables has an instance for each element, and then one for each closed node: an
+    // instance that agrees is dropped, and a divergence of a closed node is the case.
     [Fact]
     public void TwoVariableMacro_WithAKnownDivergenceInAClosedNodeOfABodyThatReadsAVariable_IsMinimizedToTheClosedNode()
     {
@@ -1536,17 +1536,20 @@ public sealed class SignatureTests
             Agree(range, ListOf(Int(0))));
     }
 
-    // A divergence of a node that reads a variable of a macro of two variables is not found under the macro, and the case stays the
-    // macro with its own signature.
+    // A divergence of an instance that nobody knows, and that is not the signature of the macro, is not taken: the case stays the macro
+    // with its own signature.
     [Fact]
-    public void TwoVariableMacro_WithADivergenceOfANodeThatReadsAVariable_StaysTheMacro()
+    public void TwoVariableMacro_WithAnUnknownDivergenceOfANodeThatReadsAVariable_StaysTheMacro()
     {
         Expr d1 = new Ident("d1");
         Expr body = new Call(ProfileTables.Greater, [new Ident("e"), d1]);
         Expr range = new ListLiteral([I1], TrailingComma: false);
         Expr root = new Comprehension(ProfileTables.All, range, "i", [body]) { SecondVariable = "e" };
+        Expr instance = new Call(ProfileTables.Greater, [Parenthesized(I1), d1]);
+        SideOutcome error = SideOutcome.EvaluationError("no such overload: _>_(bytes, double)");
         (FakeSide library, FakeSide oracle) = Sides(
-            (root, SideOutcome.EvaluationError("no such overload: _>_(bytes, double)"), SideOutcome.Of(Bool(false))),
+            (root, error, SideOutcome.Of(Bool(false))),
+            (instance, error, SideOutcome.Of(Bool(false))),
             Agree(range, ListOf(Int(0))));
         DivergenceSearch search = new(library, oracle, new FakeRecorder(), KnownSignatures.Of());
 
@@ -1674,7 +1677,7 @@ public sealed class SignatureTests
 
     // A macro whose library gives the error and the oracle the value false, as does its body instance `body`, is minimized to the
     // text, and its signature is the known one; `agreed` are the nodes on which the sides agree.
-    private static void AssertMinimizedToKnown(
+    internal static void AssertMinimizedToKnown(
         Expr root, Expr body, SideOutcome error, string known, string text, params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] agreed)
     {
         (FakeSide library, FakeSide oracle) = Sides([(root, error, SideOutcome.Of(Bool(false))), (body, error, SideOutcome.Of(Bool(false))), .. agreed]);
@@ -1688,7 +1691,7 @@ public sealed class SignatureTests
     }
 
     // matches(subject, '('): a constant pattern that RE2 refuses.
-    private static Call MatchesOf(Expr subject) => new Call(ProfileTables.Matches, [subject, Quoted("(")]);
+    internal static Call MatchesOf(Expr subject) => new Call(ProfileTables.Matches, [subject, Quoted("(")]);
 
     // The library refuses the constant pattern of matches when the expression is compiled and cel-go fails when the call is
     // evaluated; the nodes that diverge so are `diverging`, `others` are the outcomes of the other nodes, and every node that is
@@ -1704,7 +1707,7 @@ public sealed class SignatureTests
     }
 
     // The case is minimized to the text with the known signature of matches, and no signature is new.
-    private static void AssertMinimizedToMatches(
+    internal static void AssertMinimizedToMatches(
         Expr root, Expr[] diverging, string text, params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] others)
     {
         const string known = "matches(string, string) stage-mismatch";
@@ -1732,15 +1735,15 @@ public sealed class SignatureTests
     private static IEnumerable<string> Texts(params Expr[] nodes) => nodes.Select(ExprPrinter.Print);
 
     // The outcome of a node that both fake sides give alike.
-    private static (Expr Node, SideOutcome Library, SideOutcome Oracle) Agree(Expr node, Value value) =>
+    internal static (Expr Node, SideOutcome Library, SideOutcome Oracle) Agree(Expr node, Value value) =>
         (node, SideOutcome.Of(value), SideOutcome.Of(value));
 
     // A fixed case.
-    private static GeneratedCase Case(Expr root, params (string Name, Value Value)[] bindings) =>
+    internal static GeneratedCase Case(Expr root, params (string Name, Value Value)[] bindings) =>
         new(root, bindings.ToDictionary(binding => binding.Name, binding => binding.Value));
 
     // Fake sides that give the outcomes of the named expressions, and agree on every other expression.
-    private static (FakeSide Library, FakeSide Oracle) Sides(params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] outcomes)
+    internal static (FakeSide Library, FakeSide Oracle) Sides(params (Expr Node, SideOutcome Library, SideOutcome Oracle)[] outcomes)
     {
         Dictionary<string, (SideOutcome Library, SideOutcome Oracle)> table = outcomes.ToDictionary(
             outcome => ExprPrinter.PrintCase(outcome.Node),
@@ -1769,32 +1772,32 @@ public sealed class SignatureTests
     private static IEnumerable<string> Printed(Expr macro, Value? range = null) => Minimizer.BodyInstances(macro, _ => range).Select(ExprPrinter.Print);
 
     // The index of a range, as the minimizer builds it.
-    private static Call Index(Expr range, int index) => new Call(ProfileTables.Index, [range, new IntLiteral(index, IntegerForm.DecimalDigits)]);
+    internal static Call Index(Expr range, int index) => new Call(ProfileTables.Index, [range, new IntLiteral(index, IntegerForm.DecimalDigits)]);
 
-    private static Expr Parenthesized(Expr expr) => expr with { Parenthesized = true };
+    internal static Expr Parenthesized(Expr expr) => expr with { Parenthesized = true };
 
     // A string literal in apostrophes, each character as itself.
-    private static StringLiteral Quoted(string value) =>
+    internal static StringLiteral Quoted(string value) =>
         new(value, new TextForm(Quote.Apostrophe, null, [.. value.Select(_ => Escape.Literal)]));
 
-    private static Value Int(long value) => new() { Int64Value = value };
+    internal static Value Int(long value) => new() { Int64Value = value };
 
-    private static Value Dbl(double value) => new() { DoubleValue = value };
+    internal static Value Dbl(double value) => new() { DoubleValue = value };
 
-    private static Value Bytes(params byte[] value) => new() { BytesValue = ByteString.CopyFrom(value) };
+    internal static Value Bytes(params byte[] value) => new() { BytesValue = ByteString.CopyFrom(value) };
 
     private static Value Bool(bool value) => new() { BoolValue = value };
 
-    private static Value Str(string value) => new() { StringValue = value };
+    internal static Value Str(string value) => new() { StringValue = value };
 
-    private static Value ListOf(params Value[] values)
+    internal static Value ListOf(params Value[] values)
     {
         ListValue list = new();
         list.Values.AddRange(values);
         return new Value { ListValue = list };
     }
 
-    private static Value Map(params (Value Key, Value Value)[] entries)
+    internal static Value Map(params (Value Key, Value Value)[] entries)
     {
         MapValue map = new();
         map.Entries.AddRange(entries.Select(entry => new MapValue.Types.Entry { Key = entry.Key, Value = entry.Value }));
@@ -1802,7 +1805,7 @@ public sealed class SignatureTests
     }
 
     // A side with given outcomes and zone offsets.
-    private sealed class FakeSide(
+    internal sealed class FakeSide(
         Func<string, IReadOnlyDictionary<string, Value>, SideOutcome> evaluate,
         Func<string, DateTimeOffset, TimeSpan>? zoneOffset = null) : ICaseSide
     {
@@ -1820,7 +1823,7 @@ public sealed class SignatureTests
     }
 
     // The oracle writing cases: a text with two spaces after each colon, as prototext may give it.
-    private sealed class FakeRecorder : ICaseRecorder
+    internal sealed class FakeRecorder : ICaseRecorder
     {
         public List<string> Names { get; } = [];
 
