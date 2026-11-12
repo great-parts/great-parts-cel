@@ -587,8 +587,8 @@ internal sealed partial class ExprBuilder
     private Built? OptTypeOf(int depth, int limit) =>
         ExtCall(ProfileTables.TypeOf, false, null, Of(ProfileType.TypeType), depth, limit, (d, b) => OptionalOperand(d, b, null, false, null));
 
-    // has(o.f) on an optional of a map, as has(e.?a.b); and, one time in twenty, has({'k': o}.k.f): the operand of the presence test is the
-    // optional that is the value of an entry of a map literal. has(e.?a) is not built: the parser reads e.?a as a call, not a selection.
+    // has(x.?a.f) on a dyn variable; and, one time in twenty, has({'k': o}.k.f): the operand of the presence test is the optional that is
+    // the value of an entry of a map literal. has(e.?a) is not built: the parser reads e.?a as a call, not a selection.
     private Built? OptPresence(int depth, int limit)
     {
         string field = pcg.Pick(ProfileTables.FieldNames);
@@ -605,13 +605,17 @@ internal sealed partial class ExprBuilder
             return new Built(new PresenceTest(new Select(map, key), field), 4 + value.Nodes, Of(ProfileType.BoolType));
         }
 
-        if (limit < 2 || depth >= ProfileTables.MaxDepth)
+        if (limit < 3 || depth + 2 > ProfileTables.MaxDepth)
         {
             return null;
         }
 
-        Built operand = OptionalOperand(depth + 1, limit - 1, ProfileType.MapType, false, null);
-        return new Built(new PresenceTest(operand.Expr, field), 1 + operand.Nodes, Of(ProfileType.BoolType));
+        // The operand is an optional selection on a variable, as in has(m.?x.y): the path of cel-go for an attribute of a variable. An
+        // operand that is another optional node, such as e.?a.or(z), takes the path of an attribute of a call, and the CI run on the push of
+        // the set optional found cel-go giving an optional there where the checker says bool, which the oracle cannot return.
+        Built root = VariableNamed(pcg.OneIn(2) ? "x1" : "x2");
+        Select operand = new(root.Expr, pcg.Pick(ProfileTables.FieldNames)) { Optional = true };
+        return new Built(new PresenceTest(operand, field), 3, Of(ProfileType.BoolType));
     }
 
     // optional.unwrap([…]) and [...].unwrapOpt() on a literal of 0 to 3 optional nodes.

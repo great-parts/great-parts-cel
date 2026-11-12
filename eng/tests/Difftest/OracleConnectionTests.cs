@@ -402,6 +402,25 @@ public sealed class OracleConnectionTests
         Assert.Contains("\n  oracle: and 10 more lines\n  request: eval ", error, StringComparison.Ordinal);
     }
 
+    // A value of the answer that the parser does not know, an Any of the wrapper that cel-go gives for an optional with a value as the
+    // whole result, ends the run with exit code 2 and the case, the answer and the request, also with --numbers-only; it was an
+    // unhandled exception that gave exit code 134 and no case.
+    [Fact]
+    public void ValueThatDoesNotRead_IsExitCode2NamingTheCaseTheAnswerAndTheRequestAlsoWithNumbersOnly()
+    {
+        const string Unknown = """{"id":ID,"outcome":"value","value":{"objectValue":{"@type":"type.googleapis.com/google.protobuf.Int64Value","value":"5"}}}""";
+        using FakeOracle fake = new([Handshake], answer: _ => Unknown);
+        using TempDirectory root = Repository();
+
+        (int exitCode, string output, string error) = Run(root, fake.Port, Limit, "--case", "3", "--numbers-only");
+        fake.Join();
+
+        Assert.Equal(2, exitCode);
+        Assert.Empty(output);
+        Assert.StartsWith("eng/difftest: case 3 of seed 7: the answer of the oracle to request 0 has a value that does not read: ", error, StringComparison.Ordinal);
+        Assert.Contains("\n  answer: {\"objectValue\":{\"@type\":\"type.googleapis.com/google.protobuf.Int64Value\",\"value\":\"5\"}}\n  request: eval ", error, StringComparison.Ordinal);
+    }
+
     // The answer limit holds for the whole answer: log lines without a pause do not extend it. --numbers-only keeps the log
     // lines out of the output.
     [Fact]

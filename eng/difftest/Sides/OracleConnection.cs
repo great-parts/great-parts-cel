@@ -153,7 +153,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
         string outcome = Text(root, "outcome", id);
         return outcome switch
         {
-            "value" when root.TryGetProperty("value", out JsonElement value) => SideOutcome.Of(ValueParser.Parse<Value>(value.GetRawText())),
+            "value" when root.TryGetProperty("value", out JsonElement value) => SideOutcome.Of(ReadValue(value, id)),
             "eval-error" => SideOutcome.EvaluationError(Text(root, "message", id)),
             "compile-error" => SideOutcome.CompileError(Stage(root, id), Text(root, "message", id)),
             _ => throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no outcome of the protocol"), root.GetRawText()),
@@ -457,6 +457,27 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
         return new IOException(inSession
             ? $"the oracle closed the connection before {expected}; the lines of the oracle and the request follow{Details(inSession)}"
             : $"the oracle closed the connection before {expected}; the log lines above say why");
+    }
+
+    // Reads the value of an answer. A value that the parser does not know, such as an Any of a message of another type, is an answer that
+    // does not read: exit code 2 with the answer and the request, which a run with --numbers-only also prints, as for a closed
+    // connection; an unhandled exception would end the process with no case in its message.
+    private Value ReadValue(JsonElement value, long id)
+    {
+        try
+        {
+            return ValueParser.Parse<Value>(value.GetRawText());
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or InvalidProtocolBufferException)
+        {
+            string raw = value.GetRawText();
+            string shown = raw.Length > DescribedBindingLength ? raw[..DescribedBindingLength] + "..." : raw;
+            throw new IOException(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"the answer of the oracle to request {id} has a value that does not read: {exception.Message}\n  answer: {shown}{Details(inSession: true)}"),
+                exception);
+        }
     }
 
     // Keeps a line of the oracle after the handshake, unless the limits are reached.

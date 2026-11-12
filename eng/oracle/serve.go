@@ -201,6 +201,12 @@ func evaluate(environment *cel.Env, expr string, bindings map[string]*celpb.Valu
 	if types.IsUnknown(result) {
 		return outcome{}, fmt.Errorf("the result is unknown and has no cel.expr.Value form")
 	}
+	// An optional as the whole result has no cel.expr.Value form either: cel-go gives one for an expression that its checker types as
+	// another type, such as a presence test over an optional, so the case is an evaluation error with that message and the comparison
+	// names the divergence, where an exit of the oracle would end the run.
+	if optional, isOptional := result.(*types.Optional); isOptional {
+		return outcome{kind: "eval-error", message: "the result is an optional and has no cel.expr.Value form: " + optional.String(), parsed: parsed}, nil
+	}
 	value, err := cel.ValueAsProto(result)
 	if err != nil {
 		return outcome{}, fmt.Errorf("the result of type %s has no cel.expr.Value form: %v", result.Type().TypeName(), err)
