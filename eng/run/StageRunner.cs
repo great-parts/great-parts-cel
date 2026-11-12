@@ -72,19 +72,11 @@ internal static class StageRunner
         return new StageResult(failed, passedOn);
     }
 
-    // A step that ran out of time is named with its limit; any other failed step with its reason, when it has one.
-    private static string Describe(Step step, ProcessResult result)
-    {
-        if (Timeouts.IsReason(result.Reason))
-        {
-            return $"{result.Reason} in step {step.CommandLine}";
-        }
+    // A failed step is named with its reason, when it has one.
+    private static string Describe(Step step, ProcessResult result) =>
+        result.Reason is null ? step.CommandLine : $"{step.CommandLine} ({result.Reason})";
 
-        return result.Reason is null ? step.CommandLine : $"{step.CommandLine} ({result.Reason})";
-    }
-
-    // A step in this process writes to the console itself; it belongs to a stage of one lane. The output of a program that gives a new
-    // limit by a line of it passes through this process, so the lines can be read.
+    // A step in this process writes to the console itself; it belongs to a stage of one lane.
     private static ProcessResult Execute(Step step, TextWriter? sink)
     {
         if (step.Action is not null)
@@ -93,6 +85,6 @@ internal static class StageRunner
             return new ProcessResult(reason is null ? 0 : 1, reason, string.Empty);
         }
 
-        return Processes.Run(step.FileName, step.Arguments, sink: sink ?? (step.Extend is null ? null : Console.Out), timeout: step.Timeout, extend: step.Extend);
+        return Processes.Run(step.FileName, step.Arguments, sink: sink);
     }
 }

@@ -95,7 +95,7 @@ internal static class Commands
     /// </summary>
     internal static List<Stage> TestStages(IReadOnlyList<TestProject> projects) =>
     [
-        Stage.Of(new("dotnet", ["build", Solution, "-c", "Release"], Timeouts.Build, StopsOnFailure: true)),
+        Stage.Of(new("dotnet", ["build", Solution, "-c", "Release"], StopsOnFailure: true)),
         new Stage([JitLane(projects), .. projects.Where(project => project.PublishAot).SelectMany(AotLanes)]),
         new Stage([.. projects.Where(project => project.PublishAot).SelectMany(CountLanes)]),
     ];
@@ -109,12 +109,12 @@ internal static class Commands
     /// </summary>
     internal static List<Stage> DocsStages() =>
     [
-        Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], Timeouts.Build, StopsOnFailure: true)),
+        Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], StopsOnFailure: true)),
         new Stage([
             [
-                new("dotnet", ["build", "src/Great.Parts.Cel", "-c", "Release"], Timeouts.Build, StopsOnFailure: true),
-                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "examples"], Timeouts.Examples),
-                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "error-codes", "--page", ErrorCodesPage], Timeouts.Check),
+                new("dotnet", ["build", "src/Great.Parts.Cel", "-c", "Release"], StopsOnFailure: true),
+                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "examples"]),
+                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "error-codes", "--page", ErrorCodesPage]),
             ],
         ]),
         new Stage([
@@ -123,9 +123,8 @@ internal static class Commands
                 new(
                     "lychee",
                     ["--offline", "--include-fragments", "--format", "json", "--output", DocsReport, "--config", "lychee.toml", "README.md", "docs", "src/**/*.cs"],
-                    Timeouts.Lychee,
                     IgnoresExitCode: true),
-                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "links", "--report", DocsReport], Timeouts.Check),
+                new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "links", "--report", DocsReport]),
             ],
         ]),
     ];
@@ -149,16 +148,16 @@ internal static class Commands
     private static Step[] JitLane(IReadOnlyList<TestProject> projects) =>
     [
         .. projects.SelectMany(project => project.Targets.Select(target =>
-            new Step("dotnet", [$"{project.Directory}/bin/Release/{target}/{project.Name}.dll", "-noColor", "-result-xml", Report("jit", project, target)], Timeouts.Jit))),
-        new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", .. Checks], Timeouts.Jit),
+            new Step("dotnet", [$"{project.Directory}/bin/Release/{target}/{project.Name}.dll", "-noColor", "-result-xml", Report("jit", project, target)]))),
+        new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", .. Checks]),
     ];
 
     // The restore of the build already covers the runtime identifier of the publish; the publish reuses it with --no-restore, so no
     // lock file changes.
     //
     // The lane starts with the deletion of what an earlier publish of the same project and target may have left unfinished: the output
-    // directory and the directory of the native compiler under obj/. A publish that was killed in the middle, by its limit or by a user,
-    // leaves a half-written object file there, and the next publish takes the file as up to date and links a program that crashes.
+    // directory and the directory of the native compiler under obj/. A publish that was killed in the middle, by a user or by the
+    // machine, leaves a half-written object file there, and the next publish takes the file as up to date and links a program that crashes.
     private static IEnumerable<Step[]> AotLanes(TestProject project) => project.Targets.Select(target => new Step[]
     {
         Step.InProcess(
@@ -171,9 +170,8 @@ internal static class Commands
                 "publish", project.Directory, "-f", target, "-r", AotRuntime, "-c", "Release", "--no-restore",
                 "-p:InvariantGlobalization=true", "-p:BuildProjectReferences=false", "-o", $"{Published(project, target)}/",
             ],
-            Timeouts.Publish,
             StopsOnFailure: true),
-        new($"{Published(project, target)}/{project.Name}", ["-noColor", "-result-xml", Report("aot", project, target)], Timeouts.AotRun),
+        new($"{Published(project, target)}/{project.Name}", ["-noColor", "-result-xml", Report("aot", project, target)]),
     });
 
     private static IEnumerable<Step[]> CountLanes(TestProject project) => project.Targets.Select(target => new Step[]
@@ -183,8 +181,7 @@ internal static class Commands
             [
                 "run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "test-count",
                 "--jit", Report("jit", project, target), "--aot", Report("aot", project, target), "--where", $"{AotRuntime}, {target}",
-            ],
-            Timeouts.Check),
+            ]),
     });
 
     private static string Report(string mode, TestProject project, string target) => $"artifacts/test-results/{mode}/{project.Name}/{target}/report.xml";
@@ -201,8 +198,7 @@ internal static class Commands
     /// configuration given as the argument, or with <c>stryker-config.json</c>, and with the changes counted from the commit of
     /// <c>--since</c>, or from the target of the configuration. The report goes to <c>artifacts/mutate/</c>. The last step reads the report
     /// with the same configuration and the same commit and prints the findings; it runs even when the run of the tool failed, so the
-    /// surviving mutants are visible. The run of the tool has the time of its preparation first; when it says how many mutants it will
-    /// test, the time for the mutants replaces it (<see cref="Timeouts"/>).
+    /// surviving mutants are visible. No step has a time limit.
     /// </summary>
     private static List<Stage> MutateStages(MutateOptions options) => MutateStages(options, options.ResolveSince());
 
@@ -215,10 +211,10 @@ internal static class Commands
         string[] sinceOfCheck = since is null ? [] : [MutateOptions.SinceOption, since];
         return
         [
-            Stage.Of(new("dotnet", ["tool", "restore"], Timeouts.MutatePreparation, StopsOnFailure: true)),
-            Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], Timeouts.Build, StopsOnFailure: true)),
-            Stage.Of(new("dotnet", ["stryker", "--config-file", options.Configuration, "--output", "artifacts/mutate", .. sinceOfTool], Timeouts.MutatePreparation, Extend: Timeouts.MutateChecking)),
-            Stage.Of(new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "mutation", "--report", MutateReport, "--config", options.Configuration, .. sinceOfCheck], Timeouts.Check)),
+            Stage.Of(new("dotnet", ["tool", "restore"], StopsOnFailure: true)),
+            Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], StopsOnFailure: true)),
+            Stage.Of(new("dotnet", ["stryker", "--config-file", options.Configuration, "--output", "artifacts/mutate", .. sinceOfTool])),
+            Stage.Of(new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "mutation", "--report", MutateReport, "--config", options.Configuration, .. sinceOfCheck])),
         ];
     }
 
@@ -228,7 +224,7 @@ internal static class Commands
     /// </summary>
     private static List<Stage> DifftestStages(IReadOnlyList<string> arguments) =>
     [
-        Stage.Of(new("dotnet", ["build", "eng/difftest", "-c", "Release"], Timeouts.Build, StopsOnFailure: true)),
-        Stage.Of(new("dotnet", ["run", "--project", "eng/difftest", "-c", "Release", "--no-build", "--", .. arguments], Timeouts.Difftest(arguments), PassesExitCode: true)),
+        Stage.Of(new("dotnet", ["build", "eng/difftest", "-c", "Release"], StopsOnFailure: true)),
+        Stage.Of(new("dotnet", ["run", "--project", "eng/difftest", "-c", "Release", "--no-build", "--", .. arguments], PassesExitCode: true)),
     ];
 }

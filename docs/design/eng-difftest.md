@@ -15,7 +15,7 @@
 | Path | Contents |
 | :- | :- |
 | `Program.cs` | the options, the run, the findings, the journal line, the exit code |
-| `BudgetText.cs` | the form of the time of `--budget`; it is also compiled into `eng/run`, which gives the run a time limit from the budget, so both read it alike |
+| `BudgetText.cs` | the form of the time of `--budget` |
 | `Profile/` | `environment.json` — the run manifest; the profile tables; the case generator and the printer of expressions; the grammar of the strings of time; the constant `ZoneInfoPath`, the path of the time zone data file |
 | `Sides/` | `ICaseSide` with `LibrarySide` and `OracleConnection`; `ICaseRecorder`, the request `case` of the oracle, which `OracleConnection` implements; the outcome classes |
 | `Compare/` | kinds and severities, the equality of `cel.expr.Value`, signatures, minimization, the comparison of zone offsets, values and outcomes as text for messages |
@@ -42,7 +42,7 @@ docker compose -f eng/compose.yaml run --rm difftest [--seed <n>] [--budget <tim
 | Image stage | `sdk`, without Go ([eng-test.md](eng-test.md)) |
 | Depends on | the service `oracle` from the image `golang`: Compose starts it first, and it ends itself after the session ([eng-oracle.md](eng-oracle.md#container)) |
 | Command | `eng/run difftest` builds `eng/difftest`, runs it with the options and returns its exit code unchanged; the workflows run the same command |
-| Time limit | `eng/run` limits the run to the budget × 1.2 + 36 s, counted from the start of the program, so the wait for the oracle (up to a minute) is inside it. A run that is not over by then is killed with its process tree, and the command ends with `difftest: failed: timeout after <N> s in step <step>` and exit code 1, not 2 ([eng-test.md](eng-test.md#time-limits)). The value of `--budget` is read by `eng/run` as by the program; an invalid value gives the limit of the default budget, and the program ends at once with exit code 2 |
+| Time limit | none from `eng/run`: the program ends its run by `--budget`, and a run that hangs is stopped by whoever runs it, or in CI by the default limit of GitHub Actions, 6 hours ([eng-test.md](eng-test.md#time-limits)). An invalid value of `--budget` ends the program at once with exit code 2 |
 | Linked worktree | the second Compose file, as for `eng/test` ([eng-test.md](eng-test.md#linked-worktrees)) |
 
 ## A run
@@ -299,14 +299,14 @@ The profile does not change: it has no message type, no variable of the type `an
 | Runner | `ubuntu-latest` |
 | Command | `docker compose -f eng/compose.yaml run --rm -T difftest --numbers-only --budget <budget> [--seed <n>]` |
 | Checkout | the whole history, so `eng/run` reads the commit and the state of the tree |
-| Budget of the night | `20m`. With the image build and a cold module cache of Go the job takes 20 to 30 minutes; its time limit is 60 minutes, which holds the limit of `eng/run` for the run (24.6 minutes, [Invocation](#invocation)) |
-| Budget of a manual run | the input `budget`, `2h` by default: the long run before a release is 2 hours or more. The job limit is 360 minutes, the longest a job may take. The input is a whole number and `s`, `m` or `h`, as `--budget`; another form fails the run with exit code 2 before it starts |
+| Budget of the night | `20m`. With the image build and a cold module cache of Go the job takes 20 to 30 minutes; the job has no limit of its own |
+| Budget of a manual run | the input `budget`, `2h` by default: the long run before a release is 2 hours or more. The input is a whole number and `s`, `m` or `h`, as `--budget`; another form fails the run with exit code 2 before it starts |
 | Seed | the input `seed`, a whole number; without it the date in UTC as `yyyyMMdd`, as locally |
 | Concurrency | one run at a time; a started run is not cancelled |
 
 The log of the workflow is public, and a divergence can be an input that crashes a parser. So the run has `--numbers-only`: standard output holds the journal line alone ([Findings and output](#findings-and-output)), and the step summary of the run holds that line and the budget, nothing else. A new signature shows in the line as a count and the numbers of its cases (`new=2 (S1=1, S2=1) known=3 new-cases=1207,88391`); the case itself is reproduced on a machine of the maintainers with the same seed and `--case <n>`, and the text of a case reaches an issue only after the divergence is fixed. The exception is an oracle that closes the connection: it is a failure of the run and not a divergence, the message of exit code 2 then has the expression, the bindings and the lines the oracle wrote ([Findings and output](#findings-and-output)), and after the run with exit code 2 the step prints `docker compose ps -a oracle` and the last 400 lines of `docker compose logs oracle`, where the launcher keeps the lines of the oracle and its exit code.
 
-The result of the workflow is the exit code of `eng/difftest`, passed through `eng/run` unchanged: 0 without new signatures is green; 1 (a new signature, a failed build or a step that ran out of time) and 2 (a failed oracle or an invalid input) are red. A run that ends with 0 and no journal line is red too. The release takes a green manual run, 2 hours or more, on the commit of the tag.
+The result of the workflow is the exit code of `eng/difftest`, passed through `eng/run` unchanged: 0 without new signatures is green; 1 (a new signature or a failed build) and 2 (a failed oracle or an invalid input) are red. A run that ends with 0 and no journal line is red too. The release takes a green manual run, 2 hours or more, on the commit of the tag.
 
 ## Run on a push to main
 
@@ -319,11 +319,11 @@ The result of the workflow is the exit code of `eng/difftest`, passed through `e
 | Command | `docker compose -f eng/compose.yaml run --rm -T difftest --numbers-only --budget 10m --seed <seed>` |
 | Checkout | the whole history, as in the nightly run |
 | Budget | `10m`. The run replaces the run of the closing of a change of the core, which a developer machine made with the default budget of 5 minutes; the budget is twice as long, so a push draws at least as many cases as the run it replaces even on a slower runner. A push is checked after it has landed, so a long run costs only time: the job does not hold up another job of `ci`. The value is the variable `BUDGET` of the workflow; the first runs show the number of cases, and the budget changes there |
-| Time limits | `eng/run` limits the run to 12.6 minutes (budget × 1.2 + 36 s, [Invocation](#invocation)); the job limit is 40 minutes, which holds the build of the image, the build of `eng/difftest`, a cold module cache of Go as well; the wait for a quiet host is off in CI ([eng-test.md](eng-test.md#waiting-for-the-host)) |
+| Time limits | none: neither `eng/run` nor the job sets one. The program ends its run by the budget, and a job that hangs is stopped by the default limit of GitHub Actions, 6 hours ([eng-test.md](eng-test.md#time-limits)) |
 | Seed | the first 8 hex digits of the commit read as a whole number, from 0 to 4 294 967 295. Every push draws other cases, where the date of the nightly run would give the same cases to every push of a day. The seed is in the journal line and in the title of the step summary |
 | Concurrency | one run at a time; a started run is not cancelled, and of the pushes that wait only the newest runs |
 
-The log is public, so the run has `--numbers-only` and the step summary holds the journal line alone, as in the nightly run ([Nightly run](#nightly-run)). The result is the exit code of `eng/difftest`: 0 without new signatures is green; 1 (a new signature, a failed build or a step that ran out of time) and 2 are red; 0 with no journal line is red too. A red run on `main` is fixed by the next commit, as any red job of `ci`.
+The log is public, so the run has `--numbers-only` and the step summary holds the journal line alone, as in the nightly run ([Nightly run](#nightly-run)). The result is the exit code of `eng/difftest`: 0 without new signatures is green; 1 (a new signature or a failed build) and 2 are red; 0 with no journal line is red too. A red run on `main` is fixed by the next commit, as any red job of `ci`.
 
 ### Reproducing a case
 

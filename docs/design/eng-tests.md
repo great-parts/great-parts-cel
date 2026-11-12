@@ -9,7 +9,7 @@
 | Project | `eng/tests/Great.Parts.Cel.Eng.Tests.csproj`, part of the solution |
 | Target, mode | `net10.0`, JIT only |
 | Packages | `xunit.v3.aot` 4.0.2 like every test project, `Microsoft.CodeAnalysis.CSharp` 5.0.0 |
-| References | `eng/checks` — the commands run in the test process; `eng/analyzers` as a library — the rules run in memory; `eng/run` — its steps, time limits and arguments run in the test process; `eng/findings` comes through `eng/checks` and through `eng/difftest`, one assembly for both |
+| References | `eng/checks` — the commands run in the test process; `eng/analyzers` as a library — the rules run in memory; `eng/run` — its steps and arguments run in the test process; `eng/findings` comes through `eng/checks` and through `eng/difftest`, one assembly for both |
 
 It runs in `eng/test` and in the JIT cells of CI, never under Native AOT.
 
@@ -20,7 +20,7 @@ It runs in `eng/test` and in the JIT cells of CI, never under Native AOT.
 | `Analyzers/` | one class per rule or group of rules: `Arch001Tests`, `Arch002To004Tests`, `Arch005Tests`, `Arch006Tests`, `Arch007Tests`, `Arch008Tests` |
 | `Checks/` | one class per command: `SuppressionsTests`, `DuplicatesTests`, `RatchetTests`, `PackagesTests`, `SignoffTests`, `TestCountTests`, `MutationTests`, `ExamplesTests`, `LinksTests`, `ErrorCodesPageTests` |
 | `Difftest/` | tests of `eng/difftest`, described with it |
-| `EngRun/` | tests of `eng/run`: `StepTimeoutTests` — a step that runs out of time is killed with the processes it started and is named in the summary line, the exit code is 1, and a step with `IgnoresExitCode` does not fail on its exit code but fails when its program does not start or runs out of time; `TimeoutsTests` — the limit of every step of the commands, the steps and limits of `docs` (one step with `IgnoresExitCode`, the lychee step; the build of the library stops its lane but not the command), the limit of `difftest` from its budget, the limit of `mutate` from the number of mutants; `MutateOptionsTests` — the arguments of `mutate`, the full SHA of `--since`, whether a run uses `since`, and the stop of such a run in a linked worktree |
+| `EngRun/` | tests of `eng/run`: `StepsTests` — a step with `IgnoresExitCode` does not fail on its exit code but fails when its program does not start, and the steps of `docs` (one step with `IgnoresExitCode`, the lychee step; the build of the library stops its lane but not the command); there is no test of a time limit, because `eng/run` has none; `MutateOptionsTests` — the arguments of `mutate`, the full SHA of `--since`, whether a run uses `since`, and the stop of such a run in a linked worktree |
 | `CodeRegistryTests.cs` | the code registry test |
 | `Support/` | the temporary repository, the in-memory compilation and the finding assertions |
 
@@ -57,12 +57,11 @@ Reading C# sources has its own cases in `SuppressionsTests` and `DuplicatesTests
 - `ExamplesTests` build and run generated example programs, so they take longer than the others.
 - `ErrorCodesPageTests` compare pages with member lists given by the test; one test reads the members from the built library.
 
-`SignoffTests` and `ExamplesTests` need `git` and the .NET SDK; both are in the container image and on the CI runners. `StepTimeoutTests` run `sh` and `sleep` as steps with a limit of one or two seconds, and look for the children of a killed step in `/proc`; they need Linux, the platform of every container of `eng/`.
-
+`SignoffTests` and `ExamplesTests` need `git` and the .NET SDK; both are in the container image and on the CI runners.
 ## Rules shared with all tests
 
 Test projects follow [tests.md](tests.md): the requirement trait, the test framework, the seed of property tests. The tests here carry a requirement trait when they check a requirement of the library directly.
 
 ## Control set of mutation testing
 
-The code of `eng/checks` with these tests is the known set on which the mutation tool and its test runner are checked, see [eng-mutate.md](eng-mutate.md).
+The code of `eng/checks` with these tests is the known set on which the mutation tool and its test runner are checked, see [eng-mutate.md](eng-mutate.md). The set runs before release 1.0, not in CI.

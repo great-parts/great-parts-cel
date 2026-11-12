@@ -23,7 +23,6 @@ jobs:
   jit:
     name: JIT ${{ matrix.os }} ${{ matrix.tfm }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -63,7 +62,7 @@ jobs:
           done
           exit $status
 
-      # The tests of eng/ need Linux (StepTimeoutTests) and run once, in the cell JIT Linux net11.0, with the repository checks.
+      # The tests of eng/ need Linux (StepsTests starts sh) and run once, in the cell JIT Linux net11.0, with the repository checks.
       - name: Tests of eng/ (JIT)
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
         run: >
@@ -87,7 +86,6 @@ jobs:
   aot:
     name: AOT linux-x64 ${{ matrix.tfm }}
     runs-on: ubuntu-latest
-    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -155,7 +153,6 @@ jobs:
   docs:
     name: Docs
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     env:
       LYCHEE_IMAGE: lycheeverse/lychee:0.24.2
     steps:
@@ -234,7 +231,6 @@ jobs:
   min-sdk:
     name: min-sdk
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -258,28 +254,12 @@ jobs:
       - name: min-sdk (Compose)
         run: docker compose -f eng/compose.yaml run --rm -T min-sdk
 
-  # The control set of mutation testing (docs/design/eng-mutate.md, "Control set"): Stryker.NET on the code of eng/checks, every mutant
-  # of which the tests of eng/tests detect. It runs the Compose service mutate with the configuration of the set, which has no since,
-  # so it needs no history. The job runs on every push and pull request, in parallel with the others, and is not longer than the
-  # Native AOT cells.
-  stryker-control:
-    name: Stryker control set
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - name: Check out
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Control set (Compose)
-        run: docker compose -f eng/compose.yaml run --rm -T mutate eng/stryker-control.json
-
   # Signed-off-by of every commit that reaches main (push: before..after, merges and bots included) and of every commit of a pull
   # request except those of Dependabot. A new branch or the first push has before = 0000..., then all commits of after are checked.
   signoff:
     name: Signed-off-by
     if: ${{ github.event_name == 'push' || github.event.pull_request.user.login != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

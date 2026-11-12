@@ -49,12 +49,7 @@ Step 4 runs even when step 3 returns a non-zero exit code, so the surviving muta
 
 ## Time limits
 
-Every step has a time limit ([eng-test.md](eng-test.md#time-limits)). The step that runs Stryker.NET has two. The tool writes nothing about its progress while it tests the mutants, so a limit that counts from the last output is not possible; but it prints the number of mutants before it starts to test them:
-
-- the preparation — the build, the discovery of the tests and the run that captures coverage — has 241 s from the start of the step; the restore of the tool in step 1 has the same limit;
-- the line `<N> total mutants will be tested` replaces that limit with the time until the line plus 0.3 s for each mutant and 30 s for the end of the tool, which writes its report after the last mutant. A run of 812 mutants that took 118 s to prepare and 205 s to test is allowed 241 s and then 274 s; a run of 16 mutants that needed 5 s after the line is allowed 35 s.
-
-A step that runs out of time is killed with its process tree, and the command ends with `mutate: failed: timeout after <N> s in step <step>`, exit code 1. Step 4 still runs, as after any failure of the tool, and reads the report that the tool had written, if there is one.
+`eng/mutate` sets no time limit on a step, the step that runs Stryker.NET included ([eng-test.md](eng-test.md#time-limits)). The tool writes nothing about its progress while it tests the mutants, so a run that hangs shows no sign of it: whoever runs the command stops it. Step 4 reads the report that the tool had written, if there is one.
 
 ## Control set
 
@@ -75,7 +70,7 @@ The set has no `since`, so it runs from a linked worktree too ([Linked worktrees
 
 ### Triggers
 
-CI runs the set on every push to `main` and on every pull request, in the job `Stryker control set` of `ci.yml`, with the command `docker compose -f eng/compose.yaml run --rm -T mutate eng/stryker-control.json` ([eng-test.md](eng-test.md#ci)). It takes about 8 minutes (an estimate: no wait of `eng/run` for a quiet host in CI ([eng-test.md](eng-test.md#waiting-for-the-host)), the build of `eng/checks`, the preparation of Stryker.NET 179 s to 200 s, then 0.25 s per mutant), the limit of the job is 40 minutes, and it runs at the same time as the other jobs. A job that runs on every change needs no filter by paths, and the filter would be a second list to keep right. Run by hand, for example after a change of the Stryker.NET version, the set is needed when a change touches a path of the list below; the check is `git diff --name-only main...HEAD -- <paths>`. They are the paths on which the result of the set depends: the set itself — its configuration, the code that it mutates and the code that code uses, the tests that detect its mutants; the steps of `eng/mutate`; the container; the settings of the compiler; the versions of the tool, of the test platform, of the SDK and of the image.
+CI does not run the set. It runs before release 1.0, together with `eng/mutate` on the whole library: first `eng/mutate eng/stryker-control.json`, which checks the tool and the test runner, then the run whose score is read. A run before the release needs no filter by paths. By hand, for example after a change of the Stryker.NET version, the set is needed when a change touches a path of the list below; the check is `git diff --name-only main...HEAD -- <paths>`. They are the paths on which the result of the set depends: the set itself — its configuration, the code that it mutates and the code that code uses, the tests that detect its mutants; the steps of `eng/mutate`; the container; the settings of the compiler; the versions of the tool, of the test platform, of the SDK and of the image.
 
 | Path | Why |
 | :- | :- |

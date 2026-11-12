@@ -4,8 +4,7 @@ using System.Globalization;
 namespace Great.Parts.Cel.Eng.Difftest;
 
 /// <summary>
-/// The form of the time of <c>--budget</c> of <c>eng/difftest</c> (<c>docs/design/eng-difftest.md</c>, "Invocation"). The file is also
-/// compiled into <c>eng/run</c>, which gives the run of <c>eng/difftest</c> a time limit from the same budget, so the two read it alike.
+/// The form of the time of <c>--budget</c> of <c>eng/difftest</c> (<c>docs/design/eng-difftest.md</c>, "Invocation").
 /// </summary>
 internal static class BudgetText
 {

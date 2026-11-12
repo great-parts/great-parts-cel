@@ -30,7 +30,7 @@
     <ProjectReference Include="../checks/Great.Parts.Cel.Eng.Checks.csproj" />
     <!-- The generator, the manifest check and Program of eng/difftest run in the test process. -->
     <ProjectReference Include="../difftest/Great.Parts.Cel.Eng.Difftest.csproj" />
-    <!-- The steps, the time limits and the arguments of eng/run run in the test process. -->
+    <!-- The steps and the arguments of eng/run run in the test process. -->
     <ProjectReference Include="../run/Great.Parts.Cel.Eng.Run.csproj" />
     <!-- The readers, the model, the output and Program of the generator of the Unicode tables run in the test process. -->
     <ProjectReference Include="../unicode/Great.Parts.Cel.Eng.Unicode.csproj" />

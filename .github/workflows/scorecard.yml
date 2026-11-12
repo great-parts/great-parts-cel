@@ -20,7 +20,6 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     permissions:
       # The SARIF file goes to code scanning.
       security-events: write

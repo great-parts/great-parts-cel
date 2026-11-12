@@ -22,15 +22,13 @@ concurrency:
 env:
   DOTNET_NOLOGO: "true"
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
-  # Ten minutes of cases. The limit of eng/run for the run, the budget x 1.2 + 36 s, is 12.6 minutes; the image build and the cold module
-  # cache of Go take the rest of the job limit.
+  # Ten minutes of cases: the budget of eng/difftest, which ends its own run.
   BUDGET: 10m
 
 jobs:
   difftest:
     name: Differential run
     runs-on: ubuntu-latest
-    timeout-minutes: 40
     steps:
       # eng/run reads git: the commit of the journal line and the state of the tree, so the history and the branch main are there.
       - name: Check out

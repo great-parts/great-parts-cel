@@ -26,7 +26,7 @@ docker compose -f eng/compose.yaml run --rm docs
 
 This is `eng/docs`. It compiles and runs every C# example of `README.md`, `docs/` and the XML documentation and compares its output with the output the example shows, checks that the [error codes page](docs/error-codes.md) matches `CelErrorCode`, and checks the relative links, files and anchors. External links are checked only in CI. The list of paths that change the result of `eng/docs` is in [eng-docs.md](docs/design/eng-docs.md#triggers).
 
-Two more checks run in CI and by hand: the `min-sdk` check, which shows that the source generator of the package loads into the oldest supported .NET SDK (`docker compose -f eng/compose.yaml run --rm min-sdk`, after `test`), and the control set of mutation testing (`docker compose -f eng/compose.yaml run --rm mutate eng/stryker-control.json`). See [eng-test.md](docs/design/eng-test.md#min-sdk) and [eng-mutate.md](docs/design/eng-mutate.md#control-set).
+Two more checks: the `min-sdk` check, which runs in CI and by hand, which shows that the source generator of the package loads into the oldest supported .NET SDK (`docker compose -f eng/compose.yaml run --rm min-sdk`, after `test`), and the control set of mutation testing, which runs before release 1.0 and by hand (`docker compose -f eng/compose.yaml run --rm mutate eng/stryker-control.json`). See [eng-test.md](docs/design/eng-test.md#min-sdk) and [eng-mutate.md](docs/design/eng-mutate.md#control-set).
 
 From a linked worktree (`git worktree add`), both commands need a second Compose file; see [Linked worktrees](docs/design/eng-test.md#linked-worktrees).
 

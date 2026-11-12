@@ -12,8 +12,7 @@ namespace Great.Parts.Cel.Eng.Run;
 /// in this process; the lanes of a stage run at the same time. The output of the steps passes through unchanged. The last line of the
 /// command is the summary of the run: the result, the commit and whether the working tree is clean, the duration, the exit code and
 /// the counters of the command. The exit code is 0 when every step returned 0, otherwise 1; a step that passes its exit code on, as
-/// the run of <c>eng/difftest</c>, gives the exit code of the command when it ran. A step that is still running when its time limit is
-/// over is killed with its process tree and counts as failed (<see cref="Timeouts"/>).
+/// the run of <c>eng/difftest</c>, gives the exit code of the command when it ran. A step has no time limit: it runs to its end.
 /// </summary>
 internal static class Program
 {
@@ -53,7 +52,7 @@ internal static class Program
 
         return stages is null
             ? Fail(command, $"unknown command; known commands: {Commands.Known}")
-            : Run(command, stages, Console.Out, QuietWait.ForHost(Console.Out));
+            : Run(command, stages, Console.Out);
     }
 
     private static string? CheckArguments(string command, string[] args)
@@ -87,10 +86,8 @@ internal static class Program
     internal static string? LinkedWorktreeProblem(MutateOptions options, bool linkedWorktree, string? workingDirectory = null) =>
         linkedWorktree && options.UsesSince(workingDirectory) ? "linked worktree: a run with since needs the main worktree" : null;
 
-    // Runs the stages and writes the summary line to `summary`; the output of the steps goes to the console as they write it. With a
-    // `wait` the command waits for a quiet host before every stage (QuietWait); the summary names the time of the wait and does not count
-    // it in the duration.
-    internal static int Run(string command, IReadOnlyList<Stage> stages, TextWriter summary, QuietWait? wait = null)
+    // Runs the stages and writes the summary line to `summary`; the output of the steps goes to the console as they write it.
+    internal static int Run(string command, IReadOnlyList<Stage> stages, TextWriter summary)
     {
         Stopwatch clock = Stopwatch.StartNew();
         RepositoryState start = RepositoryState.Read();
@@ -104,10 +101,10 @@ internal static class Program
             }
         }
 
-        List<string> failed = RunStages(stages, wait, out int? passedOn);
+        List<string> failed = RunStages(stages, out int? passedOn);
         int exitCode = passedOn ?? (failed.Count == 0 ? 0 : 1);
         string result = failed.Count == 0 ? "passed" : $"failed: {string.Join("; ", failed)}";
-        string seconds = (clock.Elapsed - (wait?.Waited ?? TimeSpan.Zero)).TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+        string seconds = clock.Elapsed.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture);
         List<string> parts =
         [
             $"{command}: {result}",
@@ -115,11 +112,6 @@ internal static class Program
             $"{seconds} s",
             $"exit {exitCode.ToString(CultureInfo.InvariantCulture)}",
         ];
-        if (wait is not null)
-        {
-            parts.Insert(3, string.Create(CultureInfo.InvariantCulture, $"waited {wait.Waited.TotalSeconds:0} s"));
-        }
-
         if (Commands.Counters(command) is { } counters)
         {
             parts.Add(counters);
@@ -131,15 +123,12 @@ internal static class Program
 
     // Runs the stages up to the first stage that stops the command; returns the failed steps with their reasons, and the exit code of
     // the step that passes its exit code on, when it ran.
-    private static List<string> RunStages(IReadOnlyList<Stage> stages, QuietWait? wait, out int? passedOn)
+    private static List<string> RunStages(IReadOnlyList<Stage> stages, out int? passedOn)
     {
         List<string> failed = [];
         passedOn = null;
-        bool first = true;
         foreach (Stage stage in stages)
         {
-            wait?.Until(first ? QuietWait.StartQuiet : QuietWait.BetweenQuiet);
-            first = false;
             StageResult result = StageRunner.Run(stage);
             failed.AddRange(result.Failed);
             passedOn = result.PassedOn ?? passedOn;

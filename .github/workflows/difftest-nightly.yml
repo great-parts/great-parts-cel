@@ -44,9 +44,6 @@ jobs:
     # Only the main branch: a manual run from another branch is skipped.
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
-    # The nightly run: the limit of eng/run for the run, the budget × 1.2 + 36 s, is 25 minutes; the image build and the cold module cache
-    # of Go take the rest of the hour. A manual run has 6 hours, the longest a job may take: its budget is the input.
-    timeout-minutes: ${{ github.event_name == 'schedule' && 60 || 360 }}
     steps:
       # eng/run reads git: the commit of the journal line and the state of the tree, so the history and the branch main are there.
       - name: Check out
