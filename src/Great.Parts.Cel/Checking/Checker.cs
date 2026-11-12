@@ -446,29 +446,13 @@ internal sealed class Checker
                 result = CelType.Dyn;
                 break;
             case CelTypeKind.Object:
-                if (!_declarations.Types.TryGetObjectType(head.Name, out CelObjectType? description)
-                    || !description.TryGetField(field, out CelObjectField? declared))
-                {
-                    // No such field is NoSuchField with the full name of the type, at the place.
-                    _errors.Add(CheckErrors.NoSuchField(field, head, location));
-                    return null;
-                }
-
-#if NET11_0_OR_GREATER
-                // A field of the type decimal is usable only where the environment declares the type: the description is valid in
-                // every environment, and the selection is where it is refused. The node has no type and no reference.
-                if (RefusesDecimalField(description, declared, location))
+                CelType? fieldType = ObjectFieldType(field, head, optional, select, location);
+                if (fieldType is null)
                 {
                     return null;
                 }
-#endif
 
-                if (select is not null && !optional)
-                {
-                    _references.Add(select.Id, Reference.ToField(description, declared.Number));
-                }
-
-                result = declared.Type;
+                result = fieldType;
                 break;
             case CelTypeKind.TypeParameter:
                 _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
@@ -480,6 +464,37 @@ internal sealed class Checker
         }
 
         return isPresenceTest ? CelType.Bool : optional ? OptionalType(result) : result;
+    }
+
+    // The type of a field of an object type, or null with the error added: no such field is NoSuchField with the full name of the
+    // type, at the place, and a field that the description excluded from expressions is FieldNotAccessible with the reason it gives.
+    private CelType? ObjectFieldType(string field, CelType head, bool optional, SelectNode? select, CelSourceLocation location)
+    {
+        if (!_declarations.Types.TryGetObjectType(head.Name, out CelObjectType? description)
+            || !description.TryGetField(field, out CelObjectField? declared))
+        {
+            string? reason = description?.GetExcludedFieldReason(field);
+            _errors.Add(reason is null
+                ? CheckErrors.NoSuchField(field, head, location)
+                : CheckErrors.FieldNotAccessible(field, head.Name, reason, location));
+            return null;
+        }
+
+#if NET11_0_OR_GREATER
+        // A field of the type decimal is usable only where the environment declares the type: the description is valid in
+        // every environment, and the selection is where it is refused. The node has no type and no reference.
+        if (RefusesDecimalField(description, declared, location))
+        {
+            return null;
+        }
+#endif
+
+        if (select is not null && !optional)
+        {
+            _references.Add(select.Id, Reference.ToField(description, declared.Number));
+        }
+
+        return declared.Type;
     }
 
 #if NET11_0_OR_GREATER

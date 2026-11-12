@@ -109,6 +109,18 @@ public sealed class MessageLiteralTests
         Assert.Equal("field 'hidden' of type 'acme.test.Message' is not available to expressions: the member is not public", error.Message);
     }
 
+    [Theory]
+    [InlineData("acme.test.Message{}.hidden")]
+    [InlineData("has(acme.test.Message{}.hidden)")]
+    public static void SelectionOfAFieldThatTheDescriptionExcluded_IsFieldNotAccessibleWithItsReason(string expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        CelError error = Assert.Single(Check(WithMessages, expression).Errors);
+
+        Assert.Equal(CelErrorCode.FieldNotAccessible, error.Code);
+        Assert.Equal("field 'hidden' of type 'acme.test.Message' is not available to expressions: the member is not public", error.Message);
+    }
+
     // The check goes on after an error: every faulty entry is an error, in the order of the text.
     [Fact]
     public static void EveryFaultyEntry_IsAnErrorInTheOrderOfTheText()

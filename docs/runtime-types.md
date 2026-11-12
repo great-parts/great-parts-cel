@@ -2,7 +2,7 @@
 
 An application can give expressions an object type that has no .NET type of its own: the fields of the type, with their CEL types, are described when the environment is built, and each value of the type is an instance of a carrier class. This suits data whose schema lives in metadata, such as the fields of an entity that an administrator defines. A type is described by `CelObjectTypeBuilder<TCarrier>` over a carrier class with a delegate for each field, or by `CelObjectTypeBuilder.ForDictionary` over a dictionary carrier, which is also the only form that an [environment description in JSON](environment-json.md#greatpartscel) can express.
 
-Not in this version of the page: the descriptions of .NET types that the source generator writes. They come with their part, and the rules below already hold for them where they say so. The types of protobuf messages are described by the package `Great.Parts.Cel.Protobuf`, on the page [Protobuf messages](protobuf.md).
+The descriptions of .NET types that the source generator writes are on the page [Type mapping](type-mapping.md#types-of-a-type-context), and the rules below hold for them where they say so. The types of protobuf messages are described by the package `Great.Parts.Cel.Protobuf`, on the page [Protobuf messages](protobuf.md).
 
 ```csharp
 using Great.Parts.Cel;

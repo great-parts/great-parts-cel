@@ -20,6 +20,5 @@ public sealed class CelIgnoreAttribute : Attribute
     /// </summary>
     public CelIgnoreAttribute()
     {
-        throw new NotImplementedException();
     }
 }

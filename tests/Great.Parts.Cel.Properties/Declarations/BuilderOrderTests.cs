@@ -17,6 +17,9 @@ using Great.Parts.Cel.Values;
 using Xunit;
 using Proto2 = global::Cel.Expr.Conformance.Proto2;
 using Proto3 = global::Cel.Expr.Conformance.Proto3;
+using SampleOrders = global::Great.Parts.Cel.Generator.Samples.Orders;
+using SampleProtos = global::Great.Parts.Cel.Generator.Samples.Protos;
+using SampleSpecial = global::Great.Parts.Cel.Generator.Samples.Special;
 
 namespace Great.Parts.Cel.Properties.Declarations;
 
@@ -29,7 +32,10 @@ namespace Great.Parts.Cel.Properties.Declarations;
 // describes the well-known types, so two of them in one model give DuplicateType for each of their names, and both orders must
 // report those errors alike. The pool has the set optional of the library too, at its version 2 and at version 1, which it does not
 // have. On .NET 11 the pool has the set decimal as well, at its version 1 and at version 2, which it does not have, and the option of
-// the decimal literals, which needs the set.
+// the decimal literals, which needs the set. The sources of types include the type contexts of the generator (the samples): two that
+// reach the same types, one that names a shared type another way and one whose messages need a provider, with the provider of the
+// message of the samples and the variables of their types; the shared types are one declaration in every order, a context that
+// disagrees is DuplicateType in every order, and a message that nobody describes is TypeNotDeclared in every order.
 public sealed class BuilderOrderTests
 {
     private const ulong Seed = 20261112;
@@ -86,6 +92,14 @@ public sealed class BuilderOrderTests
         "TestAllTypes{single_int32: 3000000000}",
         "NestedEnum.BAR",
         "GlobalEnum.GAR",
+        "order.shipping.city == 'Kazan' && invoice.billing.street == 'Lenina'",
+        "type(order.shipping) == shop.Address && order.shipping == invoice.billing",
+        "order.contacts.all(c, type(c) == shop.Contact) && invoice.recipients.all(c, type(c) == shop.Contact)",
+        "order.contacts[1] == invoice.recipients[1] && order.contacts[0] != invoice.recipients[1]",
+        "order.contacts[1].level == 2",
+        "shipment.parcel.weight == 3 && shipment.parcels[0].label == 'x'",
+        "type(shipment.parcel) == great_parts.samples.Parcel",
+        "shipment.byLabel.map(k, k) == ['y', 'x'] && shipment.counts.map(k, k) == ['a', 'z']",
 #if NET11_0_OR_GREATER
         "12.34m",
         "decimal('1')",
@@ -93,12 +107,17 @@ public sealed class BuilderOrderTests
 #endif
     ];
 
-    // The kinds of the draw of one call: the ones of the library on every target, and on .NET 11 the two of the set decimal and its
-    // literal option.
+    // The provider of protobuf for the message of the samples.
+    private static readonly CelProtobufTypes SamplesProvider = new CelProtobufTypesBuilder("messages of the samples")
+        .AddFile(SampleProtos.SamplesReflection.Descriptor)
+        .Build();
+
+    // The kinds of the draw of one call: the ones of the library (0 to 18) and of the type contexts of the generator (19 to 21) on every
+    // target, and on .NET 11 the two of the set decimal and its literal option (22 and 23).
 #if NET11_0_OR_GREATER
-    private const uint DrawKinds = 21;
+    private const uint DrawKinds = 24;
 #else
-    private const uint DrawKinds = 19;
+    private const uint DrawKinds = 22;
 #endif
 
     // The providers of the pool: every test file with the nine extensions, the proto3 file alone, the same file from a second builder,
@@ -223,9 +242,50 @@ public sealed class BuilderOrderTests
             {
                 bindings.Add(variable.Name, MessageWithExtension());
             }
+            else if (variable.Name == "order")
+            {
+                bindings.Add(
+                    variable.Name,
+                    new SampleOrders.Order
+                    {
+                        Shipping = new SampleOrders.Address { City = "Kazan", Street = "Lenina" },
+                        Contacts = [new SampleOrders.Contact { Name = "Bob" }, new SampleOrders.VipContact { Name = "Ann", Level = 2 }],
+                    });
+            }
+            else if (variable.Name == "invoice")
+            {
+                bindings.Add(
+                    variable.Name,
+                    new SampleOrders.Invoice
+                    {
+                        Billing = new SampleOrders.Address { City = "Kazan", Street = "Lenina" },
+                        Recipients = [new SampleOrders.Contact { Name = "Bob" }, new SampleOrders.VipContact { Name = "Ann", Level = 5 }],
+                    });
+            }
+            else if (variable.Name == "shipment")
+            {
+                bindings.Add(variable.Name, Shipment());
+            }
         }
 
         return bindings;
+    }
+
+    private static SampleSpecial.Shipment Shipment()
+    {
+        var shipment = new SampleSpecial.Shipment
+        {
+            Parcel = new SampleProtos.Parcel { Weight = 3, Label = "a" },
+            Parcels = [new SampleProtos.Parcel { Weight = 5, Label = "x" }],
+            ByLabel = new Dictionary<string, SampleProtos.Parcel>
+            {
+                ["y"] = new SampleProtos.Parcel { Weight = 1, Label = "p" },
+                ["x"] = new SampleProtos.Parcel { Weight = 2, Label = "q" },
+            },
+        };
+        shipment.Counts["z"] = 1;
+        shipment.Counts["a"] = 2;
+        return shipment;
     }
 
     private static Proto2.TestAllTypes MessageWithExtension()
@@ -456,12 +516,17 @@ public sealed class BuilderOrderTests
         {
             uint kind = random.Next(DrawKinds);
 #if NET11_0_OR_GREATER
-            if (kind >= 19)
+            if (kind >= 22)
             {
                 AddDecimalCalls(random, kind);
                 return;
             }
 #endif
+            if (kind >= 19)
+            {
+                AddGeneratedCalls(random);
+                return;
+            }
 
             if (kind >= 17)
             {
@@ -506,6 +571,40 @@ public sealed class BuilderOrderTests
             }
         }
 
+        // The calls of the pool that concern the type contexts of the generator: each context, the provider of the message of the samples
+        // and the variables of the types of the samples. Two contexts reach the same types, a third names one of them another way, and the
+        // fourth reads messages that only the provider describes, so some models build, some are DuplicateType and some TypeNotDeclared.
+        private void AddGeneratedCalls(PCG random)
+        {
+            switch (random.Next(8))
+            {
+                case 0:
+                    Add("AddTypes(ShopContext)", builder => builder.AddTypes(SampleOrders.ShopContext.Default));
+                    break;
+                case 1:
+                    Add("AddTypes(BillingContext)", builder => builder.AddTypes(SampleOrders.BillingContext.Default));
+                    break;
+                case 2:
+                    Add("AddTypes(TitleContext)", builder => builder.AddTypes(SampleOrders.TitleContext.Default));
+                    break;
+                case 3:
+                    Add("AddTypes(MessageContext)", builder => builder.AddTypes(SampleSpecial.MessageContext.Default));
+                    break;
+                case 4:
+                    Add("AddTypes(protobuf messages of the samples)", builder => builder.AddTypes(SamplesProvider));
+                    break;
+                case 5:
+                    Add("AddVariable<Order>(order)", builder => builder.AddVariable<SampleOrders.Order>("order"));
+                    break;
+                case 6:
+                    Add("AddVariable<Invoice>(invoice)", builder => builder.AddVariable<SampleOrders.Invoice>("invoice"));
+                    break;
+                default:
+                    Add("AddVariable<Shipment>(shipment)", builder => builder.AddVariable<SampleSpecial.Shipment>("shipment"));
+                    break;
+            }
+        }
+
         // The calls of the pool that concern the set optional of the library: its version 2, and version 1, which it does not have and
         // which is UnknownExtensionVersion (4004) at Build, whatever the order.
         private void AddOptionalCalls(uint kind)
@@ -525,7 +624,7 @@ public sealed class BuilderOrderTests
         // 2, which it does not have (4004 at Build), and the option, which needs the set (4005 without it), whatever the order.
         private void AddDecimalCalls(PCG random, uint kind)
         {
-            if (kind == 20)
+            if (kind == 23)
             {
                 Add("EnableDecimalLiterals()", builder => builder.EnableDecimalLiterals());
             }

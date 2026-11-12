@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests of the source generator (docs/design/generator.md, "Test projects"; docs/design/tests.md). They run under JIT only: the project
+    needs Roslyn and compiles code in memory, which Native AOT cannot do. One target: the reference assemblies of the compilations in
+    memory are the implementation assemblies of the running process.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Great.Parts.Cel.Generator.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Tests have no XML documentation. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Test method names are <Situation>_<Expectation>, with an underscore. -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The compiler of the compilations in memory and the driver of the generator; PrivateAssets is not set, the tests run on it. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+    <PackageReference Include="xunit.v3.aot" />
+  </ItemGroup>
+
+  <!-- The generator is referenced as a library, so a test creates it and runs it on a compilation; the library is what the created code uses. -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+  </ItemGroup>
+
+  <!-- The expected text of the created code: data read by the snapshot tests, not code (docs/design/eng-checks-source.md, "Generated code"). -->
+  <ItemGroup>
+    <Compile Remove="Snapshots/**" />
+    <Content Include="Snapshots/**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

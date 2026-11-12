@@ -2,7 +2,7 @@
 
 This page says how a .NET value becomes a CEL value and how a CEL value becomes a .NET value. The input rows apply wherever a value enters an expression: the bindings of `CelBindings`, the declaration `AddVariable<T>`, and the arguments and the results of the functions of the application. The result rows apply to the result of `Compile<T>`, `Evaluate<T>` and the one-step call, and to the parameters of the typed delegates of the functions of the application.
 
-Not in this version of the page: the descriptions of .NET types that the source generator writes. They come with their part. The rows of `decimal`, which exist only on .NET 11, are in the section [Decimal](#decimal). The messages of protobuf have their rows in the section [Protobuf messages](#protobuf-messages), and the values of `optional` in the section [Optional values](#optional-values). The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
+The rows of `decimal`, which exist only on .NET 11, are in the section [Decimal](#decimal). The classes, structures and interfaces of the application that a type context describes have their rows in the sections [Types of a type context](#types-of-a-type-context), [Names of fields](#names-of-fields) and [Presence and null](#presence-and-null). The messages of protobuf have their rows in the section [Protobuf messages](#protobuf-messages), and the values of `optional` in the section [Optional values](#optional-values). The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
 
 An error of a conversion is an error of the result, not an exception, except the conditions that the documentation of a method names. A refusal of a value to enter the expression is an error value where the value is read: the binding when the expression reads the variable, the result of a function at the call.
 
@@ -175,6 +175,73 @@ A type in the namespace `System` or in a namespace below it that has no row on t
 | `JsonDocument`, `JsonNode` | a `JsonDocument` is disposed by the application and a `JsonNode` can be changed | the `RootElement` as a `JsonElement` |
 
 A `string`, a `Guid`, an enumeration, the collections and the types of the rows above are read through their own rows, and the classes of the application that are not in `System` are objects.
+
+## Types of a type context
+
+A class, a structure or an interface that a type context lists with `[CelObject]`, or that a member of a listed type reaches, is described by the source generator as an object type; the page [Source generator diagnostics](generator-diagnostics.md) has what the generator reports. It reads a member by a direct access, without reflection, so the descriptions work under trimming and Native AOT. The members that become fields are the public instance properties with a public getter and the public instance fields, including the inherited ones, except indexers, static members, members of a `ref struct` type and members that an interface implements explicitly. A member whose .NET type the rows below do not read is left out with the warning `GPCEL002`, and selecting it is the type checking error `FieldNotAccessible` (2007) with the reason; a member that `[CelIgnore]` or `[JsonIgnore]` hides is no field, and selecting it is `NoSuchField`. The name of a field is given in [Names of fields](#names-of-fields).
+
+The value of a field is read at each selection by these rows. The CEL type is that of the rows above; which of `string` and `wrapper(string)` a member has comes from [Presence and null](#presence-and-null).
+
+| .NET type of the member | CEL type of the field | The value of the field |
+| :- | :- | :- |
+| the numbers, `bool`, `Guid`, an enumeration, `byte[]`, `ReadOnlyMemory<byte>`, `CelTimestamp`, `DateTimeOffset`, `DateTime`, `CelDuration`, `TimeSpan`, `CelValue`, `object`, `JsonElement`, `CelList`, `CelMap` | as in [Input](#input-a-net-type-to-a-cel-type) | by the row of the input table, without a copy; a `Guid` allocates its string of 36 characters and a `JsonElement` is boxed, which the [cost](cost.md#data-of-the-application) counts. A `DateTime` of a kind other than `Utc` is `InvalidArgument` (3008); a `TimeSpan` out of the range of `duration` and an enumeration over `ulong` above `long.MaxValue` are `ConversionRange` (3007); each error names the type and the field |
+| `string` or `byte[]` annotated as not null | `string`, `bytes` | as above; a `null` is the error `UnexpectedNull` (3017) |
+| `string?` or `byte[]?`, and `string` or `byte[]` in a project whose nullable context is off | `wrapper(string)`, `wrapper(bytes)` | as above; a `null` is the value `null` |
+| `Nullable<X>`, `X` a number, `bool`, `Guid`, an enumeration or `ReadOnlyMemory<byte>` | the wrapper of the CEL type of `X` | the row of `X`; no value is the value `null` |
+| `Nullable<X>`, `X` `DateTimeOffset`, `DateTime`, `TimeSpan`, `CelTimestamp` or `CelDuration` | the type of `X` | the row of `X`; no value is `UnexpectedNull`, since CEL has no wrapper of time |
+| `Nullable<X>`, `X` `Decimal128` or `System.Decimal` | `decimal` | the row of `X`; no value is `UnexpectedNull`, since CEL has no wrapper of `decimal`. Only on .NET 11: on .NET 10 the member is left out with `GPCEL007` |
+| `Nullable<CelValue>`, `Nullable<JsonElement>` | `dyn` | the row of `CelValue` or of `JsonElement`; no value is the value `null`, since `dyn` takes `null`, and `has()` is false |
+| `Nullable<X>`, `X` a structure of the context | the object type | as a structure below; no value is the value `null` |
+| a class, a `record class` or an interface | the object type | the instance itself, without a copy; the evaluation pairs it with the description of the declared type where that is needed ([The type of an object](#the-type-of-an-object)). A `null` is the value `null` where the position is nullable and `UnexpectedNull` where it is not |
+| a structure or a `record struct` | the object type | the instance, boxed once: one allocation, which the [cost](cost.md#data-of-the-application) counts by the size of the structure |
+| a message class of protobuf, also as an element or a value | the type of the message, by its full protobuf name | the instance, as a class. The description comes from a provider of `Great.Parts.Cel.Protobuf` that the application adds with `AddTypes`; an environment that adds the context without it is `TypeNotDeclared` (4008) at `Build` for each field that names the message |
+| a collection or a dictionary | `list(E)`, `map(K', E)` | the rows below |
+
+A member that is a collection or a dictionary is read by the rows of [Objects and collections](#objects-and-collections), by the interfaces of its declared type, the first row that applies:
+
+| Declared type | The value of the field |
+| :- | :- |
+| an array, or a type that implements `IReadOnlyList<X>`: `IReadOnlyList<X>`, `List<X>`, `ImmutableList<X>`, `ReadOnlyCollection<X>` | a lazy view over the member: one object, nothing is copied |
+| `ImmutableArray<X>` | a lazy view over the array that the structure holds, without a copy and without a box. A `default` array has no length: it is `UnexpectedNull` and `has()` is false. `ImmutableArray<X>?` is present only with a value that is not `default` |
+| another structure that implements `IReadOnlyList<X>` | a lazy view over the boxed structure: the box and the view |
+| a structure that implements only `IList<X>`, a set interface, `IDictionary<K, X>` or `IReadOnlyCollection<X>` | read as the collection of its family, by the row of that family, over the box of the structure; the box is made once. A structure has no `null`, so the member is never `UnexpectedNull` for being `null` and `has()` is true |
+| `IList<X>` and not `IReadOnlyList<X>` | a lazy view. The check is made at run time on the instance: a `List<X>` or an array declared as `IList<X>` is read as it is, and an instance that implements only `IList<X>` is wrapped in a `ReadOnlyCollection<X>` |
+| `IReadOnlySet<X>`, `ISet<X>`, `HashSet<X>`, `SortedSet<X>`, `ImmutableHashSet<X>` | a copy that is made at each read and sorted in the order of CEL, as in [Objects and collections](#objects-and-collections). The elements are numbers, `bool`, `string`, `byte[]`, `ReadOnlyMemory<byte>`, `Guid`, enumerations and time, which CEL orders. A `NaN`, a `null` and two elements that are equal in CEL (`0.0` and `-0.0`) make the read the error `ApplicationException` (3014) with an `ArgumentException` inside. The copy and the sort are charged by the [cost](cost.md#data-of-the-application) at each read |
+| any other `IReadOnlyCollection<X>`: `Queue<X>`, `Stack<X>`, `LinkedList<X>` | a copy in the order of enumeration, made at each read and charged by the [cost](cost.md#data-of-the-application) |
+| `IReadOnlyDictionary<K, X>`, `Dictionary<K, X>` and every class that implements `IReadOnlyDictionary<K, X>` | a lazy view; the order of enumeration is that of the dictionary for `Dictionary` and the other ordered classes of [Objects and collections](#objects-and-collections), and ascending by key for every other |
+| `IDictionary<K, X>` and not `IReadOnlyDictionary<K, X>` | a lazy view. An instance that is a read-only dictionary, such as a `Dictionary<K, X>` declared as `IDictionary<K, X>`, is read as it is and keeps its order; an instance that implements only `IDictionary<K, X>` is wrapped in a `ReadOnlyDictionary<K, X>` and is ordered by ascending key |
+
+A collection that is `null` is `UnexpectedNull` whatever its annotation, because the CEL types `list` and `map` take no `null`, and `has()` is false. The same holds for an element or a value that is a collection, at any depth. The elements and the values follow the rows above at every depth: `List<List<long>>` is `list(list(int))`, `Dictionary<string, List<Order>>` is `map(string, list(Order))`. The exception is an element, a key or a value that is a set, a collection without an index or a structure that is a collection other than `ImmutableArray<X>`: its copy would be made at each read of an element, which the [cost](cost.md#data-of-the-application) does not charge, so the member is left out with `GPCEL002` (`List<HashSet<long>>`, `Dictionary<string, Queue<long>>`; use `List<List<long>>`). An element that is a reference type and has no value is the value `null` where its position is nullable and the error value `UnexpectedNull` otherwise.
+
+An element or a value that is an object has the declared element type of the member: an instance of `Dog` in a `List<Animal>` is an `Animal`, for the fields and for `type()`. The element of a `sealed` class, of a structure and of a message is the instance, and a class that is not sealed is paired with the description of its declared type when the instance is of a derived type, an abstract class and an interface always, one allocation of at most 64 bytes inside the unit of the read. An application that builds a `CelList` itself, with `CelList.Create` or `CelList.CreateView`, puts values of the type that it declares in it: `CelValue.FromObject(animalType, dog)`, with the description from the context.
+
+A read of a number, `bool`, `string`, bytes, time or an object of a sealed class allocates nothing. A read allocates at most one object of at most 64 bytes — a view, a box, a pair — besides the string of a `Guid`, the copy of a set or of a collection without an index, and the second object of a structure that is a collection other than `ImmutableArray<X>` (the box and the view). The box of a structure, the copy of a set and the copy of a collection without an index are charged by the [cost](cost.md#data-of-the-application) beyond the unit of the selection, when the evaluation has a cost limit; the string of a `Guid` is not. No converter of an element is created while a field is read.
+
+## Names of fields
+
+The name of a field is the first of these that applies to its member:
+
+1. `[CelIgnore]` hides the member, and `[CelName("x")]` names it `x`. A name in the `IgnoreMembers` of the `[CelObject]` of a type hides the member of that type with that C# name; it does not hide a member of the same name in another type that the context reaches.
+2. Unless `IgnoreJsonAttributes` of `[CelTypeContextOptions]` is set: `[JsonIgnore]` with no condition or with the condition `Always` hides the member, and any other condition does not; `[JsonPropertyName("x")]` names it `x`.
+3. The naming policy of `[CelTypeContextOptions]` applied to the C# name of the member. `CamelCase`, the default, and `SnakeCaseLower` give the names of `JsonNamingPolicy.CamelCase` and `JsonNamingPolicy.SnakeCaseLower` of System.Text.Json (`TotalAmount` is `totalAmount` and `total_amount`, `URLPath` is `urlPath` and `url_path`, `ID` is `id`); `AsIs` keeps the name.
+
+A name has to be an identifier, `[_a-zA-Z][_a-zA-Z0-9]*`: a name from `[CelName]` or `[JsonPropertyName]` with a hyphen or a space, and a member without such an attribute whose name has letters outside ASCII, is `GPCEL005` and the member is left out. A word that CEL reserves is a name, and an expression writes it in backquotes, such as ``order.`in` ``. Two members with one name are `GPCEL003`, and the second, in the order of the C# names, is left out.
+
+The name of a type is the `Name` of its `[CelObject]`, or else its full .NET name with the `+` of a nested type written as a dot: `Acme.Order`, `Acme.Outer.Inner`; a type in the global namespace has no prefix. A closed generic type has its definition name, then `_` and the names of its type arguments joined by `_`, each with its dots written as `_` and a primitive by its C# keyword: `Acme.Page<Acme.Order>` is `Acme.Page_Acme_Order` and `Acme.Pair<int, Acme.Tag>` is `Acme.Pair_int_Acme_Tag`. An enumeration has its default name, and the naming policy changes neither the names of types nor the names of the constants of an enumeration. Two types with one name are `GPCEL004`, and `Name` is the way out.
+
+## Presence and null
+
+`has(e.f)` on a field of a type of a type context is whether the member is not `null`, and the getter of a member of a value type is not called:
+
+| Member | `has(e.f)` |
+| :- | :- |
+| a value type that is not `Nullable<X>`: a number, `bool`, `Guid`, an enumeration, time, `CelValue`, `JsonElement`, `ReadOnlyMemory<byte>`, a structure | true |
+| `Nullable<X>` | whether it has a value; for `ImmutableArray<X>?` also that the array is not `default` |
+| a reference type: a class, an interface, a message, a collection, `object`, `CelList`, `CelMap` | the reference is not `null` |
+| `string`, `byte[]` | the reference is not `null`; an empty string and empty bytes are present |
+| `ImmutableArray<X>` | the array is not `default` |
+
+A member that is not `null` by its annotation and is `null` at run time reads as the error `UnexpectedNull` (3017) and has `has()` false. Where a position takes `null` is decided by its nullable annotation, which the project of the application gives: a position annotated `?`, or without an annotation because the nullable context of the project is off, is nullable, and one annotated as not null is not. The rule is the same for a member, an element and a value, at any depth; a key of a dictionary is never nullable. A `string` or `byte[]` position that is nullable has the type `wrapper(string)` or `wrapper(bytes)` and reads `null` as the value `null`; one that is not has the type `string` or `bytes` and reads `null` as `UnexpectedNull`. A collection, and a time type of a `Nullable<X>`, read `null` as `UnexpectedNull` whatever the annotation.
 
 ## Functions of the application
 

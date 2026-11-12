@@ -44,7 +44,8 @@ internal static class ObjectRules
 
     /// <summary>
     /// The description of an object value: the description of a pair, else the description of the instance in the type
-    /// index — of its exact .NET type, then of its nearest base class.
+    /// index — of its exact .NET type, then of its nearest base class. A pair whose description the index dropped as
+    /// equal to another is described as the one that stays; without the index there is no such alias.
     /// </summary>
     /// <param name="value">A value of the kind <see cref="CelValueKind.Object"/>.</param>
     /// <param name="types">The type index of the environment; <see langword="null"/> outside an evaluation, where a bare instance has no description.</param>
@@ -53,7 +54,7 @@ internal static class ObjectRules
     {
         if (value.PairedType is CelObjectType paired)
         {
-            return paired;
+            return types is null ? paired : types.Resolve(paired);
         }
 
         _ = value.TryGetObject(out object? instance);
@@ -112,7 +113,8 @@ internal static class ObjectRules
 
     /// <summary>
     /// Tells whether a value fits an object type <c>T</c>: <c>null</c>, or an object value whose description is the
-    /// description of <c>T</c> in the type index, the same instance. The check needs no description to exist: an
+    /// description of <c>T</c> in the type index, the same instance, or a description that the index dropped as equal to it.
+    /// The check needs no description to exist: an
     /// instance without one does not fit, and nothing here is <c>TypeNotAccessible</c>.
     /// </summary>
     /// <param name="value">A value that is not an error value.</param>

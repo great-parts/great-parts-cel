@@ -56,6 +56,10 @@ jobs:
           for project in tests/*/*.csproj; do
             directory=$(dirname "$project")
             name=$(basename "$project" .csproj)
+            # A project without a test framework is a library (Generator.Samples): there is nothing to run.
+            grep -q 'xunit\.v3' "$project" || { echo "== $name is not a test project"; continue; }
+            # A project of one target (Generator.Tests, net10.0) runs in the cells of that target only.
+            [ -f "$directory/bin/Release/$TARGET/$name.dll" ] || { echo "== $name has no $TARGET"; continue; }
             echo "== $name $TARGET"
             dotnet "$directory/bin/Release/$TARGET/$name.dll" -noColor -showLiveOutput \
               -result-xml "artifacts/test-results/jit/$name/$TARGET/report.xml" || status=1

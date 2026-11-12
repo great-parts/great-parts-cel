@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package great_parts.samples;
+
+option csharp_namespace = "Great.Parts.Cel.Generator.Samples.Protos";
+
+// The message that the sample types hold as a member, an element and a value of a collection: the type context only
+// names it (its descriptor full name), the description comes from a provider of Great.Parts.Cel.Protobuf.
+message Parcel {
+  int32 weight = 1;
+  string label = 2;
+}

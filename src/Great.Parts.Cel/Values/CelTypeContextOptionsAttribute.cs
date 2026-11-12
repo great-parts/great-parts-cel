@@ -32,7 +32,7 @@ public sealed class CelTypeContextOptionsAttribute : Attribute
     /// </summary>
     public CelTypeContextOptionsAttribute()
     {
-        throw new NotImplementedException();
+        NamingPolicy = CelNamingPolicy.CamelCase;
     }
 
     /// <summary>
@@ -40,11 +40,7 @@ public sealed class CelTypeContextOptionsAttribute : Attribute
     /// default is <see cref="CelNamingPolicy.CamelCase"/>, so the member <c>TotalAmount</c> is the field
     /// <c>totalAmount</c>.
     /// </summary>
-    public CelNamingPolicy NamingPolicy
-    {
-        get => throw new NotImplementedException();
-        set => throw new NotImplementedException();
-    }
+    public CelNamingPolicy NamingPolicy { get; set; }
 
     /// <summary>
     /// When <see langword="true"/>, the generator does not take <c>[JsonPropertyName]</c> and
@@ -56,9 +52,5 @@ public sealed class CelTypeContextOptionsAttribute : Attribute
     /// generator recognizes the attributes by their full type names, so the context needs no reference to
     /// a JSON package.
     /// </remarks>
-    public bool IgnoreJsonAttributes
-    {
-        get => throw new NotImplementedException();
-        set => throw new NotImplementedException();
-    }
+    public bool IgnoreJsonAttributes { get; set; }
 }

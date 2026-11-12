@@ -19,6 +19,7 @@ namespace Great.Parts.Cel.Eng.Tests.Checks;
 public sealed class RepositoryTests
 {
     private const string Unicode = "src/Great.Parts.Cel/Library/Unicode/";
+    private const string Snapshots = "tests/Great.Parts.Cel.Generator.Tests/Snapshots/";
 
     // ---- Root ----
 
@@ -629,12 +630,23 @@ public sealed class RepositoryTests
     [Fact]
     public void Generated_AllowedDirectory_IsAConstantOfTheCommand()
     {
-        Assert.Equal([Unicode], GeneratedCode.AllowedDirectories);
+        Assert.Equal([Unicode, Snapshots], GeneratedCode.AllowedDirectories);
         Assert.True(GeneratedCode.IsInAllowedDirectory(Unicode + "Tables.g.cs"));
         Assert.True(GeneratedCode.IsInAllowedDirectory(Unicode + "deep/Tables.g.cs"));
         Assert.False(GeneratedCode.IsInAllowedDirectory("src/Great.Parts.Cel/Library/UnicodeOther/Tables.g.cs"));
         Assert.False(GeneratedCode.IsInAllowedDirectory("src/Great.Parts.Cel/Library/Tables.g.cs"));
         Assert.False(GeneratedCode.IsInAllowedDirectory("tests/" + Unicode + "Tables.g.cs"));
+    }
+
+    [Fact]
+    public void Generated_DirectoryOfSnapshots_IsAllowedAndNoOtherDirectoryOfTheTestsIs()
+    {
+        Assert.True(GeneratedCode.IsInAllowedDirectory(Snapshots + "Smallest.g.cs"));
+        Assert.True(GeneratedCode.IsInAllowedDirectory(Snapshots + "deep/Smallest.g.cs"));
+        Assert.False(GeneratedCode.IsInAllowedDirectory("tests/Great.Parts.Cel.Generator.Tests/SnapshotsOther/Smallest.g.cs"));
+        Assert.False(GeneratedCode.IsInAllowedDirectory("tests/Great.Parts.Cel.Generator.Tests/Smallest.g.cs"));
+        Assert.False(GeneratedCode.IsInAllowedDirectory("tests/Great.Parts.Cel.Generator.Samples/Snapshots/Smallest.g.cs"));
+        Assert.False(GeneratedCode.IsInAllowedDirectory("tests/Great.Parts.Cel.Tests/Snapshots/Smallest.g.cs"));
     }
 
     [Fact]

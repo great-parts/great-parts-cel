@@ -149,6 +149,7 @@ internal sealed class DeclarationChecks
         var byName = new Dictionary<string, List<TypeDeclaration>>(StringComparer.Ordinal);
         var byClrType = new Dictionary<Type, List<TypeDeclaration>>();
         List<TypeDeclaration> objectTypes = CollectTypes(byName, byClrType);
+        Dictionary<CelObjectType, CelObjectType>? aliases = MergeSharedTypes(objectTypes, byName, byClrType);
         string library = StandardLibrarySource;
         foreach ((string name, List<TypeDeclaration> declarations) in byName)
         {
@@ -181,7 +182,137 @@ internal sealed class DeclarationChecks
             AddDuplicateTypes(clrType.ToString(), declarations);
         }
 
-        return Index(objectTypes, byName);
+        return Index(objectTypes, byName, aliases);
+    }
+
+    // Types that two generated contexts share ("Types that two generated contexts share"): descriptions of one .NET type, or
+    // enumerations of one name, from two or more sources that are all type contexts and whose descriptions have equal form are
+    // one declaration, not DuplicateType. The description of the source with the smaller text, ordinal, stays, and the others
+    // are dropped from the lists, so the environment does not depend on the order of the calls; each dropped object description
+    // is returned as an alias of the one that stays, since the created code of its context still names it. Descriptions that
+    // differ, a description of a source that is no context, and two descriptions of one source are left for the duplicate
+    // checks. Null when nothing was dropped.
+    private static Dictionary<CelObjectType, CelObjectType>? MergeSharedTypes(
+        List<TypeDeclaration> objectTypes,
+        Dictionary<string, List<TypeDeclaration>> byName,
+        Dictionary<Type, List<TypeDeclaration>> byClrType)
+    {
+        Dictionary<CelObjectType, CelObjectType>? aliases = null;
+        HashSet<TypeDeclaration>? dropped = null;
+        foreach (List<TypeDeclaration> declarations in byClrType.Values)
+        {
+            if (declarations.Count < 2 || !AreOneSharedType(declarations))
+            {
+                continue;
+            }
+
+            declarations.Sort(TypeDeclaration.Compare);
+            var kept = (CelObjectType)declarations[0].Description;
+            aliases ??= new Dictionary<CelObjectType, CelObjectType>(ReferenceEqualityComparer.Instance);
+            dropped ??= new HashSet<TypeDeclaration>(ReferenceEqualityComparer.Instance);
+            for (int i = 1; i < declarations.Count; i++)
+            {
+                aliases.Add((CelObjectType)declarations[i].Description, kept);
+                dropped.Add(declarations[i]);
+            }
+
+            declarations.RemoveRange(1, declarations.Count - 1);
+        }
+
+        if (dropped is not null)
+        {
+            objectTypes.RemoveAll(dropped.Contains);
+            foreach (TypeDeclaration declaration in dropped)
+            {
+                byName[((CelObjectType)declaration.Description).Name].Remove(declaration);
+            }
+        }
+
+        foreach (List<TypeDeclaration> declarations in byName.Values)
+        {
+            if (declarations.Count >= 2 && AreOneSharedEnumeration(declarations))
+            {
+                declarations.Sort(TypeDeclaration.Compare);
+                declarations.RemoveRange(1, declarations.Count - 1);
+            }
+        }
+
+        return aliases;
+    }
+
+    // Descriptions of one .NET type, each of a different source that is a type context, of equal form: the same name, the same
+    // number of fields and, field by field, the same name and an equal CEL type. The reasons of excluded members are no part
+    // of the form.
+    private static bool AreOneSharedType(List<TypeDeclaration> declarations)
+    {
+        if (declarations[0].Description is not CelObjectType first || !AreFromDistinctContexts(declarations))
+        {
+            return false;
+        }
+
+        for (int i = 1; i < declarations.Count; i++)
+        {
+            if (declarations[i].Description is not CelObjectType other
+                || !string.Equals(first.Name, other.Name, StringComparison.Ordinal)
+                || first.Fields.Length != other.Fields.Length)
+            {
+                return false;
+            }
+
+            for (int number = 0; number < first.Fields.Length; number++)
+            {
+                if (!string.Equals(first.Fields[number].Name, other.Fields[number].Name, StringComparison.Ordinal)
+                    || !first.Fields[number].Type.Equals(other.Fields[number].Type))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // Enumerations of one name, each of a different source that is a type context, with the same constants in the same order.
+    private static bool AreOneSharedEnumeration(List<TypeDeclaration> declarations)
+    {
+        if (declarations[0].Description is not CelEnumType first || !AreFromDistinctContexts(declarations))
+        {
+            return false;
+        }
+
+        for (int i = 1; i < declarations.Count; i++)
+        {
+            if (declarations[i].Description is not CelEnumType other || first.Constants.Length != other.Constants.Length)
+            {
+                return false;
+            }
+
+            for (int constant = 0; constant < first.Constants.Length; constant++)
+            {
+                if (!string.Equals(first.Constants[constant].Key, other.Constants[constant].Key, StringComparison.Ordinal)
+                    || first.Constants[constant].Value != other.Constants[constant].Value)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    // Every declaration is of a type context, and no two are of one source.
+    private static bool AreFromDistinctContexts(List<TypeDeclaration> declarations)
+    {
+        var sources = new HashSet<TypeSource>(ReferenceEqualityComparer.Instance);
+        foreach (TypeDeclaration declaration in declarations)
+        {
+            if (declaration.Source.Provider is not CelTypeContext || !sources.Add(declaration.Source))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // The distinct descriptions of the type sources, in the order of the sources, by name and by .NET type; the object
@@ -342,7 +473,10 @@ internal sealed class DeclarationChecks
     }
 
     // The type index of the descriptions, after the checks of the types of their fields.
-    private TypeIndex Index(List<TypeDeclaration> objectTypes, Dictionary<string, List<TypeDeclaration>> byName)
+    private TypeIndex Index(
+        List<TypeDeclaration> objectTypes,
+        Dictionary<string, List<TypeDeclaration>> byName,
+        Dictionary<CelObjectType, CelObjectType>? aliases)
     {
         var index = new Dictionary<string, CelObjectType>(StringComparer.Ordinal);
         var enumConstants = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -369,7 +503,7 @@ internal sealed class DeclarationChecks
             }
         }
 
-        return new TypeIndex(index, enumConstants, describedClrTypes);
+        return new TypeIndex(index, enumConstants, describedClrTypes, aliases);
     }
 
     // Descriptions of one name or one .NET type: the first in the order of sources against each other one.

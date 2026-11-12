@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Valid types and the type contexts that describe them (docs/design/generator.md, "Test projects"). The source generator runs on
+    them as an analyzer, so the created code is built with the strict settings of the repository, and the AOT publication of
+    Great.Parts.Cel.Tests takes the library with it. No tests: the other test projects read the types.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel.Generator.Samples</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- Trimming and Native AOT analyzers: IL2xxx and IL3xxx on the created code are build errors. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- The types of the samples have no XML documentation. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <!-- The created code needs Google.Protobuf only; Great.Parts.Cel.Protobuf is not referenced (the tests bring the provider). -->
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <!-- Build-time tool only: it compiles the .proto file of the samples; it is not a dependency. -->
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <!-- The generator runs in the compiler of this project as an analyzer and is not a reference of the assembly. -->
+    <ProjectReference Include="../../src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- Banned APIs: every use in the created code is RS0030. -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../eng/BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+
+  <!--
+    The messages of the samples: a small file of its own (package great_parts.samples), so the C# types are never those of the compiled
+    test messages of the other test projects. No gRPC services. The item is a pattern: the file is written with the samples, and a
+    build without it has no message to compile.
+  -->
+  <ItemGroup>
+    <Protobuf Include="Protos/*.proto" ProtoRoot="Protos" GrpcServices="None" />
+  </ItemGroup>
+
+</Project>

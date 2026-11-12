@@ -130,6 +130,13 @@
       "great.parts.cel": {
         "type": "Project"
       },
+      "great.parts.cel.generator.samples": {
+        "type": "Project",
+        "dependencies": {
+          "Google.Protobuf": "[3.36.2, )",
+          "Great.Parts.Cel": "[0.0.0-dev, )"
+        }
+      },
       "great.parts.cel.protobuf": {
         "type": "Project",
         "dependencies": {
@@ -266,6 +273,13 @@
       },
       "great.parts.cel": {
         "type": "Project"
+      },
+      "great.parts.cel.generator.samples": {
+        "type": "Project",
+        "dependencies": {
+          "Google.Protobuf": "[3.36.2, )",
+          "Great.Parts.Cel": "[0.0.0-dev, )"
+        }
       },
       "great.parts.cel.protobuf": {
         "type": "Project",

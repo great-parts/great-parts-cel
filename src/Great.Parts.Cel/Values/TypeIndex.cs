@@ -6,7 +6,8 @@ using System.Diagnostics.CodeAnalysis;
 namespace Great.Parts.Cel.Values;
 
 // The type index of an environment: the object types of its type sources by full CEL name, the constants of their
-// enumeration types by full name, and the descriptions that have a .NET type by that type. Its keys come from the
+// enumeration types by full name, the descriptions that have a .NET type by that type, and the aliases: each description
+// that was dropped as equal to another, by reference, with the description that stays. Its keys come from the
 // declarations of the environment, never from an expression or from data; names of an expression are only looked
 // up, also as spans. Build creates it after the checks, so names and .NET types are unique in it.
 internal sealed class TypeIndex
@@ -22,17 +23,28 @@ internal sealed class TypeIndex
     private readonly FrozenDictionary<string, long>.AlternateLookup<ReadOnlySpan<char>> _enumConstantsBySpan;
     private readonly FrozenDictionary<Type, CelObjectType> _byClrType;
 
+    // The dropped descriptions by reference; empty when nothing was dropped, as in an environment of one context.
+    private readonly FrozenDictionary<CelObjectType, CelObjectType> _aliases;
+
     internal TypeIndex(
         Dictionary<string, CelObjectType> objectTypes,
         Dictionary<string, long> enumConstants,
-        Dictionary<Type, CelObjectType> byClrType)
+        Dictionary<Type, CelObjectType> byClrType,
+        Dictionary<CelObjectType, CelObjectType>? aliases = null)
     {
         _objectTypes = objectTypes.ToFrozenDictionary(StringComparer.Ordinal);
         _objectTypesBySpan = _objectTypes.GetAlternateLookup<ReadOnlySpan<char>>();
         _enumConstants = enumConstants.ToFrozenDictionary(StringComparer.Ordinal);
         _enumConstantsBySpan = _enumConstants.GetAlternateLookup<ReadOnlySpan<char>>();
         _byClrType = byClrType.ToFrozenDictionary();
+        IEqualityComparer<CelObjectType> byReference = ReferenceEqualityComparer.Instance;
+        _aliases = (aliases ?? new Dictionary<CelObjectType, CelObjectType>()).ToFrozenDictionary(byReference);
     }
+
+    // The description that stays for a description that the index dropped as equal to it ("Types that two generated
+    // contexts share"); any other description is its own. One count test when nothing was dropped.
+    internal CelObjectType Resolve(CelObjectType description) =>
+        _aliases.Count != 0 && _aliases.TryGetValue(description, out CelObjectType? kept) ? kept : description;
 
 #if NET11_0_OR_GREATER
     private TypeIndex(TypeIndex other, bool decimalDeclared)
@@ -42,6 +54,7 @@ internal sealed class TypeIndex
         _enumConstants = other._enumConstants;
         _enumConstantsBySpan = other._enumConstantsBySpan;
         _byClrType = other._byClrType;
+        _aliases = other._aliases;
         DecimalDeclared = decimalDeclared;
     }
 

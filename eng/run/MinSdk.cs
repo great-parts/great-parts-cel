@@ -24,6 +24,10 @@ internal static class MinSdk
     private const string GeneratorAssembly = "analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll";
     private const string GeneratorType = "Great.Parts.Cel.Generator.CelTypeContextGenerator";
 
+    // The file that the generator creates for the type context of Program.cs, and the line that shows the context was created in it.
+    private const string CreatedFile = "SampleContext.g.cs";
+    private const string CreatedLine = "partial class SampleContext";
+
     /// <summary>The steps of the command, in order. A failed step of the first three stops the command, as the next steps need its result.</summary>
     internal static IReadOnlyList<Step> Steps { get; } =
     [
@@ -71,6 +75,8 @@ internal static class MinSdk
                 "--artifacts-path",
                 Path.Combine(output, "build"),
                 "-p:ReportAnalyzer=true",
+                "-p:EmitCompilerGeneratedFiles=true",
+                $"-p:CompilerGeneratedFilesOutputPath={Path.Combine(output, "generated")}",
                 $"-flp:LogFile={Path.Combine(output, "build.log")};Verbosity=diagnostic",
             ],
             Project,
@@ -99,7 +105,34 @@ internal static class MinSdk
             return "evidence: generator not in project.assets.json";
         }
 
-        return PrintMatches(Path.Combine(Output, "build.log"), GeneratorType) ? null : "evidence: generator not in the analyzer report";
+        if (!PrintMatches(Path.Combine(Output, "build.log"), GeneratorType))
+        {
+            return "evidence: generator not in the analyzer report";
+        }
+
+        return CreatedFileInTheBuild() ? null : "evidence: created file not in the build";
+    }
+
+    // The file that went into the assembly: the compiler writes the files that generators create under the directory of
+    // CompilerGeneratedFilesOutputPath, in a directory named for the generator. A build that created no file has no such file, and the
+    // text of the file shows it is the context of the application and not another file of that name.
+    private static bool CreatedFileInTheBuild()
+    {
+        string directory = Path.Combine(Output, "generated");
+        if (!Directory.Exists(directory))
+        {
+            return false;
+        }
+
+        foreach (string file in Directory.EnumerateFiles(directory, CreatedFile, SearchOption.AllDirectories))
+        {
+            if (PrintMatches(file, CreatedLine))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool HasSummaryLine(string output, string text) =>

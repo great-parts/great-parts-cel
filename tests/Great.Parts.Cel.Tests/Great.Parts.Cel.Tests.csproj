@@ -63,6 +63,8 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
     <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
+    <!-- The types of the generator samples and their type contexts; the Native AOT publication takes the library with it (docs/design/generator.md, "Test projects"). -->
+    <ProjectReference Include="../Great.Parts.Cel.Generator.Samples/Great.Parts.Cel.Generator.Samples.csproj" />
   </ItemGroup>
 
   <!--

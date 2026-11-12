@@ -21,13 +21,15 @@ public sealed class CelNameAttribute : Attribute
     /// The field name: an identifier. A reserved word of CEL is allowed; an expression writes it in
     /// backquotes, such as <c>order.`in`</c>.
     /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> is <see langword="null"/>.</exception>
     public CelNameAttribute(string name)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(name);
+        Name = name;
     }
 
     /// <summary>
     /// The field name expressions use for the member.
     /// </summary>
-    public string Name => throw new NotImplementedException();
+    public string Name { get; }
 }

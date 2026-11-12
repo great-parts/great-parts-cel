@@ -15,6 +15,8 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj" />
+    <Project Path="tests/Great.Parts.Cel.Generator.Samples/Great.Parts.Cel.Generator.Samples.csproj" />
+    <Project Path="tests/Great.Parts.Cel.Generator.Tests/Great.Parts.Cel.Generator.Tests.csproj" />
     <Project Path="tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj" />
     <Project Path="tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj" />
   </Folder>

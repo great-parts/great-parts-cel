@@ -42,13 +42,6 @@ dotnet_diagnostic.CA1506.severity = error
 # object types; the names are the terms of the CEL language, not .NET type names.
 dotnet_diagnostic.CA1720.severity = none
 
-[src/Great.Parts.Cel/{Values/CelNameAttribute.cs,Values/CelObjectAttribute.cs,Values/CelTypeContextOptionsAttribute.cs}]
-# Skeleton of the public API: in these files bodies of members that CA1065 covers — property getters,
-# equality members, hash codes and ToString — still throw NotImplementedException until the increments
-# that implement them. Remove a file from the list when its bodies are implemented, and the section with
-# the last one.
-dotnet_diagnostic.CA1065.severity = none
-
 [tests/Great.Parts.Cel.Tests/Examples/Configuration/{EnvironmentJsonExtensionTests,EnvironmentJsonFormatTests,EnvironmentJsonFunctionTests,EnvironmentJsonObjectTypeTests,EnvironmentJsonTopLevelTests,EnvironmentJsonUnsupportedKeyTests,EnvironmentJsonVariableTests,JsonExample,TypeRecordTests}.cs]
 # These examples came from the specification without a build against the analyzers, and they are not changed in the repository.
 # Remove a line when the examples no longer break its rule, and the section with the last one.
@@ -62,6 +55,51 @@ dotnet_diagnostic.CA1307.severity = none
 dotnet_diagnostic.CA1062.severity = none
 # An unused using directive.
 dotnet_diagnostic.IDE0005.severity = none
+
+[tests/Great.Parts.Cel.Generator.Samples/*.cs]
+# The sample types are plain data holders with public setters and collection properties, the shapes that a type context describes
+# and that the library reads (docs/design/generator.md, "Test projects"); the analyzers of the design of public types do not apply.
+# Remove a line when the samples no longer break its rule, and the section with the last one.
+# A collection property with a public setter.
+dotnet_diagnostic.CA2227.severity = none
+# A public List<T> in a signature.
+dotnet_diagnostic.CA1002.severity = none
+# A parameter or a member named after a type (In, As, Int64, Double): the names are the field names of the CEL rows.
+dotnet_diagnostic.CA1720.severity = none
+# A public structure without equality members.
+dotnet_diagnostic.CA1815.severity = none
+# An array as a property.
+dotnet_diagnostic.CA1819.severity = none
+# A type named after a namespace of the framework (Collections, Permissions).
+dotnet_diagnostic.CA1724.severity = none
+# A public nested type: the sample of a nested type of the type mapping.
+dotnet_diagnostic.CA1034.severity = none
+# An enumeration over ulong: the sample of a constant above long.MaxValue.
+dotnet_diagnostic.CA1028.severity = none
+# An enumeration without a member of value zero.
+dotnet_diagnostic.CA1008.severity = none
+
+[tests/Great.Parts.Cel.Generator.Tests/Examples/**.cs]
+# These examples came from the specification without a build against the analyzers, and they are not changed in the repository.
+# Remove a line when the examples no longer break its rule, and the section with the last one.
+# Test methods that read no instance data.
+dotnet_diagnostic.CA1822.severity = none
+# An overload that takes no format provider (Diagnostic.GetMessage, string.Format).
+dotnet_diagnostic.CA1305.severity = none
+# A parameter of a test method that is not checked for null.
+dotnet_diagnostic.CA1062.severity = none
+# A call that takes a cancellation token without TestContext.Current.CancellationToken.
+dotnet_diagnostic.xUnit1051.severity = none
+
+[tests/Great.Parts.Cel.Tests/Examples/Generated/*.cs]
+# These examples came from the specification without a build against the analyzers, and they are not changed in the repository.
+# Remove a line when the examples no longer break its rule, and the section with the last one.
+# Test methods that read no instance data.
+dotnet_diagnostic.CA1822.severity = none
+# Count() of an array.
+dotnet_diagnostic.CA1829.severity = none
+# JsonDocument.Parse(...).RootElement instead of JsonElement.Parse.
+dotnet_diagnostic.CA2026.severity = none
 
 [*.{csproj,props,targets,slnx,config,json,xml}]
 indent_style = space

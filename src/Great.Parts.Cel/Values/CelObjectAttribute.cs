@@ -26,31 +26,29 @@ public sealed class CelObjectAttribute : Attribute
     /// Lists <paramref name="type"/> as readable by expressions.
     /// </summary>
     /// <param name="type">A closed .NET type that the assembly of the context can see.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="type"/> is <see langword="null"/>.</exception>
     public CelObjectAttribute(Type type)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(type);
+        Type = type;
     }
 
     /// <summary>
     /// The listed .NET type.
     /// </summary>
-    public Type Type => throw new NotImplementedException();
+    public Type Type { get; }
 
     /// <summary>
     /// The full CEL name of the type, identifiers separated by dots; <see langword="null"/> for the default.
     /// </summary>
     /// <remarks>
     /// The default is the full .NET name of the type with the <c>+</c> of a nested type replaced by a dot,
-    /// such as <c>Acme.Sales.Order</c>. A closed generic type gets a name such as
-    /// <c>Acme.Page&lt;Acme.Order&gt;</c> by default: its values can be read, but an expression cannot write
-    /// that name, so set a name when an expression needs one. Names of fields and enumeration constants are
-    /// not affected.
+    /// such as <c>Acme.Sales.Order</c>. A closed generic type gets its definition name followed by <c>_</c> and
+    /// the default names of its type arguments joined by <c>_</c>, each with its dots replaced by <c>_</c>:
+    /// <c>Acme.Page&lt;Acme.Order&gt;</c> is <c>Acme.Page_Acme_Order</c>. Set a name when another one reads
+    /// better in an expression. Names of fields and enumeration constants are not affected.
     /// </remarks>
-    public string? Name
-    {
-        get => throw new NotImplementedException();
-        set => throw new NotImplementedException();
-    }
+    public string? Name { get; set; }
 
     /// <summary>
     /// The names of members of the type, as written in C#, that expressions must not see; for a type of
@@ -64,9 +62,5 @@ public sealed class CelObjectAttribute : Attribute
         "Performance",
         "CA1819:Properties should not return arrays",
         Justification = "A named argument of an attribute can only be an array.")]
-    public string[]? IgnoreMembers
-    {
-        get => throw new NotImplementedException();
-        set => throw new NotImplementedException();
-    }
+    public string[]? IgnoreMembers { get; set; }
 }
