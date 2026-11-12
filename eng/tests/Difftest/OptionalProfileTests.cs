@@ -475,7 +475,6 @@ public sealed class OptionalProfileTests
         forms["[?e, f]"] = node => node is ListLiteral list && list.OptionalPositions.Count > 0 && list.OptionalPositions.Count < list.Elements.Count;
         forms["{?k: v}"] = node => node is MapLiteral map && map.Entries.Any(entry => entry.Optional);
         forms["{?k: v, k2: v2}"] = node => node is MapLiteral map && map.Entries.Any(entry => entry.Optional) && map.Entries.Any(entry => !entry.Optional);
-        forms["has(e.?a.b)"] = node => node is PresenceTest test && ProfileTables.IsOptional(test.Operand);
         forms["has({'k': o}.k.f)"] = node => node is PresenceTest { Operand: Select { Operand: MapLiteral } };
     }
 

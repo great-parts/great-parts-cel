@@ -37,9 +37,6 @@ internal sealed partial class ExprBuilder
     // The probability that the value() of an empty optional is built: one in this.
     private const int EmptyValueOneIn = 10;
 
-    // The probability that a presence test is the shape that has an optional as the value of an entry of a map literal: one in this.
-    private const int EntryPresenceOneIn = 20;
-
     private static Built OptionalBuilt(Expr expr, int nodes, StaticType? held) => new(expr, nodes, StaticType.OptionalOf(held));
 
     // optional.none(): the optional of a free type parameter, which is assignable wherever an optional is.
@@ -52,15 +49,43 @@ internal sealed partial class ExprBuilder
         !constrained || IsNone(optional) || with is { IsDyn: true } || StaticType.Compatible(optional.Type?.Element, with) == Compatibility.Yes;
 
     // The kind of the held value: the given one; else, when it has to be assignable to a known type, that kind half the time; else any.
-    private ProfileType OptionalKind(ProfileType? kind, bool constrained, StaticType? with) =>
-        kind ?? (constrained && with is { IsDyn: false, Kind: var known } && ProfileTables.TargetTypes.Contains(known) && pcg.OneIn(2) ? known : Target());
+    private ProfileType OptionalKind(ProfileType? kind, bool constrained, StaticType? with)
+    {
+        ProfileType drawn = kind ?? (constrained && with is { IsDyn: false, Kind: var known } && ProfileTables.TargetTypes.Contains(known) && pcg.OneIn(2) ? known : Target());
+
+        // An optional of the type type is not built: its type parameter meets the variable of a macro and makes cel-go type it as type.
+        return drawn == ProfileType.TypeType ? ProfileType.IntType : drawn;
+    }
 
     // An optional node at a depth within a budget of nodes, never null: optional.none() where nothing else finds room. The kind is the
     // kind of the held value when it is given; the held type has to be assignable to the type with when constrained is true.
     private Built OptionalOperand(int depth, int budget, ProfileType? kind, bool constrained, StaticType? with) =>
         OptionalNode(depth, budget, kind, constrained, with) ?? OptionalNone();
 
+    // The number of optional nodes being built, which makes Target draw no type of the type type.
+    private int optionalScope;
+
+    // The kind of the elements of a literal with optional positions: any kind but the type type.
+    private ProfileType OptionalTarget()
+    {
+        ProfileType drawn = Target();
+        return drawn == ProfileType.TypeType ? ProfileType.IntType : drawn;
+    }
+
     private Built? OptionalNode(int depth, int limit, ProfileType? kind, bool constrained, StaticType? with)
+    {
+        optionalScope++;
+        try
+        {
+            return BuildOptionalNode(depth, limit, kind, constrained, with);
+        }
+        finally
+        {
+            optionalScope--;
+        }
+    }
+
+    private Built? BuildOptionalNode(int depth, int limit, ProfileType? kind, bool constrained, StaticType? with)
     {
         if (limit < 1)
         {
@@ -310,7 +335,7 @@ internal sealed partial class ExprBuilder
             return null;
         }
 
-        Built index = OptionalIndexValue((list.Expr as ListLiteral)?.Elements.Count, depth + 1, limit - 1 - list.Nodes);
+        Built index = OptionalIndexValue((list.Expr as ListLiteral)?.Elements.Count);
         return OptionalBuilt(
             new Call(ProfileTables.OptionalIndex, [list.Expr, index.Expr]) { Overload = "list_optindex_optional_int" },
             1 + list.Nodes + index.Nodes,
@@ -332,13 +357,13 @@ internal sealed partial class ExprBuilder
         if (limit >= 5 && depth + 2 <= ProfileTables.MaxDepth && pcg.OneIn(2))
         {
             (map, held) = ValueMap(kind, null, depth + 1, limit - 2);
-            key = Key((MapLiteral)map.Expr, map.Type, depth + 1, limit - 1 - map.Nodes);
+            key = OptionalKey((MapLiteral)map.Expr, map.Type, depth + 1, limit - 1 - map.Nodes);
         }
         else if (CollectionVariableFor(ProfileType.MapType, kind) is { } variable)
         {
             map = VariableNode(variable);
             held = ElementOf(variable);
-            key = Key(null, variable.Declared, depth + 1, limit - 1 - map.Nodes);
+            key = OptionalKey(null, variable.Declared, depth + 1, limit - 1 - map.Nodes);
         }
         else
         {
@@ -453,9 +478,17 @@ internal sealed partial class ExprBuilder
         bool optionalIndex = pcg.OneIn(2);
         Built inner = OptionalOperand(depth + 1, limit - 2, list ? ProfileType.ListType : ProfileType.MapType, false, null);
         StaticType? container = inner.Type?.Element;
+
+        // The operand has to be an optional of a list or a map by its type: an optional of dyn, such as optional.of(x1), holds any kind at
+        // run time, and the library gives the error no such overload for an index where cel-go gives none.
+        if (container is not { IsDyn: false, Kind: ProfileType.ListType or ProfileType.MapType })
+        {
+            return null;
+        }
+
         Built index = list
-            ? OptionalIndexValue(null, depth + 1, limit - 1 - inner.Nodes)
-            : Key(null, container, depth + 1, limit - 1 - inner.Nodes);
+            ? OptionalIndexValue(null)
+            : OptionalKey(null, container, depth + 1, limit - 1 - inner.Nodes);
         StaticType? held = container is { IsDyn: true } ? StaticType.Dyn : list ? container?.Element : container?.Value;
         string id = list
             ? (optionalIndex ? "optional_list_optindex_optional_int" : "optional_list_index_int")
@@ -467,16 +500,53 @@ internal sealed partial class ExprBuilder
     }
 
     // An int index: -1, 0, 1, the size, the size + 1 or 100, where the size of a literal is its number of elements and otherwise 2; one
-    // time in six an int node.
-    private Built OptionalIndexValue(int? length, int depth, int budget)
+    // time in six a variable of the type int. No node of the type dyn stands here: its value may be a uint or a double, which the
+    // index of an optional does not take, or any other kind, and cel-go gives none where the library gives an error.
+    private Built OptionalIndexValue(int? length)
     {
-        if (pcg.OneIn(6))
+        // The variable of a wrapper holds null now and then, which is no int.
+        List<ProfileVariable> ints = [.. ProfileTables.Variables.Where(variable => variable.Type == ProfileType.IntType && !variable.Wrapper)];
+        if (pcg.OneIn(6) && ints.Count > 0)
         {
-            return Make(ProfileType.IntType, depth, budget);
+            return VariableNode(pcg.Pick(ints));
         }
 
         long size = length ?? 2;
         return new Built(new IntLiteral(pcg.Pick<long>([-1, 0, 1, size, size + 1, 100]), IntegerForm.DecimalDigits), 1, Of(ProfileType.IntType));
+    }
+
+    // The key of an index of a map by an optional: half the time an equal copy of a key of the map literal, otherwise a literal of an
+    // int, a uint, a bool or a string, or one time in six a double, which the lookup across the numeric kinds finds. No dyn variable and no
+    // other node of the type dyn stands here: it holds bytes, a list, a map, null or a type, which cel-go refuses with 'invalid qualifier
+    // type' where the library gives none. dyn() of a literal of a kind that a map may hold is built, and both sides answer it alike.
+    private Built OptionalKey(MapLiteral? map, StaticType? mapType, int depth, int budget)
+    {
+        if (map is { Entries.Count: > 0 } && pcg.OneIn(2))
+        {
+            Expr copy = pcg.Pick(map.Entries).Key with { Parenthesized = false };
+            if (StaticType.Compatible(StaticType.Of(KeyKind(copy)), mapType?.Key) == Compatibility.Yes)
+            {
+                return new Built(copy, 1, StaticType.Of(KeyKind(copy)));
+            }
+        }
+
+        // A literal of another kind than the keys of the map stands in dyn(), as in every index of a map: the type check refuses it
+        // otherwise, and its value is of a kind that a map may hold, which the lookup of both sides answers alike.
+        ProfileType kind = pcg.OneIn(6) ? ProfileType.DoubleType : pcg.Pick(ProfileTables.KeyTypes);
+        Built literal = new(Literal(kind), 1, Of(kind));
+        if (StaticType.Compatible(literal.Type, mapType?.Key) == Compatibility.Yes)
+        {
+            return literal;
+        }
+
+        if (depth < ProfileTables.MaxDepth && budget >= 2)
+        {
+            return Wrap(literal);
+        }
+
+        // No room for dyn(): a literal of the kind of the keys.
+        ProfileType keyKind = mapType?.Key is { IsDyn: false, Kind: var known } && ProfileTables.KeyTypes.Contains(known) ? known : ProfileType.IntType;
+        return new Built(Literal(keyKind), 1, Of(keyKind));
     }
 
     // A list or a map variable of the manifest whose elements or values fit the kind, or null when there is none.
@@ -510,7 +580,13 @@ internal sealed partial class ExprBuilder
     // expression fails on both sides at evaluation.
     private Built? OptValue(ProfileType target, int depth, int limit)
     {
+        if (target == ProfileType.TypeType)
+        {
+            return null;
+        }
+
         bool empty = pcg.OneIn(EmptyValueOneIn);
+        bool freeType = false;
         StaticType? held = null;
         Built? call = ExtCall(
             "value", true, "optional_value", null, depth, limit,
@@ -518,9 +594,13 @@ internal sealed partial class ExprBuilder
             {
                 Built optional = empty ? EmptyOptional(target, d, b) : OptionalOperand(d, b, target, false, null);
                 held = optional.Type?.Element;
+                freeType = IsNone(optional);
                 return optional;
             });
-        if (call is not { } built)
+
+        // optional.none().value() has a free type parameter as its type, which the checker of cel-go binds to the first overload that a
+        // method on it has, so a case with one is no case of the profile.
+        if (freeType || call is not { } built)
         {
             return null;
         }
@@ -532,6 +612,13 @@ internal sealed partial class ExprBuilder
     // o.orValue(y) of the kind of the target: y is a node of that kind assignable to the held type.
     private Built? OptOrValue(ProfileType target, int depth, int limit)
     {
+        // A node of the type type as the argument gives the type parameter of the optional to the checker of cel-go, which then types the
+        // variable of a macro in the receiver as type and fails to plan it; the profile builds no such node.
+        if (target == ProfileType.TypeType)
+        {
+            return null;
+        }
+
         StaticType? held = null;
         Built? call = ExtCall(
             "orValue", true, "optional_orValue_value", null, depth, limit,
@@ -587,35 +674,22 @@ internal sealed partial class ExprBuilder
     private Built? OptTypeOf(int depth, int limit) =>
         ExtCall(ProfileTables.TypeOf, false, null, Of(ProfileType.TypeType), depth, limit, (d, b) => OptionalOperand(d, b, null, false, null));
 
-    // has(x.?a.f) on a dyn variable; and, one time in twenty, has({'k': o}.k.f): the operand of the presence test is the optional that is
-    // the value of an entry of a map literal. has(e.?a) is not built: the parser reads e.?a as a call, not a selection.
+    // has({'k': o}.k.f): the operand of the presence test is the optional that is the value of an entry of a map literal, the form of the
+    // known signature of the registry. has(e.?a.f) is not built, on a variable or on any other optional node: cel-go gives an optional
+    // there, none or with a value, where its checker says bool, which the oracle cannot return (CI, the runs on the push of the set
+    // optional), and has(e.?a) is not built either: the parser reads e.?a as a call, not a selection.
     private Built? OptPresence(int depth, int limit)
     {
-        string field = pcg.Pick(ProfileTables.FieldNames);
-        if (pcg.OneIn(EntryPresenceOneIn))
-        {
-            if (limit < 5 || depth + 3 > ProfileTables.MaxDepth)
-            {
-                return null;
-            }
-
-            string key = pcg.Pick(ProfileTables.FieldNames);
-            Built value = OptionalOperand(depth + 3, limit - 4, ProfileType.MapType, false, null);
-            MapLiteral map = new([new MapEntry(StringLiteral(key), value.Expr)], TrailingComma());
-            return new Built(new PresenceTest(new Select(map, key), field), 4 + value.Nodes, Of(ProfileType.BoolType));
-        }
-
-        if (limit < 3 || depth + 2 > ProfileTables.MaxDepth)
+        if (limit < 5 || depth + 3 > ProfileTables.MaxDepth)
         {
             return null;
         }
 
-        // The operand is an optional selection on a variable, as in has(m.?x.y): the path of cel-go for an attribute of a variable. An
-        // operand that is another optional node, such as e.?a.or(z), takes the path of an attribute of a call, and the CI run on the push of
-        // the set optional found cel-go giving an optional there where the checker says bool, which the oracle cannot return.
-        Built root = VariableNamed(pcg.OneIn(2) ? "x1" : "x2");
-        Select operand = new(root.Expr, pcg.Pick(ProfileTables.FieldNames)) { Optional = true };
-        return new Built(new PresenceTest(operand, field), 3, Of(ProfileType.BoolType));
+        string field = pcg.Pick(ProfileTables.FieldNames);
+        string key = pcg.Pick(ProfileTables.FieldNames);
+        Built value = OptionalOperand(depth + 3, limit - 4, ProfileType.MapType, false, null);
+        MapLiteral map = new([new MapEntry(StringLiteral(key), value.Expr)], TrailingComma());
+        return new Built(new PresenceTest(new Select(map, key), field), 4 + value.Nodes, Of(ProfileType.BoolType));
     }
 
     // optional.unwrap([…]) and [...].unwrapOpt() on a literal of 0 to 3 optional nodes.
@@ -656,7 +730,7 @@ internal sealed partial class ExprBuilder
             return null;
         }
 
-        ProfileType kind = Target();
+        ProfileType kind = OptionalTarget();
         int count = 1 + pcg.Below(Math.Min(ProfileTables.MaxElements, limit - 1));
         int firstOptional = pcg.Below(count);
         List<Expr> elements = [];
@@ -696,7 +770,7 @@ internal sealed partial class ExprBuilder
             return null;
         }
 
-        ProfileType kind = Target();
+        ProfileType kind = OptionalTarget();
         int count = 1 + pcg.Below(Math.Min(ProfileTables.MaxElements, (limit - 1) / 2));
         int firstOptional = pcg.Below(count);
         HashSet<string> keys = new(StringComparer.Ordinal);

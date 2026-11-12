@@ -135,7 +135,13 @@ internal sealed partial class ExprBuilder
     }
 
     /// <summary>A target type for the root, a list element or a map value: any type of the profile, <c>dyn</c> included.</summary>
-    internal ProfileType Target() => pcg.Pick(WeightedTargets);
+    internal ProfileType Target()
+    {
+        ProfileType drawn = pcg.Pick(WeightedTargets);
+
+        // Under an optional node no element and no value is of the type type, which would reach the variable of a macro of the set optional.
+        return optionalScope > 0 && drawn == ProfileType.TypeType ? ProfileType.IntType : drawn;
+    }
 
     /// <summary>A literal of a type of the profile.</summary>
     /// <param name="type">A scalar type or <c>null_type</c>.</param>
