@@ -266,14 +266,25 @@ func relay(paths layout, session *connection, input *bufio.Reader, manifest stri
 	}()
 	go func() {
 		defer relays.Done()
-		forEachLine(stderr, func(line []byte) { session.writeJSON("log", string(line)) })
+		forEachLine(stderr, func(line []byte) {
+			session.writeJSON("log", string(line))
+			// The log of the container keeps what the oracle said, for a run whose log shows no line of it.
+			fmt.Fprintf(os.Stderr, "oracle: %s\n", line)
+		})
 	}()
 	relays.Wait()
 	err = oracle.Wait()
 	if err != nil && !isExitError(err) {
 		fmt.Fprintf(os.Stderr, "launch: %v\n", err)
 	}
-	return exitCodeOf(err)
+	code := exitCodeOf(err)
+	ended := fmt.Sprintf("launch: the oracle ended with exit code %d", code)
+	if err != nil {
+		ended += fmt.Sprintf(" (%v)", err)
+	}
+	fmt.Fprintln(os.Stderr, ended)
+	session.writeJSON("log", ended)
+	return code
 }
 
 func failStart(session *connection, err error) int {

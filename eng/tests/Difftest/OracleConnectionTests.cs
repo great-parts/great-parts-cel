@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
 using Cel.Expr;
@@ -34,6 +35,9 @@ public sealed class OracleConnectionTests
 
     // An expression in a line or an answer of the oracle that a run with --numbers-only must not quote.
     private const string Secret = "i1 + 9223372036854775807";
+
+    // The quote of an expression in the description of a request: JSON, with the characters of the text as they are.
+    private static readonly JsonSerializerOptions QuotedText = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
 
     private static readonly TimeSpan Limit = TimeSpan.FromSeconds(10);
 
@@ -336,7 +340,7 @@ public sealed class OracleConnectionTests
     }
 
     // An oracle that ends in the middle of a case, as when a result has no cel.expr.Value form: the message names the case by the seed
-    // and the number, which are what reproduces it; --numbers-only keeps the log lines of the oracle and the case out of the output.
+    // and the number, which are what reproduces it; --numbers-only keeps the log lines before the handshake, the steps, out of the output.
     [Fact]
     public void ClosedConnectionInACase_IsExitCode2AndNamesTheCaseBySeedAndNumber()
     {
@@ -351,6 +355,51 @@ public sealed class OracleConnectionTests
         Assert.Empty(output);
         Assert.StartsWith("eng/difftest: case 3 of seed 7: the oracle closed the connection", error, StringComparison.Ordinal);
         Assert.DoesNotContain("no form", error, StringComparison.Ordinal);
+    }
+
+    // The lines the oracle writes after the handshake and the request it was working on are in the message of the closed connection,
+    // also with --numbers-only: the public log of a workflow has no other way to show why the oracle ended. The case is named too.
+    [Fact]
+    public void ClosedConnectionAfterLines_NamesTheLinesOfTheOracleAndTheRequestAlsoWithNumbersOnly()
+    {
+        string[] logs = [Log("panic: runtime error: index out of range [3] with length 3"), Log("goroutine 1 [running]:"), Log("launch: the oracle ended with exit code 2 (exit status 2)")];
+        using FakeOracle fake = new([Log("== go build"), Handshake], answer: null, logsThenClose: logs);
+        using TempDirectory root = Repository();
+
+        (int exitCode, string output, string error) = Run(root, fake.Port, Limit, "--case", "3", "--numbers-only");
+        fake.Join();
+
+        Assert.Equal(2, exitCode);
+        Assert.Empty(output);
+        string expression = JsonSerializer.Serialize(CaseGenerator.Case(7, 3).Text, QuotedText);
+        Assert.StartsWith(
+            "eng/difftest: case 3 of seed 7: the oracle closed the connection before the answer to request 0; the lines of the oracle and the request follow\n"
+            + "  oracle: panic: runtime error: index out of range [3] with length 3\n"
+            + "  oracle: goroutine 1 [running]:\n"
+            + "  oracle: launch: the oracle ended with exit code 2 (exit status 2)\n"
+            + $"  request: eval {expression}",
+            error,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("== go build", error, StringComparison.Ordinal);
+        Assert.Single(fake.Requests);
+    }
+
+    // The lines kept are the first ones: a Go panic says what it is at the top and then lists the goroutines.
+    [Fact]
+    public void ClosedConnectionAfterManyLines_KeepsTheFirstOnesAndCountsTheRest()
+    {
+        string[] logs = [.. Enumerable.Range(0, 70).Select(number => Log($"line {number}"))];
+        using FakeOracle fake = new([Handshake], answer: null, logsThenClose: logs);
+        using TempDirectory root = Repository();
+
+        (int exitCode, _, string error) = Run(root, fake.Port, Limit, "--case", "3", "--numbers-only");
+        fake.Join();
+
+        Assert.Equal(2, exitCode);
+        Assert.Contains("\n  oracle: line 0\n", error, StringComparison.Ordinal);
+        Assert.Contains("\n  oracle: line 59\n", error, StringComparison.Ordinal);
+        Assert.DoesNotContain("line 60", error, StringComparison.Ordinal);
+        Assert.Contains("\n  oracle: and 10 more lines\n  request: eval ", error, StringComparison.Ordinal);
     }
 
     // The answer limit holds for the whole answer: log lines without a pause do not extend it. --numbers-only keeps the log
@@ -626,14 +675,20 @@ public sealed class OracleConnectionTests
         private readonly IReadOnlyList<string> lines;
         private readonly Func<JsonElement, string?>? answer;
         private readonly string? logsAfterRequest;
+        private readonly IReadOnlyList<string>? logsThenClose;
         private readonly List<string> requests = [];
         private string? firstLine;
 
-        internal FakeOracle(IReadOnlyList<string> lines, Func<JsonElement, string?>? answer, string? logsAfterRequest = null)
+        internal FakeOracle(
+            IReadOnlyList<string> lines,
+            Func<JsonElement, string?>? answer,
+            string? logsAfterRequest = null,
+            IReadOnlyList<string>? logsThenClose = null)
         {
             this.lines = lines;
             this.answer = answer;
             this.logsAfterRequest = logsAfterRequest;
+            this.logsThenClose = logsThenClose;
             listener.Start();
             thread = new Thread(Serve) { IsBackground = true };
             thread.Start();
@@ -670,6 +725,18 @@ public sealed class OracleConnectionTests
                 foreach (string line in lines)
                 {
                     writer.WriteLine(line);
+                }
+
+                // An oracle that fails on the first request: it writes its lines and ends, as the launcher closes the connection.
+                if (logsThenClose is not null && reader.ReadLine() is { } failing)
+                {
+                    requests.Add(failing);
+                    foreach (string line in logsThenClose)
+                    {
+                        writer.WriteLine(line);
+                    }
+
+                    return;
                 }
 
                 while (answer is not null && reader.ReadLine() is { } request)

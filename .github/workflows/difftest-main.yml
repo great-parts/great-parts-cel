@@ -2,7 +2,9 @@
 # core of the library against the reference implementation, which no job of ci.yml makes. It runs the command of the container check,
 # eng/difftest, through eng/compose.yaml: the oracle is cel-go in the golang image of the service oracle, so the workflow has no Go setup.
 # The log of this workflow is public: the run has --numbers-only, so no output names a case, and the step summary holds the journal
-# line alone: the seed, the commit, the version of the oracle, the counts and the numbers of the cases of new signatures.
+# line alone: the seed, the commit, the version of the oracle, the counts and the numbers of the cases of new signatures. The one
+# exception is an oracle that ends on a case: the message of exit code 2 then has the expression and its lines, and the log of the
+# oracle container follows it, because without them no cause can be found.
 name: difftest-main
 
 on:
@@ -48,6 +50,17 @@ jobs:
           status=0
           docker compose -f eng/compose.yaml run --rm -T difftest "${arguments[@]}" > "$output" || status=$?
           cat "$output"
+
+          # A run that could not be made, such as an oracle that ended on a case: the state and the log of the oracle container. The
+          # message of eng/difftest above names the case in progress, its expression and bindings, and the lines the oracle wrote;
+          # this log is what the container has of it, the lines of the oracle and the exit code of the launcher.
+          if [ "$status" -ge 2 ]; then
+            echo "--- the oracle container (docker compose ps -a oracle) ---"
+            docker compose -f eng/compose.yaml ps -a oracle || true
+            echo "--- the log of the oracle container (docker compose logs oracle) ---"
+            docker compose -f eng/compose.yaml logs --no-color --tail 400 oracle || true
+            echo "--- end of the log of the oracle container ---"
+          fi
 
           # The journal line is the whole result: no other line goes to the summary.
           journal=$(grep -oE 'difftest seed=[0-9]+ commit=.*' "$output" | tail -n 1 || true)

@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading;
 using Cel.Expr;
@@ -41,7 +42,9 @@ internal sealed record OracleHandshake(string Oracle, string Go)
 /// connection within the limit and no answer within the limit after the handshake throw <see cref="IOException"/>; a line or
 /// an answer that does not read, and a binding whose text does not read back to its value (<see cref="BindingJson"/>), throw
 /// <see cref="SideFailureException"/>, whose message quotes the line or the text only in
-/// <see cref="SideFailureException.QuotedMessage"/>. Both end the run with exit code 2.
+/// <see cref="SideFailureException.QuotedMessage"/>. Both end the run with exit code 2. A connection closed after the handshake says what
+/// the oracle wrote since, its first lines, and the request in progress, the expression and the bindings, in the message itself, also
+/// in a run with <c>--numbers-only</c>.
 /// </summary>
 internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
 {
@@ -65,6 +68,16 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
 
     private static readonly TimeSpan RetryPause = TimeSpan.FromMilliseconds(250);
 
+    // After the handshake the oracle writes a line only when it fails, so the lines it writes from then on are kept, the first ones up to
+    // these limits, for the message of a closed connection: a Go panic starts with its message, and its trace is long.
+    private const int KeptLogLines = 60;
+    private const int KeptLogLength = 10_000;
+
+    // The longest text of a binding in the description of a request.
+    private const int DescribedBindingLength = 400;
+
+    private static readonly JsonSerializerOptions QuoteOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
     // Reads the values of an answer: a value of time is an Any of a message of the two types, which the parser must know.
     private static readonly JsonParser ValueParser = new(JsonParser.Settings.Default.WithTypeRegistry(
         TypeRegistry.FromMessages(Timestamp.Descriptor, Duration.Descriptor)));
@@ -74,6 +87,10 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
     private readonly StreamReader reader;
     private readonly Action<string> log;
     private readonly TimeSpan answerLimit;
+    private readonly List<string> sessionLog = [];
+    private int sessionLogLength;
+    private int sessionLogDropped;
+    private Func<string> describeRequest = static () => "none";
     private long nextId;
 
     private OracleConnection(TcpClient client, TimeSpan answerLimit, Action<string> log)
@@ -162,6 +179,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
     public TimeSpan ZoneOffset(string zone, DateTimeOffset instant)
     {
         long id = nextId++;
+        describeRequest = () => string.Create(CultureInfo.InvariantCulture, $"offset of the zone {zone} at the instant {instant.ToUnixTimeSeconds()}");
         Send(request =>
         {
             request.WriteNumber("id", id);
@@ -293,6 +311,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
     private long Request(string op, string expression, IReadOnlyDictionary<string, Value> bindings, string? name, string? description)
     {
         long id = nextId++;
+        describeRequest = () => Describe(op, expression, bindings);
         Send(request =>
         {
             request.WriteNumber("id", id);
@@ -348,7 +367,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
         }
         catch (IOException exception)
         {
-            throw new IOException("the oracle closed the connection: " + exception.Message, exception);
+            throw new IOException("the oracle closed the connection: " + exception.Message + Details(Handshake.Oracle.Length != 0), exception);
         }
     }
 
@@ -373,12 +392,12 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
             }
             catch (IOException exception)
             {
-                throw new IOException($"the oracle closed the connection before {expected}: {exception.Message}", exception);
+                throw Closed(expected, request, exception);
             }
 
             if (line is null)
             {
-                throw new IOException($"the oracle closed the connection before {expected}; the log lines above say why");
+                throw Closed(expected, request, cause: null);
             }
 
             JsonDocument document;
@@ -394,7 +413,9 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
             JsonElement root = document.RootElement;
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("log", out JsonElement text) && text.ValueKind == JsonValueKind.String)
             {
-                log(text.GetString()!);
+                string logged = text.GetString()!;
+                log(logged);
+                Keep(logged, inSession: request is not null);
                 document.Dispose();
 
                 // The reader gives buffered lines without a read of the socket, so the read timeout alone does not end the wait.
@@ -421,6 +442,77 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
 
             return document;
         }
+    }
+
+    // The end of the connection. Before the handshake the lines of the steps went to the log; after it the message has the lines the
+    // oracle wrote since, and the request.
+    private IOException Closed(string expected, long? request, IOException? cause)
+    {
+        bool inSession = request is not null;
+        if (cause is not null)
+        {
+            return new IOException($"the oracle closed the connection before {expected}: {cause.Message}{Details(inSession)}", cause);
+        }
+
+        return new IOException(inSession
+            ? $"the oracle closed the connection before {expected}; the lines of the oracle and the request follow{Details(inSession)}"
+            : $"the oracle closed the connection before {expected}; the log lines above say why");
+    }
+
+    // Keeps a line of the oracle after the handshake, unless the limits are reached.
+    private void Keep(string line, bool inSession)
+    {
+        if (!inSession)
+        {
+            return;
+        }
+
+        if (sessionLog.Count >= KeptLogLines || sessionLogLength + line.Length > KeptLogLength)
+        {
+            sessionLogDropped++;
+            return;
+        }
+
+        sessionLog.Add(line);
+        sessionLogLength += line.Length;
+    }
+
+    // What the message of a closed connection adds after the handshake: the lines the oracle wrote since, and the request it was
+    // working on, the expression and the bindings. The public log of a workflow has them although the run has --numbers-only: an
+    // oracle that ends on a case is a failure of the run, and the case is what shows why.
+    private string Details(bool inSession)
+    {
+        if (!inSession)
+        {
+            return string.Empty;
+        }
+
+        StringBuilder text = new();
+        foreach (string line in sessionLog)
+        {
+            text.Append("\n  oracle: ").Append(line);
+        }
+
+        if (sessionLogDropped > 0)
+        {
+            text.Append(CultureInfo.InvariantCulture, $"\n  oracle: and {sessionLogDropped} more lines");
+        }
+
+        return text.Append("\n  request: ").Append(describeRequest()).ToString();
+    }
+
+    // The request in one line: the operation, the expression in quotes with the escapes of JSON, and the bindings.
+    private static string Describe(string op, string expression, IReadOnlyDictionary<string, Value> bindings)
+    {
+        StringBuilder text = new();
+        text.Append(op).Append(' ').Append(JsonSerializer.Serialize(expression, QuoteOptions));
+        foreach ((string variable, Value value) in bindings)
+        {
+            string json = ValueJson(value);
+            text.Append(' ').Append(variable).Append('=').Append(json.Length > DescribedBindingLength ? json[..DescribedBindingLength] + "..." : json);
+        }
+
+        return text.ToString();
     }
 
     private IOException NoAnswer(long request, IOException? cause) => new(

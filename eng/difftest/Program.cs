@@ -85,7 +85,8 @@ internal sealed record RunSetup(
 /// The differential run against cel-go (docs/design/eng-difftest.md, "A run"). Exit code: 0 without new signatures, 1 with a
 /// finding with <c>error</c>, 2 for an invalid invocation, a refused manifest, a failed oracle, its steps included, or a
 /// minimized case that agrees when it is run again. With <c>--numbers-only</c> a message of exit code 2 quotes no case and no
-/// line or answer of the oracle.
+/// line or answer of the oracle, except that of an oracle that closed the connection in a session: it names its lines and the
+/// request, which is the case or a variant of it that the minimizer asked.
 /// </summary>
 internal static class Program
 {

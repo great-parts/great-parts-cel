@@ -118,8 +118,8 @@ The service `oracle` of `eng/compose.yaml` runs the image `golang` of Docker Hub
 | Start | accept one connection and stop listening; the first line names the manifest by its path from the repository root: `{"env":"eng/difftest/Profile/environment.json"}` |
 | Steps | delete `/repo/artifacts/oracle/`; in `eng/oracle`: `gofmt -l .` — output is a failure, then `gofmt -d .` prints the change; `go vet ./...` — no remark; `go build -o /repo/artifacts/oracle/oracle .` |
 | Lines of the steps | `{"log":"== <step>"}` before each step, `{"log":"<line>"}` for each output line; the lines of `go vet` and of the compiler name `file:line:column`; a failed step sends `{"failed":"<step>"}`, closes the connection and exits with 1 |
-| Session | `oracle serve --env <manifest>` in the repository root: lines from the connection go to its standard input, its standard output goes to the connection unchanged, each line of its standard error as a `log` line |
-| End | `eng/difftest` closes the connection, standard input of the oracle ends, the oracle exits, the launcher exits with its code, the container stops |
+| Session | `oracle serve --env <manifest>` in the repository root: lines from the connection go to its standard input, its standard output goes to the connection unchanged, each line of its standard error as a `log` line, and as a line `oracle: <line>` on the standard error of the launcher, so the log of the container has it too |
+| End | `eng/difftest` closes the connection, standard input of the oracle ends, the oracle exits, the launcher writes `launch: the oracle ended with exit code <code>`, with the text of the error of Go after it when the oracle did not end with 0, to its standard error and as a last `log` line, then exits with the code, the container stops. When the oracle ends on a case, that line reaches `eng/difftest` before the connection closes, and the message of the closed connection has it ([eng-difftest.md](eng-difftest.md#findings-and-output)) |
 
 With arguments it prints the step lines itself, opens no port and passes the arguments to the oracle.
 
