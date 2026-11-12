@@ -96,19 +96,14 @@ internal static class TypeRecordResolver
         }
 
         string name = Bare(record.Name);
-        if (name == "optional_type")
-        {
-            detail = $"the type '{name}' is not supported";
-            return null;
-        }
-
         switch (name)
         {
             case "type":
                 return CelType.TypeOf(CelType.Dyn);
             case "list":
             case "map":
-                detail = $"the type '{name}' takes {(name == "list" ? "1 type parameter" : "2 type parameters")}: '{text}'";
+            case "optional_type":
+                detail = $"the type '{name}' takes {(name == "map" ? "2 type parameters" : "1 type parameter")}: '{text}'";
                 return null;
             case "any":
                 return CelType.Any;
@@ -122,21 +117,17 @@ internal static class TypeRecordResolver
     {
         detail = "";
         string name = Bare(record.Name);
-        if (name == "optional_type")
-        {
-            detail = $"the type '{name}' is not supported";
-            return null;
-        }
-
         switch (name)
         {
+            case "optional_type" when parameters.Count == 1:
+                return CelType.OptionalOf(parameters[0]);
             case "list" when parameters.Count == 1:
                 return CelType.ListOf(parameters[0]);
             case "map" when parameters.Count == 2:
                 return CelType.MapOf(parameters[0], parameters[1]);
             case "type" when parameters.Count == 1:
                 return CelType.TypeOf(parameters[0]);
-            case "list" or "map" or "type":
+            case "list" or "map" or "type" or "optional_type":
                 detail = $"the type '{name}' takes {Expected(name)}, but '{text}' gives {parameters.Count}";
                 return null;
             default:

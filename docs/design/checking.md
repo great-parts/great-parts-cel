@@ -43,7 +43,7 @@ The checker visits the tree depth first, children before the node, except that a
 | constant | by the kind of the value: `null_type`, `bool`, `int`, `uint`, `double`, `string`, `bytes` | — |
 | identifier | the type of the declaration or of the comprehension variable | the declaration or the local |
 | selection resolved as a name | the type of the declaration | the declaration |
-| selection `e.f` | `map(K, V)`: `V`; an object type `T`: the type of the field `f` of `T`; `dyn`, `error` or a type parameter: `dyn` (a parameter is bound to `dyn`); any other type: `NoSuchField` at the selection, type `error` | on an object type, the field: the description of `T` and the number of `f` |
+| selection `e.f` | `map(K, V)`: `V`; an object type `T`: the type of the field `f` of `T`; `dyn` or a type parameter: `dyn` (a parameter is bound to `dyn`); `error`: `error`, with no error of its own (a selection over a node with an error is a node with an error, so a call around it is not looked up; cel-go v0.32.0 gives `dyn` there and may report a second error — the outcome is the same, the number of errors differs); any other type: `NoSuchField` at the selection, type `error` | on an object type, the field: the description of `T` and the number of `f` |
 | presence test `has(e.f)` | `bool`, after the same check of `e` and `f` | the same |
 | call | by its candidates, below | the candidates |
 | list, map literal | the join of the element, key and value types ([types](types.md)); empty: free type variables | — |
@@ -86,6 +86,44 @@ All candidates are recorded in the reference map of the call in index order; the
 - **function names** — the frozen set also holds the names of the sets, qualified ones included: `math.ceil`, `math.@max`, `strings.quote`, `lists.range`, `sets.contains`, `base64.encode`, `json.encode`, `ip.isCanonical`, `cel.@block`, `cel.@mapInsert`. The receiver-call rule of "Name resolution" finds them: in `math.ceil(x)` and `ip.isCanonical(s)` the chain `math` or `ip` is first tried as the prefix of a qualified function name, and when that is declared the call is a global call, even where a variable has the name of the prefix;
 - **type identifiers of the sets** — `net.IP` and `net.CIDR`, each an identifier of the static type `type(T)` with its type value, as `int` is. A name is tried as a variable first, so a variable of the same name hides the identifier; a selection chain such as `net.IP` resolves by the longest declared prefix;
 - **variables of internal sets**, which none of the sets of this part has.
+
+## Optional syntax and optional types
+
+This section is the part of the checker for the set [optional](extension-optional.md). It supersedes the last sentence of "Optional elements and entries" above ("In this part no expression has an `optional_type` …") and the mention of `optional` selections and indexes in "Not in this part". The type `optional_type(T)` is declared by the set ([extension-optional](extension-optional.md#the-type-optional_typet)), the rules of the types are in [types](types.md#optional-types-in-the-rules), and the syntax option is set by the set: without it the parser refuses every form below with `SyntaxNotEnabled` and the checker never sees them.
+
+**The operand.** For a selection and for the forms below the checker takes the head of the type of the operand after the substitution; when the head is `optional_type(U)` the operand is *optional*, and the rule goes on with the head of `U`. This is the rule of cel-go (`maybeUnwrapOptional`) and the reason why `optional.of(m).c` is not `NoSuchField` for a `map` or an object `m`.
+
+| Form | Rule | Type | Reference |
+| :- | :- | :- | :- |
+| `e.?f`, the call `_?._(e, 'f')` | the selection rule of the table below for the head of `e`, then wrapped | `optional_type(R)` | the one candidate `select_optional_field`; no field reference |
+| `e.f` with an optional operand | the same rule | `optional_type(R)` | none |
+| `has(e.f)`, `e.f` a presence test, any operand | the same rule for the existence of the field; the optional is not wrapped | `bool` | none for an optional operand; as before otherwise |
+| `e[?k]` | the overloads `list_optindex_optional_int`, `optional_list_optindex_optional_int`, `map_optindex_optional_value`, `optional_map_optindex_optional_value` of the call `_[?_]`, checked as any call | the result of the first candidate, `optional_type(V)` | the candidates |
+| `e[k]` with an optional operand | the overloads `optional_list_index_int` and `optional_map_index_value` of `_[_]`, after `index_list` and `index_map`: `optional.none()[0]` and `optional.of(m)['k']` match them, `[1][0]` does not | `optional_type(V)` | the candidates |
+| `[?e]`, `{?k: v}` | as "Optional elements and entries"; `optional_type(T)` now passes, and gives `T` to the join | as there | — |
+| `T{?f: v}` | below | the type of the literal | as in "Message literals of constructible types" |
+
+**The selection rule**, the head `H` of the operand after the unwrapping, with `R` the result before it is wrapped:
+
+| `H` | `R` | Error |
+| :- | :- | :- |
+| `map(K, V)` | `V` | — |
+| an object type | the type of the field `f` of its description | no such field: `NoSuchField` (2004) at the selection, the call `_?._` at its `.`; the type of the node is `error` |
+| `dyn` or `error` | `dyn` | — |
+| a type parameter | `dyn`, the parameter is bound to `dyn` | — |
+| any other type, `optional_type` of an optional included | — | `NoSuchField` as above, with the shown type |
+
+`{'a': 1}.?a` is `optional_type(int)`, `{'a': 1}.?a.?b` is `NoSuchField` for `int` at the second `.?`, `x.?f` with `x` of `dyn` is `optional_type(dyn)`, and `optional.of({'c': 1}).c` is `optional_type(int)`. The `.?` form needs no optional operand: a plain `e.?f` makes any `map` or object an optional, and an optional operand is unwrapped once, not twice. A presence test keeps the type `bool` and is not wrapped, so `has(optional.of(m).c)` is `bool` and its operand is the optional.
+
+**`_?._` and its validator.** `select_optional_field` has a `CallValidator`, as `cel_block_list` has: the second argument must be a string constant, which the parser always gives; a tree that `NodeFactory` built with another argument is `NoMatchingOverload` (2001), with its usual text, after the traversal. The candidates of the call are recorded for the planner, which does not choose among them: there is one. The type of the call is that of the table above and not the `optional_type(V)` of the declaration, which only stands for the identifier of the overload; this is cel-go's own rule for `OptSelect`, and the reason why the field type decides.
+
+**The reference map.** For a selection whose operand is optional, and for the call `_?._`, the checker records no field reference, even when the head is an object type: the description of the held value is known only at evaluation, and the planner reads the type of the operand from the type map to choose the node ([evaluation](evaluation.md#optional-values-and-the-optional-syntax)). The checker does check the name against the description, as above, so `NoSuchField` is a check error and not an evaluation error. A selection with an object operand that is not optional is as before.
+
+**Optional entries of a message literal.** For `T{?f: v}` of a constructible type, after the rules of "Message literals of constructible types", an entry whose field has the type `F` is checked like a plain one with the expected type `optional_type(F)`: `IsAssignable(type of v, optional_type(F))`, so an `optional_type(U)` with `U` assignable to `F` and `dyn` pass, and any other type is `TypeMismatch` (2002) `expected type 'optional_type(F)' but found '{valueType}'` at the entry. A `null` is one of the others: its static type is assignable to `optional_type(F)` by the legacy rule of assignment, but a `null` is no optional, and cel-go checks the value of an optional entry as it checks `[?null]` — an `optional_type` or `dyn`, else `TypeMismatch` — before it looks at the field. So `TestAllTypes{?single_int32: null}` is `TypeMismatch` at the check, as `[?null]` and `{?'a': null}` are, and only a `dyn` value that holds `null` reaches the evaluation, where it is `EvalNoMatchingOverload` with the function `?` ([evaluation](evaluation.md#optional-values-and-the-optional-syntax)). A `dyn` value is checked at evaluation. A message literal with an optional entry has the type of the literal as before.
+
+**What is not new.** A range of the type `optional_type(T)` is `InvalidComprehensionRange` (2005): it is not a list, a map or `dyn`. An operand of `&&` and `||` that is an optional is `TypeMismatch`. `[?1]` and `{?'a': 1}` are one error each, as in "Optional elements and entries"; cel-go goes on with `T` and gives a second error for `[?1] + 1`, which this checker does not. `has(a.?b)` never reaches the checker: the macro `has` refuses an argument that is not a selection, and `a.?b` is a call ([extension-optional](extension-optional.md#the-syntax-and-has)).
+
+**Generalization.** The join of `[optional.none(), optional.of(1)]`, the type of `true ? optional.of(dyn(1)) : optional.of(1)` and the cases of `type_deduction` that the part closes follow the rules of [types](types.md#optional-types-in-the-rules); the checker adds no rule of its own to them.
 
 ## Comprehensions of two variables
 
@@ -131,7 +169,7 @@ Two bindings of this part have a validator:
 
 ## The type `error` and the list of errors
 
-A node with an error gets the type `error`, assignable to every type, and produces no further errors; a list, a map or a call with such a part gets the type `error` too. Checking goes on after an error, so a compilation returns every check error of the text. The list is ordered by offset; errors at one offset keep the order in which the checker found them. This is not always the order of the traversal: a call is checked after its arguments, so `size(1.all(x, true))` gives `NoMatchingOverload` at the call (offset 4) before `InvalidComprehensionRange` at the range (offset 5), though the range fails first. cel-go v0.32.0 orders its issues the same way, stably by line and column. A checked expression exists only when there is no error. All have the stage `Check`.
+A node with an error gets the type `error`, assignable to every type, and produces no further errors; a list, a map, a selection or a call with such a part gets the type `error` too. A selection `e.f` and a presence test over an operand of the type `error` give no error and have the type `error` (`bool` for `has`), so `a.b + 1` with `a` undeclared is the one error of `a`. Checking goes on after an error, so a compilation returns every check error of the text. The list is ordered by offset; errors at one offset keep the order in which the checker found them. This is not always the order of the traversal: a call is checked after its arguments, so `size(1.all(x, true))` gives `NoMatchingOverload` at the call (offset 4) before `InvalidComprehensionRange` at the range (offset 5), though the range fails first. cel-go v0.32.0 orders its issues the same way, stably by line and column. A checked expression exists only when there is no error. All have the stage `Check`.
 
 | Code | Message | Position |
 | :- | :- | :- |
@@ -197,7 +235,7 @@ The cache of patterns comes from the declaration index, which the environment cr
 
 ## Expected type
 
-The expected type comes from `T` of `Compile<T>` by the expected-type table of the type mapping page, or from `CelCompileOptions.ExpectedType`; the facade derives it and rejects an incompatible pair (see [facade](facade.md)). After the traversal, if there is no error, the type of the root must be assignable to the expected type by `IsAssignable`; otherwise compilation fails with `ExpectedTypeMismatch`. `dyn` expects anything, and an expression of type `dyn` passes any expected type: its value is converted, or refused with `ResultConversion`, at evaluation.
+The expected type comes from `T` of `Compile<T>` by the expected-type table of the type mapping page, or from `CelCompileOptions.ExpectedType`; the facade derives it and rejects an incompatible pair (see [facade](facade.md)). After the traversal, if there is no error, the type of the root must be assignable to the expected type by `IsAssignable`; otherwise compilation fails with `ExpectedTypeMismatch`. The assignment binds the free type variables of the type of the root: `[]` against `list(int)` has the type `list(int)` and `optional.none()` against `optional_type(int)` has the type `optional_type(int)`, which `ResultType` reports; against `dyn` or a type parameter the variables stay free and `ResultType` has `dyn` for them. `dyn` expects anything, and an expression of type `dyn` passes any expected type: its value is converted, or refused with `ResultConversion`, at evaluation.
 
 ## The stack and the compilation boundary
 
@@ -205,6 +243,6 @@ Before each recursive step the checker calls `RuntimeHelpers.TryEnsureSufficient
 
 ## Not in this part
 
-`FieldNotAccessible` (2007), with the generator and `decimal`; `optional` selections and indexes; the second iteration variable. Each comes with its part.
+`FieldNotAccessible` (2007), with the generator and `decimal`. It comes with its part. The `optional` selections and indexes are in "Optional syntax and optional types" above, which supersedes the mention of them here, and the second iteration variable is in "Comprehensions of two variables".
 
 Related pages: [types](types.md), [declarations](declarations.md), [objects](objects.md), [library](library.md), [evaluation](evaluation.md), [values](values.md), [facade](facade.md).

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Text;
 using Great.Parts.Cel.Values;
 
@@ -86,6 +87,73 @@ internal static class ExtensionMacros
         static (_, arguments) => CheckExtension(arguments),
         static (nodes, _, arguments, offset) => ExpandExtension(nodes, arguments, offset, isPresenceTest: true));
 
+    // The hidden name that optMap and optFlatMap bind a target that is not an identifier to: no text can write it. And the
+    // functions the expansion calls, by the names the checker finds among the qualified functions and the methods of the set optional.
+    internal const string OptionalTarget = "@target";
+    private const string ConditionalFunction = "_?_:_";
+    private const string OptionalOfFunction = "optional.of";
+    private const string OptionalNoneFunction = "optional.none";
+
+    // r.optMap(v, e) and r.optFlatMap(v, e): an expression on a target of any kind, whose second argument is the body.
+    private static readonly Macro OptMap = new(
+        "optMap",
+        null,
+        2,
+        isReceiver: true,
+        static (_, arguments) => CheckOptional("optMap", arguments),
+        static (nodes, target, arguments, offset) => ExpandOptional(nodes, target!, arguments, offset, flat: false));
+
+    private static readonly Macro OptFlatMap = new(
+        "optFlatMap",
+        null,
+        2,
+        isReceiver: true,
+        static (_, arguments) => CheckOptional("optFlatMap", arguments),
+        static (nodes, target, arguments, offset) => ExpandOptional(nodes, target!, arguments, offset, flat: true));
+
+    // The test macros of the internal set block, all on the identifier cel. cel.block expands to the call of the function of the special
+    // form of bindings; cel.index, cel.iterVar and cel.accuVar to identifiers that no text can write.
+    private const string BlockFunction = "cel.@block";
+    private const string IndexPrefix = "@index";
+    private const string IterationPrefix = "@it";
+    private const string AccumulatorPrefix = "@ac";
+
+    private static readonly Macro BlockMacro = new(
+        "block",
+        CelNamespace,
+        2,
+        isReceiver: true,
+        static (_, arguments) => arguments[0] is ListNode
+            ? MacroCheck.Expand
+            : MacroCheck.Error("cel.block requires the first arg to be a list literal", arguments[0]),
+        static (nodes, _, arguments, offset) => nodes.Call(BlockFunction, null, arguments, offset));
+
+    private static readonly Macro IndexMacro = new(
+        "index",
+        CelNamespace,
+        1,
+        isReceiver: true,
+        static (_, arguments) => IsNonNegativeInt(arguments[0])
+            ? MacroCheck.Expand
+            : MacroCheck.Error("cel.index requires a single non-negative int constant arg", arguments[0]),
+        static (nodes, _, arguments, offset) => nodes.Ident(IndexPrefix + NumberOf(arguments[0]), offset));
+
+    private static readonly Macro IterVarMacro = new(
+        "iterVar",
+        CelNamespace,
+        2,
+        isReceiver: true,
+        static (_, arguments) => CheckNumberPair("cel.iterVar", arguments),
+        static (nodes, _, arguments, offset) => nodes.Ident(IterationPrefix + ":" + NumberOf(arguments[0]) + ":" + NumberOf(arguments[1]), offset));
+
+    private static readonly Macro AccuVarMacro = new(
+        "accuVar",
+        CelNamespace,
+        2,
+        isReceiver: true,
+        static (_, arguments) => CheckNumberPair("cel.accuVar", arguments),
+        static (nodes, _, arguments, offset) => nodes.Ident(AccumulatorPrefix + ":" + NumberOf(arguments[0]) + ":" + NumberOf(arguments[1]), offset));
+
     // The macros of two iteration variables, all on a target of any kind: three arguments, and four with a filter for the
     // transformations. Every one of them checks the names of its variables alike.
     private static readonly Macro AllOfTwo = TwoVariables(
@@ -126,6 +194,16 @@ internal static class ExtensionMacros
     /// The macros of the set <c>protos</c>: <c>proto.getExt</c> and <c>proto.hasExt</c>.
     /// </summary>
     internal static ImmutableArray<Macro> Protos { get; } = [GetExt, HasExt];
+
+    /// <summary>
+    /// The macros of the set <c>optional</c>: <c>optMap</c> and <c>optFlatMap</c>.
+    /// </summary>
+    internal static ImmutableArray<Macro> Optional { get; } = [OptMap, OptFlatMap];
+
+    /// <summary>
+    /// The macros of the internal set <c>block</c>: <c>cel.block</c>, <c>cel.index</c>, <c>cel.iterVar</c> and <c>cel.accuVar</c>.
+    /// </summary>
+    internal static ImmutableArray<Macro> Block { get; } = [BlockMacro, IndexMacro, IterVarMacro, AccuVarMacro];
 
     /// <summary>
     /// The macros of the set of two-variable comprehensions: <c>all</c>, <c>exists</c>, <c>existsOne</c>, <c>exists_one</c>,
@@ -319,6 +397,67 @@ internal static class ExtensionMacros
         ConstantNode condition = nodes.Constant(CelValue.FromBoolean(false), offset);
         IdentNode step = nodes.Ident(name, offset);
         return nodes.Comprehension(UnusedVariable, range, name, arguments[1], condition, step, arguments[2], offset);
+    }
+
+    // An int literal of at least 0: 1u, 1.0, -1 and any other node are not numbers.
+    private static bool IsNonNegativeInt(ExprNode node) =>
+        node is ConstantNode constant && constant.Value.TryGetInt64(out long number) && number >= 0;
+
+    // The digits of a number that IsNonNegativeInt accepted.
+    private static string NumberOf(ExprNode node)
+    {
+        ((ConstantNode)node).Value.TryGetInt64(out long number);
+        return number.ToString(CultureInfo.InvariantCulture);
+    }
+
+    // Two numbers, the first that is wrong being the error.
+    private static MacroCheck CheckNumberPair(string name, ImmutableArray<ExprNode> arguments)
+    {
+        foreach (ExprNode argument in arguments)
+        {
+            if (!IsNonNegativeInt(argument))
+            {
+                return MacroCheck.Error(name + " requires two non-negative int constant args", argument);
+            }
+        }
+
+        return MacroCheck.Expand;
+    }
+
+    // The only fault of optMap and optFlatMap is a first argument that is not an identifier: the variable of the body.
+    private static MacroCheck CheckOptional(string name, ImmutableArray<ExprNode> arguments) =>
+        arguments[0] is IdentNode
+            ? MacroCheck.Expand
+            : MacroCheck.Error(name + "() variable name must be a simple identifier", arguments[0]);
+
+    // x.optMap(v, e) is x.hasValue() ? optional.of(c) : optional.none() and x.optFlatMap(v, e) is x.hasValue() ? c : optional.none(), where
+    // c is a comprehension over the empty list that binds v to x.value() as its accumulator and takes no step, so its result is e with v in
+    // scope. A target that is not an identifier is evaluated once, by one more such comprehension that binds it to the hidden name
+    // @target and whose result is the conditional with @target in place of x. The nodes are created in the order of cel-go.
+    private static ExprNode ExpandOptional(NodeFactory nodes, ExprNode target, ImmutableArray<ExprNode> arguments, int offset, bool flat)
+    {
+        string name = ((IdentNode)arguments[0]).Name;
+        bool isIdentifier = target is IdentNode;
+        ExprNode subject = isIdentifier ? target : nodes.Ident(OptionalTarget, offset);
+        CallNode hasValue = nodes.Call("hasValue", subject, [], offset);
+        ListNode range = nodes.List([], [], offset);
+        IdentNode copy = nodes.Ident(isIdentifier ? ((IdentNode)target).Name : OptionalTarget, offset);
+        CallNode value = nodes.Call("value", copy, [], offset);
+        ConstantNode condition = nodes.Constant(CelValue.FromBoolean(false), offset);
+        IdentNode step = nodes.Ident(name, offset);
+        ComprehensionNode held = nodes.Comprehension(UnusedVariable, range, name, value, condition, step, arguments[1], offset);
+        ExprNode present = flat ? held : nodes.Call(OptionalOfFunction, null, [held], offset);
+        CallNode absent = nodes.Call(OptionalNoneFunction, null, [], offset);
+        CallNode conditional = nodes.Call(ConditionalFunction, null, [hasValue, present, absent], offset);
+        if (isIdentifier)
+        {
+            return conditional;
+        }
+
+        ListNode outerRange = nodes.List([], [], offset);
+        ConstantNode outerCondition = nodes.Constant(CelValue.FromBoolean(false), offset);
+        IdentNode outerStep = nodes.Ident(OptionalTarget, offset);
+        return nodes.Comprehension(UnusedVariable, outerRange, OptionalTarget, target, outerCondition, outerStep, conditional, offset);
     }
 
     // A constant int, uint or double, or any node that is not a constant and not a list, map or message literal: an identifier,

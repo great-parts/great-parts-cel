@@ -148,7 +148,8 @@ internal static class ValueConversion
             return new Value { ObjectValue = Any.Pack(message) };
         }
 
-        throw new NotImplementedException();
+        // cel.expr.Value has no optional: a result of that kind, like any other that has no row, names its kind.
+        throw new NotImplementedException("no row for a value of the kind " + value.Kind);
     }
 
     // An Any that holds an Any is unpacked until its content is no Any: the case dynamic/any/var binds such a chain. The known

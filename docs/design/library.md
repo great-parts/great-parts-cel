@@ -143,6 +143,29 @@ Measured memory is within B = 64 bytes for each unit in every row; the rows that
 
 **Members of `OverloadBinding` for the sets.** Two optional members join the binding of [Tables](#tables): `ShallowArguments`, whether the planner marks no argument for the check at depth ([extension-library](extension-library.md)), and `Validator`, a `CallValidator` that the checker runs after the traversal ([checking](checking.md#calls-that-the-checker-validates)). Both are `false` and `null` for every overload of the standard library, and the snapshot of a version does not record them.
 
+## Cost of `optional` and `block`
+
+The rows of the set [optional](extension-optional.md) join those above and follow the same rules: `FixedCost` and `ArgumentCost` before the implementation, the rest through `CallSite.Charge`. A test compares each binding of the set with the table, and the snapshot of its version records the units of each overload on the probes.
+
+| Overloads | Units | Charged |
+| :- | :- | :- |
+| `optional_of`, `optional_none`, `optional_value`, `optional_hasValue`, `list_first`, `list_last` | 1 | the fixed cost |
+| `optional_ofNonZeroValue` | 1; an object 1 + f | the argument cost reads the kind of the argument: for an object, the number f of the fields of its description, which is known without reading a field |
+| `optional_or_optional`, `optional_orValue_value` | 1 | by `OptionalOrPlanNode` after the receiver, before the argument ([evaluation](evaluation.md#optional-values-and-the-optional-syntax)); the argument is charged only when it is evaluated |
+| `select_optional_field` | 1; a map 1 + ⌈L/10⌉; the rows of a JSON object | by `OptionalSelectPlanNode` as a selection is charged; no binding cost |
+| `list_optindex_optional_int`, `optional_list_optindex_optional_int`, `optional_list_index_int` | 1 | the argument cost of `index_list`, over the held list for an optional operand and 1 for an empty one |
+| `map_optindex_optional_value`, `optional_map_optindex_optional_value`, `optional_map_index_value` | 1; a string key of length L, 1 + ⌈L/10⌉; the rows of a JSON object | the argument cost of `index_map`, over the held map for an optional operand and 1 for an empty one |
+| `optional_unwrap`, `optional_unwrapOpt` | 1 + n | the size of the list in the argument cost |
+| the macros `optMap`, `optFlatMap` | by the table of [extension-macros](extension-macros.md#optional-and-block) | by the expansion |
+| the optional elements, entries and fields | 1 + stored; 1 + 2m + ⌈L/10⌉ per string key stored; 1 + m + ⌈L/10⌉ | by the nodes of the literals; a dropped position costs only its own expressions |
+| `cel_block_list` and the macros of `block` | as in the rows above and the rule of "Blocks" of [evaluation](evaluation.md#blocks) | each read of `cel.index(N)` is 1, a slot is paid once |
+
+**The argument costs** are functions of `Costs.cs`. `OptionalIndexCost` takes the receiver and the key, unwraps an optional receiver, and answers what `index_list` or `index_map` answers for the held value, or 1 for an empty optional; the functions of the plain overloads are called, not copied, so the two never differ.
+
+**`Matches` and the marks.** `OverloadBinding.Matches` reduces a parameter of the type `optional_type(E)` to its top level, `optional_type(dyn)`, as it reduces `list(E)` and `map(K, V)` ([Tables](#tables)): the check of the top level takes any optional and nothing else. The planner marks an argument for the check at depth when its static type has `dyn` or a wrapper inside `optional_type`, as inside `list` and `map`; the descent charges what the check of the held value charges ([values](values.md#optional)).
+
+**Memory.** `optional.of` and `optional.ofNonZeroValue` allocate one box of 48 bytes inside their 1 unit, `optional.none` allocates nothing, `first` and `last` allocate the box alone, `optional.unwrap` and `unwrapOpt` a list of at most n values of 32 bytes inside their 1 + n units, and an index that finds a value allocates the box; each stays within B = 64 bytes per unit, and the rows of [tests](tests.md#tests-of-optional-and-block) measure them.
+
 ## Numbers and text
 
 No culture takes part: the conversions use their own code or invariant formats.

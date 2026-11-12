@@ -79,6 +79,70 @@ comprehension (IterRange [], IterVar #unused, AccuVar @__sortBy_input__, AccuIni
 
 *Numeric* is decided by the kind of the node, not by the type: a constant `int`, `uint` or `double`, or any node that is not a constant and not a list, map or message literal — an identifier, a selection, a call (`dyn(5.4)` included), an operator, a comprehension. A constant of another kind (`'a'`, `true`, `null`, `b'x'`), a list, a map and a message literal are not numeric. So `math.greatest(x)` and `math.greatest([dyn(1), 2.5])` expand and leave the types to the overloads of `math.@max`, while `math.greatest([])`, `math.greatest('a')`, `math.greatest([1, 'a'])` and `math.greatest(1, [2])` are errors. A call with the macro name but another number of arguments (`cel.bind(x, 1)`, `[1].transformList(i, v)`) is no macro and stays a call.
 
+## `optional` and `block`
+
+The set [optional](extension-optional.md) brings `optMap` and `optFlatMap`; the internal set `block` ([extensions](extensions.md#the-sets-optional-and-block)) brings four macros that only the runner of the cel-spec cases has. They join the table above:
+
+| Set | Macro | Applies when | Expansion |
+| :- | :- | :- | :- |
+| `optional` | `r.optMap(v, e)` | any target, two arguments | below |
+| | `r.optFlatMap(v, e)` | any target, two arguments | below |
+| `block` | `cel.block(l, e)` | the target is the identifier `cel`, two arguments | the global call `cel.@block(l, e)` |
+| | `cel.index(N)` | the target is `cel`, one argument | the identifier `@index` and the digits of `N` |
+| | `cel.iterVar(N, M)` | the target is `cel`, two arguments | the identifier `@it:N:M` |
+| | `cel.accuVar(N, M)` | the target is `cel`, two arguments | the identifier `@ac:N:M` |
+
+A call with another number of arguments is no macro and stays a call: `x.optMap(v)` and `cel.index(1, 2)`. Without the set a macro is an ordinary call, and the checker reports it ([extensions](extensions.md#the-sets-optional-and-block)). Macros of the two sets have no key in common with each other or with the earlier ones: `cel.bind` and `cel.block` are different names, `optMap` and `optFlatMap` have the receiver form with two arguments that no standard macro has by name.
+
+**`optMap` and `optFlatMap`.** `r` is the target, `v` an identifier, `e` an expression. For an identifier target `x`, the tree is a conditional over the optional:
+
+```text
+x.optMap(v, e)  -->  x.hasValue() ? optional.of(<c>) : optional.none()
+x.optFlatMap(v, e)  -->  x.hasValue() ? <c> : optional.none()
+<c> = comprehension (IterRange [], IterVar #unused, AccuVar v, AccuInit x.value(),
+                     LoopCondition false, LoopStep v, Result e)
+```
+
+For any other target `t` the target is evaluated once and bound to the hidden name `@target`, which no text can write: the whole is one more comprehension over the empty list,
+
+```text
+comprehension (IterRange [], IterVar #unused, AccuVar @target, AccuInit t,
+               LoopCondition false, LoopStep @target, Result <the conditional above with x written @target>)
+```
+
+`hasValue`, `value` are receiver calls and `optional.of`, `optional.none` global calls with those function names, as `math.@max` is: the checker finds them among the qualified function names of the index. `<c>` binds `v` to the held value as the accumulator, and no step runs; `e` is checked and evaluated with `v` in scope, so `optional.of(1).optMap(y, y + 1)` is `optional.of(2)` and `optional.none().optMap(y, y + 1)` is `optional.none()`, and `e` is not evaluated for an empty optional. The type is that of the conditional: `optional_type(R)` for `e` of the type `R`, and for `optFlatMap` the type of `e`, which has to be an optional too, else the branches have no common type and the check gives `NoMatchingOverload` for `_?_:_`.
+
+**Order of creation.** The nodes are created in the order in which cel-go builds them, each with the offset of the `(` of the call: for a target that is not an identifier the identifier `@target`; the call `hasValue`; the empty list of the inner comprehension, the copy of the target identifier — a new node, not the target — and the call `value`, the literal `false`, the identifier `v` of the step, the inner comprehension; the call `optional.of` for `optMap`; the call `optional.none`; the conditional; and for a target that is not an identifier the empty list, the literal `false`, the identifier `@target` and the outer comprehension. `ParsedExpression` records the call as written under the id of the expansion, as for the other macros.
+
+**Errors**, `InvalidMacroCall` (1006) `invalid call of macro '{macro}': {detail}`, `{macro}` the name of the called macro, at the first argument; the first argument that is not an identifier is the only fault a macro checks:
+
+| Macro | Detail |
+| :- | :- |
+| `optMap` | `optMap() variable name must be a simple identifier` |
+| `optFlatMap` | `optFlatMap() variable name must be a simple identifier` |
+
+**Cost** by the rules of the expansion ([library](library.md#cost-of-optional-and-block)): the target and the body are the expressions of the author, `c(t)` and `c(e)`; everything that the expansion adds — the hidden `@target`, the copy of the target identifier, the identifier `v` of the step — is a read that costs nothing; each call, `hasValue`, `value`, `optional.of`, `optional.none`, is 1, the empty list that is the range of a comprehension is 1 although the planner creates none, and no step runs.
+
+| Macro | Target | Empty optional | Optional with a value |
+| :- | :- | :- | :- |
+| `optMap` | an identifier | c(t) + 2 | c(t) + 4 + c(e) |
+| `optMap` | any other | c(t) + 3 | c(t) + 5 + c(e) |
+| `optFlatMap` | an identifier | c(t) + 2 | c(t) + 3 + c(e) |
+| `optFlatMap` | any other | c(t) + 3 | c(t) + 4 + c(e) |
+
+`x.optMap(y, y + 1)` with `x` bound to `optional.of(1)` is 7: the read of `x` 1, `hasValue` 1, `optional.of` 1, the empty list 1, `value` 1, and the body 2 (the read of `y` and the sum); with `x` bound to `optional.none()` it is 3: the read of `x`, `hasValue`, `optional.none`. `optional.of(42).optMap(y, y + 1)` has a target that is not an identifier, whose cost is the call 1: the outer empty list 1, the target 1, `hasValue`, `optional.of`, the inner empty list and `value`, 4, and the body 2, which is 8. The planner recognizes the nodes that the author wrote by the call that `ParsedExpression` records, as for `cel.bind`.
+
+**The macros of `block`**, all with the namespace `cel` as `cel.bind` has, and all in the table of an environment that has the set `block`, which only the runner has. The errors are `InvalidMacroCall` with `{macro}` `block`, `index`, `iterVar` and `accuVar`; a *number* is an `int` literal with a value of at least 0, and `1u`, `1.0`, `-1` and a name are not numbers:
+
+| Macro | Condition | Detail | Place |
+| :- | :- | :- | :- |
+| `cel.block` | the first argument is not a list literal | `cel.block requires the first arg to be a list literal` | that argument |
+| `cel.index` | the argument is not a number | `cel.index requires a single non-negative int constant arg` | that argument |
+| `cel.iterVar` | an argument is not a number — the first such | `cel.iterVar requires two non-negative int constant args` | that argument |
+| `cel.accuVar` | an argument is not a number — the first such | `cel.accuVar requires two non-negative int constant args` | that argument |
+
+`cel.block([1, cel.index(0) + 1], cel.index(1))` is `cel.@block([1, @index0 + 1], @index1)` and `cel.iterVar(1, 2)` the identifier `@it:1:2`; the digits are those of the value, so `cel.index(007)` is `@index7` and `cel.index(0x10)` is `@index16`. The arguments of a macro are expanded before it, so `cel.iterVar(0, 0)` as the iteration variable of `exists` or `map` is already an identifier and the standard macro takes it; the hidden accumulator `@result` and its name `__result__` are the only names that a macro of iteration refuses. A list literal with an optional element passes the macro and is refused after the traversal by the validator of `cel_block_list` ([checking](checking.md#calls-that-the-checker-validates)). The cost of `cel.block` is that of `cel.@block` and of the reads that the author wrote: a slot is read once per entry of the block, and each `cel.index(N)` is the read of a variable, 1.
+
 ## The second iteration variable
 
 `ComprehensionNode` has the new property `string? IterVar2`, `null` for every node that a macro of one variable creates. `NodeFactory.Comprehension` has an overload with the second name; the old one passes `null`, so no code of the standard macros changes. `SyntaxTreeComparer` compares `IterVar2` as it compares `IterVar`: `null` equals only `null`. `Printer` prints a comprehension as its recorded macro call and needs nothing more; a tree without the record throws as before. Nodes of the tree reach the planner only through the factory, so the node classes carry nothing else.

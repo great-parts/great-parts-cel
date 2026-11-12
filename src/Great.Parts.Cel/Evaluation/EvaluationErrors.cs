@@ -192,6 +192,14 @@ internal static class EvaluationErrors
         CelValue.FromError(new CelError(
             CelErrorCode.UnsupportedMapKeyType, UnsupportedMapKeyTypeText, lines, offset, null, ObjectName(key, types), small: (byte)key.Kind));
 
+    // EvalNoMatchingOverload (3000) for a position with ? whose value is no optional, which only an expression of the static type dyn
+    // can give: the function is ? and the one argument the value, at the node of the value.
+    internal static CelValue NotAnOptional(CelValue value, Frame frame, int offset)
+    {
+        ReadOnlySpan<CelValue> values = [value];
+        return new CallSite("?", offset, frame.Lines, types: frame.Types).NoMatchingOverload(values);
+    }
+
     // InsufficientStack (9000): the node that did not evaluate its children.
     internal static CelValue InsufficientStack(LineTable lines, int offset) =>
         Create(CelErrorCode.InsufficientStack, CelError.FirstPart, lines, offset, InsufficientStackText);

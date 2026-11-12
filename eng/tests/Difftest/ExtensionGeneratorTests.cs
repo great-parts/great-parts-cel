@@ -90,17 +90,18 @@ public sealed class ExtensionGeneratorTests
         {
             foreach (ulong seed in GeneratorTests.Seeds)
             {
-                foreach (Call call in Calls(CaseGenerator.ExtensionCase(seed, n)).Where(call => call.Overload is not null))
+                // A call carries the identifier of its overload; the selection e.?f, which is the call _?._ of cel-go, carries that of the set optional.
+                foreach (string id in OverloadsOf(CaseGenerator.ExtensionCase(seed, n)))
                 {
-                    _ = seen.Add(call.Overload!);
-                    _ = missing.Remove(call.Overload!);
+                    _ = seen.Add(id);
+                    _ = missing.Remove(id);
                 }
             }
         }
 
         Assert.Empty(missing.Order(StringComparer.Ordinal));
         Assert.All(seen, id => Assert.Contains(id, ids));
-        string[] sets = ["encoders", "lists", "math", "network", "sets", "strings"];
+        string[] sets = ["encoders", "lists", "math", "network", "optional", "sets", "strings"];
         Assert.Equal(sets, ProfileTables.ExtensionOverloads.Select(overload => overload.Set!).Distinct().Order(StringComparer.Ordinal));
     }
 
@@ -433,7 +434,7 @@ public sealed class ExtensionGeneratorTests
 
     // ---- Helpers ----
 
-    private static IEnumerable<GeneratedCase> Sample(int cases = Cases)
+    internal static IEnumerable<GeneratedCase> Sample(int cases = Cases)
     {
         foreach (ulong seed in GeneratorTests.Seeds)
         {
@@ -460,6 +461,16 @@ public sealed class ExtensionGeneratorTests
     private static IEnumerable<Call> Calls(GeneratedCase generated) => GeneratorTests.Nodes(generated.Expression).OfType<Call>();
 
     private static bool HasFault(GeneratedCase generated) => Calls(generated).Any(call => call.Fault is not null);
+
+    // The identifiers of the overloads that the nodes of a case carry.
+    private static IEnumerable<string> OverloadsOf(GeneratedCase generated) => GeneratorTests.Nodes(generated.Expression)
+        .Select(node => node switch
+        {
+            Call { Overload: { } id } => id,
+            Select { Optional: true } => ProfileTables.OptionalSelectOverload,
+            _ => null,
+        })
+        .OfType<string>();
 
     // The bytes values of a value, inside a list or a map too.
     private static IEnumerable<byte[]> BytesIn(Value value) => value.KindCase switch
@@ -505,7 +516,7 @@ public sealed class ExtensionGeneratorTests
     }
 
     // Every child of a node, the arguments of a macro included: a walk of its own.
-    private static IEnumerable<Expr> Children(Expr expr) => expr switch
+    internal static IEnumerable<Expr> Children(Expr expr) => expr switch
     {
         Comprehension macro => [macro.Range, .. macro.Arguments],
         Select select => [select.Operand],

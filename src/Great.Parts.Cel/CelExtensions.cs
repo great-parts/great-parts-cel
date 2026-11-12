@@ -1,6 +1,6 @@
-using System;
 using System.Collections.Frozen;
 #if NET11_0_OR_GREATER
+using System;
 using System.Diagnostics.CodeAnalysis;
 #endif
 using Great.Parts.Cel.Declarations;
@@ -117,10 +117,7 @@ public static class CelExtensions
     /// </remarks>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Optional(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Optional(uint version) => ExtensionCatalog.Default.Get("optional", version);
 
     /// <summary>
     /// The two-variable comprehension macros: <c>all</c>, <c>exists</c> and <c>existsOne</c> with an index or

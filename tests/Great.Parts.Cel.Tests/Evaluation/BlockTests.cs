@@ -135,6 +135,50 @@ public sealed class BlockTests
         Assert.Equal(CelValue.FromInt64(9), Evaluate(root, nodes));
     }
 
+    // A slot that reads itself goes on to the slot of the same number of the next enclosing block, and that one, which reads itself in
+    // its turn, to the next: the innermost of three blocks is 100 + (10 + 1).
+    [Fact]
+    public static void SlotThatReadsItself_GoesOutwardThroughEveryEnclosingBlock()
+    {
+        var nodes = new NodeFactory();
+        ExprNode innermost = Block(nodes, [Add(nodes, Slot(nodes, 0), Int(nodes, 100))], Slot(nodes, 0));
+        ExprNode middle = Block(nodes, [Add(nodes, Slot(nodes, 0), Int(nodes, 10))], innermost);
+        ExprNode root = Block(nodes, [Int(nodes, 1)], middle);
+
+        Assert.Equal(CelValue.FromInt64(111), Evaluate(root, nodes));
+    }
+
+    // The read that goes outward evaluates a slot of the enclosing block on top of the values that its own list literal has pushed: the
+    // stack of the read counts the slots of every block it may reach.
+    [Fact]
+    public static void SlotReadThatGoesOutward_HasRoomOnTheStack()
+    {
+        var nodes = new NodeFactory();
+        ExprNode outerSlot = nodes.List([Int(nodes, 1), Int(nodes, 2), Int(nodes, 3)], [], 0);
+        ExprNode innerSlot = nodes.List([Int(nodes, 10), Int(nodes, 20), Int(nodes, 30), Slot(nodes, 0)], [], 0);
+        ExprNode root = Block(nodes, [outerSlot], Block(nodes, [innerSlot], Slot(nodes, 0)));
+
+        CelValue value = Evaluate(root, nodes);
+
+        Assert.True(value.TryGetList(out CelList? list), value.Kind.ToString());
+        Assert.Equal(4, list.Count);
+        Assert.True(list[3].TryGetList(out CelList? outer));
+        Assert.Equal([1L, 2L, 3L], Integers(outer));
+    }
+
+    // A read that ends Unbound costs 1 as every read does: the read of the result and the read of the slot, 2, and the limit of 1 is
+    // exceeded at the second.
+    [Fact]
+    public static void Cost_OfAReadThatEndsUnbound_IsOne()
+    {
+        var nodes = new NodeFactory();
+        ExprNode root = Block(nodes, [Slot(nodes, 0)], Slot(nodes, 0));
+        Plan plan = PlanOf(root, nodes, []);
+
+        Assert.Equal(CelErrorCode.Unbound, Plans.Error(plan.Evaluate(NoBindings, 2, CancellationToken.None)).Code);
+        Assert.Equal(CelErrorCode.CostLimitExceeded, Plans.Error(plan.Evaluate(NoBindings, 1, CancellationToken.None)).Code);
+    }
+
     // Each entry of a block starts with its slots unread: a block in the body of a comprehension has the value of each element, not the
     // value of the first.
     [Fact]

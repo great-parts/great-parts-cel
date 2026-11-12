@@ -19,7 +19,7 @@ namespace Great.Parts.Cel.Values;
 /// </remarks>
 internal static partial class ConversionRules
 {
-    // A .NET type of optional or decimal, directly or as an argument of Nullable<X>, IReadOnlyList<X> or IReadOnlyDictionary<XK, XV>.
+    // A .NET type of decimal, directly or as an argument of Nullable<X>, CelOptional<X>, IReadOnlyList<X> or IReadOnlyDictionary<XK, XV>.
     private static bool MentionsLaterPart(Type type)
     {
         if (type == typeof(decimal)
@@ -37,12 +37,7 @@ internal static partial class ConversionRules
         }
 
         Type definition = type.GetGenericTypeDefinition();
-        if (definition == typeof(CelOptional<>))
-        {
-            return true;
-        }
-
-        if (definition != typeof(Nullable<>) && definition != typeof(IReadOnlyList<>) && definition != typeof(IReadOnlyDictionary<,>))
+        if (definition != typeof(Nullable<>) && definition != typeof(CelOptional<>) && definition != typeof(IReadOnlyList<>) && definition != typeof(IReadOnlyDictionary<,>))
         {
             return false;
         }
@@ -58,28 +53,25 @@ internal static partial class ConversionRules
         return false;
     }
 
-    // A CEL type that is not supported yet, at any depth: optional, decimal.
+    // A CEL type that is not supported yet, at any depth: decimal.
     private static bool MentionsLaterPart(CelType type)
     {
-        switch (type.Kind)
-        {
-            case CelTypeKind.Optional:
-                return true;
 #if NET11_0_OR_GREATER
-            case CelTypeKind.Decimal:
-                return true;
-#endif
-            default:
-                foreach (CelType parameter in type.Parameters)
-                {
-                    if (MentionsLaterPart(parameter))
-                    {
-                        return true;
-                    }
-                }
-
-                return false;
+        if (type.Kind == CelTypeKind.Decimal)
+        {
+            return true;
         }
+#endif
+
+        foreach (CelType parameter in type.Parameters)
+        {
+            if (MentionsLaterPart(parameter))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // The row of T, found once per T; null outside the tables.
@@ -151,8 +143,12 @@ internal static partial class ConversionRules
         }
 
         private static void Add<TKey, TValue>(Dictionary<Type, ClrRow> rows, ClrRow<TKey> key, ClrRow<TValue> value)
-            where TKey : notnull =>
-            rows.Add(typeof(IReadOnlyDictionary<TKey, TValue>), new MapRow<TKey, TValue>(key, value));
+            where TKey : notnull
+        {
+            var map = new MapRow<TKey, TValue>(key, value);
+            rows.Add(typeof(IReadOnlyDictionary<TKey, TValue>), map);
+            rows.Add(typeof(CelOptional<IReadOnlyDictionary<TKey, TValue>>), new OptionalRow<IReadOnlyDictionary<TKey, TValue>>(map));
+        }
     }
 
     private abstract class ClrRow(CelType expectedType, bool takesNull)
@@ -216,9 +212,17 @@ internal static partial class ConversionRules
     // A row of a type that is not a collection of the tables: the element, key and value types of the collection rows.
     private abstract class LeafRow<T>(CelType expectedType, bool takesNull) : ClrRow<T>(expectedType, takesNull)
     {
+        // The rows of the lists and maps of T, and the rows of CelOptional<…> of T, of its list, of its maps and of CelOptional<T> itself. The
+        // optional of an optional of a collection is no row: the tables nest one level, and a row that names its own kind again
+        // would make Native AOT compile such rows without end.
         internal sealed override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys)
         {
-            rows.Add(typeof(IReadOnlyList<T>), new ListRow<T>(this));
+            var list = new ListRow<T>(this);
+            var optional = new OptionalRow<T>(this);
+            rows.Add(typeof(IReadOnlyList<T>), list);
+            rows.Add(typeof(CelOptional<T>), optional);
+            rows.Add(typeof(CelOptional<CelOptional<T>>), new OptionalRow<CelOptional<T>>(optional));
+            rows.Add(typeof(CelOptional<IReadOnlyList<T>>), new OptionalRow<IReadOnlyList<T>>(list));
             keys.AddMaps(rows, this);
         }
     }
@@ -320,6 +324,17 @@ internal static partial class ConversionRules
                 case CelValueKind.Type when value.TryGetType(out CelType? celType):
                     result = celType;
                     return true;
+                default:
+                    return TryConvertOther(value, meter, out result);
+            }
+        }
+
+        // The kinds that are no scalar and no collection: time, an object, an abstract value and an optional.
+        private bool TryConvertOther(CelValue value, IEvaluationMeter? meter, out object? result)
+        {
+            result = null;
+            switch (value.Kind)
+            {
                 case CelValueKind.Timestamp or CelValueKind.Duration:
                     return TryBoxTime(value, out result);
                 case CelValueKind.Object when value.TryGetObject(out object? instance):
@@ -329,9 +344,30 @@ internal static partial class ConversionRules
                     // The natural mapping has no .NET type for an abstract value: it is the boxed CelValue.
                     result = value;
                     return true;
+                case CelValueKind.Optional when value.TryGetOptional(out CelOptional<CelValue> optional):
+                    return TryBoxOptional(optional, meter, out result);
                 default:
                     return false;
             }
+        }
+
+        // An optional as the boxed CelOptional<object?>: the held value by the natural mapping of its kind.
+        private bool TryBoxOptional(CelOptional<CelValue> optional, IEvaluationMeter? meter, out object? result)
+        {
+            if (!optional.HasValue)
+            {
+                result = default(CelOptional<object?>);
+                return true;
+            }
+
+            if (!TryConvert(optional.Value, CelType.Dyn, meter, out object? held))
+            {
+                result = null;
+                return false;
+            }
+
+            result = new CelOptional<object?>(held);
+            return true;
         }
 
         // A timestamp or a duration as the boxed value of its own type.
@@ -375,6 +411,44 @@ internal static partial class ConversionRules
         private protected override bool HoldsCore(CelType type) => type.Kind == ExpectedType.Kind;
 
         private protected override bool CannotFailCore(CelType type) => type.Kind == ExpectedType.Kind;
+    }
+
+    // CelOptional<X>: the empty optional is default; an optional that holds a value holds the value converted by the row of X, which
+    // reads it as an element of a copy is read: a position that takes null takes the null that the optional holds. An optional has no
+    // view, so the held value is converted when the result is, and a refusal of the row of X is a refusal of the optional. A null value
+    // is no optional. The held value of a collection row is a lazy view or a copy by the rule of that row.
+    private sealed class OptionalRow<T>(ClrRow<T> held) : ClrRow<CelOptional<T>>(CelType.OptionalOf(held.ExpectedType), takesNull: false)
+    {
+        internal override bool IsCheckedView(CelType type) => type.Kind == CelTypeKind.Optional && held.IsCheckedView(type.Parameters[0]);
+
+        internal override bool NullElements => held.TakesNull;
+
+        internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, out CelOptional<T> result)
+        {
+            result = default;
+            if (!value.TryGetOptional(out CelOptional<CelValue> optional))
+            {
+                return false;
+            }
+
+            if (!optional.HasValue)
+            {
+                return true;
+            }
+
+            CelType heldType = type.Kind == CelTypeKind.Optional ? type.Parameters[0] : CelType.Dyn;
+            if (!held.TryConvert(optional.Value, heldType, meter, out T? converted))
+            {
+                return false;
+            }
+
+            result = new CelOptional<T>(converted!);
+            return true;
+        }
+
+        private protected override bool HoldsCore(CelType type) => type.Kind == CelTypeKind.Optional && held.Holds(type.Parameters[0]);
+
+        private protected override bool CannotFailCore(CelType type) => type.Kind == CelTypeKind.Optional && held.CannotFail(type.Parameters[0]);
     }
 
     // IReadOnlyList<X>: a lazy view when no element can fail, else an immutable copy.

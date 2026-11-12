@@ -1,0 +1,138 @@
+# Minimized cases of known divergences from cel-go in the optional extension set. The expectation of each case is the answer of cel-go.
+
+name: "optional_differences"
+description: "Presence of a field of an empty optional and the right part of or that is not an optional"
+section {
+  name: "presence"
+  description: "has() of a selection from an empty optional: cel-go fails with a missing key, the library returns false, as the cel-spec case optionals/optionals/map_optional_select_has expects"
+  test {
+    name: "has_empty_optional"
+    description: "has(optional_type) we-value"
+    expr: "has({'foo': optional.none()}.foo.bar)"
+    eval_error: {
+      errors: {
+        message: "no such key: bar"
+      }
+    }
+  }
+}
+section {
+  name: "or_right_kind"
+  description: "or with an empty left part returns the right part as it is in cel-go, whatever its kind; the library fails the call, since no overload takes an argument that is not an optional"
+  test {
+    name: "bool"
+    description: "optional_or_optional(optional_type, bool) we-error"
+    expr: "optional.none().or(dyn(true))"
+    value: {
+      bool_value: true
+    }
+  }
+  test {
+    name: "bytes"
+    description: "optional_or_optional(optional_type, bytes) we-error"
+    expr: "optional.none().or(dyn(b'a'))"
+    value: {
+      bytes_value: "a"
+    }
+  }
+  test {
+    name: "double"
+    description: "optional_or_optional(optional_type, double) we-error"
+    expr: "optional.none().or(dyn(1.5))"
+    value: {
+      double_value: 1.5
+    }
+  }
+  test {
+    name: "duration"
+    description: "optional_or_optional(optional_type, duration) we-error"
+    expr: "optional.none().or(dyn(duration('1s')))"
+    value: {
+      object_value {
+        [type.googleapis.com/google.protobuf.Duration] {
+          seconds: 1
+        }
+      }
+    }
+  }
+  test {
+    name: "int"
+    description: "optional_or_optional(optional_type, int) we-error"
+    expr: "optional.none().or(dyn(1))"
+    value: {
+      int64_value: 1
+    }
+  }
+  test {
+    name: "list"
+    description: "optional_or_optional(optional_type, list) we-error"
+    expr: "optional.none().or(dyn([1]))"
+    value: {
+      list_value {
+        values {
+          int64_value: 1
+        }
+      }
+    }
+  }
+  test {
+    name: "map"
+    description: "optional_or_optional(optional_type, map) we-error"
+    expr: "optional.none().or(dyn({'a': 1}))"
+    value: {
+      map_value {
+        entries {
+          key {
+            string_value: "a"
+          }
+          value {
+            int64_value: 1
+          }
+        }
+      }
+    }
+  }
+  test {
+    name: "null"
+    description: "optional_or_optional(optional_type, null_type) we-error"
+    expr: "optional.none().or(null)"
+    value: {
+      null_value: NULL_VALUE
+    }
+  }
+  test {
+    name: "string"
+    description: "optional_or_optional(optional_type, string) we-error"
+    expr: "optional.none().or(dyn('a'))"
+    value: {
+      string_value: "a"
+    }
+  }
+  test {
+    name: "timestamp"
+    description: "optional_or_optional(optional_type, timestamp) we-error"
+    expr: "optional.none().or(dyn(timestamp(0)))"
+    value: {
+      object_value {
+        [type.googleapis.com/google.protobuf.Timestamp] {
+        }
+      }
+    }
+  }
+  test {
+    name: "type"
+    description: "optional_or_optional(optional_type, type) we-error"
+    expr: "optional.none().or(dyn(int))"
+    value: {
+      type_value: "int"
+    }
+  }
+  test {
+    name: "uint"
+    description: "optional_or_optional(optional_type, uint) we-error"
+    expr: "optional.none().or(dyn(1u))"
+    value: {
+      uint64_value: 1
+    }
+  }
+}

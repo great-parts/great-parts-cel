@@ -33,6 +33,7 @@ internal sealed class ExtensionCatalog
         new("two-var-comprehensions", [0], TwoVarComprehensionsExtension.Create),
         new("network", [1], NetworkExtension.Create),
         new("protos", [0], ProtosExtension.Create),
+        new("optional", [2], OptionalExtension.Create),
     ];
 
     private readonly FrozenDictionary<string, ExtensionFamily> _families;
@@ -65,8 +66,17 @@ internal sealed class ExtensionCatalog
         Names = names.ToFrozenSet(StringComparer.Ordinal);
     }
 
+    // The internal set block, made at its first request and once. It is in no family, so it has no name in a description and
+    // CelExtensions.Create finds no factory for it; the conformance runner and the tests of the library add it.
+    private static readonly Lazy<CelExtension> BlockSet = new(
+        static () => new CelExtension(BlockExtension.SetName, BlockExtension.Version, BlockExtension.Create(BlockExtension.Version), [BlockExtension.Version]),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
     // The catalog of the library.
     internal static ExtensionCatalog Default { get; } = new(ExtensionFamilies);
+
+    // The internal set block, version 1, which depends on bindings 1. It is not in Names.
+    internal static CelExtension Block => BlockSet.Value;
 
     // The names of the sets that the library implements, as an environment description writes them.
     internal FrozenSet<string> Names { get; }
@@ -87,7 +97,7 @@ internal sealed class ExtensionCatalog
     // The short name of the set that declares the abstract type of a full name, such as network for net.IP; null for a name that
     // no set of the catalog declares. The hint of TypeNotDeclared names it. The table is the code of the sets, not text of an
     // expression, so a name is looked up in it without being trusted with anything.
-    internal static string? SetOfAbstractType(string typeName) => NetworkExtension.SetOfType(typeName);
+    internal static string? SetOfAbstractType(string typeName) => NetworkExtension.SetOfType(typeName) ?? OptionalExtension.SetOfType(typeName);
 
     // The versions of the name in the table, ascending; empty for a name that the catalog does not have.
     internal ImmutableArray<uint> VersionsOf(string name) =>

@@ -1,0 +1,154 @@
+using System;
+using System.Collections.Immutable;
+using Great.Parts.Cel.Declarations;
+using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Types;
+using Great.Parts.Cel.Values;
+
+namespace Great.Parts.Cel.Library.Extensions;
+
+// The operators of the extension set optional, version 2, in the order of its table: the optional selection e.?f, which the planner
+// evaluates itself as a special form, and the six overloads of indexes, which are ordinary overloads with implementations.
+//
+//   select_optional_field                 _?._(dyn, string) -> optional_type(V)
+//   list_optindex_optional_int            _[?_](list(V), int) -> optional_type(V)
+//   optional_list_optindex_optional_int   _[?_](optional_type(list(V)), int) -> optional_type(V)
+//   map_optindex_optional_value           _[?_](map(K, V), K) -> optional_type(V)
+//   optional_map_optindex_optional_value  _[?_](optional_type(map(K, V)), K) -> optional_type(V)
+//   optional_list_index_int               _[_](optional_type(list(V)), int) -> optional_type(V)
+//   optional_map_index_value              _[_](optional_type(map(K, V)), K) -> optional_type(V)
+//
+// An index with ? gives the empty optional where the index of the standard library is an error — an index outside the list, a key
+// that the map does not have — and optional.of(element) where it has one; an element that is an error value is the result. The index
+// is an int: the uint and double indexes that index_list also takes are not taken here. The overloads over an optional take a step
+// before: an empty operand gives the empty optional, a non-empty one is read through the held list or map, and a held value that is
+// neither is EvalNoMatchingOverload, since an implementation checks the kinds it reads. They cost what index_list and index_map cost
+// for the held value, plus the unit of the overload, and 1 for an empty operand.
+internal static class OptionalOperators
+{
+    internal const string SelectFunction = "_?._";
+    internal const string OptionalIndexFunction = "_[?_]";
+    internal const string IndexFunction = "_[_]";
+
+    internal const string SelectId = "select_optional_field";
+    internal const string ListOptIndexId = "list_optindex_optional_int";
+    internal const string OptionalListOptIndexId = "optional_list_optindex_optional_int";
+    internal const string MapOptIndexId = "map_optindex_optional_value";
+    internal const string OptionalMapOptIndexId = "optional_map_optindex_optional_value";
+    internal const string OptionalListIndexId = "optional_list_index_int";
+    internal const string OptionalMapIndexId = "optional_map_index_value";
+
+    // The units of an index over an optional beyond the unit of the overload: those of the index of the held list or map, and none for
+    // an empty optional.
+    private static readonly CelCostFunction OptionalListCost = static arguments => OptionalIndexCost(arguments, Costs.IndexList);
+
+    private static readonly CelCostFunction OptionalMapCost = static arguments => OptionalIndexCost(arguments, Costs.IndexKey);
+
+    // The seven bindings, with the source that names the set in build errors. The extension puts them where the table of the set has
+    // them, after optional_orValue_value and before list_first.
+    internal static ImmutableArray<OverloadBinding> Overloads(string source)
+    {
+        CelType value = CelType.TypeParameter("V");
+        CelType key = CelType.TypeParameter("K");
+        CelType @int = CelType.Int;
+        CelType list = CelType.ListOf(value);
+        CelType map = CelType.MapOf(key, value);
+        CelType optionalList = CelType.OptionalOf(list);
+        CelType optionalMap = CelType.OptionalOf(map);
+        CelType result = CelType.OptionalOf(value);
+        return
+        [
+            // A special form like conditional: the planner evaluates it, and its cost is that of a selection. The name of the field
+            // has to be a string literal, which the parser always writes.
+            new OverloadBinding(SelectFunction, new CelOverloadDecl(SelectId, false, [CelType.Dyn, CelType.String], result), null, 0, null, source, validator: ValidateSelect),
+            new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(ListOptIndexId, false, [list, @int], result), ListOptIndex, 1, Costs.IndexList, source),
+            new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(OptionalListOptIndexId, false, [optionalList, @int], result), OptionalListIndex, 1, OptionalListCost, source),
+            new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(MapOptIndexId, false, [map, key], result), MapOptIndex, 1, Costs.IndexKey, source),
+            new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(OptionalMapOptIndexId, false, [optionalMap, key], result), OptionalMapIndex, 1, OptionalMapCost, source),
+            new OverloadBinding(IndexFunction, new CelOverloadDecl(OptionalListIndexId, false, [optionalList, @int], result), OptionalListIndex, 1, OptionalListCost, source),
+            new OverloadBinding(IndexFunction, new CelOverloadDecl(OptionalMapIndexId, false, [optionalMap, key], result), OptionalMapIndex, 1, OptionalMapCost, source),
+        ];
+    }
+
+    // select_optional_field: the second argument has to be a string literal; any other argument is NoMatchingOverload at the call, with
+    // the usual text. The parser never builds one, a tree made by the library can.
+    internal static CallValidation ValidateSelect(CallShape call) =>
+        call.Arguments[1].StringConstant is not null
+            ? CallValidation.Ok
+            : new CallValidation(CelErrorCode.NoMatchingOverload, string.Empty, null);
+
+    // list_optindex_optional_int, (list(V), int) -> optional_type(V).
+    private static CelValue ListOptIndex(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
+        arguments[0].TryGetList(out CelList? list) && arguments[1].TryGetInt64(out long index)
+            ? ReadList(list, index, in site)
+            : site.NoMatchingOverload(arguments);
+
+    // map_optindex_optional_value, (map(K, V), K) -> optional_type(V).
+    private static CelValue MapOptIndex(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
+        arguments[0].TryGetMap(out CelMap? map)
+            ? ReadMap(map, arguments[1], in site)
+            : site.NoMatchingOverload(arguments);
+
+    // optional_list_optindex_optional_int and optional_list_index_int, (optional_type(list(V)), int) -> optional_type(V): the code of
+    // the plain overload over the held list.
+    private static CelValue OptionalListIndex(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        if (!arguments[0].TryGetOptional(out CelOptional<CelValue> optional) || !arguments[1].TryGetInt64(out long index))
+        {
+            return site.NoMatchingOverload(arguments);
+        }
+
+        if (!optional.HasValue)
+        {
+            return CelValue.FromOptional(default);
+        }
+
+        return optional.Value.TryGetList(out CelList? list) ? ReadList(list, index, in site) : site.NoMatchingOverload(arguments);
+    }
+
+    // optional_map_optindex_optional_value and optional_map_index_value, (optional_type(map(K, V)), K) -> optional_type(V).
+    private static CelValue OptionalMapIndex(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        if (!arguments[0].TryGetOptional(out CelOptional<CelValue> optional))
+        {
+            return site.NoMatchingOverload(arguments);
+        }
+
+        if (!optional.HasValue)
+        {
+            return CelValue.FromOptional(default);
+        }
+
+        return optional.Value.TryGetMap(out CelMap? map) ? ReadMap(map, arguments[1], in site) : site.NoMatchingOverload(arguments);
+    }
+
+    // The element at the index, or the empty optional for a negative index or one past the end, where index_list is an error.
+    private static CelValue ReadList(CelList list, long index, in CallSite site) =>
+        index >= 0 && index < list.Count
+            ? OptionalOf(site.Placed(list.Read((int)index, site.Meter)))
+            : CelValue.FromOptional(default);
+
+    // The value of the key by the key lookup, across the numeric kinds, or the empty optional where index_map is NoSuchKey. A JSON
+    // object that repeats the name counts the matches: two or more are the error DuplicateMapKey, which the lookup returns as the value.
+    private static CelValue ReadMap(CelMap map, CelValue key, in CallSite site) =>
+        map.TryRead(key, site.Meter, readValue: true, out CelValue value)
+            ? OptionalOf(site.Placed(value))
+            : CelValue.FromOptional(default);
+
+    // optional.of(value) for a value, and the error value itself for an error value, which no optional holds.
+    private static CelValue OptionalOf(CelValue value) =>
+        value.Kind == CelValueKind.Error ? value : CelValue.FromOptional(new CelOptional<CelValue>(value));
+
+    // The argument cost of an overload over an optional: nothing for an empty operand, and for a held list or map what the plain
+    // overload answers for the held value and the key.
+    private static ulong OptionalIndexCost(ReadOnlySpan<CelValue> arguments, CelCostFunction plain)
+    {
+        if (arguments.Length != 2 || !arguments[0].TryGetOptional(out CelOptional<CelValue> optional) || !optional.HasValue)
+        {
+            return 0;
+        }
+
+        ReadOnlySpan<CelValue> held = [optional.Value, arguments[1]];
+        return plain(held);
+    }
+}

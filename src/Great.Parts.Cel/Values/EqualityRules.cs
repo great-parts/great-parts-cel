@@ -139,10 +139,33 @@ internal static class EqualityRules
                 _ = left.TryGetMap(out CelMap? leftMap);
                 _ = right.TryGetMap(out CelMap? rightMap);
                 return MapsEqual(leftMap!, rightMap!, meter, out error, types, boundary);
+            case CelValueKind.Optional:
+                return OptionalsEqual(left, right, meter, out error, types, boundary);
             default:
-                // Optional values and decimals come with their parts.
+                // Decimals come with their part.
                 throw new NotImplementedException();
         }
+    }
+
+    // Two optionals: 1 unit; two empty ones are equal, an empty and a non-empty one are not, and two that hold values are equal when the
+    // values are, by CEL equality, which charges its own units. An error of the comparison of the held values is the result.
+    private static ValueEquality OptionalsEqual(CelValue left, CelValue right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
+    {
+        error = default;
+        if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
+        {
+            return ValueEquality.InsufficientStack;
+        }
+
+        meter?.Charge(1);
+        _ = left.TryGetOptional(out CelOptional<CelValue> leftOptional);
+        _ = right.TryGetOptional(out CelOptional<CelValue> rightOptional);
+        if (!leftOptional.HasValue || !rightOptional.HasValue)
+        {
+            return Result(leftOptional.HasValue == rightOptional.HasValue);
+        }
+
+        return AreEqual(leftOptional.Value, rightOptional.Value, meter, out error, types, boundary);
     }
 
     /// <summary>

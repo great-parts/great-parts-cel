@@ -23,6 +23,7 @@ public sealed class ValueTypeNamesTests
         [CelValueKind.Type] = "type",
         [CelValueKind.Timestamp] = "timestamp",
         [CelValueKind.Duration] = "duration",
+        [CelValueKind.Optional] = "optional_type",
         [CelValueKind.Error] = "error",
     };
 

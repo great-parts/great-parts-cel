@@ -69,8 +69,8 @@ public sealed class CompileTests
         Assert.Equal("expression", Assert.Throws<ArgumentNullException>(() => Environment.Compile<long>(null!)).ParamName);
     }
 
-    // T outside the tables is a violated condition of the call, before the text is read; T of optional or decimal is not
-    // implemented yet and not ignored; T of time is a row, and an int is not assignable to it.
+    // T outside the tables is a violated condition of the call, before the text is read; T of decimal is not implemented
+    // yet and not ignored; T of time is a row, and an int is not assignable to it.
     [Fact]
     public void Compile_ToATypeOutsideTheTables_ThrowsArgumentException()
     {

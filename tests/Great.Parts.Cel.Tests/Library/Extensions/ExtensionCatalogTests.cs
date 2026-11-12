@@ -11,16 +11,16 @@ using Xunit;
 
 namespace Great.Parts.Cel.Tests.Library.Extensions;
 
-// The catalog of the extension sets: the table of versions of the nine sets, one definition and one CelExtension for each
+// The catalog of the extension sets: the table of versions of the ten sets, one definition and one CelExtension for each
 // pair of name and version, and what the members of CelExtensions hand out. A catalog of the tests has families with factories;
 // the catalog of the library has the table of the sets that the library names, and the name of each joins Names with the factory.
 public sealed class ExtensionCatalogTests
 {
     private static readonly string[] LibraryNames =
-        ["strings", "math", "lists", "sets", "encoders", "bindings", "two-var-comprehensions", "network", "protos"];
+        ["strings", "math", "lists", "sets", "encoders", "bindings", "two-var-comprehensions", "network", "protos", "optional"];
 
     [Fact]
-    public void CatalogOfTheLibrary_HasTheVersionsOfTheNineSets()
+    public void CatalogOfTheLibrary_HasTheVersionsOfTheTenSets()
     {
         Assert.Equal(new uint[] { 5 }, ExtensionCatalog.Default.VersionsOf("strings"));
         Assert.Equal(new uint[] { 3 }, ExtensionCatalog.Default.VersionsOf("math"));
@@ -31,7 +31,7 @@ public sealed class ExtensionCatalogTests
         Assert.Equal(new uint[] { 0 }, ExtensionCatalog.Default.VersionsOf("two-var-comprehensions"));
         Assert.Equal(new uint[] { 1 }, ExtensionCatalog.Default.VersionsOf("network"));
         Assert.Equal(new uint[] { 0 }, ExtensionCatalog.Default.VersionsOf("protos"));
-        Assert.Empty(ExtensionCatalog.Default.VersionsOf("optional"));
+        Assert.Equal(new uint[] { 2 }, ExtensionCatalog.Default.VersionsOf("optional"));
         Assert.Empty(ExtensionCatalog.Default.VersionsOf("block"));
     }
 
@@ -40,7 +40,7 @@ public sealed class ExtensionCatalogTests
     {
         Assert.All(CelExtensions.Names, name => Assert.Contains(name, LibraryNames));
         Assert.DoesNotContain("block", CelExtensions.Names.Items);
-        Assert.DoesNotContain("optional", CelExtensions.Names.Items);
+        Assert.Contains("optional", CelExtensions.Names.Items);
     }
 
     [Fact]
@@ -57,6 +57,7 @@ public sealed class ExtensionCatalogTests
             (CelExtensions.TwoVarComprehensions, "two-var-comprehensions"),
             (CelExtensions.Network, "network"),
             (CelExtensions.Protos, "protos"),
+            (CelExtensions.Optional, "optional"),
         ];
 
         foreach ((Func<uint, CelExtension> member, string name) in members)

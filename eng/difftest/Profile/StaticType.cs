@@ -28,6 +28,10 @@ internal sealed record StaticType(ProfileType Kind, StaticType? Element = null, 
     /// <param name="value">The value type, or <see langword="null"/> when it is not known.</param>
     internal static StaticType MapOf(StaticType? key, StaticType? value) => new(ProfileType.MapType, Key: key, Value: value);
 
+    /// <summary>An optional type; its held type is the <see cref="Element"/>.</summary>
+    /// <param name="element">The held type, or <see langword="null"/> when it is not known.</param>
+    internal static StaticType OptionalOf(StaticType? element) => new(ProfileType.OptionalType, Element: element);
+
     /// <summary>A type without parameters: a scalar type, <c>null_type</c>, <c>type</c> or <c>dyn</c>.</summary>
     /// <param name="kind">The kind.</param>
     internal static StaticType Of(ProfileType kind) => kind == ProfileType.DynType ? Dyn : new(kind);
@@ -64,7 +68,7 @@ internal sealed record StaticType(ProfileType Kind, StaticType? Element = null, 
 
         return left.Kind switch
         {
-            ProfileType.ListType => Compatible(left.Element, right.Element),
+            ProfileType.ListType or ProfileType.OptionalType => Compatible(left.Element, right.Element),
             ProfileType.MapType => Both(Compatible(left.Key, right.Key), Compatible(left.Value, right.Value)),
             _ => Compatibility.Yes,
         };
@@ -96,6 +100,7 @@ internal sealed record StaticType(ProfileType Kind, StaticType? Element = null, 
         return left.Kind switch
         {
             ProfileType.ListType => ListOf(Meet(left.Element, right.Element)),
+            ProfileType.OptionalType => OptionalOf(Meet(left.Element, right.Element)),
             ProfileType.MapType => MapOf(Meet(left.Key, right.Key), Meet(left.Value, right.Value)),
             _ => left,
         };

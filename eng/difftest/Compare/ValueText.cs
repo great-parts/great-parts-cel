@@ -50,6 +50,7 @@ internal static class ValueText
             Value.KindOneofCase.MapValue => "map",
             Value.KindOneofCase.TypeValue => "type",
             Value.KindOneofCase.EnumValue => value.EnumValue.Type,
+            Value.KindOneofCase.ObjectValue when OptionalValue.Is(value.ObjectValue) => "optional_type",
             Value.KindOneofCase.ObjectValue when value.ObjectValue.Is(Timestamp.Descriptor) => "timestamp",
             Value.KindOneofCase.ObjectValue when value.ObjectValue.Is(Duration.Descriptor) => "duration",
             Value.KindOneofCase.ObjectValue => value.ObjectValue.TypeUrl[(value.ObjectValue.TypeUrl.LastIndexOf('/') + 1)..],
@@ -77,12 +78,18 @@ internal static class ValueText
             Value.KindOneofCase.MapValue => "{" + string.Join(", ", value.MapValue.Entries.Select(entry => Format(entry.Key) + ": " + Format(entry.Value))) + "}",
             Value.KindOneofCase.TypeValue => value.TypeValue,
             Value.KindOneofCase.EnumValue => value.EnumValue.Type + "(" + value.EnumValue.Value.ToString(CultureInfo.InvariantCulture) + ")",
+            Value.KindOneofCase.ObjectValue when OptionalValue.Is(value.ObjectValue) => OptionalText(value.ObjectValue),
             Value.KindOneofCase.ObjectValue when value.ObjectValue.Is(Timestamp.Descriptor) => TimeText("timestamp", value.ObjectValue.Unpack<Timestamp>().Seconds, value.ObjectValue.Unpack<Timestamp>().Nanos),
             Value.KindOneofCase.ObjectValue when value.ObjectValue.Is(Duration.Descriptor) => TimeText("duration", value.ObjectValue.Unpack<Duration>().Seconds, value.ObjectValue.Unpack<Duration>().Nanos),
             Value.KindOneofCase.ObjectValue => value.ObjectValue.TypeUrl + "{…}",
             _ => "unknown",
         };
     }
+
+    // An optional as the text that the design page gives: optional(none) for an empty one, optional(<value>) for one that holds a value,
+    // optional(null) for optional.of(null).
+    private static string OptionalText(Google.Protobuf.WellKnownTypes.Any any) =>
+        OptionalValue.TryRead(any, out Value? held) ? "optional(" + Format(held!) + ")" : "optional(none)";
 
     // A value of time as the seconds and the nanoseconds of its message: the text has no calendar, which a divergence may be about.
     private static string TimeText(string type, long seconds, int nanoseconds) =>

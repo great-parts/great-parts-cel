@@ -1,0 +1,28 @@
+# The declarations of version 2 of the extension set optional, in the order of the table. A published version never changes: a new function comes as a new version.
+# set <name> <version> | depends <set> | type <abstract type> | macro <name> <global or receiver> <argument count or *>
+# overload <function> <overload id> <global or receiver> (<parameter types, the receiver first>) -> <result type> [dyn] cost <five costs>
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a call charges before it runs
+# (the fixed units and the cost of the arguments) on probe arguments of size 0, 1, 10, 11 and 100: every string, bytes, list and map argument has that size at once,
+# an int is that size, a double is 1, a net.IP and a net.CIDR have a fixed value.
+set optional 2
+type optional_type
+macro optMap receiver 2
+macro optFlatMap receiver 2
+overload optional.of optional_of global (V) -> optional_type(V) cost 1 1 1 1 1
+overload optional.ofNonZeroValue optional_ofNonZeroValue global (V) -> optional_type(V) cost 1 1 1 1 1
+overload optional.none optional_none global () -> optional_type(V) cost 1 1 1 1 1
+overload value optional_value receiver (optional_type(V)) -> V cost 1 1 1 1 1
+overload hasValue optional_hasValue receiver (optional_type(V)) -> bool cost 1 1 1 1 1
+overload or optional_or_optional receiver (optional_type(V), optional_type(V)) -> optional_type(V) cost 1 1 1 1 1
+overload orValue optional_orValue_value receiver (optional_type(V), V) -> V cost 1 1 1 1 1
+overload _?._ select_optional_field global (dyn, string) -> optional_type(V) cost 0 0 0 0 0
+overload _[?_] list_optindex_optional_int global (list(V), int) -> optional_type(V) cost 1 1 1 1 1
+overload _[?_] optional_list_optindex_optional_int global (optional_type(list(V)), int) -> optional_type(V) cost 1 1 1 1 1
+overload _[?_] map_optindex_optional_value global (map(K, V), K) -> optional_type(V) cost 1 1 1 1 1
+overload _[?_] optional_map_optindex_optional_value global (optional_type(map(K, V)), K) -> optional_type(V) cost 1 1 1 1 1
+overload _[_] optional_list_index_int global (optional_type(list(V)), int) -> optional_type(V) cost 1 1 1 1 1
+overload _[_] optional_map_index_value global (optional_type(map(K, V)), K) -> optional_type(V) cost 1 1 1 1 1
+overload first list_first receiver (list(V)) -> optional_type(V) cost 1 1 1 1 1
+overload last list_last receiver (list(V)) -> optional_type(V) cost 1 1 1 1 1
+overload optional.unwrap optional_unwrap global (list(optional_type(V))) -> list(V) cost 1 2 11 12 101
+overload unwrapOpt optional_unwrapOpt receiver (list(optional_type(V))) -> list(V) cost 1 2 11 12 101

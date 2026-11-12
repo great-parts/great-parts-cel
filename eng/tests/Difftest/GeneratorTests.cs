@@ -605,6 +605,24 @@ public sealed class GeneratorTests
             string.Join('|', trees.Select(ExprPrinter.Print)));
     }
 
+    // The digits of the least int are out of range for the language: after a minus they would read as a doubled minus.
+    [Fact]
+    public void NegationOfTheLeastInt_KeepsItsParentheses()
+    {
+        IntLiteral least = new(long.MinValue, IntegerForm.DecimalDigits);
+        Expr[] trees =
+        [
+            least,
+            new Call(ProfileTables.Negate, [least]),
+            new Call(ProfileTables.Negate, [new IntLiteral(long.MinValue + 1, IntegerForm.DecimalDigits)]),
+            new Call(ProfileTables.Add, [new Call(ProfileTables.Negate, [least]), new IntLiteral(1, IntegerForm.DecimalDigits)]),
+        ];
+
+        Assert.Equal(
+            "-9223372036854775808|-(-9223372036854775808)|--9223372036854775807|-(-9223372036854775808) + 1",
+            string.Join('|', trees.Select(ExprPrinter.Print)));
+    }
+
     [Fact]
     public void ListsAndMaps_PrintTheirElementsAndEntries()
     {

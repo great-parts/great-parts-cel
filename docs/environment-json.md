@@ -8,8 +8,7 @@ public static ImmutableArray<CelError> CelEnvironmentJson.Apply(CelEnvironmentBu
 
 The format is a subset of the JSON form of the environment configuration of cel-go, the CEL implementation in Go, so that the library and the oracle of the differential run against cel-go read one file with one meaning. `Apply` maps the description one to one onto calls of the builder and makes no decisions of its own: an environment from JSON is the environment that the same calls in code build, and its build errors are those of the same calls.
 
-Not in this version of the page: the extension sets. The catalog of sets is empty until the sets are added, so every `name` in `extensions` is an error, and each set adds its name with its version. The type record `optional_type<E>` is an error that names the type until the library supports it.
-
+Not in this version of the page: the extension sets. The catalog of sets is empty until the sets are added, so every `name` in `extensions` is an error, and each set adds its name with its version.
 ## Reading
 
 | Rule |
@@ -165,6 +164,7 @@ A name is looked up as a full name: the `container` does not apply to it, as in 
 | `list<E>` | `list(E)` | exactly 1 |
 | `map<K, V>` | `map(K, V)` | exactly 2 |
 | `type`, `type<E>` | `type` | 0 or 1 |
+| `optional_type<E>` | `optional_type(E)`; the build error `TypeNotDeclared` without the extension set `optional` | exactly 1 |
 | `~A` … `~Z`, `~a` … `~z` | a type parameter; only in a record of an overload | none |
 | `any` | `google.protobuf.Any` | none |
 | another full name, `google.protobuf.Timestamp` and `google.protobuf.Duration` included; a leading `.` is dropped | the object type of a source added to the environment, resolved when the environment is built; a name that no source declares is `TypeNotDeclared`, so the types of time are written `timestamp` and `duration` | none |

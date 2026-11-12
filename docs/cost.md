@@ -274,6 +274,34 @@ For example, `ip('192.168.0.1')` costs 1 + 2 = 3, and `string(ip('1.2.3.4'))` co
 
 The set has two macros and no function, so it has no row of its own. A macro costs what its expansion costs: `proto.getExt(m, a.b.c)` is the selection of the field `a.b.c` of `m`, and `proto.hasExt(m, a.b.c)` its presence test, so each costs 1 beyond the operand `m`, the unit of any field selection. The identifier `proto` and the name of the extension are not read and cost nothing. For example, `proto.getExt(m, pkg.count_ext)` with a variable `m` costs the read of `m`, 1, and the selection, 1: 2 in all.
 
+### Set `optional`
+
+A call is 1 unit, and the nodes of the set charge what the table says before the function runs or, for `or` and `orValue`, between the receiver and the argument. In the table n is the size of the list that `optional.unwrap` and `unwrapOpt` work on.
+
+| Overloads | Units |
+| :- | :- |
+| `optional_of`, `optional_none`, `optional_value`, `optional_hasValue`, `list_first`, `list_last` | 1 |
+| `optional_ofNonZeroValue` | 1; for an object of the application or a message, 1 + f, with f the number of the fields of its description, which is known without reading a field and is charged before the first field is read |
+| `optional_or_optional`, `optional_orValue_value` | 1, charged after the receiver is evaluated and before the argument; the argument is charged only when it is evaluated, which is when the receiver is empty |
+| `select_optional_field` | what the selection it stands for costs: 1 for a field of a message or of an object of the application and for a map with a key that is not a string, 1 + ⌈L/10⌉ for a map with a string key of length L, whether the key is present or not; for a JSON object, the row of the key lookup in [Data of the application](#data-of-the-application) |
+| `list_optindex_optional_int`, `optional_list_optindex_optional_int`, `optional_list_index_int` | 1, as the index of a list |
+| `map_optindex_optional_value`, `optional_map_optindex_optional_value`, `optional_map_index_value` | 1 for a key that is not a string, 1 + ⌈L/10⌉ for a string key of length L, whether the key is present or not |
+| `optional_unwrap`, `optional_unwrapOpt` | 1 + n |
+| a literal with `?` (`[?e]`, `{?k: v}`, `T{?f: v}`) | the cost of the literal without `?`, counted over the positions that are stored: a list 1 + the number of stored elements; a map 1 + 2 for each stored entry and ⌈L/10⌉ for each stored string key of length L; a message 1 + the number of stored fields and ⌈L/10⌉ for the lengths of the strings and `bytes` stored, as in [Nodes of an expression](#nodes-of-an-expression). The expressions of the positions are charged by their own rows, whether the position is stored or dropped |
+
+The equality of two optionals costs 1 when either is empty, and 1 plus the equality of the held values when both hold one.
+
+The macros `optMap` and `optFlatMap` are charged by their expansion, which is a conditional on `hasValue()` over a comprehension of an empty list. The expressions that the author wrote — the target and the body — are charged by their own rows. Everything that the expansion adds costs 0 to read: the copy of the target in `x.value()` and the hidden name that binds a target that is not an identifier. Each call that it adds, `hasValue`, `value`, `optional.of` and `optional.none`, is 1, and the empty list that is the range of the comprehension is 1 although no list is made. No step runs. With c(t) the cost of the target and c(e) the cost of the body:
+
+| Macro | Target | Empty optional | Optional with a value |
+| :- | :- | :- | :- |
+| `optMap` | an identifier | c(t) + 2 | c(t) + 4 + c(e) |
+| `optMap` | any other expression | c(t) + 3 | c(t) + 5 + c(e) |
+| `optFlatMap` | an identifier | c(t) + 2 | c(t) + 3 + c(e) |
+| `optFlatMap` | any other expression | c(t) + 3 | c(t) + 4 + c(e) |
+
+For example, `x.optMap(y, y + 1)` with `x` bound to `optional.of(1)` costs the read of `x` 1, `hasValue` 1, `optional.of` 1, the empty list 1, `value` 1 and the body 2, which is 7; with `x` bound to `optional.none()` it costs the read of `x`, `hasValue` and `optional.none`, which is 3. `optional.of(42).optMap(y, y + 1)` has a target that costs its call, 1, so it costs 8.
+
 ## Data of the application
 
 The rows below are charged by the node or the implementation that does the work, before it, as the rows of the sections above. The rows for a JSON object replace the cost of the same operations on a map, they are not added to it: the key lookup (an index, a selection, `has()`) instead of the class Read with a string key and the index of a map, `in` instead of `in` on a map, and "`size`, enumeration" instead of the `size` of a map. The row for the index of a JSON array replaces the unit that the index of a list costs.

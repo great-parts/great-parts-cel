@@ -35,13 +35,28 @@ internal static class ExprPrinter
 
     /// <summary>
     /// Prints a case of a run: the expression, and for a node of an abstract type <c>string(node)</c>, since the oracle returns a
-    /// value as <c>cel.expr.Value</c>, which has no form for <c>net.IP</c> or <c>net.CIDR</c>. A generated case is never of an abstract
+    /// value as <c>cel.expr.Value</c>, which has no form for <c>net.IP</c> or <c>net.CIDR</c>. The same holds for an optional, which
+    /// that message has no form for either: an optional node is asked for as the list <c>[node.hasValue(), node.orValue(dyn(null))]</c>,
+    /// the pair that tells an empty optional from <c>optional.of(null)</c> and from the held value, and a list or map literal that holds
+    /// an optional node as a plain element, as its size; its elements are cases of their own. A generated case is never of such a
     /// type; the minimizer asks for such a node as a case of its own.
     /// </summary>
     /// <param name="expr">The expression.</param>
     /// <exception cref="ArgumentException">A literal carries a form that its value cannot take.</exception>
     internal static string PrintCase(Expr expr) =>
-        ProfileTables.AbstractResult(expr) is null ? Print(expr) : ProfileTables.StringConversion + "(" + Print(expr) + ")";
+        ProfileTables.AbstractResult(expr) is not null ? ProfileTables.StringConversion + "(" + Print(expr) + ")"
+        : ProfileTables.IsOptional(expr) ? Print(OptionalPair(expr))
+        : ProfileTables.HoldsOptional(expr) ? Print(new Call(ProfileTables.Size, [expr]))
+        : Print(expr);
+
+    // The pair that stands for an optional node: whether it has a value, and its value or, for an empty optional, null. The default is
+    // dyn(null), since null is assignable to the held type only when that is nullable.
+    private static ListLiteral OptionalPair(Expr optional) => new(
+        [
+            new Call("hasValue", [optional]) { Receiver = true },
+            new Call("orValue", [optional, new Call(ProfileTables.Dyn, [new NullLiteral()])]) { Receiver = true },
+        ],
+        TrailingComma: false);
 
     /// <summary>
     /// Prints the literal of a <c>double</c> value in a notation; the digits are the shortest that read back to the magnitude,
@@ -134,7 +149,7 @@ internal static class ExprPrinter
                 break;
             case Select select:
                 WriteMemberOperand(text, select.Operand);
-                text.Append('.').Append(select.Field);
+                text.Append(select.Optional ? ".?" : ".").Append(select.Field);
                 break;
             case PresenceTest test:
                 text.Append("has(");
@@ -218,7 +233,8 @@ internal static class ExprPrinter
         {
             case ProfileTables.Negate or ProfileTables.LogicalNot:
                 text.Append(call.Function == ProfileTables.Negate ? '-' : '!');
-                Write(text, args[0], Precedence(args[0]) < UnaryPrecedence);
+                // The least int after a minus would read as a doubled minus on digits that are out of range, so it keeps its parentheses.
+                Write(text, args[0], Precedence(args[0]) < UnaryPrecedence || (call.Function == ProfileTables.Negate && args[0] is IntLiteral { Value: long.MinValue }));
                 return;
             case ProfileTables.Conditional:
                 // The condition and the first branch are below the conditional in the grammar; the second branch may be one.
@@ -228,9 +244,9 @@ internal static class ExprPrinter
                 text.Append(" : ");
                 Write(text, args[2], needsParentheses: false);
                 return;
-            case ProfileTables.Index:
+            case ProfileTables.Index or ProfileTables.OptionalIndex:
                 WriteMemberOperand(text, args[0]);
-                text.Append('[');
+                text.Append(call.Function == ProfileTables.OptionalIndex ? "[?" : "[");
                 Write(text, args[1], needsParentheses: false);
                 text.Append(']');
                 return;
@@ -304,7 +320,21 @@ internal static class ExprPrinter
     private static void WriteList(StringBuilder text, ListLiteral list)
     {
         text.Append('[');
-        WriteJoined(text, list.Elements, (builder, element) => Write(builder, element, needsParentheses: false));
+        for (int position = 0; position < list.Elements.Count; position++)
+        {
+            if (position > 0)
+            {
+                text.Append(", ");
+            }
+
+            if (list.OptionalPositions.Contains(position))
+            {
+                text.Append('?');
+            }
+
+            Write(text, list.Elements[position], needsParentheses: false);
+        }
+
         if (list.TrailingComma)
         {
             text.Append(',');
@@ -318,6 +348,11 @@ internal static class ExprPrinter
         text.Append('{');
         WriteJoined(text, map.Entries, (builder, entry) =>
         {
+            if (entry.Optional)
+            {
+                builder.Append('?');
+            }
+
             Write(builder, entry.Key, needsParentheses: false);
             builder.Append(": ");
             Write(builder, entry.Value, needsParentheses: false);

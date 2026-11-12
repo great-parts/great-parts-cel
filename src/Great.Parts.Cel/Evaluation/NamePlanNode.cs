@@ -18,8 +18,8 @@ internal sealed class NamePlanNode : PlanNode
     // The selections of the chain, the innermost first.
     private readonly SelectPlanNode[] _selections;
 
-    internal NamePlanNode(int offset, string written, ImmutableArray<Candidate> candidates, SelectPlanNode[] selections)
-        : base(offset, 1)
+    internal NamePlanNode(int offset, string written, ImmutableArray<Candidate> candidates, SelectPlanNode[] selections, ulong cost = 1)
+        : base(offset, cost)
     {
         _written = written;
         _candidates = candidates;

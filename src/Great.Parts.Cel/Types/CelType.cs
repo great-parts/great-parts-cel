@@ -183,7 +183,8 @@ public sealed class CelType : IEquatable<CelType>
     /// <exception cref="ArgumentNullException"><paramref name="valueType"/> is <see langword="null"/>.</exception>
     public static CelType OptionalOf(CelType valueType)
     {
-        throw new NotImplementedException();
+        ArgumentNullException.ThrowIfNull(valueType);
+        return new CelType(CelTypeKind.Optional, "optional_type", [valueType]);
     }
 
     /// <summary>

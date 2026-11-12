@@ -12,7 +12,9 @@ namespace Great.Parts.Cel.Evaluation;
 // keeps the last value, and the description creates the instance inside the exception boundary of application code: an
 // exception is ApplicationException at the literal, and an error value without a place gets the place of the literal. With type
 // checking the description and the field numbers come from the reference map; without it the name of the type resolves at
-// evaluation by the candidates of the container, and the field names by the description found.
+// evaluation by the candidates of the container, and the field names by the description found. An entry with ? is evaluated like
+// the others, and its value must be an optional: an empty one drops the entry, which is then not among the entries of the creation
+// and not counted in n or L, and a non-empty one passes its held value on. The charge is then 1 + m + ⌈L/10⌉ for the m entries stored.
 internal sealed class MessagePlanNode : PlanNode
 {
     // A literal after type checking: the description and the field number of each entry.
@@ -28,13 +30,22 @@ internal sealed class MessagePlanNode : PlanNode
 
     private readonly ImmutableArray<PlanNode> _values;
 
-    internal MessagePlanNode(int offset, CelObjectType description, ImmutableArray<int> numbers, ImmutableArray<PlanNode> values)
-        : base(offset, 1 + (ulong)values.Length)
+    // Whether each entry has a ?; default for a literal with none, which charges 1 + n at once.
+    private readonly ImmutableArray<bool> _optional;
+
+    internal MessagePlanNode(
+        int offset,
+        CelObjectType description,
+        ImmutableArray<int> numbers,
+        ImmutableArray<PlanNode> values,
+        ImmutableArray<bool> optional = default)
+        : base(offset, optional.IsDefault ? 1 + (ulong)values.Length : 1)
     {
         _description = description;
         _numbers = numbers;
         _hasRepeat = HasRepeat(numbers.AsSpan());
         _values = values;
+        _optional = optional;
     }
 
     internal MessagePlanNode(
@@ -42,13 +53,15 @@ internal sealed class MessagePlanNode : PlanNode
         string name,
         ImmutableArray<string> candidates,
         ImmutableArray<string> fieldNames,
-        ImmutableArray<PlanNode> values)
-        : base(offset, 1 + (ulong)values.Length)
+        ImmutableArray<PlanNode> values,
+        ImmutableArray<bool> optional = default)
+        : base(offset, optional.IsDefault ? 1 + (ulong)values.Length : 1)
     {
         _name = name;
         _candidates = candidates;
         _fieldNames = fieldNames;
         _values = values;
+        _optional = optional;
     }
 
     internal override CelValue Evaluate(Frame frame)
@@ -58,45 +71,108 @@ internal sealed class MessagePlanNode : PlanNode
             return error;
         }
 
-        int count = _values.Length;
-        for (int i = 0; i < count; i++)
+        if (!TryEvaluateValues(frame, out int stored, out int[]? kept, out error))
         {
-            CelValue value = _values[i].Evaluate(frame);
-            if (value.Kind == CelValueKind.Error)
-            {
-                frame.Pop(i);
-                return value;
-            }
-
-            frame.Push(value);
+            return error;
         }
 
         Begin(frame);
         if (frame.Metered)
         {
-            ulong tenths = (LengthOfWrittenData(frame.Peek(count)) + 9) / 10;
-            if (tenths != 0)
+            ulong units = ((LengthOfWrittenData(frame.Peek(stored)) + 9) / 10) + (_optional.IsDefault ? 0UL : (ulong)stored);
+            if (units != 0)
             {
-                frame.Charge(tenths);
+                frame.Charge(units);
             }
         }
 
-        CelValue result;
-        if (_description is not null)
+        CelValue result = CreateFromStored(frame, kept, stored);
+        frame.Pop(stored);
+        return result;
+    }
+
+    // Evaluates the values from left to right onto the stack. The values of the entries that are stored are on the stack and
+    // counted in stored; the entries of a literal with ? that were dropped are not. After the first dropped entry, kept holds the
+    // index of each stored one; before it, it is null and the stored entries are the first ones. False with the error value that
+    // ended the evaluation, and nothing left on the stack.
+    private bool TryEvaluateValues(Frame frame, out int stored, out int[]? kept, out CelValue error)
+    {
+        stored = 0;
+        kept = null;
+        error = default;
+        for (int i = 0; i < _values.Length; i++)
         {
-            result = Create(frame, _description, _numbers.AsSpan(), _hasRepeat, count);
-        }
-        else if (TryResolve(frame, out CelObjectType? description, out int[]? resolved, out error))
-        {
-            result = Create(frame, description, resolved, HasRepeat(resolved), count);
-        }
-        else
-        {
-            result = error;
+            CelValue value = _values[i].Evaluate(frame);
+            if (value.Kind == CelValueKind.Error)
+            {
+                frame.Pop(stored);
+                error = value;
+                return false;
+            }
+
+            if (!_optional.IsDefault && _optional[i])
+            {
+                if (!value.TryGetOptional(out CelOptional<CelValue> optional))
+                {
+                    frame.Pop(stored);
+                    error = EvaluationErrors.NotAnOptional(value, frame, _values[i].Offset);
+                    return false;
+                }
+
+                if (!optional.HasValue)
+                {
+                    kept ??= FirstIndices(_values.Length, stored);
+                    continue;
+                }
+
+                value = optional.Value;
+            }
+
+            if (kept is not null)
+            {
+                kept[stored] = i;
+            }
+
+            frame.Push(value);
+            stored++;
         }
 
-        frame.Pop(count);
-        return result;
+        return true;
+    }
+
+    // Creates the instance from the values that are on the stack, one for each field number of the entries that were stored.
+    private CelValue CreateFromStored(Frame frame, int[]? kept, int stored)
+    {
+        if (_description is not null)
+        {
+            if (kept is null)
+            {
+                return Create(frame, _description, _numbers.AsSpan(), _hasRepeat, stored);
+            }
+
+            int[] storedNumbers = Gather(_numbers.AsSpan(), kept, stored);
+            return Create(frame, _description, storedNumbers, HasRepeat(storedNumbers), stored);
+        }
+
+        if (!TryResolve(frame, out CelObjectType? description, out int[]? resolved, out CelValue error))
+        {
+            return error;
+        }
+
+        int[] numbers = kept is null ? resolved : Gather(resolved, kept, stored);
+        return Create(frame, description, numbers, HasRepeat(numbers), stored);
+    }
+
+    // The field numbers of the entries that were stored, in the order of the text.
+    private static int[] Gather(ReadOnlySpan<int> numbers, int[] kept, int stored)
+    {
+        int[] gathered = stored == 0 ? [] : new int[stored];
+        for (int i = 0; i < gathered.Length; i++)
+        {
+            gathered[i] = numbers[kept[i]];
+        }
+
+        return gathered;
     }
 
     // Creates the instance from the values that are on the stack, one for each field number.

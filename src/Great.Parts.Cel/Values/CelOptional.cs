@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Great.Parts.Cel.Values;
 
@@ -19,28 +20,32 @@ namespace Great.Parts.Cel.Values;
 /// </para>
 /// <para>The structure is immutable; whether it can be shared between threads depends on the held value.</para>
 /// </remarks>
-public readonly struct CelOptional<T> : IEquatable<CelOptional<T>>
+public readonly struct CelOptional<T> : IEquatable<CelOptional<T>>, IOptionalSource
 {
+    private readonly T _value;
+    private readonly bool _hasValue;
+
     /// <summary>
     /// Creates an optional that holds <paramref name="value"/>, as <c>optional.of(value)</c> does.
     /// </summary>
     /// <param name="value">The held value; <see langword="null"/> is a value, not "empty".</param>
     public CelOptional(T value)
     {
-        throw new NotImplementedException();
+        _value = value;
+        _hasValue = true;
     }
 
     /// <summary>
     /// <see langword="true"/> when the optional holds a value, which can be <see langword="null"/>;
     /// <see langword="false"/> when it is empty.
     /// </summary>
-    public bool HasValue => throw new NotImplementedException();
+    public bool HasValue => _hasValue;
 
     /// <summary>
     /// The held value.
     /// </summary>
     /// <exception cref="InvalidOperationException">The optional is empty; check <see cref="HasValue"/> first.</exception>
-    public T Value => throw new NotImplementedException();
+    public T Value => _hasValue ? _value : throw new InvalidOperationException("The optional is empty.");
 
     /// <summary>
     /// Compares two optionals: both are empty, or both hold values that are equal by
@@ -50,7 +55,7 @@ public readonly struct CelOptional<T> : IEquatable<CelOptional<T>>
     /// <returns><see langword="true"/> when the optionals are equal.</returns>
     public bool Equals(CelOptional<T> other)
     {
-        throw new NotImplementedException();
+        return _hasValue == other._hasValue && (!_hasValue || EqualityComparer<T>.Default.Equals(_value, other._value));
     }
 
     /// <summary>
@@ -60,7 +65,7 @@ public readonly struct CelOptional<T> : IEquatable<CelOptional<T>>
     /// <returns><see langword="true"/> when <paramref name="obj"/> is an equal optional.</returns>
     public override bool Equals(object? obj)
     {
-        throw new NotImplementedException();
+        return obj is CelOptional<T> other && Equals(other);
     }
 
     /// <summary>
@@ -69,7 +74,7 @@ public readonly struct CelOptional<T> : IEquatable<CelOptional<T>>
     /// <returns>The hash code.</returns>
     public override int GetHashCode()
     {
-        throw new NotImplementedException();
+        return _hasValue ? HashCode.Combine(1, _value) : 0;
     }
 
     /// <summary>
@@ -80,7 +85,7 @@ public readonly struct CelOptional<T> : IEquatable<CelOptional<T>>
     /// <returns><see langword="true"/> when the optionals are equal.</returns>
     public static bool operator ==(CelOptional<T> left, CelOptional<T> right)
     {
-        throw new NotImplementedException();
+        return left.Equals(right);
     }
 
     /// <summary>
@@ -91,6 +96,26 @@ public readonly struct CelOptional<T> : IEquatable<CelOptional<T>>
     /// <returns><see langword="true"/> when the optionals differ.</returns>
     public static bool operator !=(CelOptional<T> left, CelOptional<T> right)
     {
-        throw new NotImplementedException();
+        return !left.Equals(right);
+    }
+
+    // The CEL value of the optional by the input rows: the empty optional, or one that holds the converted value.
+    bool IOptionalSource.TryToCelValue(out CelValue result)
+    {
+        if (!_hasValue)
+        {
+            result = CelValue.EmptyOptional;
+            return true;
+        }
+
+        if (!ConversionRules.TryFromClr(_value, out CelValue held))
+        {
+            result = default;
+            return false;
+        }
+
+        // An error value that the conversion gave is the value of the read, never the content of an optional.
+        result = held.Kind == CelValueKind.Error ? held : CelValue.OptionalOfValue(held);
+        return true;
     }
 }

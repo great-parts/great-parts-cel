@@ -31,7 +31,7 @@ internal static partial class ConversionRules
     /// <typeparamref name="T"/> is outside the tables, or it does not hold the values of the explicit type.
     /// </exception>
     /// <exception cref="NotImplementedException">
-    /// <typeparamref name="T"/> or the explicit type is not supported yet: <c>optional</c>, <c>decimal</c>.
+    /// <typeparamref name="T"/> or the explicit type is not supported yet: <c>decimal</c>.
     /// </exception>
     internal static CelType ExpectedType<T>(CelType? explicitType, string parameterName, TypeIndex? types = null)
     {
@@ -199,9 +199,12 @@ internal static partial class ConversionRules
     }
 
     // The name of the type of a value in the message of ResultConversion: of an object value its description, or the
-    // .NET type of an instance without one.
+    // .NET type of an instance without one; of an optional that holds a value, optional_type with the name of the type of the held
+    // value, such as optional_type(string).
     private static string TypeName(CelValue value, TypeIndex? types) =>
-        ValueTypeRules.NameOf(value, types);
+        value.TryGetOptional(out CelOptional<CelValue> optional) && optional.HasValue
+            ? "optional_type(" + TypeName(optional.Value, types) + ")"
+            : ValueTypeRules.NameOf(value, types);
 
     /// <summary>
     /// Converts an argument of a typed delegate to its parameter type <typeparamref name="T"/>. The argument fits the
@@ -309,7 +312,7 @@ internal static partial class ConversionRules
 
         if (MentionsLaterPart(typeof(T)))
         {
-            // The result types of optional and decimal come with their parts; they are not ignored.
+            // The result types of decimal come with their part; they are not ignored.
             throw new NotImplementedException();
         }
 

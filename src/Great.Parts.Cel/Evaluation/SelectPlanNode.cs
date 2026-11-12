@@ -7,7 +7,8 @@ namespace Great.Parts.Cel.Evaluation;
 // an error value is the result. On a map, e.f is the value of the string key f, and no such key is
 // EvalNoSuchField; has(e.f) is whether the key is present. On an object value the field is found by name in the
 // description of the value — an instance without one is TypeNotAccessible — and read as by FieldPlanNode; no such
-// field is EvalNoSuchField with the full name of the type, for has() too. Any other value is
+// field is EvalNoSuchField with the full name of the type, for has() too. On an optional the selection is optional
+// (OptionalSelectPlanNode.Read): the empty optional for the empty one, and for has() false. Any other value is
 // FieldSelectionNotSupported for both, after the constant unit only. Costs 1, and on a map ⌈L/10⌉ more, L the
 // length of f; on a JSON object, which the lookup walks whole, n · (1 + ⌈L/10⌉) more for n properties.
 internal sealed class SelectPlanNode : PlanNode
@@ -45,6 +46,19 @@ internal sealed class SelectPlanNode : PlanNode
         if (operand.Kind == CelValueKind.Object)
         {
             return SelectObject(frame, operand);
+        }
+
+        // A value of the kind Optional, whatever the static type says: the selection is optional, as the attribute of cel-go is
+        // when its base is an optional. The empty one has no field and no presence; a held value is read as OptionalSelectPlanNode
+        // reads it, and its result is the optional of the value, or whether the field is there.
+        if (operand.Kind == CelValueKind.Optional && operand.TryGetOptional(out CelOptional<CelValue> optional))
+        {
+            if (!optional.HasValue)
+            {
+                return _isPresenceTest ? CelValue.FromBoolean(false) : CelValue.FromOptional(default);
+            }
+
+            return OptionalSelectPlanNode.Read(frame, optional.Value, _field, _keyCost, _isPresenceTest, Offset);
         }
 
         if (!operand.TryGetMap(out CelMap? map))

@@ -247,8 +247,24 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <exception cref="ArgumentException">The optional holds a value of the kind <see cref="CelValueKind.Error"/>.</exception>
     public static CelValue FromOptional(CelOptional<CelValue> value)
     {
-        throw new NotImplementedException();
+        if (!value.HasValue)
+        {
+            return EmptyOptional;
+        }
+
+        if (value.Value.Kind == CelValueKind.Error)
+        {
+            throw new ArgumentException("An optional cannot hold an error value.", nameof(value));
+        }
+
+        return OptionalOfValue(value.Value);
     }
+
+    // The one empty optional: the kind and no reference. optional.none() returns it, and nothing allocates.
+    internal static CelValue EmptyOptional => new(CelValueKind.Optional, null, 0, 0);
+
+    // The optional that holds the value, which is not an error value: one box.
+    internal static CelValue OptionalOfValue(CelValue held) => new(CelValueKind.Optional, new OptionalBox(held), 0, 0);
 
 #if NET11_0_OR_GREATER
     /// <summary>
@@ -403,7 +419,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Optional"/>.</returns>
     public bool TryGetOptional(out CelOptional<CelValue> value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Optional && _ref is OptionalBox box ? new CelOptional<CelValue>(box.Value) : default;
+        return _kind == CelValueKind.Optional;
     }
 
     /// <summary>
@@ -506,6 +523,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.List or CelValueKind.Map or CelValueKind.Error => ReferenceEquals(_ref, other._ref),
             CelValueKind.Object => ObjectEquals(other),
             CelValueKind.Abstract => ((AbstractValue)_ref!).ContentEquals((AbstractValue)other._ref!),
+            CelValueKind.Optional => OptionalEquals(other),
 
             // No factory creates values of the other kinds yet.
             _ => throw new NotImplementedException(),
@@ -542,6 +560,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
                 ? HashCode.Combine(RuntimeHelpers.GetHashCode(pair.Instance), RuntimeHelpers.GetHashCode(pair.Type))
                 : RuntimeHelpers.GetHashCode(_ref),
             CelValueKind.Abstract => ((AbstractValue)_ref!).ContentHash(),
+            CelValueKind.Optional => _ref is OptionalBox box ? box.Value.GetHashCode() : 0,
 
             // No factory creates values of the other kinds yet.
             _ => throw new NotImplementedException(),
@@ -570,6 +589,11 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     {
         return !left.Equals(right);
     }
+
+    // Two empty optionals, or two that hold values equal by .NET equality; an empty and a non-empty optional differ.
+    private bool OptionalEquals(CelValue other) => _ref is OptionalBox box
+        ? other._ref is OptionalBox otherBox && box.Value.Equals(otherBox.Value)
+        : other._ref is null;
 
     // The same instance, and for a pair the same description; a bare instance never equals a pair.
     private bool ObjectEquals(CelValue other)

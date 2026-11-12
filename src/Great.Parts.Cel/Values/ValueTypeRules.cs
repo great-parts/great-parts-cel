@@ -13,6 +13,7 @@ internal static class ValueTypeRules
     private static readonly CelType ListType = CelType.ListOf(CelType.Dyn);
     private static readonly CelType MapType = CelType.MapOf(CelType.Dyn, CelType.Dyn);
     private static readonly CelType TypeType = CelType.TypeOf(CelType.Dyn);
+    private static readonly CelType OptionalType = CelType.OptionalOf(CelType.Dyn);
 
     /// <summary>
     /// The runtime type of a value, the value of the function <c>type</c>: the parameters of lists, maps and type
@@ -35,8 +36,9 @@ internal static class ValueTypeRules
         CelValueKind.Abstract => AbstractTypeOf(value),
         CelValueKind.Timestamp => CelType.Timestamp,
         CelValueKind.Duration => CelType.Duration,
+        CelValueKind.Optional => OptionalType,
 
-        // Optional values, objects and decimals come with their parts.
+        // Objects and decimals come with their parts.
         _ => throw new NotImplementedException(),
     };
 
@@ -105,8 +107,24 @@ internal static class ValueTypeRules
             CelTypeKind.List when value.TryGetList(out CelList? list) => ElementsFit(list, type.Parameters[0], meter, nullElements, types),
             CelTypeKind.Map when value.TryGetMap(out CelMap? map) =>
                 EntriesFit(map, type.Parameters[0], type.Parameters[1], meter, nullElements, types),
+            CelTypeKind.Optional when value.TryGetOptional(out CelOptional<CelValue> optional) =>
+                HeldFits(optional, type.Parameters[0], meter, nullElements, types),
             _ => TypeFit.Yes,
         };
+    }
+
+    // The held value of an optional against the parameter of optional_type(E): nothing is checked for an empty optional or for a
+    // parameter that is dyn or a type parameter; otherwise the held value is checked as a value is, charging what the check of it
+    // charges and nothing for the optional itself. With nullElements a null held value fits, as the check before a lazy view lets it
+    // through the positions that the view reads as null references.
+    private static TypeFit HeldFits(CelOptional<CelValue> optional, CelType held, IEvaluationMeter? meter, bool nullElements, TypeIndex? types)
+    {
+        if (!optional.HasValue || !Descends(held) || (nullElements && optional.Value.Kind == CelValueKind.Null))
+        {
+            return TypeFit.Yes;
+        }
+
+        return Fits(optional.Value, held, meter, nullElements, types);
     }
 
     /// <summary>
@@ -141,9 +159,27 @@ internal static class ValueTypeRules
             return ElementMismatch(list, type.Parameters[0], nullElements, types);
         }
 
+        if (type.Kind == CelTypeKind.Optional && value.TryGetOptional(out CelOptional<CelValue> optional))
+        {
+            return HeldMismatch(optional, type.Parameters[0], nullElements, types);
+        }
+
         return value.TryGetMap(out CelMap? map) && !type.Parameters.IsEmpty
             ? EntryMismatch(map, type.Parameters[0], type.Parameters[1], nullElements, types)
             : null;
+    }
+
+    // The mismatch type of the held value of an optional that does not fit optional_type(E), as optional_type(…); with nullElements
+    // a null held value fits.
+    private static string? HeldMismatch(CelOptional<CelValue> optional, CelType held, bool nullElements, TypeIndex? types)
+    {
+        if (!optional.HasValue || !Descends(held) || (nullElements && optional.Value.Kind == CelValueKind.Null))
+        {
+            return null;
+        }
+
+        string? heldType = MismatchType(optional.Value, held, nullElements, types);
+        return heldType is null ? null : "optional_type(" + heldType + ")";
     }
 
     // The mismatch type of the first element that does not fit list(E), as list(…); with nullElements a null element fits.
@@ -341,8 +377,9 @@ internal static class ValueTypeRules
             CelTypeKind.Abstract => kind == CelValueKind.Null || (kind == CelValueKind.Abstract && AbstractFits(value, type)),
             CelTypeKind.Timestamp => kind == CelValueKind.Timestamp,
             CelTypeKind.Duration => kind == CelValueKind.Duration,
+            CelTypeKind.Optional => kind == CelValueKind.Optional,
 
-            // Optional values and decimals come with their parts.
+            // Decimals come with their part.
             _ => throw new NotImplementedException(),
         };
     }

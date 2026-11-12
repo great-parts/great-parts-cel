@@ -2,7 +2,7 @@
 
 This page says how a .NET value becomes a CEL value and how a CEL value becomes a .NET value. The input rows apply wherever a value enters an expression: the bindings of `CelBindings`, the declaration `AddVariable<T>`, and the arguments and the results of the functions of the application. The result rows apply to the result of `Compile<T>`, `Evaluate<T>` and the one-step call, and to the parameters of the typed delegates of the functions of the application.
 
-Not in this version of the page: the rows of `decimal` and of `optional`, and the descriptions of .NET types that the source generator writes. The messages of protobuf have their rows in the section [Protobuf messages](#protobuf-messages). They come with their parts. The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
+Not in this version of the page: the rows of `decimal` and the descriptions of .NET types that the source generator writes. They come with their parts. The messages of protobuf have their rows in the section [Protobuf messages](#protobuf-messages), and the values of `optional` in the section [Optional values](#optional-values). The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
 
 An error of a conversion is an error of the result, not an exception, except the conditions that the documentation of a method names. A refusal of a value to enter the expression is an error value where the value is read: the binding when the expression reads the variable, the result of a function at the call.
 
@@ -27,6 +27,7 @@ An error of a conversion is an error of the result, not an exception, except the
 | `TimeSpan` | `duration` | exactly, a tick is 100 ns; a value outside the range of `duration` is `ConversionRange` |
 | `Nullable<X>`, `X` a value type of the rows above | the wrapper of the CEL type of `X`, such as `wrapper(int)`; for time the type of `X` itself, since CEL has no wrapper of time | `null` is the value `null`; for time it fits no type, see [Time](#time) |
 | `CelValue` | `dyn` | as it is |
+| `CelOptional<X>`, `X` a type of these rows | `optional_type(E)`, with `E` the CEL type of `X`; needs the set `optional`, see [Optional values](#optional-values) | the empty structure is `optional.none()`, a structure that has a value is `optional.of` of the converted value, a `null` among them |
 | `CelList`, `CelMap` | `list(dyn)`, `map(dyn, dyn)` | as they are; a `null` reference is the value `null` |
 | `JsonElement` | `dyn` | by its kind, lazily; see [`JsonElement`](#jsonelement) |
 | `object` | `dyn` | by the row of its runtime type; a boxed `CelValue`, `CelList` or `CelMap` as it is; a `JsonElement` by its section; any other instance as a bare object value, which the expression reads by the rules of [Objects and collections](#objects-and-collections); `null` is the value `null` |
@@ -107,6 +108,17 @@ CEL has no wrapper of time, so `DateTimeOffset?`, `DateTime?`, `TimeSpan?`, `Cel
 
 A time value is a scalar. In a collection it goes through `CelList`, `CelMap`, `CelValue` or `object` (boxed `DateTimeOffset`, `DateTime`, `TimeSpan`, `CelTimestamp` or `CelDuration`); a typed collection of time such as `IReadOnlyList<DateTimeOffset>` is not one of the rows: `AddVariable<T>` is `TypeNotDeclared` and `CelBindings.Add<T>` an `ArgumentException`. A field of the type `timestamp` or `duration` of a type described at run time reads `CelValue.FromTimestamp(…)` or `CelValue.FromDuration(…)`, which allocates nothing.
 
+## Optional values
+
+The type `optional_type(E)` of the set [optional](extensions.md#set-optional-version-2) is `CelOptional<X>` in .NET, `E` and `X` by the rows of this page. A declaration `AddVariable<CelOptional<long>>` is the CEL type `optional_type(int)` and needs the set; without it the build error is `TypeNotDeclared` (4008), `…; add the extension set 'optional'`. A `CelOptional<X>` in a place of type `dyn`, or as an `object`, has the type `optional_type(dyn)`.
+
+- **No value and the value `null` differ.** `default(CelOptional<X>)` is `optional.none()`, and `new CelOptional<string?>(null)` has a value, `null`, as `optional.of(null)` does. The same holds on the way out: `optional.none()` is `default`, and `optional.of(null)` read as `CelOptional<string>` is a structure with `HasValue` true and a `null` value. The value `null` itself is no optional: it converts to no `CelOptional<X>`.
+- **The held value is read as an element of a copy is read.** The row of `X` converts it when the result is made, and a refusal of that row is `ResultConversion` at the root. A held `null` is accepted where `X` is `string`, `byte[]`, `CelList`, `CelMap`, `CelType` or a `Nullable<>`, and refused where it is `long`, `int` or `ReadOnlyMemory<byte>`. The text of the error names the held value: it begins `result of type 'optional_type(string)' cannot be converted to .NET type` for a held string and a `CelOptional<long>`.
+- **An optional has no view.** A held list or map is a lazy view or an immutable copy by the rules of [Results](#results): `CelOptional<IReadOnlyList<long>>` over a value of type `optional_type(list(int))` holds a view, and `CelOptional<IReadOnlyList<int>>` a copy made when the evaluation ends. The copy is not charged.
+- **Nesting.** `CelOptional<CelOptional<long>>` keeps both levels: `optional.of(optional.none())` is a structure that has a value, and the value is the empty structure. A collection of optionals, such as `IReadOnlyList<CelOptional<long>>`, is not one of the rows; go through `CelList` or `CelValue`.
+- **`object` and `CelValue`.** With `T = object` the result is a `CelOptional<object?>` whose held value is the natural mapping of its kind; with `T = CelValue` it is the value as it is, of the kind `Optional`, read by `CelValue.TryGetOptional`.
+- **A binding whose held value does not convert** is an error value where the variable is read, as any other value that cannot enter the expression is: `CelBindings.Add` of a `CelOptional<X>` whose `X` has no row is an `ArgumentException`.
+
 ## Protobuf messages
 
 The package `Great.Parts.Cel.Protobuf` describes the messages of `.proto` files, and a message enters an expression as the instance of its generated class, as an object of the rows above, without a copy. The fields of a message are read by these rows; the page [Protobuf messages](protobuf.md) has the details, the presence rules, the object literals, `Any` and the equality of messages.
@@ -180,6 +192,7 @@ The value of the root is converted to the type `T` by the rows below. A value wh
 | `list(E)` | `IReadOnlyList<X>` with `E` to `X` by this table, one step deep; `CelList` | a lazy view when no element can fail its conversion and the list is a collection of the library, after a check of the value; otherwise an immutable copy made at the end of the evaluation | an element that does not convert to `X`, at the root; a value that fails the check before the view |
 | `map(K, V)` | `IReadOnlyDictionary<XK, XV>` with `K` to `XK` and `V` to `XV` by this table, one step deep; `CelMap` | the same | a key or a value that does not convert, or fails the check |
 | `type` | `CelType` | the parameters of types are erased at run time: `type([1]) == list` | a value of another type |
+| `optional_type(E)` | `CelOptional<X>` with `E` to `X` by this table; see [Optional values](#optional-values) | the empty optional is `default`; an optional that holds a value holds the converted value | a held value that does not convert to `X`, at the root |
 | a wrapper such as `wrapper(int)`: a plain value or `null` | `long?`, `int?`, `ulong?`, `uint?`, `double?`, `bool?`, `ReadOnlyMemory<byte>?`, and `string`, `byte[]` | not `null`: by the row of the CEL type of the value with `T = X`, so an `int` with `T = long?` is the same as with `long`; `null` is `null` | by the row of the CEL type of the value |
 | any | `CelValue` | as it is | never |
 | an object type, also one described at run time | the .NET class, record, structure or interface of the application that the instance is, a base class or an interface of it, and the carrier class `TCarrier` of a type described at run time; `object`; `CelValue` | the same instance, by a test of its type, without reading the description | an instance that is not a `T`, with the name of its description or of its .NET type; the error is never `TypeNotAccessible` |
@@ -222,6 +235,7 @@ The expected type of `Compile<T>` is taken from `T`. An expression whose type is
 | `IReadOnlyList<X>` | `list(E')`, `E'` the expected type of `X` |
 | `IReadOnlyDictionary<XK, XV>` | `map(K', V')` from `XK` and `XV` |
 | `CelType` | `type` |
+| `CelOptional<X>` | `optional_type(E')`, `E'` the expected type of `X`; `CelOptional<CelValue>` and `CelOptional<object>` give `optional_type(dyn)` |
 | `Nullable<X>` | the wrapper of the CEL type of `X`: `int?` and `long?` give `wrapper(int)`; `uint?` and `ulong?` give `wrapper(uint)`; `double?`, `bool?` and `ReadOnlyMemory<byte>?` give `wrapper(double)`, `wrapper(bool)` and `wrapper(bytes)`; `DateTimeOffset?`, `CelTimestamp?`, `TimeSpan?` and `CelDuration?` give `timestamp` and `duration`, which have no wrapper |
 | a class, record, structure or interface of the application | its object type when a type source describes exactly this .NET type; otherwise `dyn`, and the instance is tested at the evaluation. An explicit `ExpectedType` must then be `dyn` or an object type |
 | `CelValue`, `object` | `dyn`: a result of any type |

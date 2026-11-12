@@ -58,6 +58,13 @@ internal enum ProfileType
     /// <summary><c>net.CIDR</c>, the abstract type of the <c>network</c> set; see <see cref="IpType"/>.</summary>
     CidrType,
 
+    /// <summary>
+    /// <c>optional_type</c>, without parameters: the type of the set <c>optional</c>. It is no target type: the oracle returns a
+    /// value as <c>cel.expr.Value</c>, which has no form for an optional, so no variable has it and no root, and a node of this
+    /// type stands only where <see cref="ProfileTables.IsOptional"/> allows.
+    /// </summary>
+    OptionalType,
+
     /// <summary>The type parameter <c>A</c> of an overload: it takes a value of any type.</summary>
     ParameterAType,
 
@@ -90,6 +97,7 @@ internal static class ProfileTypeNames
         ProfileType.DynType => "dyn",
         ProfileType.IpType => "net.IP",
         ProfileType.CidrType => "net.CIDR",
+        ProfileType.OptionalType => "optional_type",
         ProfileType.ParameterAType => "A",
         ProfileType.ParameterBType => "B",
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Not a type of the profile."),

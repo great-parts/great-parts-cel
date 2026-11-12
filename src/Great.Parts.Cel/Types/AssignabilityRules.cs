@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 
 namespace Great.Parts.Cel.Types;
 
@@ -159,6 +160,9 @@ internal static class AssignabilityRules
             // 8. Abstract types of the same full name, parameter by parameter.
             (CelTypeKind.Abstract, CelTypeKind.Abstract) => string.Equals(from.Name, to.Name, StringComparison.Ordinal)
                 && AssignParameters(from, to, substitution, deducible, restricted),
+
+            // 8. Optional types: the value types, by the same rules with the same substitution.
+            (CelTypeKind.Optional, CelTypeKind.Optional) => AssignParameters(from, to, substitution, deducible, restricted),
             (CelTypeKind.List or CelTypeKind.Map or CelTypeKind.Type or CelTypeKind.TypeParameter or CelTypeKind.Optional, _) => false,
             _ => from.Kind == to.Kind,
         };
@@ -292,6 +296,12 @@ internal static class AssignabilityRules
             // 3. Lists and maps parameter by parameter.
             CelTypeKind.List or CelTypeKind.Map when b.Kind == a.Kind => GeneralParameters(a, b),
 
+            // 3. Optional types, and abstract types of one name with the same number of parameters, parameter by parameter.
+            CelTypeKind.Optional when b.Kind == CelTypeKind.Optional => GeneralNamedParameters(a, b),
+            CelTypeKind.Abstract when b.Kind == CelTypeKind.Abstract
+                && string.Equals(a.Name, b.Name, StringComparison.Ordinal)
+                && a.Parameters.Length == b.Parameters.Length => GeneralNamedParameters(a, b),
+
             // 4. A wrapper and its primitive; null_type and a type that takes null.
             CelTypeKind.Wrapper when a.Parameters[0].Kind == b.Kind => a,
             _ when b.Kind == CelTypeKind.Wrapper && b.Parameters[0].Kind == a.Kind => b,
@@ -313,5 +323,25 @@ internal static class AssignabilityRules
 
         CelType second = General(a.Parameters[1], b.Parameters[1]);
         return ReferenceEquals(first, a.Parameters[0]) && ReferenceEquals(second, a.Parameters[1]) ? a : CelType.MapOf(first, second);
+    }
+
+    // N(MostGeneral(A1, B1), ...) for two types of one kind and name, an optional type or an abstract type; the first type when
+    // nothing changes.
+    private static CelType GeneralNamedParameters(CelType a, CelType b)
+    {
+        ImmutableArray<CelType>.Builder? general = null;
+        for (int i = 0; i < a.Parameters.Length; i++)
+        {
+            CelType parameter = General(a.Parameters[i], b.Parameters[i]);
+            if (general is null && !ReferenceEquals(parameter, a.Parameters[i]))
+            {
+                general = ImmutableArray.CreateBuilder<CelType>(a.Parameters.Length);
+                general.AddRange(a.Parameters, i);
+            }
+
+            general?.Add(parameter);
+        }
+
+        return general is null ? a : new CelType(a.Kind, a.Name, general.MoveToImmutable());
     }
 }

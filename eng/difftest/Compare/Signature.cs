@@ -54,7 +54,7 @@ internal static class Signature
                 Call call => Node(call, [.. call.Args.Select(Type)]),
                 ListLiteral list => Node("list", list.Elements.Select(Type)),
                 MapLiteral map => Node("map", map.Entries.SelectMany(entry => new[] { Type(entry.Key), Type(entry.Value) })),
-                Select select => Node("select", [Type(select.Operand)]),
+                Select select => Node(select.Optional ? ProfileTables.OptionalSelectOverload : "select", [Type(select.Operand)]),
                 PresenceTest test => Node("has", [Type(test.Operand)]),
                 Comprehension comprehension => Node("comprehension", [Type(comprehension.Range)]),
                 Ident ident => Node("ident", [IdentType(divergent, ident)]),
@@ -65,12 +65,23 @@ internal static class Signature
 
     private static string Node(Call call, IReadOnlyList<string> types)
     {
+        // An index over an optional whose held type is a list or a map: the name has no parameters, so an int key would fit both
+        // overloads of a pair and the first would win. The overload and the receiver are named by the held type that the generator
+        // knows (docs/design/eng-difftest.md, "Signatures"). A held dyn or an unknown type keeps the first overload that fits.
+        string? held = call.Container is { Kind: ProfileType.ListType or ProfileType.MapType } container && types.Count == 2
+            ? container.Kind.Name()
+            : null;
+        string prefix = "optional_" + held + "_";
         ProfileOverload? overload = ProfileTables.Overloads.FirstOrDefault(candidate =>
             candidate.Function == call.Function
             && candidate.Receiver == call.Receiver
             && candidate.Parameters.Count == types.Count
+            && (held is null || candidate.Id.StartsWith(prefix, StringComparison.Ordinal))
             && candidate.Parameters.Zip(types).All(pair => Fits(pair.First, pair.Second)));
-        return Node(overload?.Id ?? call.Function, types);
+        IReadOnlyList<string> shown = overload is not null && held is not null
+            ? [ProfileType.OptionalType.Name() + "(" + held + ")", types[1]]
+            : types;
+        return Node(overload?.Id ?? call.Function, shown);
     }
 
     // A parameter fits the type name of an argument value: a type parameter and dyn fit any value, list(A) and map(A, B) fit any
@@ -82,7 +93,8 @@ internal static class Signature
     // The type of the value of an identifier: of its binding, type for a type identifier, error for an unbound variable.
     private static string IdentType(GeneratedCase divergent, Ident ident) =>
         divergent.Bindings.TryGetValue(ident.Name, out Value? value) ? ValueText.TypeName(value)
-        : ProfileTables.TypeIdentifiers.Contains(ident.Name) || ProfileTables.AbstractTypeIdentifiers.Contains(ident.Name) ? ProfileType.TypeType.Name()
+        : ProfileTables.TypeIdentifiers.Contains(ident.Name) || ProfileTables.AbstractTypeIdentifiers.Contains(ident.Name)
+            || ident.Name == ProfileTables.OptionalTypeIdentifier ? ProfileType.TypeType.Name()
         : ErrorType;
 
     private static string Node(string node, IEnumerable<string> types) => node + "(" + string.Join(", ", types) + ")";
@@ -92,8 +104,12 @@ internal static class Signature
     private static string ChildType(GeneratedCase divergent, Expr child, ICaseSide librarySide, ICaseSide oracleSide)
     {
         // A child of an abstract type is evaluated as string(child) and keeps the name of its type: the value of the string is no type.
+        // An optional child is evaluated as a pair and is named optional_type, and a literal that holds an optional as its size and
+        // is named list or map: the value that comes back is no type of theirs either.
         string text = ExprPrinter.PrintCase(child);
-        string? abstractType = ProfileTables.AbstractResult(child)?.Name();
+        string? abstractType = ProfileTables.AbstractResult(child)?.Name()
+            ?? (ProfileTables.IsOptional(child) ? ProfileType.OptionalType.Name() : null)
+            ?? (ProfileTables.HoldsOptional(child) ? (child is ListLiteral ? ProfileType.ListType.Name() : ProfileType.MapType.Name()) : null);
         SideOutcome oracle = oracleSide.Evaluate(text, divergent.Bindings);
         if (!oracle.IsError)
         {

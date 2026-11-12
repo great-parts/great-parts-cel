@@ -137,12 +137,42 @@ internal sealed class LibrarySide : ICaseSide
 
             CelEvalResult<CelValue> result = compiled.Program.Evaluate(values, null, CancellationToken.None);
             return result.IsSuccess
-                ? SideOutcome.Of(ValueConversion.ToExprValue(result.Value))
+                ? SideOutcome.Of(ToExprValue(result.Value))
                 : SideOutcome.EvaluationError(Messages(result.Errors));
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             return SideOutcome.EvaluationError("the library threw " + Describe(exception));
+        }
+    }
+
+    /// <summary>
+    /// The value of a result as a <c>cel.expr.Value</c>. <c>ValueConversion</c> of the suite runner converts every kind but the optional,
+    /// which that message has no kind for: an optional is written in the form of <see cref="OptionalValue"/> — empty, holding
+    /// <c>null</c>, or holding the value — and is compared and printed so (<c>ValueText</c>, <c>ValueEquality</c>). Lists and maps are
+    /// read here, so that an optional inside one is converted too; any other kind is converted by the runner.
+    /// </summary>
+    /// <param name="value">The value of the library.</param>
+    internal static Value ToExprValue(CelValue value)
+    {
+        switch (value.Kind)
+        {
+            case CelValueKind.Optional:
+                return value.TryGetOptional(out CelOptional<CelValue> optional) && optional.HasValue
+                    ? OptionalValue.Of(ToExprValue(optional.Value))
+                    : OptionalValue.Empty();
+            case CelValueKind.List when value.TryGetList(out CelList? list):
+                return new Value { ListValue = new ListValue { Values = { list.Select(ToExprValue) } } };
+            case CelValueKind.Map when value.TryGetMap(out CelMap? map):
+                return new Value
+                {
+                    MapValue = new MapValue
+                    {
+                        Entries = { map.Select(entry => new MapValue.Types.Entry { Key = ToExprValue(entry.Key), Value = ToExprValue(entry.Value) }) },
+                    },
+                };
+            default:
+                return ValueConversion.ToExprValue(value);
         }
     }
 

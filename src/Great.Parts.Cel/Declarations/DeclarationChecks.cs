@@ -974,13 +974,13 @@ internal sealed class DeclarationChecks
         return Undeclared(overload.ResultType);
     }
 
-    // An object type that no type source describes, google.protobuf.Any when no source describes it, or a type of optional,
-    // which no extension set declares yet.
+    // An object type that no type source describes, google.protobuf.Any when no source describes it, or a type of optional when no
+    // surviving set declares the name optional_type.
     private CelType? Undeclared(CelType type)
     {
         if ((type.Kind == CelTypeKind.Object && !_typeNames.Contains(type.Name) && !_setTypes.ContainsKey(type.Name))
             || (type.Kind == CelTypeKind.Any && !_typeNames.Contains(type.Name))
-            || type.Kind == CelTypeKind.Optional)
+            || (type.Kind == CelTypeKind.Optional && !_setTypes.ContainsKey(type.Name)))
         {
             return type;
         }
@@ -1053,10 +1053,10 @@ internal sealed class DeclarationChecks
             : overload;
     }
 
-    // The hint of TypeNotDeclared for an object type whose name the catalog gives to an abstract type of a set that the
+    // The hint of TypeNotDeclared for an object type or an optional type whose name the catalog gives to a type of a set that the
     // environment does not have: the set to add; empty for any other type.
     private string HintOf(CelType type) =>
-        type.Kind == CelTypeKind.Object && _abstractTypeSets?.Invoke(type.Name) is string set
+        type.Kind is CelTypeKind.Object or CelTypeKind.Optional && _abstractTypeSets?.Invoke(type.Name) is string set
             ? "; add the extension set '" + set + "'"
             : string.Empty;
 

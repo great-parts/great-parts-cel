@@ -82,6 +82,13 @@ internal sealed record Call(string Function, IReadOnlyList<Expr> Args) : Expr
     internal string? Overload { get; init; }
 
     /// <summary>
+    /// For an index <c>o[i]</c> or <c>o[?i]</c> over an optional <c>o</c>, the static type of the value that <c>o</c> holds, which
+    /// the generator knows and the value that comes back does not tell: the signature of a divergence names the overload by it.
+    /// It is not printed and not read by a run. <see langword="null"/> for any other call and for a held type that is not known.
+    /// </summary>
+    internal StaticType? Container { get; init; }
+
+    /// <summary>
     /// What the generator put in on purpose so that the expression is refused at parsing or at compilation on both sides:
     /// <c>math-refused</c> for a call of <c>math.greatest</c> or <c>math.least</c> that the macro refuses, <c>format</c> for a
     /// format string and a list literal, both constant, that the check of a call of <c>format</c> refuses.
@@ -90,10 +97,17 @@ internal sealed record Call(string Function, IReadOnlyList<Expr> Args) : Expr
     internal string? Fault { get; init; }
 }
 
-/// <summary>A selection <c>e.f</c>.</summary>
-/// <param name="Operand">The operand, of the static type <c>map</c> or <c>dyn</c>.</param>
+/// <summary>
+/// A selection <c>e.f</c>, or with <see cref="Optional"/> the optional selection <c>e.?f</c> of the set <c>optional</c>, which is
+/// the call <c>_?._(e, 'f')</c> of the overload <c>select_optional_field</c>.
+/// </summary>
+/// <param name="Operand">The operand, of the static type <c>map</c> or <c>dyn</c>, or optional.</param>
 /// <param name="Field">The field: one of <see cref="ProfileTables.FieldNames"/>.</param>
-internal sealed record Select(Expr Operand, string Field) : Expr;
+internal sealed record Select(Expr Operand, string Field) : Expr
+{
+    /// <summary>Whether the selection is <c>e.?f</c>: its value is an optional.</summary>
+    internal bool Optional { get; init; }
+}
 
 /// <summary>A presence test <c>has(e.f)</c>.</summary>
 /// <param name="Operand">The operand, of the static type <c>map</c> or <c>dyn</c>.</param>
@@ -118,7 +132,14 @@ internal sealed record Comprehension(string Macro, Expr Range, string Variable, 
 /// <summary>A list literal.</summary>
 /// <param name="Elements">The elements.</param>
 /// <param name="TrailingComma">Whether a comma follows the last element, or stands alone without elements: <c>[,]</c>.</param>
-internal sealed record ListLiteral(IReadOnlyList<Expr> Elements, bool TrailingComma) : Expr;
+internal sealed record ListLiteral(IReadOnlyList<Expr> Elements, bool TrailingComma) : Expr
+{
+    /// <summary>
+    /// The positions of the elements written <c>?e</c>: an optional element, which the list holds when the optional has a value;
+    /// none for a plain list.
+    /// </summary>
+    internal IReadOnlyList<int> OptionalPositions { get; init; } = [];
+}
 
 /// <summary>A map literal.</summary>
 /// <param name="Entries">The entries in their order.</param>
@@ -128,7 +149,11 @@ internal sealed record MapLiteral(IReadOnlyList<MapEntry> Entries, bool Trailing
 /// <summary>An entry of a map literal.</summary>
 /// <param name="Key">The key: a literal of <c>int</c>, <c>uint</c>, <c>bool</c> or <c>string</c>.</param>
 /// <param name="Value">The value.</param>
-internal sealed record MapEntry(Expr Key, Expr Value);
+internal sealed record MapEntry(Expr Key, Expr Value)
+{
+    /// <summary>Whether the entry is written <c>?k: v</c>: the value is an optional, and the map holds the entry when it has a value.</summary>
+    internal bool Optional { get; init; }
+}
 
 /// <summary>The form of the digits of an integer literal.</summary>
 internal enum IntegerForm

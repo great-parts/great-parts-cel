@@ -27,6 +27,10 @@ internal sealed class Checker
     private const string LogicalOr = "_||_";
     private const string OptionalTypeName = "optional_type";
 
+    // The call of the optional selection e.?f and the overload of the set optional that stands for it.
+    private const string OptionalSelectFunction = "_?._";
+    private const string OptionalSelectId = "select_optional_field";
+
     private readonly ParsedExpression _parsed;
     private readonly DeclarationIndex _declarations;
 
@@ -398,61 +402,90 @@ internal sealed class Checker
     // The node of the chain that the identifier and its first selections form: the identifier for none.
     private ExprNode ChainNode(IdentNode root, int selects) => selects == 0 ? root : _chain[_chain.Count - selects];
 
-    // The field of a map or of an object type, or dyn for an operand of the type dyn, error or a type parameter,
-    // which is bound to dyn; any other type has no fields. A presence test has the type bool.
+    // The selection of a field. An operand of the type optional_type(U) is optional: the rule goes on with the head of U and the
+    // result is wrapped, as cel-go does (maybeUnwrapOptional). A presence test has the type bool, whatever the operand that has a type.
     private CelType? SelectField(SelectNode select, CelType? operandType)
     {
-        if (operandType is not null)
+        if (operandType is null)
         {
-            CelType head = Head(operandType);
-            switch (head.Kind)
-            {
-                case CelTypeKind.Map:
-                    operandType = head.Parameters[1];
-                    break;
-                case CelTypeKind.Dyn:
-                    break;
-                case CelTypeKind.Any:
-                    // The value is the content that the Any holds, whose type only evaluation knows: as dyn.
-                    operandType = CelType.Dyn;
-                    break;
-                case CelTypeKind.Object:
-                    return ObjectField(select, head);
-                case CelTypeKind.TypeParameter:
-                    _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
-                    operandType = CelType.Dyn;
-                    break;
-                default:
-                    _errors.Add(CheckErrors.NoSuchField(select.Field, Shown(head), Location(select)));
-                    return null;
-            }
+            // A node with an error has the type error and produces no further errors, a presence test as well as a selection.
+            return null;
         }
 
-        return select.IsPresenceTest ? CelType.Bool : operandType ?? CelType.Dyn;
+        CelType head = Head(operandType);
+        bool optional = head.Kind == CelTypeKind.Optional;
+        if (optional)
+        {
+            head = Head(head.Parameters[0]);
+        }
+
+        return SelectionType(select.Field, head, optional, select.IsPresenceTest, select, Location(select));
     }
 
-    // The field of an object type, looked up by its name in the description of the type: the reference map records the
-    // description and the field number, which the planner binds. No such field is NoSuchField with the full name of
-    // the type, at the selection.
-    private CelType? ObjectField(SelectNode select, CelType objectType)
+    // The type of the selection of the field on an operand whose head is given, after an optional operand has been unwrapped once:
+    // the value type of a map, the type of the field of an object type, dyn for dyn, Any, error or a type parameter, which is bound
+    // to dyn; any other type has no fields and is NoSuchField at the place. The result of an optional selection is optional_type of
+    // it, except for a presence test. The reference map records the field of an object only for a selection whose operand is not
+    // optional: for an optional one the description of the value is known at evaluation, and the planner needs no reference to choose its node.
+    private CelType? SelectionType(string field, CelType head, bool optional, bool isPresenceTest, SelectNode? select, CelSourceLocation location)
     {
-        if (_declarations.Types.TryGetObjectType(objectType.Name, out CelObjectType? description)
-            && description.TryGetField(select.Field, out CelObjectField? field))
+        CelType result;
+        switch (head.Kind)
         {
-            _references.Add(select.Id, Reference.ToField(description, field.Number));
-            return select.IsPresenceTest ? CelType.Bool : field.Type;
+            case CelTypeKind.Map:
+                result = head.Parameters[1];
+                break;
+            case CelTypeKind.Dyn:
+                result = CelType.Dyn;
+                break;
+            case CelTypeKind.Any:
+                // The value is the content that the Any holds, whose type only evaluation knows: as dyn.
+                result = CelType.Dyn;
+                break;
+            case CelTypeKind.Object:
+                if (!_declarations.Types.TryGetObjectType(head.Name, out CelObjectType? description)
+                    || !description.TryGetField(field, out CelObjectField? declared))
+                {
+                    // No such field is NoSuchField with the full name of the type, at the place.
+                    _errors.Add(CheckErrors.NoSuchField(field, head, location));
+                    return null;
+                }
+
+                if (select is not null && !optional)
+                {
+                    _references.Add(select.Id, Reference.ToField(description, declared.Number));
+                }
+
+                result = declared.Type;
+                break;
+            case CelTypeKind.TypeParameter:
+                _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
+                result = CelType.Dyn;
+                break;
+            default:
+                _errors.Add(CheckErrors.NoSuchField(field, Shown(head), location));
+                return null;
         }
 
-        _errors.Add(CheckErrors.NoSuchField(select.Field, objectType, Location(select)));
-        return null;
+        return isPresenceTest ? CelType.Bool : optional ? OptionalType(result) : result;
     }
+
+    // optional_type(T).
+    private static CelType OptionalType(CelType valueType) => new(CelTypeKind.Optional, OptionalTypeName, [valueType]);
 
     private CelType? VisitCall(CallNode call)
     {
         ExprNode? target = call.Target;
         if (target is null)
         {
-            return call.Function is LogicalAnd or LogicalOr && call.Arguments.Length == 2 ? VisitLogical(call) : VisitGlobalCall(call);
+            if (call.Function is LogicalAnd or LogicalOr && call.Arguments.Length == 2)
+            {
+                return VisitLogical(call);
+            }
+
+            return call.Function == OptionalSelectFunction && call.Arguments.Length == 2 && HasOptionalSelect()
+                ? VisitOptionalSelect(call)
+                : VisitGlobalCall(call);
         }
 
         // A target that is a chain of names can be part of a qualified function name: a.b.f(x) calls a.b.f.
@@ -481,6 +514,47 @@ internal sealed class Checker
         }
 
         return Resolve(call, function, true, argumentTypes);
+    }
+
+    // Whether an overload of the set optional stands for the call _?._ in this environment.
+    private bool HasOptionalSelect()
+    {
+        foreach (OverloadBinding overload in _declarations.GetOverloads(OptionalSelectFunction, false, 2))
+        {
+            if (!overload.IsApplication && string.Equals(overload.Declaration.OverloadId, OptionalSelectId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // The call _?._(e, 'f') that e.?f is: checked as any call, so its candidate, the one overload select_optional_field with its
+    // validator, is recorded for the planner. The type is not the optional_type(V) of the declaration, which stands for the identifier
+    // of the overload, but the selection rule on the head of e, wrapped, as cel-go types OptSelect. An operand that is optional is
+    // unwrapped once. The name of the field is the string constant that the parser writes; a tree with another second argument
+    // keeps the type of its candidates and is rejected by the validator after the traversal.
+    private CelType? VisitOptionalSelect(CallNode call)
+    {
+        if (!VisitArguments(call.Arguments, 0, out CelType[] argumentTypes))
+        {
+            return null;
+        }
+
+        CelType? type = Resolve(call, OptionalSelectFunction, false, argumentTypes);
+        if (type is null || call.Arguments[1] is not ConstantNode { Value: var name } || !name.TryGetString(out string? field))
+        {
+            return type;
+        }
+
+        CelType head = Head(argumentTypes[0]);
+        if (head.Kind == CelTypeKind.Optional)
+        {
+            head = Head(head.Parameters[0]);
+        }
+
+        return SelectionType(field, head, true, false, null, Location(call));
     }
 
     private CelType? VisitGlobalCall(CallNode call)
@@ -861,9 +935,7 @@ internal sealed class Checker
         CelType?[] valueTypes = entries.IsEmpty ? [] : new CelType?[entries.Length];
         for (int i = 0; i < valueTypes.Length; i++)
         {
-            StructEntry entry = entries[i];
-            CelType? valueType = Visit(entry.Value);
-            valueTypes[i] = entry.IsOptional ? OptionalValue(entry.Value, valueType) : valueType;
+            valueTypes[i] = Visit(entries[i].Value);
         }
 
         string name = message.MessageName;
@@ -924,11 +996,15 @@ internal sealed class Checker
                 continue;
             }
 
+            // The value of an entry with ? must be assignable to optional_type of the field: an optional of a type assignable to it
+            // and dyn pass. A null is no optional, so it is a mismatch whatever the legacy rule of assignment says.
+            CelType expected = entry.IsOptional ? OptionalType(declared.Type) : declared.Type;
             int mark = _substitution.Mark;
-            if (!AssignabilityRules.IsAssignable(valueType, declared.Type, _substitution, []))
+            if ((entry.IsOptional && Head(valueType).Kind == CelTypeKind.Null)
+                || !AssignabilityRules.IsAssignable(valueType, expected, _substitution, []))
             {
                 _substitution.Rollback(mark);
-                _errors.Add(CheckErrors.TypeMismatch(Shown(declared.Type), Shown(valueType), location));
+                _errors.Add(CheckErrors.TypeMismatch(Shown(expected), Shown(valueType), location));
             }
         }
 

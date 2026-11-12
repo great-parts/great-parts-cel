@@ -277,6 +277,13 @@ internal static class Minimizer
             return [macro.Range with { Parenthesized = true }];
         }
 
+        // optMap and optFlatMap: the name stands for the held value of the optional, which is range.value(); the range is an optional
+        // node, whose value is no range of elements and which no value of the library could be read for.
+        if (macro.Macro is ProfileTables.OptMapMacro or ProfileTables.OptFlatMapMacro)
+        {
+            return [new Call("value", [macro.Range]) { Receiver = true, Overload = "optional_value" }];
+        }
+
         bool inDyn = macro.Range is Call { Function: ProfileTables.Dyn, Args: [_] };
         Expr literal = macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } argument] } ? argument : macro.Range;
         IReadOnlyList<Expr>? elements = literal switch
@@ -525,7 +532,7 @@ internal static class Minimizer
         ListLiteral list => list with { Elements = [.. list.Elements.Select(element => Replace(element, replacements))] },
         MapLiteral map => map with
         {
-            Entries = [.. map.Entries.Select(entry => new MapEntry(Replace(entry.Key, replacements), Replace(entry.Value, replacements)))],
+            Entries = [.. map.Entries.Select(entry => entry with { Key = Replace(entry.Key, replacements), Value = Replace(entry.Value, replacements) })],
         },
         Select select => select with { Operand = Replace(select.Operand, replacements) },
         PresenceTest test => test with { Operand = Replace(test.Operand, replacements) },

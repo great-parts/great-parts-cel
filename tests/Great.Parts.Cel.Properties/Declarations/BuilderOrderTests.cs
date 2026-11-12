@@ -27,7 +27,8 @@ namespace Great.Parts.Cel.Properties.Declarations;
 // own, since the sets of the library come with their parts; the pool has the conflicts that the property exists for. The pool has
 // providers of protobuf as well, the set protos, variables of message types and the container of the proto3 package: a provider
 // describes the well-known types, so two of them in one model give DuplicateType for each of their names, and both orders must
-// report those errors alike.
+// report those errors alike. The pool has the set optional of the library too, at its version 2 and at version 1, which it does not
+// have.
 public sealed class BuilderOrderTests
 {
     private const ulong Seed = 20261112;
@@ -439,7 +440,13 @@ public sealed class BuilderOrderTests
         // One draw: one or two calls.
         private void AddCalls(PCG random)
         {
-            uint kind = random.Next(17);
+            uint kind = random.Next(19);
+            if (kind >= 17)
+            {
+                AddOptionalCalls(kind);
+                return;
+            }
+
             if (kind >= 13)
             {
                 AddProtobufCalls(random, kind);
@@ -474,6 +481,20 @@ public sealed class BuilderOrderTests
                     string container = random.Next(2) == 0 ? "net" : "strs";
                     Add($"UseContainer({container})", builder => builder.UseContainer(container));
                     break;
+            }
+        }
+
+        // The calls of the pool that concern the set optional of the library: its version 2, and version 1, which it does not have and
+        // which is UnknownExtensionVersion (4004) at Build, whatever the order.
+        private void AddOptionalCalls(uint kind)
+        {
+            if (kind == 17)
+            {
+                Add("AddExtension(optional 2)", builder => builder.AddExtension(CelExtensions.Optional(2)));
+            }
+            else
+            {
+                Add("AddExtension(optional 1)", builder => builder.AddExtension(CelExtensions.Optional(1)));
             }
         }
 

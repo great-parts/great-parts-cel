@@ -75,7 +75,7 @@ public sealed class ExpectedTypeTests
     public void TypeOfALaterPart_ThrowsNotImplementedException()
     {
         Assert.Throws<NotImplementedException>(() => Environment.Compile<IReadOnlyList<decimal>>("1"));
-        Assert.Throws<NotImplementedException>(() => Environment.Compile<CelValue>("1", Expect(CelType.OptionalOf(CelType.Int))));
+        Assert.Throws<NotImplementedException>(() => Environment.Compile<CelOptional<decimal>>("1"));
     }
 
     // The derived type is the expected type of checking: list(string) does not take a list of int.

@@ -7,6 +7,7 @@ using Cel.Expr;
 using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Library.Extensions;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
 using Type = Cel.Expr.Type;
@@ -31,7 +32,22 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
 
     // The extension sets that every case environment has, as the cel-go runner keeps its libraries in one list of options. The
     // part that brings a set adds it here with its version; no file picks its sets.
-    private static readonly CelExtension[] ExtensionSets = [CelExtensions.Strings(5), CelExtensions.Math(3), CelExtensions.Lists(4), CelExtensions.Sets(0), CelExtensions.Encoders(1), CelExtensions.Bindings(1), CelExtensions.TwoVarComprehensions(0), CelExtensions.Network(1), CelExtensions.Protos(0)];
+    // The set block is the internal set of the macros of the runner; it needs bindings, which the list has, and the variables of its
+    // macros are declared in every case.
+    private static readonly CelExtension[] ExtensionSets =
+    [
+        CelExtensions.Strings(5),
+        CelExtensions.Math(3),
+        CelExtensions.Lists(4),
+        CelExtensions.Sets(0),
+        CelExtensions.Encoders(1),
+        CelExtensions.Bindings(1),
+        CelExtensions.TwoVarComprehensions(0),
+        CelExtensions.Network(1),
+        CelExtensions.Protos(0),
+        CelExtensions.Optional(2),
+        ExtensionCatalog.Block,
+    ];
 
     // The messages of the cases are converted by the runner's table of the test messages: the linked ValueConversion calls this
     // resolver for an Any that is no known type.
@@ -40,21 +56,10 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     /// <summary>The reason why a checked case with <c>disable_macros</c> fails: only the internal <c>Parse</c> takes syntax options.</summary>
     internal const string DisableMacrosOnCheckedPath = "disable_macros needs an internal compile entry point";
 
-    /// <summary>
-    /// The reason why a case that declares functions in <c>type_env</c> fails: <c>Build</c> requires their implementations, and the
-    /// part that brings the first such file decides how the runner supplies them.
-    /// </summary>
-    internal const string FunctionDeclarationsInALaterPart = "function declarations need a later part";
-
     /// <inheritdoc/>
     public CaseOutcome Evaluate(ConformanceCase testCase)
     {
         CaseStage stage = CaseStage.Environment;
-        if (testCase.Environment.Declarations.Any(declaration => declaration.DeclKindCase == Decl.DeclKindOneofCase.Function))
-        {
-            return CaseOutcome.Failed(CaseStage.Environment, FunctionDeclarationsInALaterPart);
-        }
-
         try
         {
             CelBuildResult built = Setup(testCase.Environment).Build();
@@ -141,12 +146,17 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
         {
             builder.AddExtension(extension);
         }
+        if (CaseDeclarations.Create(declared.Declarations) is { } functions)
+        {
+            builder.AddExtension(functions);
+        }
+
         if (declared.Container.Length > 0)
         {
             builder.UseContainer(declared.Container);
         }
 
-        foreach (Decl declaration in declared.Declarations.Where(declaration => !ReservedNames.Contains(declaration.Name)))
+        foreach (Decl declaration in declared.Declarations.Where(declaration => declaration.DeclKindCase == Decl.DeclKindOneofCase.Ident && !ReservedNames.Contains(declaration.Name)))
         {
             builder.AddVariable(declaration.Name, TypeConversion.ToCelType(declaration.Ident.Type));
         }

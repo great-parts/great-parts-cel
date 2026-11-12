@@ -28,6 +28,7 @@ internal static class ValueTypeNames
         CelValueKind.Type => "type",
         CelValueKind.Timestamp => "timestamp",
         CelValueKind.Duration => "duration",
+        CelValueKind.Optional => "optional_type",
         CelValueKind.Error => "error",
         _ => throw new NotImplementedException(),
     };

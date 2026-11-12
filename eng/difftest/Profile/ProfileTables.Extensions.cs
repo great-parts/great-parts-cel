@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -33,6 +34,24 @@ internal static partial class ProfileTables
     /// <summary>The set <c>network</c>.</summary>
     internal const string NetworkSet = "network";
 
+    /// <summary>The set <c>optional</c>.</summary>
+    internal const string OptionalSet = "optional";
+
+    /// <summary>The function <c>_[?_]</c>, the optional index <c>e[?k]</c>.</summary>
+    internal const string OptionalIndex = "_[?_]";
+
+    /// <summary>The macro <c>optMap</c>.</summary>
+    internal const string OptMapMacro = "optMap";
+
+    /// <summary>The macro <c>optFlatMap</c>.</summary>
+    internal const string OptFlatMapMacro = "optFlatMap";
+
+    /// <summary>The identifier <c>optional_type</c>: the value of the type <c>type</c> that <c>type(e)</c> gives for an optional <c>e</c>.</summary>
+    internal const string OptionalTypeIdentifier = "optional_type";
+
+    /// <summary>The overload of the optional selection <c>e.?f</c>, which the node <see cref="Select"/> with <see cref="Select.Optional"/> carries.</summary>
+    internal const string OptionalSelectOverload = "select_optional_field";
+
     /// <summary>The macro <c>cel.bind</c>.</summary>
     internal const string BindMacro = "cel.bind";
 
@@ -52,7 +71,7 @@ internal static partial class ProfileTables
     internal static IReadOnlyList<(string Name, string Version)> Extensions { get; } =
     [
         (StringsSet, "5"), (MathSet, "3"), (ListsSet, "4"), (SetsSet, "0"), (EncodersSet, "1"), (BindingsSet, "1"),
-        (TwoVariableSet, "0"), (NetworkSet, "1"),
+        (TwoVariableSet, "0"), (NetworkSet, "1"), (OptionalSet, "2"),
     ];
 
     /// <summary>The names of the two variables of a two-variable macro, the outer macro first, so that a macro inside another has other names.</summary>
@@ -86,6 +105,49 @@ internal static partial class ProfileTables
     /// <param name="function">The function.</param>
     internal static bool IsExtensionGlobal(string function) => ExtensionOverloads.Any(overload => !overload.Receiver && overload.Function == function);
 
+    // The overloads of the set optional whose result is an optional, by identifier: a call that carries one is an optional node. A table
+    // of its own, not read from the rows, so that it does not depend on the order of the initializers of the partial class.
+    private static readonly HashSet<string> OptionalResultIds = new(StringComparer.Ordinal)
+    {
+        "optional_of", "optional_ofNonZeroValue", "optional_none", "optional_or_optional", OptionalSelectOverload,
+        "list_optindex_optional_int", "optional_list_optindex_optional_int", "map_optindex_optional_value",
+        "optional_map_optindex_optional_value", "optional_list_index_int", "optional_map_index_value", "list_first", "list_last",
+    };
+
+    /// <summary>
+    /// Whether the value of a node is an optional: a call of an overload of the set <c>optional</c> that gives one, <c>e.?f</c>, a
+    /// selection on an optional operand, <c>optMap</c> and <c>optFlatMap</c>, a conditional whose branches are both optional nodes, and
+    /// the selection of an entry of a map literal whose value is an optional node. The oracle returns a value as <c>cel.expr.Value</c>,
+    /// which has no form for an optional, so the generator keeps such a node away from the root, from <c>dyn()</c>, from the element of
+    /// a plain literal, from a range and from <c>in</c>, and a case that is such a node is asked for as a pair of its own
+    /// (<see cref="ExprPrinter.PrintCase"/>).
+    /// </summary>
+    /// <param name="expr">The node.</param>
+    internal static bool IsOptional(Expr expr) => expr switch
+    {
+        Call { Overload: { } id } => OptionalResultIds.Contains(id),
+        Call { Function: Conditional, Args: [_, { } first, { } second] } => IsOptional(first) && IsOptional(second),
+        Select { Optional: true } => true,
+        Select { Operand: MapLiteral map } select => map.Entries.Any(entry =>
+            !entry.Optional && entry.Key is StringLiteral key && key.Value == select.Field && IsOptional(entry.Value)),
+        Select select => IsOptional(select.Operand),
+        Comprehension { Macro: OptMapMacro or OptFlatMapMacro } => true,
+        _ => false,
+    };
+
+    /// <summary>
+    /// Whether a node is a list or map literal that holds an optional node as a plain element or value, as <c>optional.unwrap([…])</c>
+    /// takes one, or as the shape <c>has({'k': optional.none()}.k.f)</c> has: the oracle cannot return such a literal either, so a
+    /// case that is one is asked for as its size (<see cref="ExprPrinter.PrintCase"/>).
+    /// </summary>
+    /// <param name="expr">The node.</param>
+    internal static bool HoldsOptional(Expr expr) => expr switch
+    {
+        ListLiteral list => list.Elements.Where((element, position) => !list.OptionalPositions.Contains(position)).Any(IsOptional),
+        MapLiteral map => map.Entries.Any(entry => !entry.Optional && IsOptional(entry.Value)),
+        _ => false,
+    };
+
     // The rows of the extension sets. The identifiers are those of cel-go and of docs/extensions.md. Self-contained: the order of the
     // initializers of a partial class does not follow the files.
     private static List<ProfileOverload> ExtensionRows()
@@ -96,6 +158,7 @@ internal static partial class ProfileTables
         AddListsRows(rows);
         AddSetsAndEncodersRows(rows);
         AddNetworkRows(rows);
+        AddOptionalRows(rows);
         return rows;
     }
 
@@ -250,5 +313,39 @@ internal static partial class ProfileTables
         AddRow(rows, NetworkSet, "cidr_contains_ip_string", "containsIP", true, Bool, null, Cidr, Str);
         AddRow(rows, NetworkSet, "cidr_contains_cidr", "containsCIDR", true, Bool, null, Cidr, Cidr);
         AddRow(rows, NetworkSet, "cidr_contains_cidr_string", "containsCIDR", true, Bool, null, Cidr, Str);
+    }
+
+    // optional: the 18 overloads of cel-go v0.32.0 with OptionalTypesVersion(2), in the order of cel/library.go, and the macros
+    // optMap and optFlatMap, which expand to calls of them and are no rows. The parameter A stands for V and K of cel-go; the receiver
+    // of the optional index and of the index of an optional is an optional or a list or a map.
+    private static void AddOptionalRows(List<ProfileOverload> rows)
+    {
+        const ProfileType A = ProfileType.ParameterAType;
+        const ProfileType Int = ProfileType.IntType;
+        const ProfileType Str = ProfileType.StringType;
+        const ProfileType Lst = ProfileType.ListType;
+        const ProfileType Map = ProfileType.MapType;
+        const ProfileType Opt = ProfileType.OptionalType;
+        AddRow(rows, OptionalSet, "optional_of", "optional.of", false, Opt, null, A);
+        AddRow(rows, OptionalSet, "optional_ofNonZeroValue", "optional.ofNonZeroValue", false, Opt, null, A);
+        AddRow(rows, OptionalSet, "optional_none", "optional.none", false, Opt, null);
+        AddRow(rows, OptionalSet, "optional_value", "value", true, A, null, Opt);
+        AddRow(rows, OptionalSet, "optional_hasValue", "hasValue", true, ProfileType.BoolType, null, Opt);
+        // The argument of or is an optional for cel-go; here it is the parameter A, so that a call whose argument is a dyn value that is
+        // no optional — optional.none().or(dyn(1)) — is still named by the overload: optional_or_optional(optional_type, int), the
+        // signature of the twelve records of the registry that belong to it.
+        AddRow(rows, OptionalSet, "optional_or_optional", "or", true, Opt, null, Opt, A);
+        AddRow(rows, OptionalSet, "optional_orValue_value", "orValue", true, A, null, Opt, A);
+        AddRow(rows, OptionalSet, OptionalSelectOverload, "_?._", false, Opt, null, ProfileType.DynType, Str);
+        AddRow(rows, OptionalSet, "list_optindex_optional_int", OptionalIndex, false, Opt, null, Lst, Int);
+        AddRow(rows, OptionalSet, "optional_list_optindex_optional_int", OptionalIndex, false, Opt, null, Opt, Int);
+        AddRow(rows, OptionalSet, "map_optindex_optional_value", OptionalIndex, false, Opt, null, Map, A);
+        AddRow(rows, OptionalSet, "optional_map_optindex_optional_value", OptionalIndex, false, Opt, null, Opt, A);
+        AddRow(rows, OptionalSet, "optional_list_index_int", Index, false, Opt, null, Opt, Int);
+        AddRow(rows, OptionalSet, "optional_map_index_value", Index, false, Opt, null, Opt, A);
+        AddRow(rows, OptionalSet, "list_first", "first", true, Opt, null, Lst);
+        AddRow(rows, OptionalSet, "list_last", "last", true, Opt, null, Lst);
+        AddRow(rows, OptionalSet, "optional_unwrap", "optional.unwrap", false, Lst, null, Lst);
+        AddRow(rows, OptionalSet, "optional_unwrapOpt", "unwrapOpt", true, Lst, null, Lst);
     }
 }

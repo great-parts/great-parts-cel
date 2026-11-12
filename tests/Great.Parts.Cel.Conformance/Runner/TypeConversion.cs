@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.Linq;
 using Google.Protobuf.WellKnownTypes;
 using Great.Parts.Cel.Types;
@@ -16,6 +17,9 @@ namespace Great.Parts.Cel.Conformance.Runner;
 /// </summary>
 internal static class TypeConversion
 {
+    /// <summary>The name of the abstract type of the set <c>optional</c> in <c>cel.expr.Type</c>.</summary>
+    internal const string OptionalTypeName = "optional_type";
+
     /// <summary>The type <c>dyn</c> of a case: the result type of an expression evaluated without a check.</summary>
     internal static Type Dyn => new() { Dyn = new Empty() };
 
@@ -39,6 +43,10 @@ internal static class TypeConversion
         {
             AbstractType = new Type.Types.AbstractType { Name = type.Name, ParameterTypes = { type.Parameters.Select(ToExprType) } },
         },
+        CelTypeKind.Optional => new Type
+        {
+            AbstractType = new Type.Types.AbstractType { Name = OptionalTypeName, ParameterTypes = { ToExprType(type.Parameters[0]) } },
+        },
         _ => ToExprNamedType(type),
     };
 
@@ -56,8 +64,23 @@ internal static class TypeConversion
         Type.TypeKindOneofCase.ListType => CelType.ListOf(ToCelType(type.ListType.ElemType)),
         Type.TypeKindOneofCase.MapType => CelType.MapOf(ToCelType(type.MapType.KeyType), ToCelType(type.MapType.ValueType)),
         Type.TypeKindOneofCase.Type_ => CelType.TypeOf(ToCelType(type.Type_)),
+        Type.TypeKindOneofCase.AbstractType => FromAbstract(type.AbstractType),
+        Type.TypeKindOneofCase.TypeParam => CelType.TypeParameter(type.TypeParam),
         _ => throw new NotImplementedException(),
     };
+
+    // optional_type with one parameter is the type of the set optional; every other name is an abstract type by name, which the runner
+    // declares with the first form of it that a case writes. optional_type with another number of parameters is no type of the library.
+    private static CelType FromAbstract(Type.Types.AbstractType abstractType)
+    {
+        ImmutableArray<CelType> parameters = [.. abstractType.ParameterTypes.Select(ToCelType)];
+        if (!string.Equals(abstractType.Name, OptionalTypeName, StringComparison.Ordinal))
+        {
+            return CelType.AbstractNamed(abstractType.Name, parameters);
+        }
+
+        return parameters.Length == 1 ? CelType.OptionalOf(parameters[0]) : throw new NotImplementedException();
+    }
 
     // The types that cel.expr.Type names: the two types of time and Any as well-known types, an object type by its message name.
     private static Type ToExprNamedType(CelType type) => type.Kind switch

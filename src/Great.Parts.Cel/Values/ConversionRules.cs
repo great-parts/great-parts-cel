@@ -80,10 +80,41 @@ internal static partial class ConversionRules
             || TryFromNullable(value, out result)
             || TryFromNullableTime(value, out result)
             || TryFromJson(value, out result)
+            || TryFromOptional(value, out result)
             || TryFromCollection(value, out result);
     }
 
-    private static CelType? InputType(Type type) => LeafInputType(type) ?? CollectionInputType(type);
+    // CelOptional<X>: the empty optional, or the optional that holds the value of X by the input rows. The structure is read
+    // through the interface of the optional, since the type argument is known only to the structure; the box is the one allocation.
+    private static bool TryFromOptional<T>(T value, out CelValue result)
+    {
+        if (OptionalShape<T>.IsOptional && (object?)value is IOptionalSource source)
+        {
+            return source.TryToCelValue(out result);
+        }
+
+        result = default;
+        return false;
+    }
+
+    private static CelType? InputType(Type type) => LeafInputType(type) ?? OptionalInputType(type) ?? CollectionInputType(type);
+
+    // CelOptional<X> is optional_type(E), E the type of X by the input rows; null when X has no row.
+    private static CelType? OptionalInputType(Type type)
+    {
+        if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(CelOptional<>))
+        {
+            return null;
+        }
+
+        return InputType(type.GetGenericArguments()[0]) is CelType held ? CelType.OptionalOf(held) : null;
+    }
+
+    private static class OptionalShape<T>
+    {
+        // Whether T is CelOptional<X> of some X.
+        internal static readonly bool IsOptional = typeof(T).IsGenericType && typeof(T).GetGenericTypeDefinition() == typeof(CelOptional<>);
+    }
 
     // The CEL type of the rows that are not collections: the scalars, CelValue, object, JsonElement, CelList and CelMap,
     // and Nullable<X> of a scalar.
@@ -495,6 +526,7 @@ internal static partial class ConversionRules
             TimeSpan span => FromTimeSpan(span),
             JsonElement element => JsonRules.FromElement(element),
             Enum number => FromBoxedEnum(number),
+            IOptionalSource optional when optional.TryToCelValue(out CelValue held) => held,
             _ => null,
         };
 

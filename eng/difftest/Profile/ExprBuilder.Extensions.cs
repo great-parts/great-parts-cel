@@ -66,31 +66,34 @@ internal sealed partial class ExprBuilder
         [
             ExtForm.CharAt, ExtForm.StringUnary, ExtForm.StringUnary, ExtForm.Replace, ExtForm.Substring, ExtForm.Quote, ExtForm.Join,
             ExtForm.Format, ExtForm.Format, ExtForm.Base64Encode, ExtForm.JsonEncode, ExtForm.NetString, ExtForm.Bind, ExtForm.TwoVariableIndex,
+            ExtForm.OptionalValue, ExtForm.OptionalOrValue,
         ],
         [ProfileType.IntType] =
         [
             ExtForm.IndexOf, ExtForm.IndexOf, ExtForm.LastIndexOf, ExtForm.MathCall, ExtForm.MathExtreme, ExtForm.RangeSize, ExtForm.Family,
-            ExtForm.PrefixLength, ExtForm.TwoVariableSize, ExtForm.Bind, ExtForm.TwoVariableIndex,
+            ExtForm.PrefixLength, ExtForm.TwoVariableSize, ExtForm.Bind, ExtForm.TwoVariableIndex, ExtForm.OptionalValue, ExtForm.OptionalOrValue,
         ],
-        [ProfileType.UintType] = [ExtForm.MathCall, ExtForm.MathExtreme, ExtForm.Bind],
-        [ProfileType.DoubleType] = [ExtForm.MathCall, ExtForm.MathCall, ExtForm.MathExtreme, ExtForm.Bind],
+        [ProfileType.UintType] = [ExtForm.MathCall, ExtForm.MathExtreme, ExtForm.Bind, ExtForm.OptionalValue, ExtForm.OptionalOrValue],
+        [ProfileType.DoubleType] = [ExtForm.MathCall, ExtForm.MathCall, ExtForm.MathExtreme, ExtForm.Bind, ExtForm.OptionalValue, ExtForm.OptionalOrValue],
         [ProfileType.BoolType] =
         [
             ExtForm.MathCall, ExtForm.Sets, ExtForm.IsText, ExtForm.IpPredicate, ExtForm.Contains, ExtForm.IsMask, ExtForm.NetEquality,
             ExtForm.TypeEquality, ExtForm.TwoVariableQuantifier, ExtForm.TwoVariableQuantifier, ExtForm.TwoVariableIn, ExtForm.TwoVariableEqual,
-            ExtForm.Bind,
+            ExtForm.Bind, ExtForm.OptionalHasValue, ExtForm.OptionalHasValue, ExtForm.OptionalEquality, ExtForm.OptionalTypeEquality,
+            ExtForm.OptionalPresence, ExtForm.OptionalValue, ExtForm.OptionalOrValue,
         ],
-        [ProfileType.BytesType] = [ExtForm.Base64Decode, ExtForm.Bind],
+        [ProfileType.BytesType] = [ExtForm.Base64Decode, ExtForm.Bind, ExtForm.OptionalValue, ExtForm.OptionalOrValue],
         [ProfileType.ListType] =
         [
             ExtForm.Split, ExtForm.Slice, ExtForm.Flatten, ExtForm.Sort, ExtForm.Sort, ExtForm.ReverseList, ExtForm.Distinct, ExtForm.Range,
-            ExtForm.SortBy, ExtForm.TwoVariableTransform, ExtForm.Bind,
+            ExtForm.SortBy, ExtForm.TwoVariableTransform, ExtForm.Bind, ExtForm.OptionalUnwrap, ExtForm.OptionalList, ExtForm.OptionalList,
+            ExtForm.OptionalValue, ExtForm.OptionalOrValue,
         ],
-        [ProfileType.NullType] = [ExtForm.Bind],
-        [ProfileType.MapType] = [ExtForm.Bind],
-        [ProfileType.TypeType] = [ExtForm.Bind],
-        [ProfileType.TimestampType] = [ExtForm.Bind],
-        [ProfileType.DurationType] = [ExtForm.Bind],
+        [ProfileType.NullType] = [ExtForm.Bind, ExtForm.OptionalValue, ExtForm.OptionalOrValue],
+        [ProfileType.MapType] = [ExtForm.Bind, ExtForm.OptionalMap, ExtForm.OptionalMap, ExtForm.OptionalValue, ExtForm.OptionalOrValue],
+        [ProfileType.TypeType] = [ExtForm.Bind, ExtForm.OptionalTypeOf, ExtForm.OptionalValue, ExtForm.OptionalOrValue],
+        [ProfileType.TimestampType] = [ExtForm.Bind, ExtForm.OptionalValue, ExtForm.OptionalOrValue],
+        [ProfileType.DurationType] = [ExtForm.Bind, ExtForm.OptionalValue, ExtForm.OptionalOrValue],
     };
 
     private enum ExtForm
@@ -135,6 +138,16 @@ internal sealed partial class ExprBuilder
         TwoVariableSize,
         TwoVariableIndex,
         Bind,
+        OptionalHasValue,
+        OptionalValue,
+        OptionalOrValue,
+        OptionalEquality,
+        OptionalTypeEquality,
+        OptionalTypeOf,
+        OptionalPresence,
+        OptionalUnwrap,
+        OptionalList,
+        OptionalMap,
     }
 
     // Builds one argument of a call at a depth within a budget of nodes.
@@ -255,6 +268,16 @@ internal sealed partial class ExprBuilder
         [ExtForm.TwoVariableSize] = (b, _, d, l) => b.TwoVariableSize(d, l),
         [ExtForm.TwoVariableIndex] = (b, target, d, l) => b.TwoVariableIndex(target, d, l),
         [ExtForm.Bind] = (b, target, d, l) => b.Bind(target, d, l),
+        [ExtForm.OptionalHasValue] = (b, _, d, l) => b.OptHasValue(d, l),
+        [ExtForm.OptionalValue] = (b, target, d, l) => b.OptValue(target, d, l),
+        [ExtForm.OptionalOrValue] = (b, target, d, l) => b.OptOrValue(target, d, l),
+        [ExtForm.OptionalEquality] = (b, _, d, l) => b.OptEquality(d, l),
+        [ExtForm.OptionalTypeEquality] = (b, _, d, l) => b.OptTypeEquality(d, l),
+        [ExtForm.OptionalTypeOf] = (b, _, d, l) => b.OptTypeOf(d, l),
+        [ExtForm.OptionalPresence] = (b, _, d, l) => b.OptPresence(d, l),
+        [ExtForm.OptionalUnwrap] = (b, _, d, l) => b.OptUnwrap(d, l),
+        [ExtForm.OptionalList] = (b, _, d, l) => b.OptList(d, l),
+        [ExtForm.OptionalMap] = (b, _, d, l) => b.OptMap(d, l),
     };
 
     // ---- strings ----

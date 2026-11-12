@@ -87,7 +87,7 @@ public sealed class CelBindings
         }
         else if (!ConversionRules.TryFromClr(value, out converted))
         {
-            // Optional values and decimals come with their parts.
+            // Decimals come with their part.
             throw ConversionRules.IsOfLaterPart<T>()
                 ? new NotImplementedException()
                 : new ArgumentException(

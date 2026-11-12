@@ -32,6 +32,7 @@ new CelEnvironmentBuilder(CelStandardLibrary.V1)
 | two-variable comprehensions | `two-var-comprehensions` | `TwoVarComprehensions(version)` | 0 | none |
 | `network` | `network` | `Network(version)` | 1 | none |
 | `protos` | `protos` | `Protos(version)` | 0 | none |
+| `optional` | `optional` | `Optional(version)` | 2 | none |
 
 - **Versions are those of cel-go.** The number of a version is the number of the same set in cel-go, the CEL implementation in Go, and a version has the declarations that cel-go gives it. This release has one version of each set. A version that the table does not have is not a number to try: it is the build error `UnknownExtensionVersion`.
 - **The functions of a version never change.** A function that cel-go adds in a later version comes as that version, and an environment that names the versions it was built with means the same after the library is updated. A fix of the behavior of a function applies to the version that has it.
@@ -74,6 +75,36 @@ A macro that cannot expand a call because of its arguments is the parse error `I
 ## In an environment description
 
 The key `extensions` of an [environment description in JSON](environment-json.md) adds a set by its name and version, as `AddExtension(CelExtensions.<Set>(version))`. The names are those of the catalog above, once the set is part of the library; the full names of cel-go such as `cel.lib.ext.strings` are not names. A version is a string of decimal digits, and `Build` reports a version that the set does not have, with the place of its element.
+
+## Optional syntax
+
+The set `optional` turns on five forms of the syntax. Each form works with the optional values of the set: a form that selects or indexes gives an optional, and a form that builds a list, a map or a message adds a position only when its optional has a value. Without the set every form is the parse error `SyntaxNotEnabled`, at the `?` of the form: `'.?' is not enabled: add the extension set optional`, with `'[?'` and `'?'` for the others. The parser goes on, so each form of a text is one error, in the order of the text.
+
+| Form | What it gives | Type |
+| :- | :- | :- |
+| `e.?f` | the value of the key or field `f` of `e` as an optional, and the empty optional when it is not there | `optional_type(V)`, `V` the type of the value |
+| `e[?k]` | the same for an index or a key: an index outside a list or a key that a map does not have gives the empty optional, where `e[k]` is an error | `optional_type(V)` |
+| `[?e]` | a list that holds the value of the optional `e`, or nothing when `e` is empty | the type of the list of the values |
+| `{?k: v}` | a map that has the entry when the optional `v` has a value, and no entry otherwise | the type of the map of the values |
+| `T{?f: v}` | a message whose field `f` is set to the value of the optional `v`, and left unset when `v` is empty | the type of the message |
+
+```text
+{'a': 1}.?a                              // optional.of(1)
+{'a': 1}.?b                              // optional.none()
+[1, 2][?1]                               // optional.of(2)
+[1, 2][?5]                               // optional.none()
+[1, ?optional.of(2), ?optional.none()]   // [1, 2]
+{'a': 1, ?'b': optional.none()}          // {'a': 1}
+Order{id: 7, ?note: optional.none()}     // an Order whose field note is not set
+```
+
+- **The value of a position with `?`** has to be an optional. In a list, a map or a message that the checker types, any other type is `TypeMismatch` at the value — at the `:` of the field in a message literal: `[?1]` is `expected type 'optional_type(int)' but found 'int'`. A value of the type `dyn` passes the check; if it is no optional at evaluation, the position is `EvalNoMatchingOverload` with the function `?` and the type of the value. The expressions of a position that is not stored are still evaluated, in the order of the text, and their errors are errors of the literal. The key of a map entry that is not stored is not looked at, so a key that cannot be a map key is an error only for a stored entry.
+- **Optional chains.** An optional is selected and indexed through its value: `e.f` and `e[k]` over an operand of the type `optional_type(T)` select in a `T` and give an optional, and the empty optional stays empty. `e.?f` over an operand that is itself an optional unwraps it once, so `optional.of({'a': {'b': 1}}).?a.?b` is `optional.of(1)` and a chain of `.?` never nests optionals. `{'a': 1}.?a.b` is an error, because `.b` is read on the `int` 1. A value without fields under `dyn` is `FieldSelectionNotSupported`; a name that a message does not have is `NoSuchField` at the check and `EvalNoSuchField` at evaluation.
+- **Maps and messages.** For a map the key must be present; for a message the field must be set — a field of proto3 without presence that holds its default counts as not set, as in `has()`.
+- **`has()` over an optional.** `has(a.?b)` is no presence test: `a.?b` is a call, not a selection, and the macro refuses it with `InvalidMacroCall` (`argument must be a field selection`). `has(a.?b.c)` tests the presence of `c` in the value of `a.?b`: it is `false` for an empty optional and otherwise the presence of the key in a map or of a set field of a message; a held value that has no fields is `FieldSelectionNotSupported`. Where cel-go v0.32.0 fails with `no such key: bar` for `has({'foo': optional.none()}.foo.bar)`, this library gives `false`: an empty optional has no `bar`.
+- **Indexes.** The index of an optional list is an `int`; the `uint` and `double` indexes that the plain index of a list also takes are not taken by `[?` and by an optional operand: `NoMatchingOverload` at the check, `EvalNoMatchingOverload` for an operand of the type `dyn`. The key of a map is looked up across the numeric kinds, so `dyn({1: 'a'})[?1u]` is `optional.of('a')`.
+- **Cost.** A selection or an index of an optional costs what the same selection or index of the value costs; a literal with `?` costs what it stores. The units are on the page [Cost](cost.md).
+- **Differences from cel-go.** `[?1]` and `{?'a': 1}` are one error each, where cel-go gives a second one when the literal is used further; a field of a message literal whose value is not an optional is reported at its `:` with the text `expected type 'optional_type(F)' but found '...'`.
 
 ## Set `strings`, version 5
 
@@ -232,7 +263,7 @@ cel.bind(area, width * height, area / 2 + area)
 
 - **The first argument has to be a simple identifier.** Otherwise the call is `InvalidMacroCall`, `invalid call of macro 'bind': cel.bind() variable names must be simple identifiers`, at that argument: `cel.bind(1, 2, 3)` at the `1`, `cel.bind(a.b, 2, 3)` at the dot of the selection.
 - **A call with another number of arguments, or on another target, is not the macro.** `cel.bind(x, 1)` is a call of a function that no set declares, and type checking reports it. The macro exists only in an environment that has the set.
-- **`cel.@block`.** The set also has the function `cel.@block(slots, result)` with the overload `cel_block_list`, `cel.@block(list(dyn), T) -> T`, which takes a list literal of slot expressions and the result. The name starts with `@`, so no expression can write it; it is for trees that the library builds itself: the library has no public way to build a syntax tree. In the slots and the result, `@index0`, `@index1` and so on are the values of the slots. A slot is evaluated the first time it is read and not again; a slot that nothing reads is not evaluated, and its error does not happen. The names `@index0`… are not declared variables, so type checking rejects a tree that reads them as an undeclared reference. A first argument that is not a list literal is refused: by type checking as `NoMatchingOverload`, and in an evaluation without type checking as `EvalNoMatchingOverload`.
+- **`cel.@block`.** The set also has the function `cel.@block(slots, result)` with the overload `cel_block_list`, `cel.@block(list(dyn), T) -> T`, which takes a list literal of slot expressions and the result. The name starts with `@`, so no expression can write it; it is for trees that the library builds itself: the library has no public way to build a syntax tree. In the slots and the result, `@index0`, `@index1` and so on are the values of the slots. A slot is evaluated the first time it is read and not again; a slot that nothing reads is not evaluated, and its error does not happen. A slot that reads itself, directly or through other slots, goes on to the slot of the same number of the next enclosing block that has it, as cel-go does, and the read is `Unbound` only when no block is left. The names `@index0`… are not declared variables, so type checking rejects a tree that reads them as an undeclared reference. A first argument that is not a list literal is refused: by type checking as `NoMatchingOverload`, and in an evaluation without type checking as `EvalNoMatchingOverload`.
 
 The units are on the page [Cost](cost.md#set-bindings).
 
@@ -323,3 +354,39 @@ proto.hasExt(m, cel.expr.conformance.proto2.nested_ext)
 - **The version** is 0. `CelExtensions.Protos` does not check it: another version is the build error `UnknownExtensionVersion`, `extension 'protos' has no version 1; available versions: 0`. In an environment description in JSON the set is `{"name": "protos", "version": "0"}`.
 
 A macro costs what its expansion costs, see [Cost](cost.md#set-protos).
+
+## Set `optional`, version 2
+
+The type `optional_type(T)`, the functions that make, test and unwrap its values, and the macros `optMap` and `optFlatMap`. The set also turns on the optional syntax, `x.?f`, `x[?k]`, `[?e]`, `{?k: v}` and `T{?f: v}`; without the set that syntax is the parse error `SyntaxNotEnabled` (1007). In .NET a value of the type is `CelOptional<T>`, see [Type mapping](type-mapping.md#optional-values). The units are on the page [Cost](cost.md#set-optional).
+
+An optional either holds a value, which can be `null`, or is empty. `optional.none()` and `optional.of(null)` are different values: the first has no value and the second has the value `null`. Two optionals are equal when both are empty, or both hold values that are equal by the equality of CEL, so `optional.of(1) == optional.of(1.0)` is `true`; an optional equals no value of another kind, `null` included, and `optional.of(null) == null` is `false`. The name of the type is `optional_type`, and `type(optional.of(1)) == optional_type` is `true`: the parameter of the type is not part of the value of the function `type`. An optional is no key of a map, `UnsupportedMapKeyType` (3027), and no operand of `string()`, `json.encode`, an ordering or a clause of `format`. The set declares the type: a declaration of an environment that uses `optional_type` without the set is the build error `TypeNotDeclared` (4008), `…; add the extension set 'optional'`.
+
+| Overload | Call | What it does |
+| :- | :- | :- |
+| `optional_of` | `optional.of(v)` | an optional that holds `v`, `null` included |
+| `optional_ofNonZeroValue` | `optional.ofNonZeroValue(v)` | the empty optional when `v` is a zero value, otherwise `optional.of(v)` |
+| `optional_none` | `optional.none()` | the empty optional |
+| `optional_value` | `o.value()` | the held value; `OptionalHasNoValue` (3016), `optional value is empty`, at the call for an empty optional |
+| `optional_hasValue` | `o.hasValue()` | whether `o` holds a value |
+| `optional_or_optional` | `o.or(p)` | `o` when it holds a value, otherwise `p` |
+| `optional_orValue_value` | `o.orValue(v)` | the held value when `o` holds one, otherwise `v` |
+| `list_first` | `l.first()` | the optional of the first element, or the empty optional for an empty list |
+| `list_last` | `l.last()` | the optional of the last element, or the empty optional for an empty list |
+| `optional_unwrap` | `optional.unwrap(l)` | the held values of the optionals of the list `l` that hold one, in order, in a new list |
+| `optional_unwrapOpt` | `l.unwrapOpt()` | the same as `optional.unwrap(l)` |
+
+```text
+optional.of(5).value()                        // 5
+optional.none().orValue(7)                    // 7
+optional.none().or(optional.of(2)).value()    // 2
+[1, 2, 3].last().orValue(0)                   // 3
+optional.unwrap([optional.of(1), optional.none(), optional.of(3)])    // [1, 3]
+```
+
+- **`or` and `orValue` evaluate their argument only when the receiver is empty.** `optional.of(1).orValue(1 / 0)` is `1`, and `optional.none().orValue(1 / 0)` is `DivisionByZero`. An error value of a part is the value of the call: the receiver always, the argument when it is evaluated. A receiver that is not an optional, which only a value of type `dyn` can be, is `EvalNoMatchingOverload`, `no such overload: or(int)`, and the argument is not evaluated.
+- **`or` takes only an optional.** When the receiver is empty and the argument is not an optional, which only a value of type `dyn` or `null` can be, the call is `EvalNoMatchingOverload`, `no such overload: or(optional_type, int)`; cel-go gives the argument whatever it is, so `optional.none().or(dyn(1))` is `1` there. `orValue` takes an argument of any kind, as in cel-go.
+- **Zero values.** `optional.ofNonZeroValue(v)` is the empty optional exactly when `v` is `null`; `false`; the `int` 0 and the `uint` 0; the `double` 0.0 and -0.0, but not a NaN; the empty string; the empty `bytes`; the empty list; the empty map; the `duration` of 0; the `timestamp` of 0001-01-01T00:00:00Z, which is not the epoch; or an object, such as a protobuf message, none of whose fields is set. A value of any other kind is not zero, the optionals and the type values among them. The call reads the fields of an object in the order of the description and stops at the first field that is set.
+- **`first` and `last`** keep what the element is: `[null].first()` holds `null`, and an element that is an error value, such as an element of a list of the application that cannot be read, is the value of the call.
+- **`optional.unwrap` and `unwrapOpt`** keep a held `null` and give a list of the held values, never of optionals. An element that is not an optional, which only a list of type `dyn` can have, is `EvalNoMatchingOverload`.
+- **Macros.** `o.optMap(v, e)` is `optional.of(e)` with `v` bound to the held value of `o`, and the empty optional when `o` is empty: `optional.of(1).optMap(y, y + 1)` is `optional.of(2)`. `o.optFlatMap(v, e)` is the same for an `e` that is an optional itself, and gives `e` without wrapping it again. The body `e` is not evaluated for an empty optional, and `o` is evaluated once. The first argument has to be an identifier; otherwise the parse error is `InvalidMacroCall` (1006), `invalid call of macro 'optMap': optMap() variable name must be a simple identifier`, at that argument, and for `optFlatMap` `optFlatMap() variable name must be a simple identifier`. A call with a number of arguments other than two is not a macro and stays a call, which type checking reports. The macros exist only in an environment that has the set.
+- **The version.** The set has the one version 2, as in cel-go with `OptionalTypesVersion(2)`: `CelExtensions.Optional(1)` is the build error `UnknownExtensionVersion`, `extension 'optional' has no version 1; available versions: 2`. In an environment description in JSON the set is `{"name": "optional", "version": "2"}`, and the type is written `optional_type<int>`.

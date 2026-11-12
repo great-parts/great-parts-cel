@@ -117,16 +117,16 @@ public sealed class TypeRecordResolverTests
         Assert.Equal(expected, detail);
     }
 
-    // The type that a later part brings is an error that names the type.
+    // The optional type has exactly one parameter, at any depth.
     [Theory]
-    [InlineData("optional_type<int>", "optional_type")]
-    [InlineData("optional_type", "optional_type")]
-    [InlineData("list<optional_type<int>>", "optional_type")]
-    public static void TypeThatLaterPartsBring_IsAnErrorThatNamesIt(string text, string name)
+    [InlineData("optional_type", "the type 'optional_type' takes 1 type parameter: 'optional_type'")]
+    [InlineData("optional_type<int, string>", "the type 'optional_type' takes 1 type parameter, but 'optional_type<int, string>' gives 2")]
+    [InlineData("list<optional_type<int, int>>", "the type 'optional_type' takes 1 type parameter, but 'list<optional_type<int, int>>' gives 2")]
+    public static void OptionalTypeWithAnotherNumberOfParameters_IsAnError(string text, string expected)
     {
         Assert.Null(TypeRecordResolver.Resolve(text, allowTypeParameters: false, "a variable", out string detail));
 
-        Assert.Equal($"the type '{name}' is not supported", detail);
+        Assert.Equal(expected, detail);
     }
 
     // The nesting has no limit but the length of the text: the record is resolved without recursion.

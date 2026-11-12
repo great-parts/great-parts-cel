@@ -26,7 +26,7 @@ The rule files follow the naming and the content rules of [core](core.md).
 
 `WrapperOf` takes `bool`, `bytes`, `double`, `int`, `uint` and `string`; any other type is `ArgumentException`. `TypeOf(Dyn)` is the type of any type value; the identifier `type` has the static type `type(type(dyn))`. `ObjectNamed` only creates the reference: the environment rejects it as `TypeNotDeclared` while no type source describes it (see [declarations](declarations.md)). The text form is what error messages show; it is the notation of the language definition, and cel-go writes wrappers the same way.
 
-`OptionalOf` arrives with the `optional` set and `Decimal` with `decimal`; until then they throw `NotImplementedException`. `Any` and the names of protobuf are on the two sections below.
+`OptionalOf` is the type of the set `optional` ([below](#optional-types-in-the-rules)); `Decimal` arrives with `decimal` and until then throws `NotImplementedException`. `Any` and the names of protobuf are on the two sections below.
 
 Inside type checking two more forms exist and never leave it:
 
@@ -42,6 +42,52 @@ A substitution maps type parameters to types; it belongs to one checked expressi
 - **apply** to a type — replaces each bound parameter by its binding, recursively, through list, map, wrapper and `type(…)` parameters; with the option *free to `dyn`* also replaces the parameters that remain free.
 
 A trial against a substitution works on a copy: a failed trial leaves the substitution as it was, a successful one replaces it with the copy. Overload candidates, joins and assertions of the checker are all trials.
+
+## Optional types in the rules
+
+This section is read after "Assignability" and "Most general" below; it adds what the set [optional](extension-optional.md) needs of them and supersedes the sentence of "The model" that leaves `OptionalOf` to a later part. Nothing is added to the public API: the changes are in `AssignabilityRules`, and `SubstitutionRules` already walks the parameters of any kind (`Apply`, `Occurs`, `HasTypeParameters`).
+
+**What changes.** Two rules compare the parameters of a type one by one, and until now they did so for `list` and `map` (the most general type) and for abstract types (assignability) only:
+
+| Rule | Before | After |
+| :- | :- | :- |
+| 8, assignability | `optional_type(A)` against `optional_type(B)` fell to "no": the kind `Optional` is among the kinds that are assignable to no other | the two are assignable when `A` is assignable to `B`, by the same rules with the same substitution and the same deducible variables; an `optional_type` is assignable to no other kind but through the rules 1 to 4 (`dyn`, type parameters, `null`) |
+| most general, rule 3 | `list` and `map` only | `list`, `map`, `optional_type`, and abstract types of one name and the same number of parameters: parameter by parameter, `optional_type(MostGeneral(A, B))` and `N(MostGeneral(A₁, B₁), …)` |
+
+Abstract types are not new: the rule 8 of "Assignability" already compares the parameters of two abstract types of one name; the generalization of those parameters is what is added, which the types `tuple(T, U, V)` of the cases of `type_deduction` need.
+
+**The table of the most general type.** `MostGeneral(a, b)` after the substitution, with the cases that pin each row; the first row that applies wins, and a pair is symmetric unless a row says so:
+
+| a | b | Result | Case |
+| :- | :- | :- | :- |
+| `dyn` | any | `dyn` | `wrapper_dyn_promotion`, `optional_dyn_promotion` |
+| a free type parameter | any | that parameter, `a` when both are free | `unconstrained_type_var_as_dyn` |
+| `list(A)` | `list(B)` | `list(MostGeneral(A, B))` | `list_parameter`, `type_nested_list_decay` |
+| `map(K1, V1)` | `map(K2, V2)` | `map(MostGeneral(K1, K2), MostGeneral(V1, V2))` | |
+| `optional_type(A)` | `optional_type(B)` | `optional_type(MostGeneral(A, B))` | `optional_dyn_promotion`, `optional_dyn_promotion_2`, `optional_in_ternary` give `optional_type(dyn)` |
+| `optional_type(_var)` of `optional.none()` | `optional_type(int)` | `optional_type(int)`: the join binds the variable first (rule 1 of assignability), then both parameters are `int` | `optional_none`, `optional_none_2` |
+| `N(A₁, …)` | `N(B₁, …)`, one name | `N(MostGeneral(A₁, B₁), …)` | `multiple_parameters_generality` gives `tuple(dyn, dyn, dyn)` |
+| `type(A)` | `type(B)` | `type(A)` when `A` equals `B`, else `type(dyn)`, free parameters or not | `type_list_decay`, `type_ternary_decay` |
+| `wrapper(P)` | `P` | `wrapper(P)` | `wrapper_promotion`, `wrapper_promotion_2` |
+| `wrapper(P)` | `wrapper(P)` | `wrapper(P)` | |
+| `null_type` | a wrapper, an object type, `timestamp`, `duration`, `Any`, `optional_type(T)`, an abstract type | that type, whichever the order | `null_assignable_to_message_parameter_candidate`, `…_duration_…`, `…_timestamp_…`, `…_abstract_…` |
+| any other two types | | the first one: they are equal, or not assignable and never reach the rule | |
+
+Two types that are not assignable — `wrapper(int)` and `wrapper(string)`, `optional_type(int)` and `list(int)` — are not generalized: the join of a literal takes `dyn` for them, as it does for `[1, 'a']`.
+
+**The cases of `type_deduction`.** The file has 66 cases, of which cel-go v0.32.0 gives another type for 15; Great.Parts.Cel follows the cel-spec case and no record of the registry is needed, since only the deduced type differs. By the state of the library at the start of the part:
+
+| Cases | Count | State |
+| :- | :- | :- |
+| `type_decay/*` | 6 | pass: the rule of "Most general" for type values is in the library |
+| `type_parameters_in_type_type/type_param_in_type_type_int`, `…_string`, `composite_type_param_in_type_type`, `nested_type_param_in_type_type` | 4 | the rule 6 of "Assignability" gives their types; the cases wait for the runner to declare the functions of a case ([conformance](conformance.md#the-sets-optional-and-block-in-the-runner)) |
+| `wrappers/wrapper_promotion_2` | 1 | the rule of the wrapper is there; the case needs the messages of the protobuf package |
+| `legacy_nullable_types/null_assignable_to_message_parameter_candidate`, `…_duration_…`, `…_timestamp_…` | 3 | the rule 4 is there; the cases need the messages of the protobuf package |
+| `legacy_nullable_types/null_assignable_to_abstract_parameter_candidate` | 1 | the rule 4 lists `optional_type(T)`; the case needs the set `optional` |
+
+So none of the 15 cases needs a change of `AssignabilityRules`. The change above is for the others that the part closes: `flexible_type_parameter_assignment/optional_none`, `optional_none_2`, `optional_dyn_promotion`, `optional_dyn_promotion_2`, `optional_in_ternary` need the two rows for `optional_type`, and `type_parameters/multiple_parameters_generality`, `multiple_parameters_generality_2`, `…_parameterized_ovl` and `…_parameterized_ovl_2` need the row for abstract types: `[tuple(1, 2u, 3.0), tuple(dyn(1), dyn(2u), dyn(3.0))][0]` joins `tuple(int, uint, double)` with `tuple(dyn, dyn, dyn)`, and the first one is kept without the row.
+
+**Checks of the rules.** The rules are core, so the tests of the part pin each row of the table by a type pair and each case of the list by its expression: the deduced type, in both orders where the case has two. A pair of an `optional_type` and an abstract type with another name is not assignable, and an `optional_type(T)` that holds a type parameter is generalized only after the parameter is bound.
 
 ## Assignability
 

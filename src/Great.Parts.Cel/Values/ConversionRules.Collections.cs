@@ -282,7 +282,7 @@ internal static partial class ConversionRules
     internal static bool IsRefusedByBindings(CelValue value) =>
         value.TryGetError(out CelError? error) && error.Code == CelErrorCode.InvalidArgument;
 
-    // Whether the .NET type is one of optional and decimal, which come with their parts.
+    // Whether the .NET type is decimal, which comes with its part, directly or inside Nullable, CelOptional, a list or a dictionary.
     internal static bool IsOfLaterPart<T>() => MentionsLaterPart(typeof(T));
 
     // The CEL type that the rows of collections and application lists give a .NET type; null outside them.

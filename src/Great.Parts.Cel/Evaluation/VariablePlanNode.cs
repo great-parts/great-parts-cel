@@ -19,8 +19,8 @@ internal sealed class VariablePlanNode : PlanNode
     // The declared type; null without type checking.
     private readonly CelType? _declaredType;
 
-    internal VariablePlanNode(int offset, int slot, string name, CelType? declaredType, TypeIndex types)
-        : base(offset, 1)
+    internal VariablePlanNode(int offset, int slot, string name, CelType? declaredType, TypeIndex types, ulong cost = 1)
+        : base(offset, cost)
     {
         _slot = slot;
         _declaredType = declaredType;

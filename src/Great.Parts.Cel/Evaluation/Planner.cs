@@ -32,6 +32,17 @@ internal sealed class Planner
     private const string IndexListId = "index_list";
     private const string IndexMapId = "index_map";
 
+    // The overloads of or and orValue of the set optional, which the planner evaluates itself.
+    private const string OptionalOrId = "optional_or_optional";
+    private const string OptionalOrValueId = "optional_orValue_value";
+
+    // The overload of the optional selection, a special form that the planner evaluates, with the function it is a call of; and the
+    // two index overloads over an optional of the set optional, which a _[_] on a dyn operand also takes.
+    private const string OptionalSelectFunction = "_?._";
+    private const string OptionalSelectId = "select_optional_field";
+    private const string OptionalListIndexId = "optional_list_index_int";
+    private const string OptionalMapIndexId = "optional_map_index_value";
+
     // The conversions of a string to a moment or a span of time, which the planner runs once for a string literal.
     private const string StringToTimestampId = "string_to_timestamp";
     private const string StringToDurationId = "string_to_duration";
@@ -57,6 +68,10 @@ internal sealed class Planner
     // The expressions the author wrote in the standard macros being planned.
     // Created at the first standard macro.
     private HashSet<ExprNode>? _authored;
+
+    // The reads of names that the expansion of optMap and optFlatMap added — the copy of the target and the hidden target — which cost
+    // nothing. Created at the first such macro.
+    private HashSet<ExprNode>? _free;
 
     private int _localCount;
 
@@ -121,7 +136,44 @@ internal sealed class Planner
             return authored;
         }
 
+        if (node is CallNode or ComprehensionNode && _parsed.GetMacroCall(node.Id) is { Function: "optMap" or "optFlatMap" })
+        {
+            MarkFreeReads(node);
+        }
+        else if (_free is not null && _free.Contains(node))
+        {
+            bool added = _added;
+            _added = true;
+            PlanNode free = VisitNode(node, offset, out stackSize);
+            _added = added;
+            return free;
+        }
+
         return VisitNode(node, offset, out stackSize);
+    }
+
+    // The reads that the expansion of optMap or optFlatMap adds, which are free: the copy of the target in x.value() and, for a target
+    // that is not an identifier, the hidden target of x.hasValue() as well. The expansion is a conditional, or a comprehension whose
+    // result is the conditional; its present branch is the comprehension that binds the variable, or optional.of of it.
+    private void MarkFreeReads(ExprNode expansion)
+    {
+        bool hidden = expansion is ComprehensionNode;
+        ExprNode conditional = expansion is ComprehensionNode outer ? outer.Result : expansion;
+        if (conditional is not CallNode { Arguments.Length: 3 } call)
+        {
+            return;
+        }
+
+        ExprNode present = call.Arguments[1] is CallNode { Arguments.Length: 1 } wrapped ? wrapped.Arguments[0] : call.Arguments[1];
+        if (hidden && call.Arguments[0] is CallNode { Target: { } subject })
+        {
+            _ = (_free ??= new(ReferenceEqualityComparer.Instance)).Add(subject);
+        }
+
+        if (present is ComprehensionNode { AccuInit: CallNode { Target: { } copy } })
+        {
+            _ = (_free ??= new(ReferenceEqualityComparer.Instance)).Add(copy);
+        }
     }
 
     private PlanNode VisitNode(ExprNode node, int offset, out int stackSize)
@@ -138,14 +190,14 @@ internal sealed class Planner
             case CallNode call:
                 return VisitCall(call, offset, out stackSize);
 
-            // The optional syntax is not supported yet; it is not taken for a map, a list or a message literal.
-            case ListNode { OptionalIndices.IsEmpty: false }:
-            case StructNode unsupported when unsupported.HasOptionalEntry():
-                throw new NotImplementedException();
+            case ListNode { OptionalIndices.IsEmpty: false } optionalList:
+                return VisitOptionalList(optionalList, offset, out stackSize);
             case ListNode list:
                 return new ListPlanNode(offset, VisitAll(list.Elements, out stackSize));
             case StructNode { MessageName.Length: > 0 } message:
                 return VisitMessage(message, offset, out stackSize);
+            case StructNode optionalMap when optionalMap.HasOptionalEntry():
+                return VisitOptionalMap(optionalMap, offset, out stackSize);
             case StructNode map:
                 return VisitMap(map, offset, out stackSize);
             case ComprehensionNode comprehension:
@@ -158,12 +210,9 @@ internal sealed class Planner
     private PlanNode VisitIdentifier(IdentNode identifier, int offset, out int stackSize)
     {
         stackSize = 0;
-        if (_blocks.Count > 0 && TryGetSlot(identifier.Name, out BlockScope? scope, out int number))
+        if (_blocks.Count > 0 && TryGetSlot(identifier.Name, out int innermost, out int number))
         {
-            // The slot expression is evaluated on top of the values that the reading call has pushed: the stack that the
-            // slots of the block need together. A read inside a slot expression is part of that sum already.
-            stackSize = scope.InSlots ? 0 : scope.StackSize;
-            return new SlotPlanNode(offset, _added ? 0UL : 1UL, scope.Slots, number, identifier.Name);
+            return VisitSlot(identifier.Name, innermost, number, offset, out stackSize);
         }
 
         if (_checked is not null)
@@ -188,15 +237,15 @@ internal sealed class Planner
 
         if (reference.Variable is { } variable)
         {
-            return new VariablePlanNode(offset, VariableSlot(variable.Name), variable.Name, variable.Type, _declarations.Types);
+            return new VariablePlanNode(offset, VariableSlot(variable.Name), variable.Name, variable.Type, _declarations.Types, _added ? 0UL : 1UL);
         }
 
         if (reference.Constant is { } constant)
         {
-            return new ConstantPlanNode(offset, CelValue.FromInt64(constant), 1);
+            return new ConstantPlanNode(offset, CelValue.FromInt64(constant), _added ? 0UL : 1UL);
         }
 
-        return new ConstantPlanNode(offset, CelValue.FromType(reference.TypeValue!), 1);
+        return new ConstantPlanNode(offset, CelValue.FromType(reference.TypeValue!), _added ? 0UL : 1UL);
     }
 
     // The read of a local: 1 unit, and nothing in the part that a macro adds or for the hidden name that sortBy binds its receiver to,
@@ -275,7 +324,7 @@ internal sealed class Planner
             selects[i] = new SelectPlanNode(_parsed.GetOffset(select.Id), null, select.Field, false);
         }
 
-        return new NamePlanNode(offset, root.Name, [.. candidates], selects);
+        return new NamePlanNode(offset, root.Name, [.. candidates], selects, _added ? 0UL : 1UL);
     }
 
     // The candidates of a name in the container, the longest first (language definition, "Name
@@ -323,12 +372,37 @@ internal sealed class Planner
             }
         }
 
-        if (call.Target is null && arguments.Length == 2 && string.Equals(call.Function, BlockFunction, StringComparison.Ordinal))
+        if (TryVisitSpecialForm(call, offset, out PlanNode? form, out stackSize))
         {
-            return VisitBlock(call, offset, out stackSize);
+            return form;
         }
 
         return _checked is null ? VisitUncheckedCall(call, offset, out stackSize) : VisitCheckedCall(call, offset, out stackSize);
+    }
+
+    // The special forms that the planner evaluates itself: cel.@block, the optional selection _?._ and or and orValue of the set
+    // optional. False for any other call, which is an ordinary call.
+    private bool TryVisitSpecialForm(CallNode call, int offset, [NotNullWhen(true)] out PlanNode? form, out int stackSize)
+    {
+        stackSize = 0;
+        form = null;
+        if (call.Target is null && call.Arguments.Length == 2)
+        {
+            if (string.Equals(call.Function, BlockFunction, StringComparison.Ordinal))
+            {
+                form = VisitBlock(call, offset, out stackSize);
+            }
+            else if (string.Equals(call.Function, OptionalSelectFunction, StringComparison.Ordinal) && IsOptionalSelect(call))
+            {
+                form = VisitOptionalSelect(call, offset, out stackSize);
+            }
+        }
+        else if (IsOptionalOr(call, out bool orValue))
+        {
+            form = VisitOptionalOr(call, orValue, offset, out stackSize);
+        }
+
+        return form is not null;
     }
 
     // cel.@block(slots, result) with a list literal of slots, which type checking requires: one node for each slot
@@ -367,11 +441,119 @@ internal sealed class Planner
         return new BlockPlanNode(offset, slots.Block, result);
     }
 
-    // The slot that an identifier of the form @indexN reads: N is the digits without a sign or a leading zero, and the block is
-    // the innermost enclosing one with more than N slots. Any other name stays an identifier.
-    private bool TryGetSlot(string name, [NotNullWhen(true)] out BlockScope? scope, out int number)
+    // Whether the call is one of the two overloads of or and orValue that the planner evaluates itself: a call on a receiver with one
+    // argument whose candidates, which type checking recorded or, without it, the overloads of the name and the call style, hold the
+    // binding with that identifier. A call with an overload of the application among its candidates is still the form.
+    private bool IsOptionalOr(CallNode call, out bool orValue)
     {
-        scope = null;
+        orValue = false;
+        string function = call.Function;
+        if (call.Target is null || call.Arguments.Length != 1
+            || (!string.Equals(function, "or", StringComparison.Ordinal) && !string.Equals(function, "orValue", StringComparison.Ordinal)))
+        {
+            return false;
+        }
+
+        ImmutableArray<OverloadBinding> candidates = _checked is not null
+            ? _checked.References[call.Id].Candidates
+            : _declarations.GetOverloads(function, true, 2);
+        foreach (OverloadBinding candidate in candidates)
+        {
+            if (candidate.IsApplication)
+            {
+                continue;
+            }
+
+            string id = candidate.Declaration.OverloadId;
+            if (string.Equals(id, OptionalOrId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (string.Equals(id, OptionalOrValueId, StringComparison.Ordinal))
+            {
+                orValue = true;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Whether the call _?._ is the special form of the optional selection: the candidates that type checking recorded, or without
+    // type checking the overloads of the declarations, hold select_optional_field. Without the set there is no candidate, and the
+    // call is an ordinary call of a function that nothing declares.
+    private bool IsOptionalSelect(CallNode call)
+    {
+        ImmutableArray<OverloadBinding> candidates = _checked is null
+            ? _declarations.GetOverloads(OptionalSelectFunction, false, 2)
+            : _checked.References[call.Id].Candidates;
+        foreach (OverloadBinding candidate in candidates)
+        {
+            if (!candidate.IsApplication && string.Equals(candidate.Declaration.OverloadId, OptionalSelectId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // The receiver and the argument as nodes: the argument is evaluated only when the receiver is empty. The node charges its own unit
+    // unless the expansion of a macro added the call.
+    private OptionalOrPlanNode VisitOptionalOr(CallNode call, bool orValue, int offset, out int stackSize)
+    {
+        PlanNode receiver = Visit(call.Target!, out int receiverStack);
+        PlanNode argument = Visit(call.Arguments[0], out int argumentStack);
+        stackSize = Math.Max(receiverStack, argumentStack);
+        return new OptionalOrPlanNode(offset, _added ? 0UL : 1UL, receiver, argument, orValue);
+    }
+
+    // e.?f, the call _?._(e, 'f'): a node that holds the name of the field, which the parser always writes as a string literal and
+    // that is never evaluated. A second argument of another form can only come from a tree that was not checked: the call has no
+    // candidate to run, so it is EvalNoMatchingOverload at the call after its arguments are evaluated.
+    private PlanNode VisitOptionalSelect(CallNode call, int offset, out int stackSize)
+    {
+        if (call.Arguments[1] is not ConstantNode { Value: var name } || !name.TryGetString(out string? field))
+        {
+            return new DispatchPlanNode(offset, call.Function, [], [], !_added, VisitAll(call.Arguments, out stackSize));
+        }
+
+        return new OptionalSelectPlanNode(offset, Visit(call.Arguments[0], out stackSize), field);
+    }
+
+    // A read of the slot N of the innermost enclosing block that has it, with the read of the same number in each enclosing block
+    // that has it behind it, from the outermost: a slot that reads itself goes on to the next outer one. The slot expression is
+    // evaluated on top of the values that the reading call has pushed, so the stack is that which the slots of the blocks need
+    // together; a read inside a slot expression is part of the sum of its block already.
+    private SlotPlanNode VisitSlot(string name, int innermost, int number, int offset, out int stackSize)
+    {
+        stackSize = 0;
+        SlotPlanNode? read = null;
+        for (int i = 0; i <= innermost; i++)
+        {
+            BlockScope scope = _blocks[i];
+            if (number >= scope.Slots.Count)
+            {
+                continue;
+            }
+
+            read = new SlotPlanNode(offset, i == innermost && !_added ? 1UL : 0UL, scope.Slots, number, name, read);
+            if (!scope.InSlots)
+            {
+                stackSize += scope.StackSize;
+            }
+        }
+
+        return read!;
+    }
+
+    // The slot that an identifier of the form @indexN reads: N is the digits without a sign or a leading zero, and the block is
+    // the innermost enclosing one with more than N slots, given by its position among the enclosing blocks. Any other name stays
+    // an identifier.
+    private bool TryGetSlot(string name, out int innermost, out int number)
+    {
+        innermost = 0;
         number = 0;
         if (!name.StartsWith(SlotPrefix, StringComparison.Ordinal) || name.Length == SlotPrefix.Length)
         {
@@ -398,7 +580,7 @@ internal sealed class Planner
         {
             if (number < _blocks[i].Slots.Count)
             {
-                scope = _blocks[i];
+                innermost = i;
                 return true;
             }
         }
@@ -513,8 +695,9 @@ internal sealed class Planner
     }
 
     // The candidates of _[_] on an operand of the static type dyn: those of the reference map, and index_list and
-    // index_map of the library, in the order of the declarations. cel-go v0.32.0 indexes by the kind of the operand
-    // at run time, so x[0u] with x bound to [7] is 7, though a uint key leaves type checking only index_map.
+    // index_map of the library and the two index overloads of an optional of the set optional, in the order of the
+    // declarations. cel-go v0.32.0 indexes by the kind of the operand at run time, so x[0u] with x bound to [7] is 7,
+    // though a uint key leaves type checking only index_map.
     private ImmutableArray<OverloadBinding> IndexCandidates(ImmutableArray<OverloadBinding> kept)
     {
         ImmutableArray<OverloadBinding> overloads = _declarations.GetOverloads(IndexFunction, 2);
@@ -522,7 +705,8 @@ internal sealed class Planner
         foreach (OverloadBinding overload in overloads)
         {
             if (kept.Contains(overload)
-                || (!overload.IsApplication && overload.Declaration.OverloadId is IndexListId or IndexMapId))
+                || (!overload.IsApplication
+                    && overload.Declaration.OverloadId is IndexListId or IndexMapId or OptionalListIndexId or OptionalMapIndexId))
             {
                 candidates.Add(overload);
             }
@@ -632,7 +816,7 @@ internal sealed class Planner
     }
 
     // Whether every value of the static type fits the parameter type at the depth that Fits checks: dyn and
-    // type parameters take anything; dyn and wrappers, at the top level or inside list and map, do not
+    // type parameters take anything; dyn and wrappers, at the top level or inside list, map and optional_type, do not
     // guarantee another type. Other kinds are checked at the top level, which costs nothing.
     private static bool Covers(CelType argument, CelType parameter)
     {
@@ -645,6 +829,7 @@ internal sealed class Planner
         {
             CelTypeKind.Dyn or CelTypeKind.Any or CelTypeKind.Wrapper => false,
             CelTypeKind.List => parameter.Kind == CelTypeKind.List && Covers(argument.Parameters[0], parameter.Parameters[0]),
+            CelTypeKind.Optional => parameter.Kind == CelTypeKind.Optional && Covers(argument.Parameters[0], parameter.Parameters[0]),
             CelTypeKind.Map => parameter.Kind == CelTypeKind.Map
                 && Covers(argument.Parameters[0], parameter.Parameters[0])
                 && Covers(argument.Parameters[1], parameter.Parameters[1]),
@@ -755,9 +940,45 @@ internal sealed class Planner
         return new MapPlanNode(offset, keys.MoveToImmutable(), values.MoveToImmutable());
     }
 
+    // A list literal with optional elements, ?e: the elements that are not stored leave the stack, so the room is that of a plain list.
+    private OptionalListPlanNode VisitOptionalList(ListNode list, int offset, out int stackSize)
+    {
+        ImmutableArray<PlanNode> elements = VisitAll(list.Elements, out stackSize);
+        var optional = new bool[elements.Length];
+        foreach (int index in list.OptionalIndices)
+        {
+            optional[index] = true;
+        }
+
+        return new OptionalListPlanNode(offset, elements, ImmutableArray.Create(optional));
+    }
+
+    // A map literal with optional entries, ?k: v: the room on the stack is that of a plain map.
+    private OptionalMapPlanNode VisitOptionalMap(StructNode map, int offset, out int stackSize)
+    {
+        ImmutableArray<PlanNode>.Builder keys = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
+        ImmutableArray<PlanNode>.Builder values = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
+        var optional = new bool[map.Entries.Length];
+        stackSize = 0;
+        for (int i = 0; i < map.Entries.Length; i++)
+        {
+            StructEntry entry = map.Entries[i];
+            optional[i] = entry.IsOptional;
+
+            // The keys and the values of the stored entries before this one stay on the stack, and then its key.
+            int pushed = 2 * keys.Count;
+            keys.Add(Visit(entry.Key, out int keyStackSize));
+            values.Add(Visit(entry.Value, out int valueStackSize));
+            stackSize = Math.Max(stackSize, Math.Max(pushed + keyStackSize, pushed + 1 + valueStackSize));
+        }
+
+        stackSize = Math.Max(stackSize, 2 * map.Entries.Length);
+        return new OptionalMapPlanNode(offset, keys.MoveToImmutable(), values.MoveToImmutable(), ImmutableArray.Create(optional));
+    }
+
     // A message literal: the values stay on the stack while the next ones are evaluated. With type checking the description and
     // the field numbers are those of the reference map; without it the name of the type, with its candidates in the container,
-    // and the field names resolve at evaluation.
+    // and the field names resolve at evaluation. An entry with ?, ?f: v, is stored only when its optional has a value.
     private MessagePlanNode VisitMessage(StructNode message, int offset, out int stackSize)
     {
         ImmutableArray<StructEntry> entries = message.Entries;
@@ -769,6 +990,18 @@ internal sealed class Planner
             stackSize = Math.Max(stackSize, i + valueStackSize);
         }
 
+        ImmutableArray<bool> optional = default;
+        if (message.HasOptionalEntry())
+        {
+            var flags = new bool[entries.Length];
+            for (int i = 0; i < flags.Length; i++)
+            {
+                flags[i] = entries[i].IsOptional;
+            }
+
+            optional = ImmutableArray.Create(flags);
+        }
+
         if (_checked is not null)
         {
             ImmutableArray<int>.Builder numbers = ImmutableArray.CreateBuilder<int>(entries.Length);
@@ -777,7 +1010,7 @@ internal sealed class Planner
                 numbers.Add(_checked.References[entry.Id].FieldNumber);
             }
 
-            return new MessagePlanNode(offset, _checked.References[message.Id].ObjectType!, numbers.MoveToImmutable(), values.MoveToImmutable());
+            return new MessagePlanNode(offset, _checked.References[message.Id].ObjectType!, numbers.MoveToImmutable(), values.MoveToImmutable(), optional);
         }
 
         bool leadingDot = message.MessageName[0] == '.';
@@ -793,7 +1026,8 @@ internal sealed class Planner
             message.MessageName,
             [.. Qualified(name, leadingDot)],
             fieldNames.MoveToImmutable(),
-            values.MoveToImmutable());
+            values.MoveToImmutable(),
+            optional);
     }
 
     // The nodes of the arguments of a call or of the elements of a list, which stay on the stack while the

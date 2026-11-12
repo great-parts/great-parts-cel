@@ -178,8 +178,13 @@ public enum CelErrorCode
     /// <summary>
     /// Among the overloads that type checking accepted, none fits the types of the argument values
     /// (an operand of type <c>dyn</c>); also an ordering comparison of lists, maps or <c>null</c>, and a
-    /// <c>decimal</c> with another numeric type. The runtime error <c>no_matching_overload</c> of the
-    /// language definition. Location: the call.
+    /// <c>decimal</c> with another numeric type; a receiver of <c>or</c> or <c>orValue</c> that is not an optional, and an empty
+    /// receiver of <c>or</c> with an argument that is not an optional, such as <c>no such overload: or(optional_type, int)</c>; an
+    /// element of the list of <c>optional.unwrap</c> that is not an optional; the position <c>?</c> of a list element, a map
+    /// entry or a message field whose value is not an optional (only an expression of type <c>dyn</c> can give one), where the
+    /// function is <c>?</c> and the text is <c>no such overload: ?(int)</c> with the type of the value. An error value in that
+    /// position is returned as it is. The runtime error <c>no_matching_overload</c> of the language definition. Location: the
+    /// call; for the position <c>?</c>, the node of the value.
     /// </summary>
     EvalNoMatchingOverload = 3000,
 
@@ -303,13 +308,14 @@ public enum CelErrorCode
     /// refused before a lazy view of it is built; the message names the type of the first element, key or value that does
     /// not fit, such as <c>list(int)</c>, and a <c>null</c> in a position of <c>string</c>, <c>byte[]</c>,
     /// <see cref="Great.Parts.Cel.Values.CelList"/>, <see cref="Great.Parts.Cel.Values.CelMap"/> or
-    /// <see cref="Great.Parts.Cel.Types.CelType"/> is not a mismatch and is not in the type. Location: the root of the expression.
+    /// <see cref="Great.Parts.Cel.Types.CelType"/> is not a mismatch and is not in the type. An optional whose held value does
+    /// not convert is named with that value, such as <c>optional_type(string)</c>. Location: the root of the expression.
     /// </summary>
     ResultConversion = 3015,
 
     /// <summary>
-    /// The value of an empty <c>optional</c> is read, as in <c>optional.none().value()</c>.
-    /// Location: the call.
+    /// The value of an empty optional is read, as in <c>optional.none().value()</c>, <c>[].first().value()</c> or
+    /// <c>{}.?a.value()</c>; the message is <c>optional value is empty</c>. Location: the call of <c>value</c>.
     /// </summary>
     OptionalHasNoValue = 3016,
 
@@ -332,8 +338,10 @@ public enum CelErrorCode
     FieldTypeMismatch = 3019,
 
     /// <summary>
-    /// A <c>google.protobuf.Any</c> has an unknown type URL or content that cannot be parsed.
-    /// Location: the node that unpacked the value.
+    /// A <c>google.protobuf.Any</c> cannot be unpacked: its type URL is empty, has no <c>/</c> or names a message that the type
+    /// source does not describe, its content does not parse as that message, or it is the seventeenth <c>Any</c> of a chain. The
+    /// message is in the section Messages of protobuf of the page Error codes. Location: the node that unpacked the value; for an
+    /// element of a <c>repeated</c> field or a value of a <c>map</c> field, the node that read the element.
     /// </summary>
     InvalidAny = 3020,
 

@@ -50,6 +50,19 @@ internal abstract class PlanNode
         return false;
     }
 
+    // The indices 0 to count - 1 of the positions of a literal with ? that were stored before the first one was dropped, in an array
+    // with room for every position: from then on the node records the index of each position it stores.
+    private protected static int[] FirstIndices(int room, int count)
+    {
+        int[] indices = new int[room];
+        for (int i = 0; i < count; i++)
+        {
+            indices[i] = i;
+        }
+
+        return indices;
+    }
+
     // Evaluates the arguments of a call from left to right onto the argument stack. Calls are strict: at
     // the first error value the arguments pushed so far are popped and the error is returned.
     private protected static bool TryPushArguments(Frame frame, ImmutableArray<PlanNode> arguments, out CelValue error)

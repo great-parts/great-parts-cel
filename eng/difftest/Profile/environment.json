@@ -10,7 +10,8 @@
     { "name": "encoders", "version": "1" },
     { "name": "bindings", "version": "1" },
     { "name": "two-var-comprehensions", "version": "0" },
-    { "name": "network", "version": "1" }
+    { "name": "network", "version": "1" },
+    { "name": "optional", "version": "2" }
   ],
   "variables": [
     { "name": "i1", "type_name": "int" },

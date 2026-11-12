@@ -15,6 +15,7 @@ internal sealed class OverloadBinding
 
     private static readonly CelType AnyList = CelType.ListOf(CelType.Dyn);
     private static readonly CelType AnyMap = CelType.MapOf(CelType.Dyn, CelType.Dyn);
+    private static readonly CelType AnyOptional = new(CelTypeKind.Optional, "optional_type", [CelType.Dyn]);
 
     // The parameter types reduced to their top level, which Matches checks for an unmarked argument
     // without descending and without charging.
@@ -122,7 +123,7 @@ internal sealed class OverloadBinding
         return TypeFit.Yes;
     }
 
-    // list(E) and map(K, V) with dyn parameters, so that Fits does not descend; other types are their own
+    // list(E), map(K, V) and optional_type(E) with dyn parameters, so that Fits does not descend; other types are their own
     // top level.
     private static ImmutableArray<CelType> TopLevel(ImmutableArray<CelType> parameterTypes)
     {
@@ -133,6 +134,7 @@ internal sealed class OverloadBinding
             {
                 CelTypeKind.List => AnyList,
                 CelTypeKind.Map => AnyMap,
+                CelTypeKind.Optional => AnyOptional,
                 _ => parameterType,
             });
         }

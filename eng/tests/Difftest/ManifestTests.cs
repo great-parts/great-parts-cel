@@ -83,7 +83,7 @@ public sealed class ManifestTests
         Assert.DoesNotContain(manifest.RootElement.EnumerateObject(), member => RunManifest.RefusedMembers.Contains(member.Name));
     }
 
-    // The manifest names the eight sets of the profile with their versions; the library reads the names and the versions with the
+    // The manifest names the nine sets of the profile with their versions; the library reads the names and the versions with the
     // catalog, the oracle with cel.FromConfig, so the two sides cannot hold different sets.
     [Fact]
     public void ManifestOfTheRepository_NamesTheSetsOfTheProfileWithTheVersionsOfTheCatalog()
@@ -97,7 +97,7 @@ public sealed class ManifestTests
         CelExtension[] catalog =
         [
             CelExtensions.Strings(5), CelExtensions.Math(3), CelExtensions.Lists(4), CelExtensions.Sets(0), CelExtensions.Encoders(1),
-            CelExtensions.Bindings(1), CelExtensions.TwoVarComprehensions(0), CelExtensions.Network(1),
+            CelExtensions.Bindings(1), CelExtensions.TwoVarComprehensions(0), CelExtensions.Network(1), CelExtensions.Optional(2),
         ];
 
         Assert.Equal(ProfileTables.Extensions.Select(set => set.Name + "@" + set.Version), declared);
