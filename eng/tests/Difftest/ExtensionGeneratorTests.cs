@@ -255,6 +255,32 @@ public sealed class ExtensionGeneratorTests
         Assert.Equal(new Value { Int64Value = 1 }, ProfileValues.WithValidUtf8Bytes(new Value { Int64Value = 1 }));
     }
 
+    // The 26 cases of seed 277579806 that the run on 108b881 reported: cel.bind(bn1, (list), …), cel.bind(bn2, null_type, x2) and the
+    // like. cel-go plans a name whose static type is type as a type name, so the program fails with 'reference to undefined type: bn1'
+    // wherever the library gives the value; a value of that type is bound in dyn(), as the range of a macro is.
+    [Fact]
+    public void CelBind_NeverBindsAValueOfTheStaticTypeTypeWithoutDyn()
+    {
+        ulong[] reported =
+        [
+            404, 707, 1259, 2147, 2309, 2474, 4532, 5660, 6881, 12770, 15638, 15788, 17033, 17168, 19568, 19793, 25793, 39491, 59471, 64121, 87398,
+            115532, 123506, 132041, 188510, 444167,
+        ];
+        List<GeneratedCase> cases = [.. Sample(ManyCases), .. reported.Select(n => CaseGenerator.ExtensionCase(277579806, n))];
+        List<Comprehension> binds =
+        [
+            .. cases.SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>().Where(macro => macro.Macro == ProfileTables.BindMacro),
+        ];
+
+        static bool IsTypeValue(Expr value) =>
+            (value is Ident { Name: { } name } && (ProfileTables.TypeIdentifiers.Contains(name) || ProfileTables.AbstractTypeIdentifiers.Contains(name)))
+            || value is Call { Function: ProfileTables.TypeOf };
+
+        Assert.NotEmpty(binds);
+        Assert.All(binds, bind => Assert.False(IsTypeValue(bind.Range), ExprPrinter.Print(bind)));
+        Assert.Contains(binds, bind => bind.Range is Call { Function: ProfileTables.Dyn, Args: [{ } value] } && IsTypeValue(value));
+    }
+
     [Fact]
     public void CasesOfTheExtensionProfile_KeepTheLimitsAndEachMacroVariableIsReadInsideItsMacro()
     {

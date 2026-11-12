@@ -4,6 +4,8 @@ Cases of the regression corpus that may fail in the given scope. Every entry nam
 
 | Case | Scope | Signature | Verdict | Severity | Reason | Issue |
 |---|---|---|---|---|---|---|
+| json_encode/duration/string_digits | * * * | json_encode_dyn(duration) value-mismatch | cel-go-bug | S1 | The library encodes the seconds of a duration with every digit; cel-go encodes the text of string(duration), which formats the seconds through a 64-bit float and loses digits. | |
+| json_encode/timestamp/string_offset | * * * | json_encode_dyn(timestamp) value-mismatch | cel-go-bug | S1 | The library encodes a timestamp in UTC, since a timestamp has no offset; cel-go encodes the text of string(timestamp), which keeps the offset of the parsed string. | |
 | list_sort/sort_by_equal_keys/bool_keys | * * * | list_bool_sortByAssociatedKeys(list, list) value-mismatch | by-design | S1 | The library sorts stably above 12 elements: equal keys keep their input order; cel-go sorts with Go's sort.Slice, which is not stable there, and returns another order of equal keys. | |
 | list_sort/sort_by_equal_keys/bytes_keys | * * * | list_bytes_sortByAssociatedKeys(list, list) value-mismatch | by-design | S1 | The library sorts stably above 12 elements: equal keys keep their input order; cel-go sorts with Go's sort.Slice, which is not stable there, and returns another order of equal keys. | |
 | list_sort/sort_by_equal_keys/double_keys | * * * | list_double_sortByAssociatedKeys(list, list) value-mismatch | by-design | S1 | The library sorts stably above 12 elements: equal keys keep their input order; cel-go sorts with Go's sort.Slice, which is not stable there, and returns another order of equal keys. | |

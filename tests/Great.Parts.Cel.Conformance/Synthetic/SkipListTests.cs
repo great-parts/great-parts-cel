@@ -64,8 +64,9 @@ public sealed class SkipListTests
         "string_to_ip(string) stage-mismatch",
     ];
 
-    // The 104 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time, matches, the subtraction of the smallest duration and
-    // the extension sets (the offset of indexOf and lastIndexOf, the constant of ip and cidr, the order of sort and sortBy, %s of bytes) — and
+    // The 106 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time, matches, the subtraction of the smallest duration and
+    // the extension sets (the offset of indexOf and lastIndexOf, the constant of ip and cidr, the order of sort and sortBy, %s of bytes,
+    // json.encode of a duration and of a timestamp) — and
     // the cases of the corpus that minimize them: one entry of the list for each signature but three, the entries in ordinal order.
     [Fact]
     public void PinnedCorpusListAndRegistry_HaveNoFindingAndAnEntryForEachSignatureOfTheRegistry()
@@ -77,8 +78,8 @@ public sealed class SkipListTests
 
         Assert.Empty(registry.Findings);
         Assert.Empty(list.Findings);
-        Assert.Equal(104, registry.Signatures.Count);
-        Assert.Equal(101, list.Entries.Count);
+        Assert.Equal(106, registry.Signatures.Count);
+        Assert.Equal(103, list.Entries.Count);
         Assert.Equal(
             registry.Signatures.Except(SignaturesWithoutEntry).Order(StringComparer.Ordinal),
             EntrySignatures(text).Order(StringComparer.Ordinal));

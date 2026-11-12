@@ -73,10 +73,11 @@ internal static class Signature
         return Node(overload?.Id ?? call.Function, types);
     }
 
-    // A parameter fits the type name of an argument value: a type parameter fits any value, list(A) and map(A, B) fit any list
-    // and map, since the names have no parameters; an error fits none.
+    // A parameter fits the type name of an argument value: a type parameter and dyn fit any value, list(A) and map(A, B) fit any
+    // list and map, since the names have no parameters; an error fits none.
     private static bool Fits(ProfileType parameter, string type) =>
-        type != ErrorType && (parameter.IsParameter() || string.Equals(parameter.Name(), type, StringComparison.Ordinal));
+        type != ErrorType
+        && (parameter.IsParameter() || parameter == ProfileType.DynType || string.Equals(parameter.Name(), type, StringComparison.Ordinal));
 
     // The type of the value of an identifier: of its binding, type for a type identifier, error for an unbound variable.
     private static string IdentType(GeneratedCase divergent, Ident ident) =>

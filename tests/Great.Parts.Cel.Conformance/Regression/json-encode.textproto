@@ -1,0 +1,28 @@
+# Minimized cases of known divergences from cel-go in json.encode of a value of time. The expectation of each case is the answer of cel-go.
+
+name: "json_encode"
+description: "The JSON text of a duration and of a timestamp"
+section {
+  name: "duration"
+  description: "cel-go encodes a duration as the text of string(duration), which formats the seconds through a 64-bit float"
+  test {
+    name: "string_digits"
+    description: "json_encode_dyn(duration) value-mismatch"
+    expr: "json.encode(duration('9223372036854775807ns'))"
+    value: {
+      string_value: "\"9223372036.854776s\""
+    }
+  }
+}
+section {
+  name: "timestamp"
+  description: "cel-go encodes a timestamp as the text of string(timestamp), which keeps the offset of the parsed string"
+  test {
+    name: "string_offset"
+    description: "json_encode_dyn(timestamp) value-mismatch"
+    expr: "json.encode(timestamp('2023-01-01T00:00:00-07:00'))"
+    value: {
+      string_value: "\"2023-01-01T00:00:00-07:00\""
+    }
+  }
+}

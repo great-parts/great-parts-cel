@@ -143,6 +143,10 @@ public sealed class SignatureTests
             (new Call(ProfileTables.Conditional, [yes, one, s1]), "conditional(bool, int, string) we-value"),
             (new Call(ProfileTables.In, [divideByZero, list]), "@in(error, list) we-value"),
             (new Ident("int"), "ident(type) we-value"),
+            // The parameter of json_encode_dyn is dyn, which fits every kind but an error: the name of the overload, not of the function.
+            (new Call("json.encode", [list]), "json_encode_dyn(list) we-value"),
+            (new Call("json.encode", [s1]), "json_encode_dyn(string) we-value"),
+            (new Call("json.encode", [divideByZero]), "json.encode(error) we-value"),
         ];
         (Expr, SideOutcome, SideOutcome)[] children =
         [

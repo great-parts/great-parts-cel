@@ -1137,7 +1137,8 @@ internal sealed partial class ExprBuilder
         return new Built(new Call(ProfileTables.Equal, [built.Expr, other.Expr]), 1 + built.Nodes + other.Nodes, Of(ProfileType.BoolType));
     }
 
-    // cel.bind(name, value, result): the name hides a scalar variable of the manifest one time in four, with a value of its type.
+    // cel.bind(name, value, result): the name hides a scalar variable of the manifest one time in four, with a value of its type. A
+    // value of the static type type is in dyn(): the name is then dyn.
     private Built? Bind(ProfileType target, int depth, int limit)
     {
         if (limit < 3 || macros >= ProfileTables.MaxMacroNesting || depth + 1 > ProfileTables.MaxDepth)
@@ -1164,6 +1165,14 @@ internal sealed partial class ExprBuilder
             name = FreshName(ProfileTables.BindingNames);
             init = Make(Target(), depth + 1, limit - 2);
             type = init.Type;
+            if (type is { Kind: ProfileType.TypeType })
+            {
+                // cel-go plans a name of the static type type as a type name, as it does the variable of a macro over such a range
+                // (reference to undefined type: bn1): a value of that type is built again a level deeper and a node smaller, so that
+                // dyn() fits around it, or is a dyn variable where there is no room for dyn().
+                init = depth + 2 <= ProfileTables.MaxDepth && limit >= 4 ? Wrap(Make(ProfileType.TypeType, depth + 2, limit - 3)) : DynVariable();
+                type = StaticType.Dyn;
+            }
         }
 
         scope.Add((name, type));
