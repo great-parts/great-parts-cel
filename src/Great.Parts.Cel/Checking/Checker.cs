@@ -412,6 +412,10 @@ internal sealed class Checker
                     break;
                 case CelTypeKind.Dyn:
                     break;
+                case CelTypeKind.Any:
+                    // The value is the content that the Any holds, whose type only evaluation knows: as dyn.
+                    operandType = CelType.Dyn;
+                    break;
                 case CelTypeKind.Object:
                     return ObjectField(select, head);
                 case CelTypeKind.TypeParameter:
@@ -681,7 +685,7 @@ internal sealed class Checker
     {
         foreach (CelType argumentType in argumentTypes)
         {
-            if (Head(argumentType).Kind == CelTypeKind.Dyn)
+            if (Head(argumentType).Kind is CelTypeKind.Dyn or CelTypeKind.Any)
             {
                 return true;
             }
@@ -846,14 +850,20 @@ internal sealed class Checker
 
     // A message literal: the field values are checked in order, whatever the literal gives; then its name resolves by
     // the container with the order of the declaration index. No candidate is UndeclaredReference; a variable, a
-    // constant or a type identifier that is not an object type is NotAType with the resolved name; an object type
-    // whose description is not constructible is TypeNotConstructible, its field names not looked up. All at the literal,
-    // whose type is the type error. Literals of constructible types, protobuf messages, come with their part.
+    // constant or a type identifier that is not the name of a described type is NotAType with the resolved name; a
+    // described type that is not constructible is TypeNotConstructible, its field names not looked up. All at the literal,
+    // whose type is the type error. A constructible description gets the checks of its fields. The candidate is looked up
+    // in the type index, not among the type identifiers, since the type of the description of a well-known message
+    // is not an object type.
     private CelType? VisitMessage(StructNode message)
     {
-        foreach (StructEntry entry in message.Entries)
+        ImmutableArray<StructEntry> entries = message.Entries;
+        CelType?[] valueTypes = entries.IsEmpty ? [] : new CelType?[entries.Length];
+        for (int i = 0; i < valueTypes.Length; i++)
         {
-            _ = Visit(entry.Value);
+            StructEntry entry = entries[i];
+            CelType? valueType = Visit(entry.Value);
+            valueTypes[i] = entry.IsOptional ? OptionalValue(entry.Value, valueType) : valueType;
         }
 
         string name = message.MessageName;
@@ -864,14 +874,14 @@ internal sealed class Checker
         while (candidates.MoveNext(out ReadOnlySpan<char> candidate))
         {
             bool variable = _declarations.TryGetVariable(candidate, out _);
-            if (!variable && _declarations.TryGetTypeIdentifier(candidate, out CelType? typeValue) && typeValue.Kind == CelTypeKind.Object)
+            if (!variable && _declarations.Types.TryGetObjectType(candidate, out CelObjectType? description))
             {
-                if (_declarations.Types.TryGetObjectType(typeValue.Name, out CelObjectType? description) && description.IsConstructible)
+                if (description.IsConstructible)
                 {
-                    throw new NotImplementedException();
+                    return CheckMessageFields(message, description, valueTypes);
                 }
 
-                _errors.Add(CheckErrors.TypeNotConstructible(typeValue.Name, Location(message)));
+                _errors.Add(CheckErrors.TypeNotConstructible(description.Name, Location(message)));
                 return null;
             }
 
@@ -884,6 +894,45 @@ internal sealed class Checker
 
         _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Location(message)));
         return null;
+    }
+
+    // The fields of a literal of a constructible description, each at the colon of its entry: no such field is NoSuchField, or
+    // FieldNotAccessible when the description gives a reason; a value whose type is not assignable to the type of its field is
+    // TypeMismatch. The checks go on after an error. The reference map records the description for the literal and the number
+    // of the field for each entry whose field exists, which the planner binds. The type of the literal is the type of the
+    // description, also when an entry has an error, so the errors of the rest of the expression are not lost.
+    private CelType CheckMessageFields(StructNode message, CelObjectType description, CelType?[] valueTypes)
+    {
+        _references.Add(message.Id, Reference.ToMessage(description));
+        for (int i = 0; i < valueTypes.Length; i++)
+        {
+            StructEntry entry = message.Entries[i];
+            string field = entry.FieldName!;
+            CelSourceLocation location = _parsed.Lines.GetLocation(_parsed.GetOffset(entry.Id));
+            if (!description.TryGetField(field, out CelObjectField? declared))
+            {
+                string? reason = description.GetExcludedFieldReason(field);
+                _errors.Add(reason is null
+                    ? CheckErrors.NoSuchField(field, description.Name, location)
+                    : CheckErrors.FieldNotAccessible(field, description.Name, reason, location));
+                continue;
+            }
+
+            _references.Add(entry.Id, Reference.ToField(description, declared.Number));
+            if (valueTypes[i] is not { } valueType)
+            {
+                continue;
+            }
+
+            int mark = _substitution.Mark;
+            if (!AssignabilityRules.IsAssignable(valueType, declared.Type, _substitution, []))
+            {
+                _substitution.Rollback(mark);
+                _errors.Add(CheckErrors.TypeMismatch(Shown(declared.Type), Shown(valueType), location));
+            }
+        }
+
+        return description.Type;
     }
 
     // The range and the accumulator initializer in the enclosing scopes; the loop condition and the step
@@ -935,6 +984,8 @@ internal sealed class Checker
                 return (head.Parameters[0], twoVariables ? head.Parameters[1] : null);
             case CelTypeKind.Dyn:
                 return (head, head);
+            case CelTypeKind.Any:
+                return (CelType.Dyn, CelType.Dyn);
             case CelTypeKind.TypeParameter:
                 _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
                 return (CelType.Dyn, CelType.Dyn);

@@ -87,7 +87,8 @@ internal sealed class EntryTableMap : CelMap
 
     /// <summary>
     /// Creates a map from the entries and the index of a <see cref="MapBuilder"/>, which already refused every key that
-    /// cannot be a key and every repeated key. The map takes over the array, which is trimmed to the entries, and the index.
+    /// cannot be a key and every repeated key. The map copies the entries into an array of their number, one allocation, and takes
+    /// over the index; the array of the builder stays with the builder.
     /// </summary>
     /// <param name="entries">The array of the builder, whose first <paramref name="count"/> entries are the map.</param>
     /// <param name="count">The number of entries.</param>
@@ -100,12 +101,9 @@ internal sealed class EntryTableMap : CelMap
             return Empty;
         }
 
-        if (count < entries.Length)
-        {
-            Array.Resize(ref entries, count);
-        }
-
-        return new EntryTableMap(entries, count > UnindexedLimit ? slots : null);
+        var exact = new KeyValuePair<CelValue, CelValue>[count];
+        Array.Copy(entries, exact, count);
+        return new EntryTableMap(exact, count > UnindexedLimit ? slots : null);
     }
 
     private protected override bool TryGetValueCore(CelValue key, out CelValue value)

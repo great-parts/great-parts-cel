@@ -22,15 +22,17 @@ namespace Great.Parts.Cel.Protobuf;
 /// <c>Value</c> and <c>ListValue</c> are JSON-like maps, values and lists; a <c>google.protobuf.Any</c> is unpacked to
 /// the message its type URL names, which must be described by this provider. An unset message field reads as an empty
 /// message. The full mapping is in
-/// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
+/// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>; how to add the
+/// package, the known types, literals and <c>Any</c> are on the
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/protobuf.md">protobuf page</see>.
 /// </para>
 /// <para>
 /// <c>has(m.f)</c> follows the field selection rules of the language definition: in proto2, and for proto3
 /// fields with explicit presence, oneof members and message fields, whether the field is set; for other
 /// proto3 scalar fields, whether the value differs from the default; for repeated and map fields, whether
 /// they are not empty. Equality compares the descriptors and the set fields by CEL equality, so a NaN is
-/// not equal to itself, unpacks <c>google.protobuf.Any</c> first, and compares unknown fields by their
-/// bytes; it does not use the generated <c>Equals</c>.
+/// not equal to itself, unpacks <c>google.protobuf.Any</c> first and compares the bytes of the packed message when it cannot be
+/// unpacked; it does not use the generated <c>Equals</c>, and unknown fields are not compared.
 /// </para>
 /// <para>
 /// Fields are read and set through the field accessors of <c>Google.Protobuf</c>, which work under

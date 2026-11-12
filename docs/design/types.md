@@ -26,7 +26,7 @@ The rule files follow the naming and the content rules of [core](core.md).
 
 `WrapperOf` takes `bool`, `bytes`, `double`, `int`, `uint` and `string`; any other type is `ArgumentException`. `TypeOf(Dyn)` is the type of any type value; the identifier `type` has the static type `type(type(dyn))`. `ObjectNamed` only creates the reference: the environment rejects it as `TypeNotDeclared` while no type source describes it (see [declarations](declarations.md)). The text form is what error messages show; it is the notation of the language definition, and cel-go writes wrappers the same way.
 
-`Any` arrives with protobuf messages, `OptionalOf` with the `optional` set and `Decimal` with `decimal`; until then they throw `NotImplementedException`.
+`OptionalOf` arrives with the `optional` set and `Decimal` with `decimal`; until then they throw `NotImplementedException`. `Any` and the names of protobuf are on the two sections below.
 
 Inside type checking two more forms exist and never leave it:
 
@@ -78,8 +78,38 @@ An empty list literal is `list(_varN)`, an empty map literal `map(_varN, _varM)`
 
 **Erasure.** Erasure replaces every type parameter by `dyn`. Two overload declarations overlap when they have the same call style and the same number of parameters and, after erasure, at each position one parameter type takes the other by rules 3–8 without a substitution (cel-go `SignatureOverlaps`; language definition, "Functions": "non-overlapping argument types, after erasure of all type variables"). So `(list(A))` overlaps `(list(int))`, `(dyn)` overlaps everything, `(int)` and `(wrapper(int))` overlap, `(list(int))` and `(list(string))` do not. The build errors that use it are in [declarations](declarations.md).
 
+## `Any`
+
+`CelType.Any` is the type `google.protobuf.Any`: `Kind` `Any`, `Name` `google.protobuf.Any`, no parameters, text form `any`, as the messages of cel-go write it. A value never has this type: an `Any` is unpacked to the message it holds when it is read ([protobuf-messages](protobuf-messages.md#any)), so there is no value kind `Any`, the runtime type of a value is that of the unpacked content, and `type(x)` of an expression of the static type `Any` is the type of that content. In the checker `Any` is `dyn` ([checking](checking.md#the-type-any-in-the-checker)); the rules of this page change in four places:
+
+- **Assignability, rule 3.** Either side is `dyn`, `error` or `Any`: yes. This precedes the rule of `null`, so `null` is assignable to `Any` because everything is, and the clause of rule 4 that lists `Any` among the nullable types is kept only as the rule of cel-go that it copies.
+- **Erasure.** Erasure leaves `Any` as it is; by rule 3 it takes every type and every type takes it, so `(Any)` overlaps `(int)` as `(dyn)` does.
+- **Most general.** `Any` with `dyn` or with any other type is `dyn`; `Any` with `Any` is `Any`. A list literal `[x, 1]` with `x` of the type `Any` is `list(dyn)`.
+- **Join** is `MostGeneral` as above, so a list or map literal with a member of the type `Any` has `dyn` elements.
+
+A declaration that uses `Any` at any depth — a variable, a field, a parameter or a result of a function, a record `any` of a description in JSON — needs the type index of the environment to have an object type named `google.protobuf.Any`, which the protobuf package describes; otherwise `Build` reports `TypeNotDeclared` (4008) for the declaration, as for an object type that no source declares ([objects](objects.md#descriptions-of-well-known-types)).
+
+## Well-known names
+
+`CelType.ObjectNamed(fullName)` gives the CEL type that a name of protobuf stands for, when the name is one of thirteen. The rule is in `Types/WellKnownRules.cs`, which `ObjectNamed` calls; the table is the same as the one of the protobuf package for the fields of these messages ([protobuf](protobuf.md#the-known-types)):
+
+| Full name | The type |
+| :- | :- |
+| `google.protobuf.Any` | `Any` |
+| `google.protobuf.Value` | `dyn` |
+| `google.protobuf.Struct` | `map(string, dyn)` |
+| `google.protobuf.ListValue` | `list(dyn)` |
+| `google.protobuf.BoolValue` | `wrapper(bool)` |
+| `google.protobuf.BytesValue` | `wrapper(bytes)` |
+| `google.protobuf.DoubleValue`, `google.protobuf.FloatValue` | `wrapper(double)` |
+| `google.protobuf.Int32Value`, `google.protobuf.Int64Value` | `wrapper(int)` |
+| `google.protobuf.UInt32Value`, `google.protobuf.UInt64Value` | `wrapper(uint)` |
+| `google.protobuf.StringValue` | `wrapper(string)` |
+
+Any other name, `google.protobuf.Timestamp` and `google.protobuf.Duration` among them, is the object type of that name as before; those two names are type identifiers of the standard library, and the types `timestamp` and `duration` come from `CelType.Timestamp` and `CelType.Duration`. The effect is the same wherever a name becomes a type: the record `"google.protobuf.Int32Value"` of a description in JSON, a `message_type` of the conformance runner, the `Type` of a `CelObjectType` that has such a name — its `Type` is the type of the table, not an object type, which is how the checker types the literal `google.protobuf.Int32Value{value: 1}` ([checking](checking.md#message-literals-of-constructible-types)). A declaration with such a name needs no source for it, except `Any`; a literal needs the description that the protobuf package makes.
+
 ## Implemented members
 
-`CelType`: everything in the table above, `Equals`, `GetHashCode` and `ToString`. `CelTypeKind` has all its members already. A type parameter in the type of a variable declaration is erased to `dyn` when the environment is built (see [declarations](declarations.md)); only overload declarations bind type parameters.
+`CelType`: everything in the table above, `Equals`, `GetHashCode` and `ToString`; with `Any` and the rule of the well-known names the properties `CelType.Any` and `ObjectNamed` of this page. `CelTypeKind` has all its members already. A type parameter in the type of a variable declaration is erased to `dyn` when the environment is built (see [declarations](declarations.md)); only overload declarations bind type parameters.
 
 Related pages: [checking](checking.md), [values](values.md), [declarations](declarations.md), [core](core.md).

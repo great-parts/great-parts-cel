@@ -85,10 +85,6 @@ public sealed class TimeConversionTests
         Assert.Equal(nanos, read.Nanoseconds);
     }
 
-    [Fact]
-    public static void ObjectValueOfAnotherMessage_StaysNotImplemented() =>
-        Assert.Throws<NotImplementedException>(() => ValueConversion.ToCelValue(Pack(new Int32Value { Value = 1 })));
-
     [Theory]
     [InlineData(TimestampMessage, CelTypeKind.Timestamp)]
     [InlineData(DurationMessage, CelTypeKind.Duration)]
@@ -118,14 +114,6 @@ public sealed class TimeConversionTests
     [InlineData(DurationMessage, CelTypeKind.Duration)]
     public static void MessageTypeOfTime_IsTheTypeOfTime(string name, CelTypeKind kind) =>
         Assert.Equal(kind, TypeConversion.ToCelType(new Type { MessageType = name }).Kind);
-
-    [Fact]
-    public static void OtherMessageTypesAndWellKnownTypes_StayNotImplemented()
-    {
-        Assert.Throws<NotImplementedException>(() => TypeConversion.ToCelType(new Type { MessageType = "cel.expr.conformance.proto3.TestAllTypes" }));
-        Assert.Throws<NotImplementedException>(() => TypeConversion.ToCelType(new Type { MessageType = "google.protobuf.Any" }));
-        Assert.Throws<NotImplementedException>(() => TypeConversion.ToCelType(new Type { WellKnown = Type.Types.WellKnownType.Any }));
-    }
 
     // The case of cel-spec timestamps/duration_converters/get_milliseconds: x is a Duration of 123 s and 321 456 789 ns.
     [Fact]

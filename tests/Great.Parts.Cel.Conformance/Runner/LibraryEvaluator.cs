@@ -15,8 +15,9 @@ namespace Great.Parts.Cel.Conformance.Runner;
 
 /// <summary>
 /// Runs a case on the library. All cases share one setup, <c>new CelEnvironmentBuilder(CelStandardLibrary.V1)</c> with the time zone
-/// database of the tests added by <c>UseTimeZones</c> and the extension sets of the runner; each case adds what it declares and builds its environment.
-/// A checked case is compiled to <c>CelProgram&lt;CelValue&gt;</c> and evaluated.
+/// database of the tests added by <c>UseTimeZones</c>, the protobuf provider of the test messages added by <c>AddTypes</c> and the
+/// extension sets of the runner, <c>protos</c> among them; each case adds what it declares and builds its environment. A checked case
+/// is compiled to <c>CelProgram&lt;CelValue&gt;</c> and evaluated.
 /// </summary>
 /// <remarks>
 /// A <c>disable_check</c> case is parsed and evaluated through the internal entry points <c>Parse</c> and
@@ -30,7 +31,11 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
 
     // The extension sets that every case environment has, as the cel-go runner keeps its libraries in one list of options. The
     // part that brings a set adds it here with its version; no file picks its sets.
-    private static readonly CelExtension[] ExtensionSets = [CelExtensions.Strings(5), CelExtensions.Math(3), CelExtensions.Lists(4), CelExtensions.Sets(0), CelExtensions.Encoders(1), CelExtensions.Bindings(1), CelExtensions.TwoVarComprehensions(0), CelExtensions.Network(1)];
+    private static readonly CelExtension[] ExtensionSets = [CelExtensions.Strings(5), CelExtensions.Math(3), CelExtensions.Lists(4), CelExtensions.Sets(0), CelExtensions.Encoders(1), CelExtensions.Bindings(1), CelExtensions.TwoVarComprehensions(0), CelExtensions.Network(1), CelExtensions.Protos(0)];
+
+    // The messages of the cases are converted by the runner's table of the test messages: the linked ValueConversion calls this
+    // resolver for an Any that is no known type.
+    static LibraryEvaluator() => ValueConversion.MessageResolver = ConformanceMessages.Resolve;
 
     /// <summary>The reason why a checked case with <c>disable_macros</c> fails: only the internal <c>Parse</c> takes syntax options.</summary>
     internal const string DisableMacrosOnCheckedPath = "disable_macros needs an internal compile entry point";
@@ -125,10 +130,13 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
             : CaseOutcome.EvaluationFailed(resultType, Messages(result.Errors));
 
     // The setup of all cases and what the case declares: the container and the variables of type_env. Every case has the time zone
-    // database of the archive of the tests, as the runner of cel-go takes zones from its own database; no case declares one.
+    // database of the archive of the tests, as the runner of cel-go takes zones from its own database; no case declares one. Every
+    // case has the provider of the test messages too: a case declares no provider, its container finds the messages by name.
     private static CelEnvironmentBuilder Setup(CaseEnvironment declared)
     {
-        CelEnvironmentBuilder builder = new CelEnvironmentBuilder(CelStandardLibrary.V1).UseTimeZones(ZoneInfoFile.Database());
+        CelEnvironmentBuilder builder = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+            .UseTimeZones(ZoneInfoFile.Database())
+            .AddTypes(ConformanceMessages.Provider);
         foreach (CelExtension extension in ExtensionSets)
         {
             builder.AddExtension(extension);

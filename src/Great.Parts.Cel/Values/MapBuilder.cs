@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Numerics;
 
@@ -6,9 +7,9 @@ namespace Great.Parts.Cel.Values;
 
 /// <summary>
 /// The accumulator of <c>transformMap</c> and <c>transformMapEntry</c> during the loop: an array of entries in the order of
-/// insertion that grows by doubling from 4 entries as pairs are added, and, from the ninth entry on, the index of an
-/// <see cref="EntryTableMap"/>, kept up to date so that a pair is found or put in with one probe. It never leaves the
-/// comprehension: its result turns it into a map over the same array and index, made once.
+/// insertion, rented from the shared pool and grown by renting a larger one as pairs are added, and, from the ninth entry on, the
+/// index of an <see cref="EntryTableMap"/>, kept up to date so that a pair is found or put in with one probe. It never leaves the
+/// comprehension: its result turns it into a map over an array of exactly its pairs, made once, and gives the rented array back.
 /// </summary>
 internal sealed class MapBuilder : CelMap
 {
@@ -34,7 +35,7 @@ internal sealed class MapBuilder : CelMap
     {
         if (_count == _entries.Length)
         {
-            Array.Resize(ref _entries, Math.Max(_entries.Length * 2, FirstCapacity));
+            Grow();
         }
 
         _entries[_count] = new(key, value);
@@ -63,7 +64,12 @@ internal sealed class MapBuilder : CelMap
     /// Turns the builder into the map of its pairs. The builder is not used afterwards.
     /// </summary>
     /// <returns>The map, in the order of insertion.</returns>
-    internal CelMap ToMap() => EntryTableMap.Seal(_entries, _count, _slots);
+    internal CelMap ToMap()
+    {
+        CelMap map = EntryTableMap.Seal(_entries, _count, _slots);
+        Release();
+        return map;
+    }
 
     private protected override bool TryGetValueCore(CelValue key, out CelValue value)
     {
@@ -80,6 +86,36 @@ internal sealed class MapBuilder : CelMap
 
     private protected override IEnumerator<KeyValuePair<CelValue, CelValue>> GetEnumeratorCore() =>
         ((IEnumerable<KeyValuePair<CelValue, CelValue>>)new ArraySegment<KeyValuePair<CelValue, CelValue>>(_entries, 0, _count)).GetEnumerator();
+
+    // A larger array from the pool, with the entries that are in; the smaller one goes back. The array that the pool gives may be
+    // longer than asked for, and its whole length is the room.
+    private void Grow()
+    {
+        KeyValuePair<CelValue, CelValue>[] larger = ArrayPool<KeyValuePair<CelValue, CelValue>>.Shared.Rent(Math.Max(_entries.Length * 2, FirstCapacity));
+        Array.Copy(_entries, larger, _count);
+        if (_entries.Length > 0)
+        {
+            ArrayPool<KeyValuePair<CelValue, CelValue>>.Shared.Return(_entries, clearArray: true);
+        }
+
+        _entries = larger;
+    }
+
+    /// <summary>
+    /// Gives the rented array back, cleared so that no value stays in the pool; the builder is empty afterwards. A builder whose
+    /// comprehension or call ended with an error calls it, so that the next evaluation rents the array again and does not allocate.
+    /// </summary>
+    internal void Release()
+    {
+        if (_entries.Length > 0)
+        {
+            ArrayPool<KeyValuePair<CelValue, CelValue>>.Shared.Return(_entries, clearArray: true);
+        }
+
+        _entries = [];
+        _count = 0;
+        _slots = null;
+    }
 
     // A new index for the entries that are in and the one that comes: the next power of two of at least twice as many slots.
     private void Reindex()

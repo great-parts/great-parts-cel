@@ -31,4 +31,20 @@ internal interface IApplicationBoundary
     /// <param name="number">The number of the field.</param>
     /// <returns>The error value.</returns>
     CelValue FieldException(Exception exception, CelObjectType owner, int number);
+
+    /// <summary>
+    /// The error value <c>ApplicationException</c> of the equality of two instances of a description that compares them
+    /// itself, at the node whose operation runs, which keeps the exception.
+    /// </summary>
+    /// <param name="exception">The exception of application code.</param>
+    /// <param name="owner">The description whose equality threw.</param>
+    /// <returns>The error value.</returns>
+    CelValue EqualityException(Exception exception, CelObjectType owner);
+
+    /// <summary>
+    /// The error value <c>InternalError</c> at the node whose operation runs, which keeps the exception.
+    /// </summary>
+    /// <param name="exception">The exception that describes the failure.</param>
+    /// <returns>The error value.</returns>
+    CelValue InternalFailure(Exception exception);
 }

@@ -1,0 +1,48 @@
+# Minimized cases of known divergences from cel-go in messages of protobuf. The expectation of each case is the answer of cel-go.
+
+name: "protobuf_differences"
+description: "Messages of protobuf: the depth of nested Any, the literals of Timestamp and Duration, and the unknown fields in the equality of messages"
+section {
+  name: "any_depth"
+  description: "The library unpacks at most 16 Any in a chain and fails the seventeenth; cel-go unpacks a chain of any length"
+  test {
+    name: "chain_of_17"
+    description: "message(google.protobuf.Any, string, bytes) we-error"
+    expr: "google.protobuf.Any{type_url: '/google.protobuf.Any', value: b'\\x0a\\x14/google.protobuf.Any\\x12\\xfb\\x02\\x0a\\x14/google.protobuf.Any\\x12\\xe2\\x02\\x0a\\x14/google.protobuf.Any\\x12\\xc9\\x02\\x0a\\x14/google.protobuf.Any\\x12\\xb0\\x02\\x0a\\x14/google.protobuf.Any\\x12\\x97\\x02\\x0a\\x14/google.protobuf.Any\\x12\\xfe\\x01\\x0a\\x14/google.protobuf.Any\\x12\\xe5\\x01\\x0a\\x14/google.protobuf.Any\\x12\\xcc\\x01\\x0a\\x14/google.protobuf.Any\\x12\\xb3\\x01\\x0a\\x14/google.protobuf.Any\\x12\\x9a\\x01\\x0a\\x14/google.protobuf.Any\\x12\\x81\\x01\\x0a\\x14/google.protobuf.Any\\x12i\\x0a\\x14/google.protobuf.Any\\x12Q\\x0a\\x14/google.protobuf.Any\\x129\\x0a\\x14/google.protobuf.Any\\x12!\\x0a\\x1b/google.protobuf.Int64Value\\x12\\x02\\x08\\x01'}"
+    value: {
+      int64_value: 1
+    }
+  }
+}
+section {
+  name: "literals"
+  description: "The names Timestamp and Duration are type identifiers of the standard library, so the library rejects their object literals; cel-go creates the value"
+  test {
+    name: "duration"
+    description: "message(google.protobuf.Duration, int) we-error"
+    expr: "google.protobuf.Duration{seconds: 1} == duration('1s')"
+    value: {
+      bool_value: true
+    }
+  }
+  test {
+    name: "timestamp"
+    description: "message(google.protobuf.Timestamp, int) we-error"
+    expr: "google.protobuf.Timestamp{seconds: 1} == timestamp(1)"
+    value: {
+      bool_value: true
+    }
+  }
+}
+section {
+  name: "unknown_fields"
+  description: "The library does not compare the unknown fields of a message, cel-go compares them by their bytes; the first message holds the field 1000000, which TestAllTypes does not declare"
+  test {
+    name: "equality"
+    description: "equals(cel.expr.conformance.proto3.TestAllTypes, cel.expr.conformance.proto3.TestAllTypes) value-mismatch"
+    expr: "google.protobuf.Any{type_url: 'type.googleapis.com/cel.expr.conformance.proto3.TestAllTypes', value: b'\\x80\\xa4\\xe8\\x03\\x01'} == google.protobuf.Any{type_url: 'type.googleapis.com/cel.expr.conformance.proto3.TestAllTypes', value: b''}"
+    value: {
+      bool_value: false
+    }
+  }
+}

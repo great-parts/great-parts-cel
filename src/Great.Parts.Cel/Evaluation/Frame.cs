@@ -125,6 +125,13 @@ internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
     public CelValue FieldException(Exception exception, CelObjectType owner, int number) =>
         EvaluationErrors.FieldException(exception, owner, number, false, Lines, Offset);
 
+    // ApplicationException of the equality that a description does itself, during the operation of the recorded node.
+    public CelValue EqualityException(Exception exception, CelObjectType owner) =>
+        EvaluationErrors.EqualityException(exception, owner, Lines, Offset);
+
+    // InternalError at the recorded node.
+    public CelValue InternalFailure(Exception exception) => EvaluationErrors.InternalError(exception, Lines, Offset);
+
     // Reads a variable. The first read of a slot looks the name up in the bindings, and first is true: the
     // caller checks the value and keeps the result with Keep. Later reads take the slot. False when the
     // name has no value in the bindings.

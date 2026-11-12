@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Buffers;
 using System.Globalization;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
@@ -116,12 +116,35 @@ internal static class ListFunctions
             }
         }
 
-        // The lists being walked and the next index in each, by level; a list nested in application data can be deeper than any text.
-        var lists = new CelList[4];
-        var positions = new int[4];
+        // An empty list has no element to walk.
+        if (list.Count == 0)
+        {
+            return arguments[0];
+        }
+
+        // The lists being walked and the next index in each, by level, and the elements of the result so far, are arrays of the shared
+        // pool: only the result is allocated. A list nested in application data can be deeper than any text.
+        CelList[] lists = ArrayPool<CelList>.Shared.Rent(4);
+        int[] positions = ArrayPool<int>.Shared.Rent(4);
+        CelValue[] items = ArrayPool<CelValue>.Shared.Rent(list.Count);
+        try
+        {
+            return FlattenInto(list, depth, ref lists, ref positions, ref items, in site);
+        }
+        finally
+        {
+            ArrayPool<CelList>.Shared.Return(lists, clearArray: true);
+            ArrayPool<int>.Shared.Return(positions);
+            ArrayPool<CelValue>.Shared.Return(items, clearArray: true);
+        }
+    }
+
+    private static CelValue FlattenInto(CelList list, long depth, ref CelList[] lists, ref int[] positions, ref CelValue[] items, in CallSite site)
+    {
         int height = 1;
+        int count = 0;
         lists[0] = list;
-        var items = new List<CelValue>(list.Count);
+        positions[0] = 0;
         while (height > 0)
         {
             CelList current = lists[height - 1];
@@ -144,8 +167,12 @@ internal static class ListFunctions
                 site.Charge((ulong)nested.Count);
                 if (height == lists.Length)
                 {
-                    Array.Resize(ref lists, height * 2);
-                    Array.Resize(ref positions, height * 2);
+                    Enlarge(ref lists, height);
+                }
+
+                if (height == positions.Length)
+                {
+                    Enlarge(ref positions, height);
                 }
 
                 lists[height] = nested;
@@ -154,11 +181,30 @@ internal static class ListFunctions
             }
             else
             {
-                items.Add(item);
+                if (count == items.Length)
+                {
+                    Enlarge(ref items, count);
+                }
+
+                items[count++] = item;
             }
         }
 
-        return CelValue.FromList(new ValueArrayList(items.ToArray()));
+        if (count == 0)
+        {
+            return EmptyList;
+        }
+
+        return CelValue.FromList(new ValueArrayList(items.AsSpan(0, count).ToArray()));
+    }
+
+    // A pool array of twice the length with the first count elements of the array, which goes back to the pool.
+    private static void Enlarge<T>(ref T[] array, int count)
+    {
+        T[] larger = ArrayPool<T>.Shared.Rent(array.Length * 2);
+        Array.Copy(array, larger, count);
+        ArrayPool<T>.Shared.Return(array, clearArray: true);
+        array = larger;
     }
 
     // lists.range(int): [0, 1, …, n − 1] for n up to the limit; a request beyond it is refused before the list is made.

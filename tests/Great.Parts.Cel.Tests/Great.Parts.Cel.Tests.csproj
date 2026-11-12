@@ -38,6 +38,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <!-- Build-time tool only: it compiles the .proto files and gives the build the protoc program; it is not a dependency. -->
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
     <PackageReference Include="xunit.v3.aot" />
   </ItemGroup>
 
@@ -59,6 +62,22 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
+  </ItemGroup>
+
+  <!--
+    The test messages of the pinned cel-spec (proto2 and proto3 TestAllTypes and the proto2 extensions) compile into C# classes,
+    namespaces Cel.Expr.Conformance.Proto2 and Cel.Expr.Conformance.Proto3, for the tests of the protobuf package
+    (docs/design/protobuf.md, "Projects and test messages"). No gRPC services.
+  -->
+  <PropertyGroup>
+    <CelProtoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', '..', 'tests', 'cel-spec', 'proto'))</CelProtoRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/proto2/test_all_types.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
+    <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/proto2/test_all_types_extensions.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
+    <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/proto3/test_all_types.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
   </ItemGroup>
 
   <!-- The time zone data of the tests: one copy of the file and its reader, kept in the suite runner (docs/design/tests.md, "Time zone data"). -->

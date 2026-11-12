@@ -22,7 +22,7 @@ namespace Great.Parts.Cel.Properties.Evaluation;
 public sealed class CostTests
 {
     // Bytes per unit.
-    private const ulong B = 64;
+    internal const ulong B = 64;
     private const ulong Seed = 20261109;
     private const int Cases = 1500;
 
@@ -156,10 +156,12 @@ public sealed class CostTests
 
     // The smallest bytes allocated by Run in the evaluations after the first, the units it charged (at the stop, when the limit
     // stops it) and its result.
-    private static (long Bytes, ulong Units, CelValue Result) Measure(CelProgram<CelValue> program, CelBindings bindings, ulong limit)
+    private static (long Bytes, ulong Units, CelValue Result) Measure(CelProgram<CelValue> program, CelBindings bindings, ulong limit) =>
+        Measure(program.Plan, bindings, limit);
+
+    internal static (long Bytes, ulong Units, CelValue Result) Measure(Plan plan, CelBindings bindings, ulong limit)
     {
         IReadOnlyDictionary<string, CelValue> values = bindings.Values;
-        Plan plan = program.Plan;
         _ = plan.Run(plan.CreateFrame(values, limit, CancellationToken.None));
         long bytes = long.MaxValue;
         ulong units = 0;
@@ -176,7 +178,7 @@ public sealed class CostTests
         return (bytes, units, result);
     }
 
-    private static string Failure(string what, long bytes, ulong units) =>
+    internal static string Failure(string what, long bytes, ulong units) =>
         string.Create(CultureInfo.InvariantCulture, $"{what}: {bytes} bytes for {units} units ({B} per unit)");
 
     // The text of a row and its data of the size: a literal of the size, or a variable of type dyn bound to data of the size.
@@ -242,7 +244,7 @@ public sealed class CostTests
         return "x.contains(p)";
     }
 
-    private static CelValue IntList(int size)
+    internal static CelValue IntList(int size)
     {
         var items = new CelValue[size];
         for (int index = 0; index < size; index++)
@@ -254,7 +256,7 @@ public sealed class CostTests
     }
 
     // The keys "0", "1", … of the size, each with the value 1.
-    private static CelValue StringKeyMap(int size)
+    internal static CelValue StringKeyMap(int size)
     {
         var entries = new KeyValuePair<CelValue, CelValue>[size];
         for (int index = 0; index < size; index++)

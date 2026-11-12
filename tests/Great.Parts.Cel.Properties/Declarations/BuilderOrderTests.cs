@@ -10,10 +10,13 @@ using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Evaluation;
 using Great.Parts.Cel.Library;
 using Great.Parts.Cel.Library.Extensions;
+using Great.Parts.Cel.Protobuf;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using Xunit;
+using Proto2 = global::Cel.Expr.Conformance.Proto2;
+using Proto3 = global::Cel.Expr.Conformance.Proto3;
 
 namespace Great.Parts.Cel.Properties.Declarations;
 
@@ -21,7 +24,10 @@ namespace Great.Parts.Cel.Properties.Declarations;
 // the builder"): the same calls in the model order and in other orders, with repeats, give the same result of Build — success, or
 // the same errors with the same texts and places — and, when it succeeds, the same results of a fixed set of texts: compile
 // results, values with and without a cost limit, the units charged, and evaluation errors. The sets of the catalog are the test's
-// own, since the sets of the library come with their parts; the pool has the conflicts that the property exists for.
+// own, since the sets of the library come with their parts; the pool has the conflicts that the property exists for. The pool has
+// providers of protobuf as well, the set protos, variables of message types and the container of the proto3 package: a provider
+// describes the well-known types, so two of them in one model give DuplicateType for each of their names, and both orders must
+// report those errors alike.
 public sealed class BuilderOrderTests
 {
     private const ulong Seed = 20261112;
@@ -62,6 +68,45 @@ public sealed class BuilderOrderTests
         "parse('1.2.3.4')",
         "IP",
         "succ(1)",
+        "pm3.single_int32",
+        "has(pm3.single_int32)",
+        "pm3.standalone_message.bb",
+        "pm3.single_any",
+        "pm3 == pm3",
+        "type(pm3)",
+        "proto.getExt(pm2, cel.expr.conformance.proto2.int32_ext)",
+        "proto.hasExt(pm2, cel.expr.conformance.proto2.int32_ext)",
+        "pa",
+        "google.protobuf.Int64Value{value: 5} == 5",
+        "google.protobuf.Any{}",
+        "cel.expr.conformance.proto3.TestAllTypes{single_int32: 1, single_any: google.protobuf.Int64Value{value: 1}}.single_int32",
+        "TestAllTypes{single_int32: 1} == TestAllTypes{single_int32: 1}",
+        "TestAllTypes{single_int32: 3000000000}",
+        "NestedEnum.BAR",
+        "GlobalEnum.GAR",
+    ];
+
+    // The providers of the pool: every test file with the nine extensions, the proto3 file alone, the same file from a second builder,
+    // and the well-known types alone.
+    private static readonly CelProtobufTypes[] Providers =
+    [
+        new CelProtobufTypesBuilder("all test messages")
+            .AddFile(Proto3.TestAllTypesReflection.Descriptor)
+            .AddFile(Proto2.TestAllTypesReflection.Descriptor)
+            .AddFile(Proto2.TestAllTypesExtensionsReflection.Descriptor)
+            .AddProtoExtension(Proto2.TestAllTypesExtensionsExtensions.Int32Ext)
+            .AddProtoExtension(Proto2.TestAllTypesExtensionsExtensions.NestedExt)
+            .AddProtoExtension(Proto2.TestAllTypesExtensionsExtensions.TestAllTypesExt)
+            .AddProtoExtension(Proto2.TestAllTypesExtensionsExtensions.NestedEnumExt)
+            .AddProtoExtension(Proto2.TestAllTypesExtensionsExtensions.RepeatedTestAllTypes)
+            .AddProtoExtension(Proto2.Proto2ExtensionScopedMessage.Extensions.Int64Ext)
+            .AddProtoExtension(Proto2.Proto2ExtensionScopedMessage.Extensions.MessageScopedNestedExt)
+            .AddProtoExtension(Proto2.Proto2ExtensionScopedMessage.Extensions.NestedEnumExt)
+            .AddProtoExtension(Proto2.Proto2ExtensionScopedMessage.Extensions.MessageScopedRepeatedTestAllTypes)
+            .Build(),
+        new CelProtobufTypesBuilder("proto3 messages").AddFile(Proto3.TestAllTypesReflection.Descriptor).Build(),
+        new CelProtobufTypesBuilder("proto3 messages again").AddFile(Proto3.TestAllTypesReflection.Descriptor).Build(),
+        new CelProtobufTypesBuilder("well-known types").Build(),
     ];
 
     // The cost limits of the two evaluations of a text: none, and one that stops most calls.
@@ -155,9 +200,24 @@ public sealed class BuilderOrderTests
             {
                 bindings.Add(variable.Name, "s");
             }
+            else if (variable.Name == "pm3")
+            {
+                bindings.Add(variable.Name, new Proto3.TestAllTypes { SingleInt32 = 5, StandaloneMessage = new Proto3.TestAllTypes.Types.NestedMessage { Bb = 6 } });
+            }
+            else if (variable.Name == "pm2")
+            {
+                bindings.Add(variable.Name, MessageWithExtension());
+            }
         }
 
         return bindings;
+    }
+
+    private static Proto2.TestAllTypes MessageWithExtension()
+    {
+        var message = new Proto2.TestAllTypes();
+        message.SetExtension(Proto2.TestAllTypesExtensionsExtensions.Int32Ext, 7);
+        return message;
     }
 
     private static string Evaluated(CelEnvironment environment, string text, CelBindings bindings)
@@ -379,7 +439,13 @@ public sealed class BuilderOrderTests
         // One draw: one or two calls.
         private void AddCalls(PCG random)
         {
-            uint kind = random.Next(13);
+            uint kind = random.Next(17);
+            if (kind >= 13)
+            {
+                AddProtobufCalls(random, kind);
+                return;
+            }
+
             if (kind < 6 || kind == 12)
             {
                 AddExtensionCalls(random, kind);
@@ -407,6 +473,53 @@ public sealed class BuilderOrderTests
                 default:
                     string container = random.Next(2) == 0 ? "net" : "strs";
                     Add($"UseContainer({container})", builder => builder.UseContainer(container));
+                    break;
+            }
+        }
+
+        // The calls of the pool that concern protobuf: a provider, sometimes added again, the set protos, a variable of a message type and
+        // the container of the proto3 package.
+        private void AddProtobufCalls(PCG random, uint kind)
+        {
+            switch (kind)
+            {
+                case 13:
+                    CelProtobufTypes provider = Providers[(int)random.Next((uint)Providers.Length)];
+                    Add($"AddTypes(protobuf {provider.SourceName})", builder => builder.AddTypes(provider));
+                    if (random.Next(4) == 0)
+                    {
+                        Add($"AddTypes(protobuf {provider.SourceName}) again", builder => builder.AddTypes(provider));
+                    }
+
+                    break;
+                case 14:
+                    Add("AddExtension(protos 0)", builder => builder.AddExtension(CelExtensions.Protos(0)));
+                    break;
+                case 15:
+                    AddMessageVariable(random);
+                    break;
+                default:
+                    Add("UseContainer(cel.expr.conformance.proto3)", builder => builder.UseContainer("cel.expr.conformance.proto3"));
+                    break;
+            }
+        }
+
+        // A variable of a message type, declared with the .NET class, with the name of the type or as Any.
+        private void AddMessageVariable(PCG random)
+        {
+            switch (random.Next(4))
+            {
+                case 0:
+                    Add("AddVariable<Proto3.TestAllTypes>(pm3)", builder => builder.AddVariable<Proto3.TestAllTypes>("pm3"));
+                    break;
+                case 1:
+                    Add("AddVariable(pm3 proto3.TestAllTypes)", builder => builder.AddVariable("pm3", CelType.ObjectNamed("cel.expr.conformance.proto3.TestAllTypes")));
+                    break;
+                case 2:
+                    Add("AddVariable(pm2 proto2.TestAllTypes)", builder => builder.AddVariable("pm2", CelType.ObjectNamed("cel.expr.conformance.proto2.TestAllTypes")));
+                    break;
+                default:
+                    Add("AddVariable(pa Any)", builder => builder.AddVariable("pa", CelType.Any));
                     break;
             }
         }

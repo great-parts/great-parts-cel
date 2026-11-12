@@ -45,7 +45,19 @@ internal static class CheckErrors
 
     // NoSuchField (2004): a selection on a type without fields, or on an object type without the field.
     internal static CelError NoSuchField(string field, CelType type, CelSourceLocation location) =>
-        Create(CelErrorCode.NoSuchField, "undefined field '" + field + "' in type '" + type + "'", location);
+        NoSuchField(field, type.ToString(), location);
+
+    // The same with the full name of the described type, which a literal of a well-known message names as it is written, not
+    // as the CEL type that the name stands for.
+    internal static CelError NoSuchField(string field, string typeName, CelSourceLocation location) =>
+        Create(CelErrorCode.NoSuchField, "undefined field '" + field + "' in type '" + typeName + "'", location);
+
+    // FieldNotAccessible (2007): a field that the description excluded from expressions, with the reason it gives.
+    internal static CelError FieldNotAccessible(string field, string typeName, string reason, CelSourceLocation location) =>
+        Create(
+            CelErrorCode.FieldNotAccessible,
+            "field '" + field + "' of type '" + typeName + "' is not available to expressions: " + reason,
+            location);
 
     // InvalidComprehensionRange (2005): a range that is not a list, a map or dyn.
     internal static CelError InvalidComprehensionRange(CelType type, CelSourceLocation location) =>

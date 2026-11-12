@@ -120,8 +120,8 @@ internal static class AssignabilityRules
             }
         }
 
-        // 3. dyn and error.
-        if (from is null || to is null || from.Kind == CelTypeKind.Dyn || to.Kind == CelTypeKind.Dyn)
+        // 3. dyn, error and Any: Any takes every type and every type takes it, as dyn does.
+        if (from is null || to is null || from.Kind is CelTypeKind.Dyn or CelTypeKind.Any || to.Kind is CelTypeKind.Dyn or CelTypeKind.Any)
         {
             return true;
         }
@@ -276,6 +276,12 @@ internal static class AssignabilityRules
         if (b.Kind == CelTypeKind.TypeParameter)
         {
             return b;
+        }
+
+        // Any with Any is Any; with any other type it is dyn.
+        if (a.Kind == CelTypeKind.Any || b.Kind == CelTypeKind.Any)
+        {
+            return a.Kind == b.Kind ? a : CelType.Dyn;
         }
 
         return a.Kind switch

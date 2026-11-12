@@ -47,12 +47,15 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
     <ProjectReference Include="../../eng/findings/Great.Parts.Cel.Eng.Findings.csproj" />
   </ItemGroup>
 
   <!--
-    The messages of the cel-spec suite: simple.proto and its imports compile into C# classes, namespace Cel.Expr. No gRPC services.
-    The test messages (proto2 and proto3 TestAllTypes) are inputs of the textproto encoding below, not of the C# code.
+    The messages of the cel-spec suite: simple.proto and its imports compile into C# classes, namespace Cel.Expr. The test messages
+    (proto2 and proto3 TestAllTypes and the proto2 extensions) compile too, namespaces Cel.Expr.Conformance.Proto2 and
+    Cel.Expr.Conformance.Proto3: the runner builds its protobuf provider from them (docs/design/protobuf.md, "Projects and test
+    messages"). They are inputs of the textproto encoding below as well. No gRPC services.
   -->
   <PropertyGroup>
     <CelRepoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', '..'))</CelRepoRoot>
@@ -67,6 +70,9 @@
     <Protobuf Include="$(CelProtoRoot)cel/expr/eval.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
     <Protobuf Include="$(CelProtoRoot)cel/expr/value.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
     <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/test/simple.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
+    <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/proto2/test_all_types.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
+    <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/proto2/test_all_types_extensions.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
+    <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/proto3/test_all_types.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
   </ItemGroup>
 
   <!--

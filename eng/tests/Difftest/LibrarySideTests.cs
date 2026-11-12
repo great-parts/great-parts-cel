@@ -78,6 +78,32 @@ public sealed class LibrarySideTests
         Assert.Equal(Time(new Timestamp { Seconds = 1_721_048_400 }), time.Result);
     }
 
+    [Fact]
+    public void LibrarySide_HasTheProtobufProviderForAnyManifest()
+    {
+        using TempDirectory root = new();
+        string file = WriteZones(root, ("Asia/Kolkata", Tzif([], [], [19_800], "IST-5:30")));
+        byte[] manifest = Encoding.UTF8.GetBytes("""{ "name": "difftest", "variables": [ { "name": "a1", "type_name": "any" } ] }""");
+
+        bool built = LibrarySide.TryBuild(manifest, file, out LibrarySide? side, out string problem);
+
+        Assert.True(built, problem);
+        Assert.NotNull(side);
+    }
+
+    [Fact]
+    public void LibrarySide_EvaluatesTheKnownTypesOfProtobufThroughItsProvider()
+    {
+        using TempDirectory root = new();
+        LibrarySide side = Build(WriteZones(root, ("Asia/Kolkata", Tzif([], [], [19_800], "IST-5:30"))));
+
+        SideOutcome wrapper = side.Evaluate("google.protobuf.Int32Value{value: 1} == 1", new Dictionary<string, Value>());
+        SideOutcome empty = side.Evaluate("google.protobuf.Any{}", new Dictionary<string, Value>());
+
+        Assert.Equal(new Value { BoolValue = true }, wrapper.Result);
+        Assert.Equal(OutcomeClass.EvaluationError, empty.Class);
+    }
+
     // ---- Helpers ----
 
     private static Value Time(Timestamp timestamp) => new() { ObjectValue = Any.Pack(timestamp) };

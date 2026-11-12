@@ -38,6 +38,7 @@ The table is a contract: the units of an operation are the same in every version
 | Logic | `&&`, `\|\|`, `?:` | 0 beyond the operands; only the operand that is needed is evaluated |
 | List | creating a list of n elements: a literal, also the empty `[]`, a concatenation, a copy | 1 + n |
 | Map | creating a map of n pairs: a literal, a copy | 1 + 2n, and ⌈L/10⌉ for each string key of length L |
+| Message | creating a protobuf message with a literal of n entries, a field named twice counted each time | 1 + n, and ⌈L/10⌉ for the sum L of the lengths of the values written directly in the fields that are strings, in UTF-16 code units, and bytes; for `google.protobuf.Any{…}` the lengths of the `type_url` and of the `value` count |
 | Map insertion | the insertion of a pair into a map that the expansion of a macro builds (`@mapInsert`) | 2 for each pair, and ⌈L/10⌉ for a string key of length L |
 | Macro step | one iteration of a macro | 1 beyond the body; the body is the expressions that the user wrote |
 
@@ -66,6 +67,7 @@ The charge of every pair is made before the pair is compared, so a comparison th
 | two lists | 1 when the sizes differ; otherwise 1 + Σ eq(aᵢ, bᵢ) by index, in order, up to the first unequal pair |
 | two maps | 1 when the sizes differ; otherwise 1 + Σ over the keys k of a in its order: the lookup of k in b (the classes Read and Read with a string key) + eq(a[k], b[k]), up to the first unequal pair. For a JSON object the lookup is the row "key lookup in a JSON object" of [Data of the application](#data-of-the-application), and its size and enumeration are the row "`size`, enumeration of a JSON object" |
 | two objects of the application | 1 + Σ over the fields compared, in the order of the description: the reads of the field on both sides (1 each) + eq of the two values, up to the first unequal pair. Two objects of different descriptions are 1 |
+| two protobuf messages ([Protobuf messages](protobuf.md)) | 1 + ⌈(Sₗ + Sᵣ)/10⌉, S the size of a message in bytes of the protobuf wire format; charged once before the comparison and not by pairs; the size bounds the work of the comparison that grows with the data, and the check of each field of the description, a constant of the description, is not charged |
 
 Ordering (`<`, `<=`, `>`, `>=`) of numbers, `bool`, `timestamp` and `duration` is 1, of strings 1 + ⌈(La + Lb)/10⌉, of `bytes` 1 + ⌈(Ba + Bb)/10⌉.
 
@@ -268,6 +270,10 @@ A call is 1 unit. The seven overloads that parse a string add ⌈Lₐ/10⌉ for 
 
 For example, `ip('192.168.0.1')` costs 1 + 2 = 3, and `string(ip('1.2.3.4'))` costs 1 + 1 = 2 beyond the call of `ip`.
 
+### Set `protos`
+
+The set has two macros and no function, so it has no row of its own. A macro costs what its expansion costs: `proto.getExt(m, a.b.c)` is the selection of the field `a.b.c` of `m`, and `proto.hasExt(m, a.b.c)` its presence test, so each costs 1 beyond the operand `m`, the unit of any field selection. The identifier `proto` and the name of the extension are not read and cost nothing. For example, `proto.getExt(m, pkg.count_ext)` with a variable `m` costs the read of `m`, 1, and the selection, 1: 2 in all.
+
 ## Data of the application
 
 The rows below are charged by the node or the implementation that does the work, before it, as the rows of the sections above. The rows for a JSON object replace the cost of the same operations on a map, they are not added to it: the key lookup (an index, a selection, `has()`) instead of the class Read with a string key and the index of a map, `in` instead of `in` on a map, and "`size`, enumeration" instead of the `size` of a map. The row for the index of a JSON array replaces the unit that the index of a list costs.
@@ -283,13 +289,15 @@ The rows below are charged by the node or the implementation that does the work,
 | the index of a JSON array of n elements | 1 + n, instead of the unit of the index of a list: the array finds an element in constant time only when it has no nested values, otherwise it walks to the index |
 | a string of JSON, at each read | 1 + ⌈L/10⌉, charged before the string is created. L is the length in UTF-8 bytes of the string as it is written in the document, without its quotes and with its escape sequences; for a string without escape sequences and without characters outside ASCII it is the length of the string. The node that reads the string charges it: a selection or an index that finds it, the index of an array, the element of a range or of a comparison, and the identifier of a variable bound to a JSON string. The names of an enumeration are inside the row above and are not charged again; `has()` and `in` read no value |
 | the equality of two objects of the application | the row of two objects in [Equality and order](#equality-and-order) |
+| the read of a field of type `google.protobuf.Any` of a protobuf message, U the length of the type URL in UTF-16 units and B the bytes of the content, with the `Any` nested in it | 1 + ⌈(U + B)/10⌉ beyond the unit of the read of the field; for a `repeated` or `map` field, the sum over its elements; charged before the content is parsed, also when it does not unpack. A field that is not set reads as `null` and costs nothing beyond the read |
+| the equality of two protobuf messages | the row of two protobuf messages in [Equality and order](#equality-and-order) |
 | a set that an application function returns, read as a list, n elements | 1 + c · n · ⌈log₂(n + 1)⌉, charged by the call after the implementation and before the sort; c is as above for `string` and `bytes` elements (Lmax the longest) and 1 for the others |
 | a collection without an index that an application function returns, n elements | 1 + n, charged by the call after the implementation and before the copy |
 | the check of a value against a declared type | the section [Values checked against their declared type](#values-checked-against-their-declared-type); a typed view that already fits costs 0 |
 
 A set and a collection without an index that are bound to a variable are converted by `CelBindings.Add` before the evaluation and cost nothing at the evaluation.
 
-Not in this version of the page: the rows of the members of the types of .NET that the source generator reads (a structure member, a set or a collection as a member) and of the unpacking of `google.protobuf.Any` and a protobuf message literal. They come with their parts.
+Not in this version of the page: the rows of the members of the types of .NET that the source generator reads (a structure member, a set or a collection as a member). They come with their part.
 
 ## Values checked against their declared type
 

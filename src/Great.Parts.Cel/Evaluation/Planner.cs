@@ -138,12 +138,14 @@ internal sealed class Planner
             case CallNode call:
                 return VisitCall(call, offset, out stackSize);
 
-            // Message literals and the optional syntax are not supported yet; they are not taken for a map or a list.
+            // The optional syntax is not supported yet; it is not taken for a map, a list or a message literal.
             case ListNode { OptionalIndices.IsEmpty: false }:
-            case StructNode unsupported when unsupported.MessageName.Length != 0 || unsupported.HasOptionalEntry():
+            case StructNode unsupported when unsupported.HasOptionalEntry():
                 throw new NotImplementedException();
             case ListNode list:
                 return new ListPlanNode(offset, VisitAll(list.Elements, out stackSize));
+            case StructNode { MessageName.Length: > 0 } message:
+                return VisitMessage(message, offset, out stackSize);
             case StructNode map:
                 return VisitMap(map, offset, out stackSize);
             case ComprehensionNode comprehension:
@@ -453,7 +455,7 @@ internal sealed class Planner
             argumentTypes[i] = _checked.Types[argumentNodes[i].Id];
         }
 
-        if (call.Target is null && argumentTypes.Length == 2 && argumentTypes[0].Kind == CelTypeKind.Dyn
+        if (call.Target is null && argumentTypes.Length == 2 && argumentTypes[0].Kind is CelTypeKind.Dyn or CelTypeKind.Any
             && string.Equals(call.Function, IndexFunction, StringComparison.Ordinal))
         {
             candidates = IndexCandidates(candidates);
@@ -634,14 +636,14 @@ internal sealed class Planner
     // guarantee another type. Other kinds are checked at the top level, which costs nothing.
     private static bool Covers(CelType argument, CelType parameter)
     {
-        if (parameter.Kind is CelTypeKind.Dyn or CelTypeKind.TypeParameter || argument.Equals(parameter))
+        if (parameter.Kind is CelTypeKind.Dyn or CelTypeKind.Any or CelTypeKind.TypeParameter || argument.Equals(parameter))
         {
             return true;
         }
 
         return argument.Kind switch
         {
-            CelTypeKind.Dyn or CelTypeKind.Wrapper => false,
+            CelTypeKind.Dyn or CelTypeKind.Any or CelTypeKind.Wrapper => false,
             CelTypeKind.List => parameter.Kind == CelTypeKind.List && Covers(argument.Parameters[0], parameter.Parameters[0]),
             CelTypeKind.Map => parameter.Kind == CelTypeKind.Map
                 && Covers(argument.Parameters[0], parameter.Parameters[0])
@@ -751,6 +753,47 @@ internal sealed class Planner
         stackSize = Math.Max(stackSize, 2 * map.Entries.Length);
 
         return new MapPlanNode(offset, keys.MoveToImmutable(), values.MoveToImmutable());
+    }
+
+    // A message literal: the values stay on the stack while the next ones are evaluated. With type checking the description and
+    // the field numbers are those of the reference map; without it the name of the type, with its candidates in the container,
+    // and the field names resolve at evaluation.
+    private MessagePlanNode VisitMessage(StructNode message, int offset, out int stackSize)
+    {
+        ImmutableArray<StructEntry> entries = message.Entries;
+        ImmutableArray<PlanNode>.Builder values = ImmutableArray.CreateBuilder<PlanNode>(entries.Length);
+        stackSize = entries.Length;
+        for (int i = 0; i < entries.Length; i++)
+        {
+            values.Add(Visit(entries[i].Value, out int valueStackSize));
+            stackSize = Math.Max(stackSize, i + valueStackSize);
+        }
+
+        if (_checked is not null)
+        {
+            ImmutableArray<int>.Builder numbers = ImmutableArray.CreateBuilder<int>(entries.Length);
+            foreach (StructEntry entry in entries)
+            {
+                numbers.Add(_checked.References[entry.Id].FieldNumber);
+            }
+
+            return new MessagePlanNode(offset, _checked.References[message.Id].ObjectType!, numbers.MoveToImmutable(), values.MoveToImmutable());
+        }
+
+        bool leadingDot = message.MessageName[0] == '.';
+        string name = leadingDot ? message.MessageName[1..] : message.MessageName;
+        ImmutableArray<string>.Builder fieldNames = ImmutableArray.CreateBuilder<string>(entries.Length);
+        foreach (StructEntry entry in entries)
+        {
+            fieldNames.Add(entry.FieldName!);
+        }
+
+        return new MessagePlanNode(
+            offset,
+            message.MessageName,
+            [.. Qualified(name, leadingDot)],
+            fieldNames.MoveToImmutable(),
+            values.MoveToImmutable());
     }
 
     // The nodes of the arguments of a call or of the elements of a list, which stay on the stack while the

@@ -82,6 +82,9 @@ public sealed class LibrarySnapshotTests
     [Fact]
     public static void NetworkV1() => SetSnapshot("network", 1);
 
+    [Fact]
+    public static void ProtosV0() => SetSnapshot("protos", 0);
+
     // The declarations of a version of a set against the file that records them (docs/design/tests.md, "Snapshots of the extension
     // sets"): the lines that differ are named with both texts, in the order of the table of the set.
     private static void SetSnapshot(string name, uint version)

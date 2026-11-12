@@ -32,6 +32,9 @@ internal static class ObjectRules
         _ => error.Second as string ?? string.Empty,
     };
 
+    private static readonly Func<CelError, string> InternalErrorText =
+        static _ => "internal error during evaluation; the original exception is in CelError.Exception";
+
     private static readonly Func<CelError, string> FieldTypeMismatchText =
         static error => "field '" + FieldOf(error).Name + "' of type '" + ((CelObjectType)error.First!).Name + "' has a value of type '"
             + error.Second + "', expected '" + FieldOf(error).Type + "'";
@@ -381,7 +384,65 @@ internal static class ObjectRules
 
         _ = left.TryGetObject(out object? leftInstance);
         _ = right.TryGetObject(out object? rightInstance);
-        return InstancesEqual(leftType!, leftInstance!, rightInstance!, types, meter, out error, boundary);
+        return CompareInstances(leftType!, leftInstance!, rightInstance!, types, meter, out error, boundary);
+    }
+
+    // Two instances of one description: the default rule, or the description's own CelEquals when its EqualityCost says that it
+    // compares the instances itself. A number is charged once, before the comparison, and only with a meter.
+    private static ValueEquality CompareInstances(
+        CelObjectType owner,
+        object left,
+        object right,
+        TypeIndex? types,
+        IEvaluationMeter? meter,
+        out CelValue error,
+        IApplicationBoundary? boundary)
+    {
+        error = default;
+        long? cost;
+        try
+        {
+            cost = owner.EqualityCost(left, right);
+        }
+        catch (Exception exception) when (boundary is not null && boundary.IsApplicationException(exception))
+        {
+            error = boundary.EqualityException(exception, owner);
+            return ValueEquality.Error;
+        }
+
+        if (cost is not { } units)
+        {
+            return InstancesEqual(owner, left, right, types, meter, out error, boundary);
+        }
+
+        meter?.Charge((ulong)Math.Max(units, 0));
+        boundary?.Event();
+        CelValue result;
+        try
+        {
+            result = owner.CelEquals(left, right);
+        }
+        catch (Exception exception) when (boundary is not null && boundary.IsApplicationException(exception))
+        {
+            error = boundary.EqualityException(exception, owner);
+            return ValueEquality.Error;
+        }
+
+        if (result.TryGetBoolean(out bool equal))
+        {
+            return equal ? ValueEquality.Equal : ValueEquality.NotEqual;
+        }
+
+        if (result.Kind == CelValueKind.Error)
+        {
+            error = result;
+            return ValueEquality.Error;
+        }
+
+        var failure = new InvalidOperationException(
+            "CelEquals of the type '" + owner.Name + "' returned a value of the kind " + result.Kind + ", expected a bool or an error value.");
+        error = boundary is not null ? boundary.InternalFailure(failure) : CelValue.FromError(new CelError(CelErrorCode.InternalError, InternalErrorText, null, 0, failure));
+        return ValueEquality.Error;
     }
 
     // A read of a field for the equality: an event, then the read inside the exception boundary of an evaluation. False

@@ -151,10 +151,7 @@ public static class CelExtensions
     /// </remarks>
     /// <param name="version">The version of the set.</param>
     /// <returns>The extension set.</returns>
-    public static CelExtension Protos(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Protos(uint version) => ExtensionCatalog.Default.Get("protos", version);
 
 #if NET11_0_OR_GREATER
     /// <summary>

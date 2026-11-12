@@ -11,16 +11,16 @@ using Xunit;
 
 namespace Great.Parts.Cel.Tests.Library.Extensions;
 
-// The catalog of the extension sets: the table of versions of the eight sets, one definition and one CelExtension for each
+// The catalog of the extension sets: the table of versions of the nine sets, one definition and one CelExtension for each
 // pair of name and version, and what the members of CelExtensions hand out. A catalog of the tests has families with factories;
 // the catalog of the library has the table of the sets that the library names, and the name of each joins Names with the factory.
 public sealed class ExtensionCatalogTests
 {
     private static readonly string[] LibraryNames =
-        ["strings", "math", "lists", "sets", "encoders", "bindings", "two-var-comprehensions", "network"];
+        ["strings", "math", "lists", "sets", "encoders", "bindings", "two-var-comprehensions", "network", "protos"];
 
     [Fact]
-    public void CatalogOfTheLibrary_HasTheVersionsOfTheEightSets()
+    public void CatalogOfTheLibrary_HasTheVersionsOfTheNineSets()
     {
         Assert.Equal(new uint[] { 5 }, ExtensionCatalog.Default.VersionsOf("strings"));
         Assert.Equal(new uint[] { 3 }, ExtensionCatalog.Default.VersionsOf("math"));
@@ -30,6 +30,7 @@ public sealed class ExtensionCatalogTests
         Assert.Equal(new uint[] { 1 }, ExtensionCatalog.Default.VersionsOf("bindings"));
         Assert.Equal(new uint[] { 0 }, ExtensionCatalog.Default.VersionsOf("two-var-comprehensions"));
         Assert.Equal(new uint[] { 1 }, ExtensionCatalog.Default.VersionsOf("network"));
+        Assert.Equal(new uint[] { 0 }, ExtensionCatalog.Default.VersionsOf("protos"));
         Assert.Empty(ExtensionCatalog.Default.VersionsOf("optional"));
         Assert.Empty(ExtensionCatalog.Default.VersionsOf("block"));
     }
@@ -55,6 +56,7 @@ public sealed class ExtensionCatalogTests
             (CelExtensions.Bindings, "bindings"),
             (CelExtensions.TwoVarComprehensions, "two-var-comprehensions"),
             (CelExtensions.Network, "network"),
+            (CelExtensions.Protos, "protos"),
         ];
 
         foreach ((Func<uint, CelExtension> member, string name) in members)

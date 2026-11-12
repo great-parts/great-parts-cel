@@ -5,8 +5,8 @@ namespace Great.Parts.Cel.Configuration;
 
 /// <summary>
 /// Turns a type record of the environment description into a <see cref="CelType"/>: the simple types, <c>dyn</c> and
-/// <c>null</c>, the wrappers, <c>list</c>, <c>map</c> and <c>type</c>, a type parameter where an overload takes it, and
-/// any other name as the object type of that full name.
+/// <c>null</c>, the wrappers, <c>any</c>, <c>list</c>, <c>map</c> and <c>type</c>, a type parameter where an overload takes
+/// it, and any other name as the type of that full name: the CEL type of a well-known message of protobuf, or an object type.
 /// </summary>
 /// <remarks>
 /// A record names its type exactly, so the container of the environment does not apply to it. The types that the library
@@ -15,8 +15,6 @@ namespace Great.Parts.Cel.Configuration;
 /// </remarks>
 internal static class TypeRecordResolver
 {
-    private const string AnyName = "google.protobuf.Any";
-
     /// <summary>
     /// Resolves a type record in full.
     /// </summary>
@@ -113,7 +111,7 @@ internal static class TypeRecordResolver
                 detail = $"the type '{name}' takes {(name == "list" ? "1 type parameter" : "2 type parameters")}: '{text}'";
                 return null;
             case "any":
-                return CelType.ObjectNamed(AnyName);
+                return CelType.Any;
             default:
                 return CelType.ObjectNamed(name);
         }

@@ -62,7 +62,7 @@ internal static class ValueTypeRules
     };
 
     /// <summary>
-    /// Tells whether a value fits a declared type, at any depth: <c>dyn</c> and type parameters take any value,
+    /// Tells whether a value fits a declared type, at any depth: <c>dyn</c>, <c>Any</c> and type parameters take any value,
     /// a primitive type a value of its kind, <c>wrapper(P)</c> <c>null</c> or a value of <c>P</c>, <c>null_type</c>
     /// <c>null</c>, <c>type(…)</c> any type value, <c>list(E)</c> a list whose every element fits <c>E</c>, and
     /// <c>map(K, V)</c> a map whose every key fits <c>K</c> and every value <c>V</c>. An error value fits nothing at the
@@ -325,7 +325,7 @@ internal static class ValueTypeRules
 
         return type.Kind switch
         {
-            CelTypeKind.Dyn or CelTypeKind.TypeParameter => true,
+            CelTypeKind.Dyn or CelTypeKind.Any or CelTypeKind.TypeParameter => true,
             CelTypeKind.Null => kind == CelValueKind.Null,
             CelTypeKind.Bool => kind == CelValueKind.Bool,
             CelTypeKind.Int => kind == CelValueKind.Int,

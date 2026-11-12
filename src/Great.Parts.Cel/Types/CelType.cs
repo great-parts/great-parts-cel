@@ -97,7 +97,7 @@ public sealed class CelType : IEquatable<CelType>
     /// <c>google.protobuf.Any</c>: a protobuf message of any type. Values of this type are unpacked to
     /// the contained message when they are read, so a value never has this type at evaluation.
     /// </summary>
-    public static CelType Any => throw new NotImplementedException();
+    public static CelType Any { get; } = new(CelTypeKind.Any, "google.protobuf.Any", []);
 
 #if NET11_0_OR_GREATER
     /// <summary>
@@ -233,14 +233,22 @@ public sealed class CelType : IEquatable<CelType>
     /// describe it, otherwise a declaration that uses it is a build error
     /// <see cref="Diagnostics.CelErrorCode.TypeNotDeclared"/>.
     /// </summary>
+    /// <remarks>
+    /// Thirteen names of the well-known types of protobuf stand for the CEL type that protobuf maps them to instead of
+    /// an object type: <c>google.protobuf.Any</c> is <see cref="Any"/>, <c>google.protobuf.Value</c> is
+    /// <see cref="Dyn"/>, <c>google.protobuf.Struct</c> is <c>map(string, dyn)</c>, <c>google.protobuf.ListValue</c> is
+    /// <c>list(dyn)</c>, and the nine wrapper messages such as <c>google.protobuf.Int32Value</c> are the wrapper types.
+    /// The names <c>google.protobuf.Timestamp</c> and <c>google.protobuf.Duration</c> are not among them. See the
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
+    /// </remarks>
     /// <param name="fullName">The full name of the object type.</param>
-    /// <returns>The object type.</returns>
+    /// <returns>The object type, or the CEL type that the name stands for.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="fullName"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="fullName"/> is empty.</exception>
     public static CelType ObjectNamed(string fullName)
     {
         ArgumentException.ThrowIfNullOrEmpty(fullName);
-        return new CelType(CelTypeKind.Object, fullName, []);
+        return WellKnownRules.TypeOf(fullName) ?? new CelType(CelTypeKind.Object, fullName, []);
     }
 
     // An abstract type of an extension set by its full name, with the parameters it has; none in this release. Only the sets
@@ -301,6 +309,7 @@ public sealed class CelType : IEquatable<CelType>
             {
                 CelTypeKind.Timestamp => "timestamp",
                 CelTypeKind.Duration => "duration",
+                CelTypeKind.Any => "any",
                 _ => Name,
             };
         }

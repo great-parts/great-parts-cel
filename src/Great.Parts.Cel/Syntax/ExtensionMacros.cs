@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Text;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Syntax;
@@ -19,6 +21,7 @@ internal static class ExtensionMacros
 
     private const string MathNamespace = "math";
     private const string CelNamespace = "cel";
+    private const string ProtoNamespace = "proto";
 
     // The function that math.greatest and math.least expand to: no text can write the name.
     private const string MaxFunction = "math.@max";
@@ -65,6 +68,24 @@ internal static class ExtensionMacros
             : MacroCheck.Error("cel.bind() variable names must be simple identifiers", arguments[0]),
         static (nodes, _, arguments, offset) => ExpandBind(nodes, arguments, offset));
 
+    // proto.getExt(m, a.b.c) and proto.hasExt(m, a.b.c): the selection of the field whose name is the full name of the extension,
+    // and the presence test of that selection.
+    private static readonly Macro GetExt = new(
+        "getExt",
+        ProtoNamespace,
+        2,
+        isReceiver: true,
+        static (_, arguments) => CheckExtension(arguments),
+        static (nodes, _, arguments, offset) => ExpandExtension(nodes, arguments, offset, isPresenceTest: false));
+
+    private static readonly Macro HasExt = new(
+        "hasExt",
+        ProtoNamespace,
+        2,
+        isReceiver: true,
+        static (_, arguments) => CheckExtension(arguments),
+        static (nodes, _, arguments, offset) => ExpandExtension(nodes, arguments, offset, isPresenceTest: true));
+
     // The macros of two iteration variables, all on a target of any kind: three arguments, and four with a filter for the
     // transformations. Every one of them checks the names of its variables alike.
     private static readonly Macro AllOfTwo = TwoVariables(
@@ -100,6 +121,11 @@ internal static class ExtensionMacros
     /// The macros of the set <c>bindings</c>: <c>cel.bind</c>.
     /// </summary>
     internal static ImmutableArray<Macro> Bindings { get; } = [Bind];
+
+    /// <summary>
+    /// The macros of the set <c>protos</c>: <c>proto.getExt</c> and <c>proto.hasExt</c>.
+    /// </summary>
+    internal static ImmutableArray<Macro> Protos { get; } = [GetExt, HasExt];
 
     /// <summary>
     /// The macros of the set of two-variable comprehensions: <c>all</c>, <c>exists</c>, <c>existsOne</c>, <c>exists_one</c>,
@@ -164,6 +190,47 @@ internal static class ExtensionMacros
 
     private static ComprehensionNode ExpandTransformMapEntry(NodeFactory nodes, ExprNode? target, ImmutableArray<ExprNode> arguments, int offset) =>
         new Macro.Expansion(nodes, offset, twoVariables: true).TransformMapEntry(target!, arguments);
+
+    // The second argument of getExt and hasExt is a chain of selections that ends in an identifier — a.b.c — with at least one
+    // selection and no presence test among them: a bare identifier, a call, a constant, a list or a has() is not one. The error is
+    // at the argument.
+    private static MacroCheck CheckExtension(ImmutableArray<ExprNode> arguments)
+    {
+        ExprNode node = arguments[1];
+        int selections = 0;
+        while (node is SelectNode { IsPresenceTest: false } select)
+        {
+            selections++;
+            node = select.Operand;
+        }
+
+        return selections > 0 && node is IdentNode
+            ? MacroCheck.Expand
+            : MacroCheck.Error("invalid extension field", arguments[1]);
+    }
+
+    // The selection of the field named by the chain — the names joined by dots, a leading dot of the root kept as it is — on the
+    // first argument, as a selection or a presence test. It is the selection of an escaped field name, m.`a.b.c`, so checking and
+    // evaluation need nothing for it; the nodes of the chain are not part of it.
+    private static SelectNode ExpandExtension(NodeFactory nodes, ImmutableArray<ExprNode> arguments, int offset, bool isPresenceTest)
+    {
+        // The chain is walked from its last selection to its root, so its depth does not use the stack.
+        List<string> fields = [];
+        ExprNode node = arguments[1];
+        while (node is SelectNode select)
+        {
+            fields.Add(select.Field);
+            node = select.Operand;
+        }
+
+        var name = new StringBuilder(((IdentNode)node).Name);
+        for (int i = fields.Count - 1; i >= 0; i--)
+        {
+            name.Append('.').Append(fields[i]);
+        }
+
+        return nodes.Select(arguments[0], name.ToString(), isPresenceTest, offset);
+    }
 
     // The checks of math.greatest and math.least by the kind of the node, in the order of the rows of the table of errors: no
     // argument, then one argument that is neither a number nor a non-empty list literal of numbers, then the first argument of

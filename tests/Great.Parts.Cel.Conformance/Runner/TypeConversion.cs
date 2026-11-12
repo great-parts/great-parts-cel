@@ -8,9 +8,11 @@ using Type = Cel.Expr.Type;
 namespace Great.Parts.Cel.Conformance.Runner;
 
 /// <summary>
-/// Converts a type between <see cref="CelType"/> and <c>cel.expr.Type</c> for the kinds the library supports, the two types of
-/// time and the abstract types of the extension sets among them. Other kinds throw
-/// <see cref="NotImplementedException"/>.
+/// Converts a type between <see cref="CelType"/> and <c>cel.expr.Type</c> for the kinds the library supports: the primitive and
+/// container types, the types of time, <c>Any</c>, the wrappers and the object types of messages by name, and the abstract types
+/// of the extension sets. The enumeration <c>WellKnownType</c> of <c>cel.expr.Type</c> has <c>ANY</c>, <c>TIMESTAMP</c> and
+/// <c>DURATION</c>; <c>Struct</c>, <c>Value</c> and <c>ListValue</c> come as <c>message_type</c>, <c>map</c> and <c>dyn</c>. Other
+/// kinds throw <see cref="NotImplementedException"/>.
 /// </summary>
 internal static class TypeConversion
 {
@@ -26,8 +28,6 @@ internal static class TypeConversion
         CelTypeKind.Null => new Type { Null = NullValue.NullValue },
         CelTypeKind.Bool or CelTypeKind.Int or CelTypeKind.UInt or CelTypeKind.Double or CelTypeKind.String or CelTypeKind.Bytes =>
             new Type { Primitive = ToPrimitive(type) },
-        CelTypeKind.Timestamp => new Type { WellKnown = Type.Types.WellKnownType.Timestamp },
-        CelTypeKind.Duration => new Type { WellKnown = Type.Types.WellKnownType.Duration },
         CelTypeKind.Wrapper => new Type { Wrapper = ToPrimitive(type.Parameters[0]) },
         CelTypeKind.Type => new Type { Type_ = ToExprType(type.Parameters[0]) },
         CelTypeKind.List => new Type { ListType = new Type.Types.ListType { ElemType = ToExprType(type.Parameters[0]) } },
@@ -39,7 +39,7 @@ internal static class TypeConversion
         {
             AbstractType = new Type.Types.AbstractType { Name = type.Name, ParameterTypes = { type.Parameters.Select(ToExprType) } },
         },
-        _ => throw new NotImplementedException(),
+        _ => ToExprNamedType(type),
     };
 
     /// <summary>Converts a type of a case, such as the type of a declared variable, into a type of the library.</summary>
@@ -59,20 +59,32 @@ internal static class TypeConversion
         _ => throw new NotImplementedException(),
     };
 
-    // The well-known types of time; the other well-known types (Any and the wrappers) come with the protobuf part.
+    // The types that cel.expr.Type names: the two types of time and Any as well-known types, an object type by its message name.
+    private static Type ToExprNamedType(CelType type) => type.Kind switch
+    {
+        CelTypeKind.Timestamp => new Type { WellKnown = Type.Types.WellKnownType.Timestamp },
+        CelTypeKind.Duration => new Type { WellKnown = Type.Types.WellKnownType.Duration },
+        CelTypeKind.Any => new Type { WellKnown = Type.Types.WellKnownType.Any },
+        CelTypeKind.Object => new Type { MessageType = type.Name },
+        _ => throw new NotImplementedException(),
+    };
+
+    // The well-known types that cel.expr.Type has: Any and the two types of time.
     private static CelType FromWellKnown(Type.Types.WellKnownType wellKnown) => wellKnown switch
     {
+        Type.Types.WellKnownType.Any => CelType.Any,
         Type.Types.WellKnownType.Timestamp => CelType.Timestamp,
         Type.Types.WellKnownType.Duration => CelType.Duration,
         _ => throw new NotImplementedException(),
     };
 
-    // The message names of the two types of time; other message names throw until the protobuf part.
+    // The names of the two types of time are their types; any other name is an object type by name, which the library turns into the
+    // type of a known name (Any, the wrappers, Struct, ListValue, Value) or the description of a message of a provider.
     private static CelType FromMessageName(string name) => name switch
     {
         "google.protobuf.Timestamp" => CelType.Timestamp,
         "google.protobuf.Duration" => CelType.Duration,
-        _ => throw new NotImplementedException(),
+        _ => CelType.ObjectNamed(name),
     };
 
     private static PrimitiveType ToPrimitive(CelType type) => type.Kind switch

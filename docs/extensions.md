@@ -31,6 +31,7 @@ new CelEnvironmentBuilder(CelStandardLibrary.V1)
 | `bindings` | `bindings` | `Bindings(version)` | 1 | none |
 | two-variable comprehensions | `two-var-comprehensions` | `TwoVarComprehensions(version)` | 0 | none |
 | `network` | `network` | `Network(version)` | 1 | none |
+| `protos` | `protos` | `Protos(version)` | 0 | none |
 
 - **Versions are those of cel-go.** The number of a version is the number of the same set in cel-go, the CEL implementation in Go, and a version has the declarations that cel-go gives it. This release has one version of each set. A version that the table does not have is not a number to try: it is the build error `UnknownExtensionVersion`.
 - **The functions of a version never change.** A function that cel-go adds in a later version comes as that version, and an environment that names the versions it was built with means the same after the library is updated. A fix of the behavior of a function applies to the version that has it.
@@ -301,3 +302,24 @@ An error of a parse is `InvalidArgument` (3008) at the call, `invalid argument t
 **Text forms.** `string` writes an address as `netip` does: IPv4 as four decimal fields; IPv6 in lower case with no leading zeros in a group, the first of the longest runs of two or more zero groups written as `::`, and a single zero group left alone: `2001:0db8:0:0:0:0:0:1` is `2001:db8::1`, `1:0:0:2:0:0:0:3` is `1:0:0:2::3`, `1:2:3:4:5:6:7:0` is itself and `::1.2.3.4` is `::102:304`. A prefix is written as its address as it was parsed, `/` and the length: `string(cidr('10.0.0.1/8'))` is `10.0.0.1/8`.
 
 **Equality.** Two `net.IP` values are equal when they are of one family and have the same bits, so `ip('::1.2.3.4')` and `ip('1.2.3.4')` are different. Two `net.CIDR` values are equal when they have the same family, the same address as written and the same length: `cidr('10.0.0.1/8') == cidr('10.0.0.0/8')` is `false` and `cidr('10.0.0.1/8').masked() == cidr('10.0.0.0/8')` is `true`. A value of an abstract type equals no value of another kind, and `null` too, without an error. The types have no order, so `<` on them is refused by the type check; they are no map keys, `UnsupportedMapKeyType`; and `json.encode` and `%s` of `format` do not take them.
+
+## Set `protos`, version 0
+
+Two macros, `proto.getExt` and `proto.hasExt`, that read and test the extension fields of a protobuf message of proto2. The set has no function, overload or abstract type and needs no other set.
+
+| Call | Is the same as |
+| :- | :- |
+| `proto.getExt(m, pkg.name)` | the selection of the field `pkg.name` of `m` |
+| `proto.hasExt(m, pkg.name)` | `has(m.pkg.name)`, with the name of the extension as the name of the field |
+
+```text
+proto.getExt(m, cel.expr.conformance.proto2.int32_ext) + 1
+proto.hasExt(m, cel.expr.conformance.proto2.nested_ext)
+```
+
+- **The second argument** is the full name of the extension written as a chain of identifiers with at least one dot: `cel.expr.conformance.proto2.int32_ext`. A single identifier, a constant, a call, an operator, an index, a list or a `has()` is the parse error `InvalidMacroCall` (1006), `invalid call of macro 'getExt': invalid extension field`, at the argument; the call is not expanded and parsing goes on. A leading dot stays in the name, which then names no field.
+- **The field comes from a type source.** The macros only name the field; the extension is a field of the description of its message with the full name of the extension for its name, which the package `Great.Parts.Cel.Protobuf` makes for the extensions that the application registers. A message type without that field is the type checking error `NoSuchField` at the call, and a value of the type `dyn` without it is `EvalNoSuchField`.
+- **Without the set** the call is an ordinary call: type checking reports `proto` and `getExt` as undeclared. So it is for a call with a number of arguments other than two and for a target that is not the identifier `proto`.
+- **The version** is 0. `CelExtensions.Protos` does not check it: another version is the build error `UnknownExtensionVersion`, `extension 'protos' has no version 1; available versions: 0`. In an environment description in JSON the set is `{"name": "protos", "version": "0"}`.
+
+A macro costs what its expansion costs, see [Cost](cost.md#set-protos).

@@ -2,7 +2,7 @@
 
 This page says how a .NET value becomes a CEL value and how a CEL value becomes a .NET value. The input rows apply wherever a value enters an expression: the bindings of `CelBindings`, the declaration `AddVariable<T>`, and the arguments and the results of the functions of the application. The result rows apply to the result of `Compile<T>`, `Evaluate<T>` and the one-step call, and to the parameters of the typed delegates of the functions of the application.
 
-Not in this version of the page: the rows of `decimal` and of `optional`, the rows of the messages of protobuf, and the descriptions of .NET types that the source generator writes. They come with their parts. The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
+Not in this version of the page: the rows of `decimal` and of `optional`, and the descriptions of .NET types that the source generator writes. The messages of protobuf have their rows in the section [Protobuf messages](#protobuf-messages). They come with their parts. The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
 
 An error of a conversion is an error of the result, not an exception, except the conditions that the documentation of a method names. A refusal of a value to enter the expression is an error value where the value is read: the binding when the expression reads the variable, the result of a function at the call.
 
@@ -106,6 +106,28 @@ The mapping follows the language definition, "JSON Data Conversion". The static 
 CEL has no wrapper of time, so `DateTimeOffset?`, `DateTime?`, `TimeSpan?`, `CelTimestamp?` and `CelDuration?` have the CEL type of the value: `AddVariable<DateTimeOffset?>("t")` declares `timestamp`. A `null` bound to such a variable is the value `null`, which fits neither `timestamp` nor `duration`: `BindingTypeMismatch` (3011) at the first read. A typed delegate that returns such a `null` is `ImplementationResultMismatch`.
 
 A time value is a scalar. In a collection it goes through `CelList`, `CelMap`, `CelValue` or `object` (boxed `DateTimeOffset`, `DateTime`, `TimeSpan`, `CelTimestamp` or `CelDuration`); a typed collection of time such as `IReadOnlyList<DateTimeOffset>` is not one of the rows: `AddVariable<T>` is `TypeNotDeclared` and `CelBindings.Add<T>` an `ArgumentException`. A field of the type `timestamp` or `duration` of a type described at run time reads `CelValue.FromTimestamp(…)` or `CelValue.FromDuration(…)`, which allocates nothing.
+
+## Protobuf messages
+
+The package `Great.Parts.Cel.Protobuf` describes the messages of `.proto` files, and a message enters an expression as the instance of its generated class, as an object of the rows above, without a copy. The fields of a message are read by these rows; the page [Protobuf messages](protobuf.md) has the details, the presence rules, the object literals, `Any` and the equality of messages.
+
+| Protobuf field | CEL type | Value |
+| :- | :- | :- |
+| `int32`, `sint32`, `sfixed32`, `int64`, `sint64`, `sfixed64` | `int` | the number |
+| `uint32`, `fixed32`, `uint64`, `fixed64` | `uint` | the number |
+| `float`, `double` | `double` | a `float` is widened |
+| `bool`, `string`, `bytes` | `bool`, `string`, `bytes` | as they are; `bytes` is the memory of the message, without a copy |
+| an enumeration, `google.protobuf.NullValue` included | `int` | the number, also one that the enumeration does not declare; `NULL_VALUE` is 0 |
+| a message `M` | the object type `M` | the instance; a field that is not set is an empty message, and `has()` tells the two apart |
+| `repeated T` | `list(T)` | a view over the field, without a copy |
+| `map<K, V>` | `map(K, V)` | a view over the field, in the order of insertion |
+| `google.protobuf.Any` | `any` | the unpacked content; a field that is not set is `null`; an `Any` that cannot be unpacked is `InvalidAny` (3020) |
+| `google.protobuf.Value` | `dyn` | by its kind: `null`, `double`, `string`, `bool`, `map(string, dyn)` or `list(dyn)`; a `Value` without a kind and one that is not set are `null` |
+| `google.protobuf.Struct`, `google.protobuf.ListValue` | `map(string, dyn)`, `list(dyn)` | views, read only |
+| `google.protobuf.Timestamp`, `google.protobuf.Duration` | `timestamp`, `duration` | the time value; a field that is not set is `1970-01-01T00:00:00Z` and `0s`; a value outside the range of CEL is `ConversionRange` (3007) |
+| a wrapper such as `google.protobuf.Int64Value` | `wrapper(int)`, `wrapper(uint)`, `wrapper(double)`, `wrapper(bool)`, `wrapper(string)` or `wrapper(bytes)` | the value, or `null` for a field that is not set; a wrapper that is set to the default reads the default |
+
+The values of the known types are never objects: a .NET value of the type `Timestamp`, `Int32Value`, `Struct` or `Any` is not described, so `AddVariable<Timestamp>` is `TypeNotDeclared` (4008), and such a value in a `dyn` place is `TypeNotAccessible` (3012). An application holds an `Any` as data in a field of a message. The result of an expression that is a message is converted to the generated class by the row of an object type.
 
 ## Types that are not read
 

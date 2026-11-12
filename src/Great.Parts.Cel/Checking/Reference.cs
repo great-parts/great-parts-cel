@@ -8,8 +8,9 @@ namespace Great.Parts.Cel.Checking;
 // What an identifier, a selection resolved as a name or a call refers to: a declared variable, a type
 // identifier of the standard library version or an object type of the application, a constant of an enumeration
 // type, a variable of an enclosing comprehension, the field of an object type that a selection or a presence test
-// reads, or the overload candidates of a call in the order of the declaration index, with the object that the preparation of
-// its constant argument gave, if it had one.
+// reads, the description that a message literal creates and, for each of its entries, the field it sets, or the overload
+// candidates of a call in the order of the declaration index, with the object that the preparation of its constant
+// argument gave, if it had one.
 internal sealed class Reference
 {
     private Reference(
@@ -68,6 +69,9 @@ internal sealed class Reference
     internal static Reference ToLocal(string name) => new(null, null, name, []);
 
     internal static Reference ToField(CelObjectType objectType, int number) => new(null, null, null, [], objectType, number);
+
+    // A message literal: the description of the type it creates; the entries have ToField with the number of their field.
+    internal static Reference ToMessage(CelObjectType objectType) => new(null, null, null, [], objectType);
 
     internal static Reference ToConstant(long value) => new(null, null, null, [], constant: value);
 

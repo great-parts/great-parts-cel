@@ -108,4 +108,15 @@ Build errors of the declarations — `DuplicateVariable`, `DuplicateType`, `Cont
 
 `eng/difftest` describes the environment of a run in this format, and both sides read the same file: the oracle with `cel.FromConfig` of cel-go, the library with `Apply`. On the library side the stand creates `new CelEnvironmentBuilder(CelStandardLibrary.V1)` — the latest version, since the manifest carries none — calls `Apply` and then `Build`. A manifest has neither `greatPartsCel`, which cel-go would skip, nor `validators`; the stand rejects such a manifest itself, before `Apply`. The oracle adds in code the flags and the validator of the cel-go conformance runner ([eng-oracle.md](eng-oracle.md)), and its own factory for the set `network`. A manifest holds `name`, `description`, `container`, `variables` and, from the part of extension sets on, `extensions`; `functions` would need the same implementations on both sides, so the profile has none ([eng-difftest.md](eng-difftest.md#profile)).
 
+## Protobuf names and the set `protos`
+
+A description cannot add a protobuf provider: providers are added in code with `AddTypes`, and a description names their types, as it names the types of any source, and `Build` resolves the names against the providers of the builder.
+
+- **`any`** is the type `Any`, and so is the name `google.protobuf.Any`: `CelType.ObjectNamed` gives `CelType.Any` for it ([types](types.md#well-known-names)), and the reader keeps no rule of its own. A variable, a field or a parameter of the type `Any` needs an object type named `google.protobuf.Any` in the type index, which the protobuf package describes, so without a provider `Build` reports `TypeNotDeclared` at the element of the declaration ([objects](objects.md#descriptions-of-well-known-types)): the position and the label are those of any `TypeNotDeclared` of a description.
+- **The other known names** — `google.protobuf.Value`, `Struct`, `ListValue` and the nine wrappers by their full names — resolve to the CEL type of the table of [types](types.md#well-known-names) and need no source. The record `"google.protobuf.Int32Value"` is `wrapper(int)`, and `"google.protobuf.Struct"` is `map(string, dyn)`. `google.protobuf.Timestamp` and `google.protobuf.Duration` stay as they are: no records, `TypeNotDeclared`; the records `timestamp` and `duration` are the types.
+- **Other names of messages** — `cel.expr.conformance.proto2.TestAllTypes` — are `ObjectNamed(name)`, resolved at `Build` against the provider that describes them, as any object type is.
+- **The set** `protos` joins the table of names of [Extension sets](#extension-sets) with the catalog: `{"name": "protos", "version": "0"}` is `AddExtension(CelExtensions.Protos(0))`, and any other version is `UnknownExtensionVersion` at `Build`. The macros of the set belong to the environment, not to the description.
+
+The manifest of a differential run may declare a variable of the type `any`; the stand adds a provider, so the name resolves ([eng-difftest](eng-difftest.md#provider-of-protobuf-on-the-library-side)).
+
 Related pages: [facade](facade.md), [declarations](declarations.md), [objects](objects.md), [core](core.md).

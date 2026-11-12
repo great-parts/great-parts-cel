@@ -260,8 +260,48 @@ public abstract class CelObjectType
     /// <exception cref="NotSupportedException">The default implementation: the type does not support object literals.</exception>
     protected internal virtual CelValue CreateInstance(ReadOnlySpan<int> fieldNumbers, ReadOnlySpan<CelValue> fieldValues)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException("The type '" + Name + "' does not support object literals.");
     }
+
+    /// <summary>
+    /// Tells how many cost units reading a field of an instance costs beyond the unit of the selection, when the
+    /// amount is known from the instance before the field is read.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Evaluation calls this member only when it has a cost limit, for a field selection <c>e.f</c> after the unit of
+    /// the selection and before <see cref="GetField"/>; <c>has(e.f)</c> does not call it. The default is 0. A
+    /// description overrides it when reading a field does work that grows with the instance, as unpacking a
+    /// <c>google.protobuf.Any</c> does. An exception is turned into an error with the code
+    /// <see cref="CelErrorCode.ApplicationException"/>, as for <see cref="GetField"/>.
+    /// </para>
+    /// </remarks>
+    /// <param name="instance">An instance that belongs to the description.</param>
+    /// <param name="number">The number of the field.</param>
+    /// <returns>The units, never negative.</returns>
+    protected internal virtual long FieldReadCost(object instance, int number) => 0;
+
+    /// <summary>
+    /// Tells whether this description compares its instances itself, and how many cost units one comparison costs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <see langword="null"/>, the default, means that instances are compared by the default rule of
+    /// <see cref="CelEquals"/>, field by field, with the cost of every read charged. A number means that the
+    /// description compares the instances itself: evaluation charges that many units once, before the comparison,
+    /// and calls <see cref="CelEquals"/> instead of the default rule, so the work of <see cref="CelEquals"/> must be
+    /// bounded by the number. Without a cost limit the number is not charged and the comparison is the same.
+    /// </para>
+    /// <para>
+    /// The equality of two lists or maps that hold the objects, of <c>in</c> and of two values created by
+    /// <see cref="CelValue.FromObject(CelObjectType, object)"/> uses this member too. An exception is turned into an
+    /// error with the code <see cref="CelErrorCode.ApplicationException"/>.
+    /// </para>
+    /// </remarks>
+    /// <param name="left">The first instance, which belongs to the description.</param>
+    /// <param name="right">The second instance, which belongs to the description.</param>
+    /// <returns><see langword="null"/> for the default rule, otherwise the units of one comparison, never negative.</returns>
+    protected internal virtual long? EqualityCost(object left, object right) => null;
 
     /// <summary>
     /// Creates an object value that holds <paramref name="instance"/> without its description, for a

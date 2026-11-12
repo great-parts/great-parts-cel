@@ -61,6 +61,13 @@ internal static class EvaluationErrors
         return "application code threw " + error.First!.GetType() + " in " + (error.Small != 0 ? "the presence test of " + callee : callee);
     };
 
+    // The exception is the first part and the description the second.
+    private static readonly Func<CelError, string> EqualityExceptionText = static error =>
+        "application code threw " + error.First!.GetType() + " in the equality of objects of type '" + ((CelObjectType)error.Second!).Name + "'";
+
+    private static readonly Func<CelError, string> CreationExceptionText = static error =>
+        "application code threw " + error.First!.GetType() + " in the creation of an object of type '" + ((CelObjectType)error.Second!).Name + "'";
+
     // The field is the first part, the description of the object the second.
     private static readonly Func<CelError, string> NoSuchObjectFieldText =
         static error => "no such field '" + (string)error.First! + "' in " + ((CelObjectType)error.Second!).Name;
@@ -134,6 +141,16 @@ internal static class EvaluationErrors
             owner,
             number,
             presence ? (byte)1 : (byte)0));
+
+    // ApplicationException (3014): application code threw in the equality that a description does itself, at the node that
+    // compared; the exception is kept.
+    internal static CelValue EqualityException(Exception exception, CelObjectType owner, LineTable lines, int offset) =>
+        CelValue.FromError(new CelError(CelErrorCode.ApplicationException, EqualityExceptionText, lines, offset, exception, owner));
+
+    // ApplicationException (3014): application code threw in the creation of an object by a message literal, at the literal;
+    // the exception is kept.
+    internal static CelValue CreationException(Exception exception, CelObjectType owner, LineTable lines, int offset) =>
+        CelValue.FromError(new CelError(CelErrorCode.ApplicationException, CreationExceptionText, lines, offset, exception, owner));
 
     // EvalNoSuchField (3001): a field that the description of an object value does not have, with the full name of its
     // type, at the selection.

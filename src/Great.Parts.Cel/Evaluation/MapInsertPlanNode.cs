@@ -110,6 +110,12 @@ internal sealed class MapInsertPlanNode : PlanNode
             source.ChargeEnumeration(frame.Meter!);
         }
 
+        // An empty map gives no pair: no enumerator is made for it.
+        if (source.Count == 0)
+        {
+            return accumulator;
+        }
+
         using IEnumerator<KeyValuePair<CelValue, CelValue>> entries = source.EnumerateEntries(frame.Meter, readValues: true);
         while (entries.MoveNext())
         {

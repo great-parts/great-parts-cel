@@ -72,7 +72,8 @@ internal static class Rule
     /// <summary>
     /// Whether two values are equal as <c>cel.expr.Value</c> messages, as <c>diffValue</c> of the cel-go runner compares them with
     /// <c>protocmp</c>: field by field, a <c>double</c> with Go <c>==</c> (NaN is not equal to itself, <c>-0</c> equals
-    /// <c>0</c>), the entries of a map in any order.
+    /// <c>0</c>), the entries of a map in any order. An <c>object_value</c> is an <c>Any</c>, which <c>protocmp</c> expands: the
+    /// two messages are unpacked with the table of the test messages and compared by <see cref="ConformanceMessages.AreEqual"/>.
     /// </summary>
     /// <param name="expected">The expected value.</param>
     /// <param name="actual">The actual value.</param>
@@ -89,6 +90,7 @@ internal static class Rule
             Value.KindOneofCase.ListValue => expected.ListValue.Values.Count == actual.ListValue.Values.Count
                 && expected.ListValue.Values.Zip(actual.ListValue.Values).All(pair => AreEqual(pair.First, pair.Second)),
             Value.KindOneofCase.MapValue => SameEntries(expected.MapValue.Entries, actual.MapValue.Entries),
+            Value.KindOneofCase.ObjectValue => ConformanceMessages.AreEqual(expected.ObjectValue, actual.ObjectValue),
             _ => expected.Equals(actual),
         };
     }
@@ -96,7 +98,11 @@ internal static class Rule
     private static Judgement Values(Value? expected, CaseOutcome outcome) =>
         outcome.Value is not null && AreEqual(expected, outcome.Value)
             ? Judgement.Pass
-            : Judgement.Fail($"expected {ExprText.Of(expected)}, got {Got(outcome)}");
+            : Judgement.Fail($"expected {Text(expected)}, got {Got(outcome)}");
+
+    // The text of a value for a reason: an object value of a message of the test table shows the message, not only its type URL.
+    private static string Text(Value? value) =>
+        value is { KindCase: Value.KindOneofCase.ObjectValue } ? ConformanceMessages.Text(value.ObjectValue) : ExprText.Of(value);
 
     // Types are compared as cel.expr.Type messages, as diffType of the cel-go runner does; a type has no double field.
     private static Judgement Types(Type? expected, Type? actual) =>
@@ -105,7 +111,7 @@ internal static class Rule
             : Judgement.Fail($"expected type {ExprText.Of(expected)}, got type {ExprText.Of(actual)}");
 
     private static string Got(CaseOutcome outcome) =>
-        outcome.Value is not null ? ExprText.Of(outcome.Value)
+        outcome.Value is not null ? Text(outcome.Value)
         : outcome.Errors.Count > 0 ? "error " + Errors(outcome.Errors)
         : $"no value after the stage {StageName(outcome.Stage)}";
 

@@ -52,7 +52,7 @@ The table is built from the members of `CelErrorCode` and their XML documentatio
 | 3017 | `UnexpectedNull` | Evaluate | A member of a reference type annotated as not nullable turned out to be `null`. The message names the type and the member. Location: the field selection. |
 | 3018 | `FieldNotSet` | Evaluate | A field of a type described at run time is read while it has no value. Location: the field selection. |
 | 3019 | `FieldTypeMismatch` | Evaluate | The value of a field of a type described at run time does not have the declared type of the field. Location: the field selection. |
-| 3020 | `InvalidAny` | Evaluate | A `google.protobuf.Any` has an unknown type URL or content that cannot be parsed. Location: the node that unpacked the value. |
+| 3020 | `InvalidAny` | Evaluate | A `google.protobuf.Any` cannot be unpacked: its type URL is empty, has no `/` or names a message that the type source does not describe, its content does not parse as that message, or it is the seventeenth `Any` of a chain. The message is in [Messages of protobuf](#messages-of-protobuf). Location: the node that unpacked the value; for an element of a `repeated` field or a value of a `map` field, the node that read the element. |
 | 3021 | `EvalInvalidRegex` | Evaluate | The same as `InvalidRegex` for a `matches` pattern that is not a constant and is compiled during evaluation; a refused pattern is refused at every evaluation, from the cache of patterns of the environment as well. Location: the call of `matches`. |
 | 3022 | `TimeZoneNotFound` | Evaluate | The time zone name is not in the time zone database of the environment, including the names `""` and `Local`; if the environment has no database, the message says so. The error occurs at evaluation even for a constant time zone name. Location: the call. |
 | 3023 | `InvalidTimeZone` | Evaluate | A time zone name that contains `:` is not a fixed offset `[+-]HH:MM` with hours 00–23 and minutes 00–59. Location: the call. |
@@ -97,6 +97,19 @@ The messages of the errors that the functions of time and the time zone database
 | 4012 | `TimeZoneDatabaseConflict` | `a different time zone database is already added to the environment` | none: a build error |
 
 `{version}` is the `Version` that the application gave to the database; a database without a version leaves it out. Both errors of a zone occur at evaluation, also for a zone that is a constant.
+
+## Messages of protobuf
+
+The messages of the errors that the package `Great.Parts.Cel.Protobuf` gives when it reads, writes and unpacks messages; the rules are on the page [Protobuf messages](protobuf.md). The text is not part of the contract (see below); the code and the place are.
+
+| Code | Name | Message | Place |
+| :- | :- | :- | :- |
+| 3007 | `ConversionRange` | `{value} is out of the range of int32`, `… of uint32`, `… of timestamp` or `… of duration`; `{value}` is the number that does not fit, for a map key the key | the `{` of a literal that writes the value; the node that reads a `Timestamp` or a `Duration` |
+| 3008 | `InvalidArgument` | `invalid argument to '{type}.{field}': a key of the type {actual} is not a string`, `invalid argument to '{type}.{field}': the value is nested too deeply` and `invalid argument to '{type}.{field}': the message cannot be written as JSON: …`, for a message that holds an `Any` of a type the provider does not describe, or with content that does not parse | the `{` of the literal |
+| 3019 | `FieldTypeMismatch` | `field '{field}' of type '{type}' has a value of type '{actual}', expected '{declared}'`; `{declared}` is the CEL type of the field, also for an element of a `repeated` field | the `{` of the literal |
+| 3020 | `InvalidAny` | `cannot unpack google.protobuf.Any with type URL '{typeUrl}': {detail}` | the node that read the field or evaluated the literal |
+
+The `{detail}` of 3020 is one of `the type URL is empty`, `the type URL has no '/'`, `the message type '{name}' is not described by the type source '{sourceName}'`, `the content is not a valid {name}: {message}` and `Any is nested deeper than 16 levels`. The `{typeUrl}` is the address of the `Any` that failed, which for a chain is the one inside.
 
 ## Rules of the codes
 

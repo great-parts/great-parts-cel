@@ -106,6 +106,22 @@ git diff --name-only --no-renames <base>...<head>
 
 Moving code across the line — a new rule file outside this naming, a rule in a model file, a new core directory — changes this page in the same change.
 
+## Protobuf messages
+
+The package `Great.Parts.Cel.Protobuf` is not core: `src/Great.Parts.Cel.Protobuf/**` matches no pattern above, and a defect of it is caught by its tests, the conformance cases and the Native AOT publication ([protobuf](protobuf.md)). The part of the core that serves it is small, and none of it needs a new directory:
+
+| Path | Core | What |
+| :- | :- | :- |
+| `src/Great.Parts.Cel/Types/WellKnownRules.cs` | yes | a new rule file: which full names of protobuf stand for which CEL type ([types](types.md#well-known-names)); `CelType.ObjectNamed` delegates to it |
+| `src/Great.Parts.Cel/Types/AssignabilityRules.cs`, `Values/ValueTypeRules.cs` | yes | `Any` as a type that takes every value ([types](types.md#any), [values](values.md#any-and-the-known-types-in-the-value-rules)) |
+| `src/Great.Parts.Cel/Values/ObjectRules.cs` | yes | the dispatch of a custom equality and the charge of `FieldReadCost`, [objects](objects.md#members-for-protobuf-messages) |
+| `src/Great.Parts.Cel/Checking/**` | yes | the check of a message literal and of the type `Any` ([checking](checking.md#message-literals-of-constructible-types)) |
+| `src/Great.Parts.Cel/Evaluation/**` | yes | `MessagePlanNode`, the plan of a literal ([evaluation](evaluation.md#message-literals)) |
+| `src/Great.Parts.Cel/Library/Extensions/ProtosExtension.cs` | yes | the catalog row of the set `protos` ([library](library.md#the-set-protos)) |
+| `src/Great.Parts.Cel/Syntax/ExtensionMacros.cs` | no | the two macros of `protos`, parser code |
+| `src/Great.Parts.Cel/Values/CelObjectType.cs`, `Types/CelType.cs` | no | model files: the two new members of the description and `Any`; their decisions are in the rule files above |
+| `src/Great.Parts.Cel/Configuration/TypeRecordResolver.cs` | no | the description in JSON |
+
 ## Examples
 
 | Path | Core | Why |

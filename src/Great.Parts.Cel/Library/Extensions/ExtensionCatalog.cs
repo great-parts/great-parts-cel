@@ -32,6 +32,7 @@ internal sealed class ExtensionCatalog
         new("bindings", [1], BindingsExtension.Create),
         new("two-var-comprehensions", [0], TwoVarComprehensionsExtension.Create),
         new("network", [1], NetworkExtension.Create),
+        new("protos", [0], ProtosExtension.Create),
     ];
 
     private readonly FrozenDictionary<string, ExtensionFamily> _families;

@@ -58,12 +58,12 @@ internal static partial class ConversionRules
         return false;
     }
 
-    // A CEL type that is not supported yet, at any depth: optional, decimal, google.protobuf.Any.
+    // A CEL type that is not supported yet, at any depth: optional, decimal.
     private static bool MentionsLaterPart(CelType type)
     {
         switch (type.Kind)
         {
-            case CelTypeKind.Any or CelTypeKind.Optional:
+            case CelTypeKind.Optional:
                 return true;
 #if NET11_0_OR_GREATER
             case CelTypeKind.Decimal:

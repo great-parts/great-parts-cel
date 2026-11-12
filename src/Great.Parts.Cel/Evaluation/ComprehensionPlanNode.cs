@@ -123,6 +123,12 @@ internal sealed class ComprehensionPlanNode : PlanNode
 
         Initialize(frame, map.Count);
 
+        // An empty map gives no entry: no enumerator is made for it.
+        if (map.Count == 0)
+        {
+            return true;
+        }
+
         // Only the keys are read for one variable: a map over a JSON object creates no value then.
         using IEnumerator<KeyValuePair<CelValue, CelValue>> entries = map.EnumerateEntries(frame.Meter, readValues: _secondVariable >= 0);
         while (entries.MoveNext())
@@ -187,7 +193,15 @@ internal sealed class ComprehensionPlanNode : PlanNode
 
         frame.Event();
         Begin(frame);
-        frame.Local(_accumulator) = _step.Evaluate(frame);
+        CelValue next = _step.Evaluate(frame);
+
+        // An error replaces the map builder, which gives its rented array back, so that the next evaluation does not allocate it.
+        if (_buildsMap && next.Kind == CelValueKind.Error && frame.Local(_accumulator).TryGetMap(out CelMap? built) && built is MapBuilder builder)
+        {
+            builder.Release();
+        }
+
+        frame.Local(_accumulator) = next;
         return true;
     }
 }

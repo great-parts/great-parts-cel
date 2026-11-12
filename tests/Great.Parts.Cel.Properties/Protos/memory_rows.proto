@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package memory.rows;
+
+option csharp_namespace = "Great.Parts.Cel.Properties.Messages";
+
+// Small messages for the rows of memory of the messages of protobuf: the instance of a class generated for a message with many
+// fields allocates all its repeated and map fields when it is made, which is not what the rows measure.
+
+// A message of two singular fields, for the literal.
+message MemoryBytes {
+  bytes data = 1;
+  string name = 2;
+}
+
+// A message with a repeated field and a map field, for the equality.
+message MemoryRow {
+  bytes data = 1;
+  string name = 2;
+  repeated int32 items = 3;
+  map<string, int64> counts = 4;
+}

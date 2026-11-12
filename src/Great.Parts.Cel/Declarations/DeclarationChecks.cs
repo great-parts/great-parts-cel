@@ -921,9 +921,10 @@ internal sealed class DeclarationChecks
 
         CelType erased = AssignabilityRules.Erase(declared);
 
-        // An abstract type has no .NET type: the parameter or the result is a CelValue or object, which the mapping calls dyn.
+        // An abstract type has no .NET type, and neither has Any, whose value is the unpacked content: the parameter or the
+        // result is a CelValue or object, which the mapping calls dyn.
         return clrMapped.Equals(erased)
-            || (erased.Kind == CelTypeKind.Abstract && clrMapped.Kind == CelTypeKind.Dyn)
+            || (erased.Kind is CelTypeKind.Abstract or CelTypeKind.Any && clrMapped.Kind == CelTypeKind.Dyn)
             || (takesNull && erased.Kind == CelTypeKind.Wrapper && clrMapped.Equals(erased.Parameters[0]));
     }
 
@@ -973,12 +974,13 @@ internal sealed class DeclarationChecks
         return Undeclared(overload.ResultType);
     }
 
-    // An object type that no type source describes, or a type of time, optional or decimal, which no extension set
-    // declares yet.
+    // An object type that no type source describes, google.protobuf.Any when no source describes it, or a type of optional,
+    // which no extension set declares yet.
     private CelType? Undeclared(CelType type)
     {
         if ((type.Kind == CelTypeKind.Object && !_typeNames.Contains(type.Name) && !_setTypes.ContainsKey(type.Name))
-            || type.Kind is CelTypeKind.Any or CelTypeKind.Optional)
+            || (type.Kind == CelTypeKind.Any && !_typeNames.Contains(type.Name))
+            || type.Kind == CelTypeKind.Optional)
         {
             return type;
         }

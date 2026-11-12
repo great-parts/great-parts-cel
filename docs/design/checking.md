@@ -149,6 +149,37 @@ A node with an error gets the type `error`, assignable to every type, and produc
 
 Types in messages use the text form of [types](types.md). The container in 2000 is empty without a container.
 
+## The type `Any` in the checker
+
+An expression of the type `Any` — a field of a message, a variable declared with `CelType.Any`, a parameter of an application function — has a value whose type is that of the content it holds, which only evaluation knows ([types](types.md#any)). The checker therefore treats `Any` as `dyn` wherever it looks at the type of an operand:
+
+- **Selection and presence** `e.f` and `has(e.f)` with `e` of the type `Any`: the type is `dyn` (and `bool` for `has`), as for `dyn`, and no reference is recorded; the field is found by name at evaluation ([evaluation](evaluation.md#nodes)). It is not `NoSuchField`, which is the answer for a type that cannot have fields.
+- **Calls and operators.** An argument of the type `Any` is assignable to every parameter and takes the overloads that a `dyn` argument takes, `dyn`-only overloads included: the rule of "Overload candidates" that lets a `dyn` argument reach an overload marked *only with `dyn`* applies to `Any` as well. A call whose candidates differ in the result type has the type `dyn`.
+- **Comprehensions.** A range of the type `Any` is a `dyn` range: the iteration variable and the second one have the type `dyn`.
+- **Operands of `&&`, `||` and the condition of `?:`** are assignable to `bool`, since `Any` is assignable to everything; the value is a `bool` or `EvalNoMatchingOverload` at evaluation.
+- **Messages** write the type as `any`, in the text form of [types](types.md#any), where a message names a type that contains it: `list(any)`.
+
+## Message literals of constructible types
+
+The first three steps of "Rules per node" — an undeclared name, a name that is no type, a type that is not constructible — hold as they are. The test of the third step is made through the type index: the name is a candidate that the index has as an *object type description*, whatever the `Type` of the description is. The `Kind` of the type that the identifier stands for is no test, since the description of `google.protobuf.Int32Value` has a `wrapper` type ([types](types.md#well-known-names)). The order of the candidates is that of the declaration index, a variable first, then an object type, then a constant.
+
+A description that is constructible has these rules; the field values were already checked in order, as expressions. Each entry is `field: value`, with `field` the name as the parser read it, an escaped name by the text between the backquotes (`` T{`in`: true} ``, `` T{`pkg.ext`: 1} ``):
+
+| Case | Error | Text | Place |
+| :- | :- | :- | :- |
+| the description has no field of that name and `GetExcludedFieldReason(name)` gives nothing | `NoSuchField` (2004) | `undefined field '{field}' in type '{type}'` | the entry |
+| the same, and a reason is given | `FieldNotAccessible` (2007) | `field '{field}' of type '{type}' is not available to expressions: {reason}` | the entry |
+| the type of the value is not assignable to the type of the field by `IsAssignable` | `TypeMismatch` (2002) | `expected type '{fieldType}' but found '{valueType}'` | the entry |
+
+- **The place of an entry** is the id of the entry, which the parser places as cel-go does, at the `:` that follows the field name; a literal has no node for the name.
+- **The rules of assignment are those of any type**: an `int` is not assignable to a `double` field, `null` to a field of an object type, a `timestamp`, a `duration` and a wrapper, and everything to a `dyn` and an `Any` field; a wrapper type takes its primitive and `null`; a `list(dyn)` — the join of `[1, 'a']` — takes a `repeated` field of any element type, since `dyn` elements are assignable, and fails at evaluation where an element does not fit. `{1: 'uno'}` for a `Struct` field, whose type is `map(string, dyn)`, is `TypeMismatch`.
+- **A repeated field** in one literal is not an error; the planner keeps the last value, as [evaluation](evaluation.md#message-literals) says.
+- **The type of the literal** is the `Type` of the description: the object type named by the resolved full name for a message, and the CEL type of the name for a known type — `wrapper(int)` for `google.protobuf.Int32Value{value: 1}`, so that `google.protobuf.Int32Value{value: 1} == 1` and `… != null` type check — `dyn` for `Value`, `map(string, dyn)` for `Struct`, `list(dyn)` for `ListValue`, `Any` for `Any`. It is the type even when an entry has an error, so the errors of the rest of the expression are not lost.
+- **The reference map** records, for the literal node, the resolved full name and the description; for each entry, by the id of the entry, the number of the field; the planner binds both ([evaluation](evaluation.md#message-literals)). An entry whose field was not found has no reference.
+- **Optional entries**, `T{?f: v}`, come with the optional syntax of their part: such a literal is planned by it.
+
+An enumeration constant is an `int`, so `TestAllTypes{standalone_enum: TestAllTypes.NestedEnum.BAZ}` and `TestAllTypes{standalone_enum: 1}` type check, and `TestAllTypes{standalone_enum: 5000000000}` fails at evaluation with `ConversionRange` ([protobuf-messages](protobuf-messages.md#literals)).
+
 ## Checked expression
 
 `CheckedExpression` holds the parsed expression (tree, positions and line table), the reference map, the type map with every type parameter replaced — free ones by `dyn` — and `ResultType`, the type of the root, which `CelProgram<T>.ResultType` reports.
@@ -174,6 +205,6 @@ Before each recursive step the checker calls `RuntimeHelpers.TryEnsureSufficient
 
 ## Not in this part
 
-Literals of protobuf messages and their fields; `FieldNotAccessible` (2007), with the generator and `decimal`; `optional` selections and indexes; the second iteration variable. Each comes with its part.
+`FieldNotAccessible` (2007), with the generator and `decimal`; `optional` selections and indexes; the second iteration variable. Each comes with its part.
 
 Related pages: [types](types.md), [declarations](declarations.md), [objects](objects.md), [library](library.md), [evaluation](evaluation.md), [values](values.md), [facade](facade.md).

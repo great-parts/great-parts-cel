@@ -14,7 +14,8 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // Value rows, "expression => expected" (CheckValues): both sides are evaluated in the environment with the bindings, and
 // the value of the left side must have the kind of the right side and be equal to it by CEL equality; NaN equals
 // NaN. The value of every row is that of cel-go v0.32.0 (a probe of the oracle with the environment flags of the
-// conformance runner). A row whose value is a net.IP or a net.CIDR is written as a comparison with ==.
+// conformance runner). A row whose value is a net.IP, a net.CIDR or a message is written as a comparison with ==: the
+// comparison here is CelValue.CelEquals outside an evaluation, which has no type index, and a bare instance has no description there.
 //
 // Error rows, "stage | expression | codes | messages" (CheckErrors). The stage is Parse, Check or Evaluate. In the
 // expression every "^" marks the place of one expected error and is removed from the text; the places are

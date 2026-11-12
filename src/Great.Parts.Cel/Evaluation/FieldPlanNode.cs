@@ -51,15 +51,25 @@ internal sealed class FieldPlanNode : PlanNode
         return _byName.Select(frame, operand);
     }
 
-    // Reads a field of an instance that belongs to the description, after the unit of the node: counts one event, since
-    // it calls code of the application, then reads the field by the place rule, or tests its presence, inside the
+    // Reads a field of an instance that belongs to the description, after the unit of the node: with a cost limit, a read
+    // charges the units that the description knows from the instance (FieldReadCost); then it counts one event, since it
+    // calls code of the application, and reads the field by the place rule, or tests its presence — all inside the
     // exception boundary of application code. An error value without a place gets the place of the node.
     internal static CelValue Read(Frame frame, CelObjectType owner, object instance, int number, bool isPresenceTest, int offset)
     {
-        frame.Event();
         CelValue value;
         try
         {
+            if (!isPresenceTest && frame.Metered)
+            {
+                long units = owner.FieldReadCost(instance, number);
+                if (units > 0)
+                {
+                    frame.Charge((ulong)units);
+                }
+            }
+
+            frame.Event();
             value = isPresenceTest
                 ? CelValue.FromBoolean(owner.HasField(instance, number))
                 : ObjectRules.ReadField(owner, instance, number, frame.Types);

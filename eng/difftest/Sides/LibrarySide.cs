@@ -9,6 +9,7 @@ using Great.Parts.Cel.Conformance.Runner;
 using Great.Parts.Cel.Configuration;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Eng.Difftest.Profile;
+using Great.Parts.Cel.Protobuf;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
@@ -37,8 +38,8 @@ internal sealed class LibrarySide : ICaseSide
 
     /// <summary>
     /// Step 2 of a run: <c>new CelEnvironmentBuilder(CelStandardLibrary.V1)</c>, <c>CelEnvironmentJson.Apply</c> with the
-    /// manifest, <c>UseTimeZones</c> with the database made from the time zone data file — every zone of the archive, the version
-    /// of <see cref="ProfileTables.ZoneInfoVersion"/> — and <c>Build</c>. An exception of the library escapes to the caller, which
+    /// manifest, <c>AddTypes</c> with a provider of the known types of protobuf, <c>UseTimeZones</c> with the database made from
+    /// the time zone data file — every zone of the archive, the version of <see cref="ProfileTables.ZoneInfoVersion"/> — and <c>Build</c>. An exception of the library escapes to the caller, which
     /// ends the run.
     /// </summary>
     /// <param name="manifest">The run manifest, UTF-8 JSON.</param>
@@ -61,6 +62,10 @@ internal sealed class LibrarySide : ICaseSide
             problem = "the library does not apply the run manifest: " + Messages(applied);
             return false;
         }
+
+        // The known types of protobuf, always: a manifest that names the type any resolves on the side of the oracle by default,
+        // and on this side only with a provider (docs/design/eng-difftest.md, "Provider of protobuf on the library side").
+        builder.AddTypes(new CelProtobufTypesBuilder("difftest").Build());
 
         CelBuildResult built = builder.UseTimeZones(database!).Build();
         if (!built.IsSuccess || built.Environment is null)

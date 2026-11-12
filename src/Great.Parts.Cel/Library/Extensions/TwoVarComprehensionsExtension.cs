@@ -50,7 +50,14 @@ internal static class TwoVarComprehensionsExtension
             return failure;
         }
 
-        return Insert(builder, arguments[1], arguments[2], in site) ?? CelValue.FromMap(builder.ToMap());
+        CelValue? error = Insert(builder, arguments[1], arguments[2], in site);
+        if (error is { } failed)
+        {
+            builder.Release();
+            return failed;
+        }
+
+        return CelValue.FromMap(builder.ToMap());
     }
 
     // cel.@mapInsert(m, n), (map(K, V), map(K, V)) -> map(K, V): the pairs of m and then those of n, in their order.
@@ -70,6 +77,7 @@ internal static class TwoVarComprehensionsExtension
         // sort before its first pair.
         if (other.TryGetKeyError(site.Meter, out CelValue keyError, leadingUnit: true))
         {
+            builder.Release();
             return site.Placed(keyError);
         }
 
@@ -78,17 +86,25 @@ internal static class TwoVarComprehensionsExtension
             other.ChargeEnumeration(meter);
         }
 
+        // An empty map gives no pair: no enumerator is made for it.
+        if (other.Count == 0)
+        {
+            return CelValue.FromMap(builder.ToMap());
+        }
+
         using IEnumerator<KeyValuePair<CelValue, CelValue>> entries = other.EnumerateEntries(site.Meter, readValues: true);
         while (entries.MoveNext())
         {
             KeyValuePair<CelValue, CelValue> entry = entries.Current;
             if (entry.Value.Kind == CelValueKind.Error)
             {
+                builder.Release();
                 return site.Placed(entry.Value);
             }
 
             if (Insert(builder, entry.Key, entry.Value, in site) is { } error)
             {
+                builder.Release();
                 return error;
             }
         }
@@ -130,6 +146,7 @@ internal static class TwoVarComprehensionsExtension
             KeyValuePair<CelValue, CelValue> entry = entries.Current;
             if (entry.Value.Kind == CelValueKind.Error)
             {
+                copy.Release();
                 failure = site.Placed(entry.Value);
                 return false;
             }

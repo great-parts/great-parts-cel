@@ -138,6 +138,13 @@
       },
       "great.parts.cel.eng.findings": {
         "type": "Project"
+      },
+      "great.parts.cel.protobuf": {
+        "type": "Project",
+        "dependencies": {
+          "Google.Protobuf": "[3.36.2, )",
+          "Great.Parts.Cel": "[0.0.0-dev, )"
+        }
       }
     },
     "net10.0/linux-x64": {
@@ -293,6 +300,13 @@
       },
       "great.parts.cel.eng.findings": {
         "type": "Project"
+      },
+      "great.parts.cel.protobuf": {
+        "type": "Project",
+        "dependencies": {
+          "Google.Protobuf": "[3.36.2, )",
+          "Great.Parts.Cel": "[0.0.0-dev, )"
+        }
       }
     },
     "net11.0/linux-x64": {

@@ -19,8 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The library through its public API only. -->
+    <!-- The library and its protobuf package through their public API only (docs/design/eng-difftest.md, "Provider of protobuf on the library side"). -->
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
     <ProjectReference Include="../findings/Great.Parts.Cel.Eng.Findings.csproj" />
   </ItemGroup>
 

@@ -427,5 +427,7 @@ virtual Great.Parts.Cel.Declarations.CelCostFunction.Invoke(System.ReadOnlySpan<
 virtual Great.Parts.Cel.Declarations.CelFunctionImplementation.Invoke(System.ReadOnlySpan<Great.Parts.Cel.Values.CelValue> arguments) -> Great.Parts.Cel.Values.CelValue
 virtual Great.Parts.Cel.Values.CelObjectType.CelEquals(object! left, object! right) -> Great.Parts.Cel.Values.CelValue
 virtual Great.Parts.Cel.Values.CelObjectType.CreateInstance(System.ReadOnlySpan<int> fieldNumbers, System.ReadOnlySpan<Great.Parts.Cel.Values.CelValue> fieldValues) -> Great.Parts.Cel.Values.CelValue
+virtual Great.Parts.Cel.Values.CelObjectType.EqualityCost(object! left, object! right) -> long?
+virtual Great.Parts.Cel.Values.CelObjectType.FieldReadCost(object! instance, int number) -> long
 virtual Great.Parts.Cel.Values.CelObjectType.GetExcludedFieldReason(string! fieldName) -> string?
 virtual Great.Parts.Cel.Values.CelObjectType.IsConstructible.get -> bool
