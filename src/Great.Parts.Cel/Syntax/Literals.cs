@@ -24,7 +24,8 @@ internal static class Literals
     /// <param name="token">
     /// A token of the kind <see cref="TokenKind.IntLiteral"/>, <see cref="TokenKind.UIntLiteral"/>,
     /// <see cref="TokenKind.DoubleLiteral"/>, <see cref="TokenKind.StringLiteral"/>, <see cref="TokenKind.BytesLiteral"/>,
-    /// <see cref="TokenKind.True"/>, <see cref="TokenKind.False"/> or <see cref="TokenKind.Null"/>.
+    /// <see cref="TokenKind.True"/>, <see cref="TokenKind.False"/> or <see cref="TokenKind.Null"/>; a <c>decimal</c> literal
+    /// goes through <c>TryConvertDecimal</c>.
     /// </param>
     /// <param name="minusOffset">
     /// The offset of a minus that belongs to an integer or floating literal, where an operand is expected; otherwise
@@ -68,17 +69,21 @@ internal static class Literals
         if (detail is not null)
         {
             value = default;
-            error = new CelError(
-                CelErrorCode.InvalidLiteral,
-                CelErrorStage.Parse,
-                "invalid " + kind + " literal: " + detail,
-                lines.GetLocation(minusOffset ?? token.Offset),
-                sourceLocation: null,
-                exception: null);
+            error = Invalid(kind, detail, minusOffset ?? token.Offset, lines);
         }
 
         return detail is null;
     }
+
+    // The error InvalidLiteral at the literal, the minus included.
+    private static CelError Invalid(string kind, string detail, int offset, LineTable lines) =>
+        new(
+            CelErrorCode.InvalidLiteral,
+            CelErrorStage.Parse,
+            "invalid " + kind + " literal: " + detail,
+            lines.GetLocation(offset),
+            sourceLocation: null,
+            exception: null);
 
     // The magnitude of a negative literal can reach 2^63, the magnitude of long.MinValue.
     private static string? ConvertInt(ReadOnlySpan<char> digits, bool negative, out CelValue value)
@@ -112,6 +117,52 @@ internal static class Literals
         value = CelValue.FromDouble(negative ? -number : number);
         return double.IsInfinity(number) ? "the value overflows to infinity" : null;
     }
+
+#if NET11_0_OR_GREATER
+    /// <summary>
+    /// Converts a <c>decimal</c> literal token to its value: the token without its suffix, read exactly, so the digits and
+    /// the exponent are kept and so is the cohort. More than 34 significant digits and an exponent out of the range of
+    /// decimal128 are refused, not rounded or clamped.
+    /// </summary>
+    /// <param name="text">The expression text.</param>
+    /// <param name="token">A token of the kind <see cref="TokenKind.DecimalLiteral"/>.</param>
+    /// <param name="minusOffset">
+    /// The offset of a minus that belongs to the literal, which makes the value negative — <c>-0m</c> is a negative zero;
+    /// otherwise <see langword="null"/>.
+    /// </param>
+    /// <param name="lines">The line table of <paramref name="text"/>.</param>
+    /// <param name="value">The value when the method returns <see langword="true"/>.</param>
+    /// <param name="error">
+    /// When the method returns <see langword="false"/>, the error <see cref="CelErrorCode.InvalidLiteral"/> at the
+    /// literal, the minus included; otherwise <see langword="null"/>.
+    /// </param>
+    /// <returns><see langword="true"/> when the literal has a value.</returns>
+    internal static bool TryConvertDecimal(
+        string text,
+        Token token,
+        int? minusOffset,
+        LineTable lines,
+        out CelValue value,
+        [NotNullWhen(false)] out CelError? error)
+    {
+        DecimalParseResult result = DecimalTextRules.TryParse(text.AsSpan(token.Offset, token.Length - 1), exact: true, out DecimalParts parts);
+        if (result == DecimalParseResult.Parsed)
+        {
+            value = CelValue.FromDecimal((parts with { Negative = minusOffset.HasValue }).ToDecimal128());
+            error = null;
+            return true;
+        }
+
+        // The token is of the grammar, so the outcomes that remain are the two limits.
+        value = default;
+        error = Invalid(
+            "decimal",
+            result == DecimalParseResult.TooManyDigits ? "more than 34 significant digits" : "exponent out of the range of decimal128",
+            minusOffset ?? token.Offset,
+            lines);
+        return false;
+    }
+#endif
 
     // A string or bytes literal from its r or R prefix, if any, to its closing quote.
     private static string? ConvertText(ReadOnlySpan<char> literal, bool bytes, out CelValue value)

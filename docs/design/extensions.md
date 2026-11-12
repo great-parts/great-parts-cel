@@ -66,7 +66,7 @@ The sets of the catalog exist in both targets, `net10.0` and `net11.0`, with the
 
 `CelExtensions.<Set>(version)` calls the catalog and wraps the result, whatever the number: a version outside the table of the family is the missing definition. The XML documentation names the version of each set, as the placeholders of the skeleton do.
 
-A later part adds a family with its row, and the name joins `ExtensionCatalog.Names` with it; `optional`, `protos` and `decimal` are such parts. The internal set `block` is not in the catalog and has no name in a description.
+A later part adds a family with its row, and the name joins `ExtensionCatalog.Names` with it; `optional` and `protos` are such parts; `decimal` is not a row and its name is not in `Names` ([the set `decimal`](#the-set-decimal)). The internal set `block` is not in the catalog and has no name in a description.
 
 ## Build checks
 
@@ -163,6 +163,19 @@ The implementations of the catalog follow the rules of the standard library ([li
 - **No exceptions, no state.** No implementation throws for a value of the language or keeps state, so a program calls it from any number of threads. An argument error is an error value of the code named in the page of the set.
 - **No banned APIs.** The code does not use .NET `Regex`, `[GeneratedRegex]`, `SearchValues`, the search and the split of `string` with a string pattern, `Array.Sort` or `List.Sort` with a comparison, LINQ, or a closure that captures on the evaluation path; a result is built as it is charged ([extension-strings](extension-strings.md#conventions)); `stackalloc` takes at most 256 bytes. Frozen collections are built only from names the library itself gives, such as the table of the catalog, never from the text of an expression or from values.
 - **Error values.** An error value of a set takes at most 64 bytes: its detail is formed when it is read, from references to existing objects and from numbers in its fields, never from a string built at the time of the error ([evaluation](evaluation.md#errors-as-values)). A detail names at most one number that comes from the arguments; another number it needs is read when the error is formed from an object that exists, such as the length of a list argument, or is a constant of the set.
+
+## The set `decimal`
+
+The set [decimal](extension-decimal.md) is the one set of the library that is for `net11.0` alone, and it is not a row of "The catalog". This section supersedes the sentences of this page that count it among the later parts with "its row" and "Not in this part" for `decimal`.
+
+| Set | Name in a description | Version | Dependencies | Functions | Macros | Abstract types |
+| :- | :- | :- | :- | :- | :- | :- |
+| `decimal` | none: a description cannot add it | 1 | — | 18 overloads | — | `decimal` |
+
+- **Why not a row.** A row would join `ExtensionCatalog.Names`, so that `{"name": "decimal", "version": "1"}` would add the set, which the public documentation of `CelExtensions.Decimal` rules out; and `Library.Extensions` may not reference `Library.Decimals` in the layer table, so the row would need a change of `eng/layers.txt` for the one set that has no description. `DecimalExtension` in `Library/Decimals/` keeps what a row keeps for one family: the table of versions `[1]`, the one `CelExtension` of version 1 made once as a `static readonly` field, and `Get(uint version)`, which returns it for 1 and a `CelExtension` with the missing definition for any other number. `CelExtensions.Decimal(version)` returns `Get(version)`; the facade may reference `Library.Decimals`.
+- **The definition.** An `ExtensionDefinition` of its own, `DecimalDefinition`, with the source `extension decimal v1`; not a `CatalogExtension`, whose macros and optional syntax are empty here, so `CatalogExtension.SyntaxOf` ignores it, and the flag of the literal is a flag of the builder, not of a set.
+- **The build checks** are unchanged and run on it as on any set: `Decimal(0)` and `Decimal(2)` are `UnknownExtensionVersion` (4004), `extension 'decimal' has no version 2; available versions: 1`; `Decimal(1)` twice, and the instance twice, is one set; there is no version of the set that another set conflicts with.
+- **The abstract type.** `AbstractTypeDeclaration("decimal", CelType.Decimal)`, a type of the kind `Decimal` as `optional_type` has one of the kind `Optional`: the declaration index gets the identifier `decimal`, and `TypeIdentifiers` and the check of `TypeNotDeclared` read the name as for any abstract type. The hint of 4008 is not looked up in `ExtensionCatalog.SetOfAbstractType`, which `Declarations` cannot see for this set; `DeclarationChecks` writes it for the kind `Decimal`, for the object name `decimal` of a description and for a `System.Decimal` ([declarations](declarations.md#decimal-without-the-set-and-the-literal-option)).
 
 ## Not in this part
 

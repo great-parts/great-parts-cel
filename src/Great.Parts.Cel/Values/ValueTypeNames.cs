@@ -30,6 +30,9 @@ internal static class ValueTypeNames
         CelValueKind.Duration => "duration",
         CelValueKind.Optional => "optional_type",
         CelValueKind.Error => "error",
+#if NET11_0_OR_GREATER
+        CelValueKind.Decimal => "decimal",
+#endif
         _ => throw new NotImplementedException(),
     };
 }

@@ -100,6 +100,35 @@ internal readonly struct ConstantPreparation
 
 The environment keeps the declaration set it was built from. `ToBuilder` returns a new builder with the same version, variables, functions, implementations and container; `Build` on it with nothing added gives an equal environment — the same declarations, the same index order, the same results for every expression — and the earlier environment and its programs do not change. `CelStandardLibrary.V1.Version` is 1.
 
+## `decimal` without the set and the literal option
+
+This section supersedes "Not in this part" for the `decimal` literal flag and the sentences of this page that leave the type `decimal` to a later part. On `net11.0` a type of the kind `Decimal` is declared by the set [decimal](extension-decimal.md) and by nothing else; on `net10.0` there is no such kind and no set, and `System.Decimal` is a .NET type with no row.
+
+**Variables, parameters and results.** `DeclarationChecks.Undeclared(CelType)` takes the kind `Decimal`, at any depth of a type, as undeclared unless a surviving set declares the name `decimal` (`_setTypes` has the key). So `AddVariable<Decimal128>("x")`, `AddVariable<decimal>("x")`, `AddVariable("x", CelType.Decimal)`, a variable of the type `list(decimal)`, and an overload of `AddFunction` or a typed implementation with such a parameter or result are `TypeNotDeclared` (4008) at `Build`, with `{declarationKind}` `variable` or `overload` and `{type}` the text of the type: `variable 'x' has type 'decimal', which no type source or extension of the environment declares; add the extension set 'decimal'`. With the set they build. A description in JSON names the type `decimal`, which the reader gives as `CelType.ObjectNamed("decimal")`, as it gives `net.IP`: `Build` replaces it by the abstract type of the set when there is one, and without one it is the same error, at the position of the variable. A provider that describes an object type named `decimal` is `DuplicateType` (4001) when the set is there.
+
+**On `net10.0`.** `ConversionRules.InputType<System.Decimal>()` is `null`, so `AddVariable<decimal>` and the delegate forms of `AddFunction` keep the declaration as an `UnmappedDeclaration`, and the two places of `DeclarationChecks` that report an unmapped variable and an unmapped overload give 4008 with the type `System.Decimal` and the hint of the table below. The `TypeNotDeclared` of any other unmapped .NET type has no hint; `System.Decimal` is the one case that gets one.
+
+**The hint.** `HintOf` gets two cases beside the catalog lookup, and neither asks `ExtensionCatalog.SetOfAbstractType`, which has no row for this set:
+
+| Type | `net11.0` | `net10.0` |
+| :- | :- | :- |
+| the kind `Decimal` at any depth, or the object name `decimal` of a description | `; add the extension set 'decimal'` | the object name only: `; the extension set 'decimal' exists only on .NET 11` |
+| the .NET type `System.Decimal`, unmapped | not reached: it has a row | `; the extension set 'decimal' exists only on .NET 11` |
+
+**Fields.** `CheckFieldTypes` does not report a field whose type mentions the kind `Decimal`: a description of an object type with a field `price` of the type `decimal` is valid in every environment of `net11.0`, with the set or without it, and the field is refused where an expression selects it, as `FieldNotAccessible` (2007) ([checking](checking.md#decimal-without-the-set)). The skip is only for the kind `Decimal`: another undeclared type in the same field, an object type that no source describes, is still `TypeNotDeclared`, so the check takes a flag that treats `Decimal` as declared. This is the one place where the type of a field and the type of a variable differ.
+
+**`TypeIndex.DecimalDeclared`.** The index that `Check` returns carries a `bool`, true when a surviving set has an abstract type of the kind `Decimal` — in practice when the set `decimal` survived steps 1 to 3 of the build checks. The checker reads it for 2007 and the reading nodes for 3012 ([evaluation](evaluation.md#decimal-in-a-dyn-place)); nothing else uses it.
+
+**The option.** `CelEnvironmentBuilder.EnableDecimalLiterals()` sets a `bool` of the builder, idempotent, with no argument and no order. `Build` puts it in the `DeclarationSet`, which gets the member `DecimalLiterals` last, default `false`; every place that rebuilds a `DeclarationSet` — `ResolveUnmapped` and the typed implementations — copies it. `ToBuilder` returns a builder with the same option, since the environment keeps its declaration set.
+
+`ExtensionChecks` gets a fifth step after the four of [extensions](extensions.md#build-checks), run on the sets that steps 1 to 3 left:
+
+| Step | Code | Condition | Message | Leaves out |
+| :- | :- | :- | :- | :- |
+| 5 | `MissingExtensionDependency` (4005) | `DecimalLiterals` and no remaining set named `decimal` | `the decimal literal option requires extension 'decimal', which is not added to the environment` | nothing |
+
+It has no place in an expression and no position, being an error of the builder and not of a set. A set `decimal` whose version does not exist — `Decimal(2)` — is out after step 1, so the option with it gives 4004 and 4005, each once. The option does not exist on `net10.0`. Without the option a literal is `SyntaxNotEnabled`, a parse error: the two errors have two stages and never meet.
+
 ## Not in this part
 
 Extension sets (4003–4005, 4018) and the `decimal` literal flag come with their parts. The time zone database and the code 4012 are in the table above and in [time zones](time-zones.md).

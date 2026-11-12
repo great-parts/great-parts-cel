@@ -10,11 +10,16 @@ namespace Great.Parts.Cel.Syntax;
 /// or a message field are accepted; otherwise each is <see cref="CelErrorCode.SyntaxNotEnabled"/> at its <c>?</c>.
 /// </param>
 /// <param name="Macros">The macros of the parser.</param>
-internal sealed record SyntaxOptions(bool OptionalSyntax, MacroTable Macros)
+/// <param name="DecimalLiterals">
+/// Whether a <c>decimal</c> literal such as <c>12.34m</c> or <c>100m</c> is accepted; otherwise it is
+/// <see cref="CelErrorCode.SyntaxNotEnabled"/>. The member exists on every target and is never set on .NET 10, where a
+/// <c>decimal</c> literal is not accepted whatever the options say.
+/// </param>
+internal sealed record SyntaxOptions(bool OptionalSyntax, MacroTable Macros, bool DecimalLiterals = false)
 {
     /// <summary>
-    /// The syntax of an environment without extension sets: <see cref="OptionalSyntax"/> off and
-    /// <see cref="MacroTable.Standard"/>.
+    /// The syntax of an environment without extension sets: <see cref="OptionalSyntax"/> and <see cref="DecimalLiterals"/>
+    /// off and <see cref="MacroTable.Standard"/>.
     /// </summary>
     internal static SyntaxOptions Standard { get; } = new(OptionalSyntax: false, MacroTable.Standard);
 }

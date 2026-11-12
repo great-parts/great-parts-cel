@@ -669,9 +669,7 @@ internal sealed class Parser
         CelValue value;
         if (token.Kind == TokenKind.DecimalLiteral)
         {
-            // The decimal literal has no flag in the syntax options yet; its node only lets parsing go on.
-            Report(CelErrorCode.SyntaxNotEnabled, DecimalLiteralNotEnabled, minus ?? token.Offset);
-            value = CelValue.Null;
+            value = ParseDecimalLiteral(token, minus);
         }
         else if (!Literals.TryConvert(_text, token, minus, _lines!, out value, out CelError? error))
         {
@@ -679,6 +677,25 @@ internal sealed class Parser
         }
 
         return _nodes.Constant(value, minus ?? token.Offset);
+    }
+
+    // A decimal literal: with the option of the environment its exact value, or InvalidLiteral. Without the option, and always on
+    // .NET 10, which has no decimal, it is recognized and refused, and its node only lets parsing go on.
+    private CelValue ParseDecimalLiteral(Token token, int? minus)
+    {
+#if NET11_0_OR_GREATER
+        if (_syntax.DecimalLiterals)
+        {
+            if (!Literals.TryConvertDecimal(_text, token, minus, _lines!, out CelValue value, out CelError? error))
+            {
+                Report(error);
+            }
+
+            return value;
+        }
+#endif
+        Report(CelErrorCode.SyntaxNotEnabled, DecimalLiteralNotEnabled, minus ?? token.Offset);
+        return CelValue.Null;
     }
 
     // "[" [ListInit] [","] "]", where an element may have "?" before it.

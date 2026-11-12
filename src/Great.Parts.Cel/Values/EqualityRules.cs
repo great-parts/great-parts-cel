@@ -107,9 +107,9 @@ internal static class EqualityRules
     private static ValueEquality SameKind(CelValue left, CelValue right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
     {
         error = default;
-        if (left.Kind is CelValueKind.Null or CelValueKind.Bool or CelValueKind.Timestamp or CelValueKind.Duration)
+        if (HasNoContent(left.Kind))
         {
-            // These kinds have no content to walk: one unit, and the same payload.
+            // These kinds have no content to walk: one unit, and the same payload; two decimals are equal by value, not by cohort.
             meter?.Charge(1);
             return Result(left.Equals(right));
         }
@@ -139,13 +139,19 @@ internal static class EqualityRules
                 _ = left.TryGetMap(out CelMap? leftMap);
                 _ = right.TryGetMap(out CelMap? rightMap);
                 return MapsEqual(leftMap!, rightMap!, meter, out error, types, boundary);
-            case CelValueKind.Optional:
-                return OptionalsEqual(left, right, meter, out error, types, boundary);
             default:
-                // Decimals come with their part.
-                throw new NotImplementedException();
+                // The kind Optional: every other kind has been decided above.
+                return OptionalsEqual(left, right, meter, out error, types, boundary);
         }
     }
+
+    // The kinds whose values have no content to walk.
+    private static bool HasNoContent(CelValueKind kind) =>
+        kind is CelValueKind.Null or CelValueKind.Bool or CelValueKind.Timestamp or CelValueKind.Duration
+#if NET11_0_OR_GREATER
+            or CelValueKind.Decimal
+#endif
+        ;
 
     // Two optionals: 1 unit; two empty ones are equal, an empty and a non-empty one are not, and two that hold values are equal when the
     // values are, by CEL equality, which charges its own units. An error of the comparison of the held values is the result.

@@ -37,8 +37,11 @@ internal static class ValueTypeRules
         CelValueKind.Timestamp => CelType.Timestamp,
         CelValueKind.Duration => CelType.Duration,
         CelValueKind.Optional => OptionalType,
+#if NET11_0_OR_GREATER
+        CelValueKind.Decimal => CelType.Decimal,
+#endif
 
-        // Objects and decimals come with their parts.
+        // Objects come with their part.
         _ => throw new NotImplementedException(),
     };
 
@@ -378,8 +381,13 @@ internal static class ValueTypeRules
             CelTypeKind.Timestamp => kind == CelValueKind.Timestamp,
             CelTypeKind.Duration => kind == CelValueKind.Duration,
             CelTypeKind.Optional => kind == CelValueKind.Optional,
+#if NET11_0_OR_GREATER
 
-            // Decimals come with their part.
+            // A decimal fits only decimal, not null: the static null is assignable to the type, a null value is not a decimal.
+            CelTypeKind.Decimal => kind == CelValueKind.Decimal,
+#endif
+
+            // Every kind of type has its arm above.
             _ => throw new NotImplementedException(),
         };
     }

@@ -17,7 +17,8 @@ internal sealed class DeclarationSet
         ImmutableArray<TypeSource> typeSources,
         ImmutableArray<SourcedDeclaration<CelExtension>> extensions = default,
         CelTimeZoneDatabase? timeZones = null,
-        bool timeZoneConflict = false)
+        bool timeZoneConflict = false,
+        bool decimalLiterals = false)
     {
         Variables = variables;
         Functions = functions;
@@ -28,6 +29,7 @@ internal sealed class DeclarationSet
         Extensions = extensions.IsDefault ? [] : extensions;
         TimeZones = timeZones;
         TimeZoneConflict = timeZoneConflict;
+        DecimalLiterals = decimalLiterals;
     }
 
     internal ImmutableArray<SourcedDeclaration<CelVariableDecl>> Variables { get; }
@@ -52,4 +54,7 @@ internal sealed class DeclarationSet
 
     // Whether a database other than the first was added: the build error TimeZoneDatabaseConflict.
     internal bool TimeZoneConflict { get; }
+
+    // Whether the builder enabled decimal literals; always false on .NET 10, whose builder has no such method.
+    internal bool DecimalLiterals { get; }
 }

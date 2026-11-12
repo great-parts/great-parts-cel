@@ -43,17 +43,14 @@ internal static partial class ConversionRules
     /// nullable value is the CEL <c>null</c>.
     /// </summary>
     /// <remarks>
-    /// A value that the row refuses — an enumeration on <c>ulong</c> above the range of <c>int</c> — is an error value
-    /// <see cref="CelErrorCode.ConversionRange"/> without a place: the reader of the value gives it the place of the read.
+    /// A value that the row refuses — an enumeration on <c>ulong</c> above the range of <c>int</c>, a NaN or an infinity of a
+    /// <c>Decimal128</c> — is an error value <see cref="CelErrorCode.ConversionRange"/> without a place: the reader of the value
+    /// gives it the place of the read.
     /// </remarks>
     /// <typeparam name="T">The .NET type that selects the row.</typeparam>
     /// <param name="value">The value.</param>
     /// <param name="result">The CEL value when the method returns <see langword="true"/>; otherwise <c>null</c>.</param>
     /// <returns><see langword="true"/> when <typeparamref name="T"/> is an input type, the same as <see cref="InputType{T}"/>.</returns>
-    /// <exception cref="NotImplementedException">
-    /// <typeparamref name="T"/> is <see cref="object"/> and the value is of a .NET type outside the rows, which a later
-    /// part of the library reads.
-    /// </exception>
     internal static bool TryFromClr<T>(T value, out CelValue result)
     {
         if (IsSigned<T>())
@@ -79,6 +76,9 @@ internal static partial class ConversionRules
             || TryFromCelValueOrObject(value, out result)
             || TryFromNullable(value, out result)
             || TryFromNullableTime(value, out result)
+#if NET11_0_OR_GREATER
+            || TryFromDecimal(value, out result)
+#endif
             || TryFromJson(value, out result)
             || TryFromOptional(value, out result)
             || TryFromCollection(value, out result);
@@ -140,15 +140,23 @@ internal static partial class ConversionRules
             return DynMap;
         }
 
-        // Nullable<X> of a value type with a wrapper: the wrapper of the CEL type of X; of time, the type of X, since CEL has
-        // no wrapper of it.
+        // Nullable<X> of a value type with a wrapper: the wrapper of the CEL type of X; of time and of decimal, the type of X, since
+        // CEL has no wrapper of them.
         if (Nullable.GetUnderlyingType(type) is not Type underlying || ScalarInputType(underlying) is not CelType primitive)
         {
             return null;
         }
 
-        return primitive.Kind is CelTypeKind.Timestamp or CelTypeKind.Duration ? primitive : CelType.WrapperOf(primitive);
+        return HasNoWrapper(primitive) ? primitive : CelType.WrapperOf(primitive);
     }
+
+    // The CEL types that have no wrapper: those of time and decimal.
+    private static bool HasNoWrapper(CelType type) =>
+        type.Kind is CelTypeKind.Timestamp or CelTypeKind.Duration
+#if NET11_0_OR_GREATER
+            or CelTypeKind.Decimal
+#endif
+        ;
 
     // The rows of numbers, enumerations, bool, string, Guid and bytes.
     private static CelType? ScalarInputType(Type type)
@@ -178,7 +186,16 @@ internal static partial class ConversionRules
             return CelType.String;
         }
 
-        return type == typeof(byte[]) || type == typeof(ReadOnlyMemory<byte>) ? CelType.Bytes : TimeInputType(type);
+        if (type == typeof(byte[]) || type == typeof(ReadOnlyMemory<byte>))
+        {
+            return CelType.Bytes;
+        }
+
+#if NET11_0_OR_GREATER
+        return TimeInputType(type) ?? DecimalInputType(type);
+#else
+        return TimeInputType(type);
+#endif
     }
 
     private static bool IsSigned(Type type) =>
@@ -479,18 +496,10 @@ internal static partial class ConversionRules
             return result;
         }
 
-        // Decimals come with their part. Any other instance, a .NET collection included, is a bare object value
-        // that the node which reads it decides with the type index.
-        return IsOfLaterPart(value!) ? throw new NotImplementedException() : CelValue.FromBareObject(value!);
+        // Any other instance, a .NET collection included, is a bare object value that the node which reads it decides
+        // with the type index; so is a System.Decimal on .NET 10, which has no decimal.
+        return CelValue.FromBareObject(value!);
     }
-
-    // The instances of the input rows that later parts read: decimals.
-    private static bool IsOfLaterPart(object value) =>
-        value is decimal
-#if NET11_0_OR_GREATER
-            or System.Numerics.Decimal128
-#endif
-        ;
 
     // The same, false for a .NET type outside the rows.
     private static bool TryFromObject(object? value, out CelValue result)
@@ -527,7 +536,11 @@ internal static partial class ConversionRules
             JsonElement element => JsonRules.FromElement(element),
             Enum number => FromBoxedEnum(number),
             IOptionalSource optional when optional.TryToCelValue(out CelValue held) => held,
+#if NET11_0_OR_GREATER
+            _ => FromBoxedDecimal(value),
+#else
             _ => null,
+#endif
         };
 
         result = converted.GetValueOrDefault();

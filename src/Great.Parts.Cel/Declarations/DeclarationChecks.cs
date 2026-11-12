@@ -18,6 +18,13 @@ internal sealed class DeclarationChecks
 {
     internal const string ApplicationSource = "application";
 
+    // The hint of TypeNotDeclared for the type decimal: the set to add, and on .NET 10 that the set exists only on .NET 11.
+#if NET11_0_OR_GREATER
+    private const string DecimalHint = "; add the extension set 'decimal'";
+#else
+    private const string DecimalHint = "; the extension set 'decimal' exists only on .NET 11";
+#endif
+
     // The declarations to check: the set of the builder, with the declarations of the types of the application that the type
     // index describes resolved (ResolveUnmapped).
     private DeclarationSet _set;
@@ -52,6 +59,10 @@ internal sealed class DeclarationChecks
     // The set that declares the abstract type of a name, for the hint of TypeNotDeclared; the catalog gives it. Null: no hints.
     private readonly Func<string, string?>? _abstractTypeSets;
 
+    // Whether a surviving set declares the type decimal, which only the set decimal does; always false on .NET 10, which has no such
+    // type. A type of the kind Decimal in a variable or an overload is declared only then.
+    private bool DecimalDeclared { get; set; }
+
     private DeclarationChecks(DeclarationSet set, LibraryDeclarations library, Func<string, string?>? abstractTypeSets)
     {
         _set = set;
@@ -73,7 +84,7 @@ internal sealed class DeclarationChecks
         Func<string, string?>? abstractTypeSets = null)
     {
         var checks = new DeclarationChecks(set, library, abstractTypeSets);
-        checks._sets = ExtensionChecks.Check(set.Extensions, checks._errors);
+        checks._sets = ExtensionChecks.Check(set.Extensions, checks._errors, set.DecimalLiterals);
         extensions = checks._sets;
         checks.CheckSetTypes();
         if (set.TimeZoneConflict)
@@ -82,6 +93,9 @@ internal sealed class DeclarationChecks
         }
 
         types = checks.CheckTypes();
+#if NET11_0_OR_GREATER
+        types = types.WithDecimalDeclared(checks.DecimalDeclared);
+#endif
         checks.ResolveUnmapped(types);
         checks.ResolveImplementations(types);
         variables = checks.CheckVariables();
@@ -104,6 +118,9 @@ internal sealed class DeclarationChecks
         {
             foreach (AbstractTypeDeclaration declaration in set.AbstractTypes)
             {
+#if NET11_0_OR_GREATER
+                DecimalDeclared |= declaration.Type.Kind == CelTypeKind.Decimal;
+#endif
                 if (_library.ReservedNames.Contains(declaration.Name))
                 {
                     _errors.Add(BuildErrors.DuplicateType(declaration.Name, StandardLibrarySource, set.Source, null));
@@ -246,7 +263,7 @@ internal sealed class DeclarationChecks
 
         if (variables is null && functions is null)
         {
-            _set = new DeclarationSet(_set.Variables, _set.Functions, _set.Implementations, _set.Containers, remaining.DrainToImmutable(), _set.TypeSources, _set.Extensions);
+            _set = new DeclarationSet(_set.Variables, _set.Functions, _set.Implementations, _set.Containers, remaining.DrainToImmutable(), _set.TypeSources, _set.Extensions, decimalLiterals: _set.DecimalLiterals);
             return;
         }
 
@@ -257,7 +274,8 @@ internal sealed class DeclarationChecks
             _set.Containers,
             remaining.DrainToImmutable(),
             _set.TypeSources,
-            _set.Extensions);
+            _set.Extensions,
+            decimalLiterals: _set.DecimalLiterals);
     }
 
     // The typed implementations of AddFunctionImplementation whose parameter or result is a class, record, struct or interface
@@ -279,7 +297,7 @@ internal sealed class DeclarationChecks
 
         if (resolved is not null)
         {
-            _set = new DeclarationSet(_set.Variables, _set.Functions, resolved.MoveToImmutable(), _set.Containers, _set.Unmapped, _set.TypeSources, _set.Extensions);
+            _set = new DeclarationSet(_set.Variables, _set.Functions, resolved.MoveToImmutable(), _set.Containers, _set.Unmapped, _set.TypeSources, _set.Extensions, decimalLiterals: _set.DecimalLiterals);
         }
     }
 
@@ -371,12 +389,13 @@ internal sealed class DeclarationChecks
         }
     }
 
-    // An object type in the type of a field that no type source describes.
+    // An object type in the type of a field that no type source describes. A field of the type decimal is no error in any environment:
+    // it is refused where an expression selects it.
     private void CheckFieldTypes(CelObjectType objectType, TypeSource source)
     {
         foreach (CelObjectField field in objectType.Fields)
         {
-            if (Undeclared(field.Type) is CelType undeclared)
+            if (Undeclared(field.Type, decimalDeclared: true) is CelType undeclared)
             {
                 _errors.Add(BuildErrors.TypeNotDeclared("field", objectType.Name + "." + field.Name, undeclared.ToString(), source.PositionOf(field), HintOf(undeclared)));
             }
@@ -399,7 +418,7 @@ internal sealed class DeclarationChecks
                 continue;
             }
 
-            if (Undeclared(variable.Type) is CelType undeclared)
+            if (Undeclared(variable.Type, DecimalDeclared) is CelType undeclared)
             {
                 _errors.Add(BuildErrors.TypeNotDeclared("variable", variable.Name, undeclared.ToString(), sourced.Position, HintOf(undeclared)));
                 continue;
@@ -453,7 +472,7 @@ internal sealed class DeclarationChecks
             }
 
             _errors.Add(DeclarationNames.IsQualifiedIdentifier(unmapped.Name)
-                ? BuildErrors.TypeNotDeclared("variable", unmapped.Name, unmapped.ClrType.ToString())
+                ? BuildErrors.TypeNotDeclared("variable", unmapped.Name, unmapped.ClrType.ToString(), hint: HintOf(unmapped.ClrType))
                 : BuildErrors.InvalidVariableName(unmapped.Name, ApplicationSource));
         }
 
@@ -531,7 +550,7 @@ internal sealed class DeclarationChecks
 
             _declaredIds.Add(unmapped.Name);
             _errors.Add(DeclarationNames.IsQualifiedIdentifier(function)
-                ? BuildErrors.TypeNotDeclared("overload", unmapped.Name, unmapped.ClrType.ToString())
+                ? BuildErrors.TypeNotDeclared("overload", unmapped.Name, unmapped.ClrType.ToString(), hint: HintOf(unmapped.ClrType))
                 : BuildErrors.InvalidFunctionName(function, ApplicationSource));
         }
 
@@ -744,7 +763,7 @@ internal sealed class DeclarationChecks
             }
             else if (sameId[0].Unresolved is Type unresolved)
             {
-                _errors.Add(BuildErrors.TypeNotDeclared("overload", id, unresolved.ToString()));
+                _errors.Add(BuildErrors.TypeNotDeclared("overload", id, unresolved.ToString(), hint: HintOf(unresolved)));
             }
             else if (_unique.TryGetValue(id, out OverloadEntry? declared)
                 && sameId[0].IsTyped
@@ -965,29 +984,42 @@ internal sealed class DeclarationChecks
     {
         foreach (CelType parameterType in overload.ParameterTypes)
         {
-            if (Undeclared(parameterType) is CelType undeclared)
+            if (Undeclared(parameterType, DecimalDeclared) is CelType undeclared)
             {
                 return undeclared;
             }
         }
 
-        return Undeclared(overload.ResultType);
+        return Undeclared(overload.ResultType, DecimalDeclared);
     }
 
-    // An object type that no type source describes, google.protobuf.Any when no source describes it, or a type of optional when no
-    // surviving set declares the name optional_type.
-    private CelType? Undeclared(CelType type)
+    // The first type in this type that nothing in the environment declares, as FindUndeclared finds it; but the type decimal, which
+    // the set decimal declares, is named by the whole type that mentions it, as it is written — list(decimal), map(string, decimal) —
+    // and not by its leaf.
+    private CelType? Undeclared(CelType type, bool decimalDeclared)
+    {
+        CelType? found = FindUndeclared(type, decimalDeclared);
+        return found is not null && IsDecimal(found) ? type : found;
+    }
+
+    // An object type that no type source describes, google.protobuf.Any when no source describes it, a type of optional when no
+    // surviving set declares the name optional_type, or the type decimal when decimalDeclared is false.
+    private CelType? FindUndeclared(CelType type, bool decimalDeclared)
     {
         if ((type.Kind == CelTypeKind.Object && !_typeNames.Contains(type.Name) && !_setTypes.ContainsKey(type.Name))
             || (type.Kind == CelTypeKind.Any && !_typeNames.Contains(type.Name))
-            || (type.Kind == CelTypeKind.Optional && !_setTypes.ContainsKey(type.Name)))
+            || (type.Kind == CelTypeKind.Optional && !_setTypes.ContainsKey(type.Name))
+#if NET11_0_OR_GREATER
+            || (type.Kind == CelTypeKind.Decimal && !decimalDeclared)
+#endif
+            )
         {
             return type;
         }
 
         foreach (CelType parameter in type.Parameters)
         {
-            if (Undeclared(parameter) is CelType undeclared)
+            if (FindUndeclared(parameter, decimalDeclared) is CelType undeclared)
             {
                 return undeclared;
             }
@@ -1054,11 +1086,50 @@ internal sealed class DeclarationChecks
     }
 
     // The hint of TypeNotDeclared for an object type or an optional type whose name the catalog gives to a type of a set that the
-    // environment does not have: the set to add; empty for any other type.
-    private string HintOf(CelType type) =>
-        type.Kind is CelTypeKind.Object or CelTypeKind.Optional && _abstractTypeSets?.Invoke(type.Name) is string set
+    // environment does not have: the set to add; for the type decimal, which the set decimal declares and the catalog does not list,
+    // the same, and on .NET 10 the remark that the set exists only on .NET 11; empty for any other type.
+    private string HintOf(CelType type)
+    {
+        if (MentionsDecimal(type))
+        {
+            return DecimalHint;
+        }
+
+        return type.Kind is CelTypeKind.Object or CelTypeKind.Optional && _abstractTypeSets?.Invoke(type.Name) is string set
             ? "; add the extension set '" + set + "'"
             : string.Empty;
+    }
+
+    // The hint for a .NET type that maps to no CEL type: System.Decimal on .NET 10, which has no decimal; no other type has one. On
+    // .NET 11 System.Decimal maps, so the case does not come up there.
+    private static string HintOf(Type clrType) =>
+        clrType == typeof(decimal) || Nullable.GetUnderlyingType(clrType) == typeof(decimal) ? DecimalHint : string.Empty;
+
+    // The type decimal, or the name decimal that a description of an environment gives a variable, a field or an overload.
+    private static bool IsDecimal(CelType type) =>
+#if NET11_0_OR_GREATER
+        type.Kind == CelTypeKind.Decimal ||
+#endif
+        (type.Kind == CelTypeKind.Object && string.Equals(type.Name, "decimal", StringComparison.Ordinal));
+
+    // Whether the type is decimal or has it at any depth.
+    private static bool MentionsDecimal(CelType type)
+    {
+        if (IsDecimal(type))
+        {
+            return true;
+        }
+
+        foreach (CelType parameter in type.Parameters)
+        {
+            if (MentionsDecimal(parameter))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     // An overload that passed the checks: its function, its source and, for a description in JSON, its position. Two
     // overloads are ordered by the source text, ordinal, the position in the JSON text, then the function.

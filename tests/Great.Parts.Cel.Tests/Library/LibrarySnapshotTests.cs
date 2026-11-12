@@ -88,13 +88,20 @@ public sealed class LibrarySnapshotTests
     [Fact]
     public static void OptionalV2() => SetSnapshot("optional", 2);
 
+#if NET11_0_OR_GREATER
+    // The set decimal is not a row of the catalog, so the writer takes its extension from CelExtensions.
+    [Fact]
+    public static void DecimalV1() => SetSnapshot("decimal", 1, CelExtensions.Decimal(1));
+#endif
+
     // The declarations of a version of a set against the file that records them (docs/design/tests.md, "Snapshots of the extension
-    // sets"): the lines that differ are named with both texts, in the order of the table of the set.
-    private static void SetSnapshot(string name, uint version)
+    // sets"): the lines that differ are named with both texts, in the order of the table of the set. A set that the catalog does not
+    // have is passed as its extension.
+    private static void SetSnapshot(string name, uint version, CelExtension? extension = null)
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Library", "Snapshots", name + "-v" + version.ToString(CultureInfo.InvariantCulture) + ".txt");
         string[] recorded = [.. File.ReadAllLines(path).Where(line => line.Length > 0 && line[0] != '#')];
-        string[] actual = SetLines(name, version);
+        string[] actual = SetLines(name, version, extension);
 
         var differences = new List<string>();
         for (int i = 0; i < Math.Max(recorded.Length, actual.Length); i++)
@@ -111,9 +118,9 @@ public sealed class LibrarySnapshotTests
     }
 
     // The text of a version: a header, the dependencies, the abstract types, the macros, then one line for each overload.
-    private static string[] SetLines(string name, uint version)
+    private static string[] SetLines(string name, uint version, CelExtension? extension)
     {
-        ExtensionDefinition definition = Great.Parts.Cel.Library.Extensions.ExtensionCatalog.Default.Get(name, version).Definition
+        ExtensionDefinition definition = (extension ?? Great.Parts.Cel.Library.Extensions.ExtensionCatalog.Default.Get(name, version)).Definition
             ?? throw new InvalidOperationException("the set " + name + " " + version.ToString(CultureInfo.InvariantCulture) + " has no definition");
         return
         [
@@ -151,6 +158,9 @@ public sealed class LibrarySnapshotTests
     {
         CelTypeKind.Int => CelValue.FromInt64(size),
         CelTypeKind.Double => CelValue.FromDouble(1),
+#if NET11_0_OR_GREATER
+        CelTypeKind.Decimal => Decimals.DecimalEnvironment.Make(15, -1),
+#endif
         CelTypeKind.Abstract when type.Name == Great.Parts.Cel.Library.Extensions.Network.NetworkTypes.IpName =>
             Great.Parts.Cel.Library.Extensions.Network.NetworkFunctions.StringToIp([CelValue.FromString("10.0.0.1")], NetworkSite()),
         CelTypeKind.Abstract =>

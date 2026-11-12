@@ -76,6 +76,19 @@ Code that a later part of the library adds to `Values` follows the same rule: lo
 | `src/Great.Parts.Cel/Values/CalendarRules.cs` | the proleptic Gregorian calendar: days and dates, weekday, day of the year | the receivers of `timestamp`, the grammar of RFC 3339 |
 | `src/Great.Parts.Cel/Values/TimeZoneRules.cs`, `TimeZoneRules.Tzif.cs`, `TimeZoneRules.Posix.cs` | the resolution of a zone name; reading TZif; the POSIX TZ rule; the offset of a zone at an instant ([time zones](time-zones.md)) | `UseTimeZones`, the receivers with a zone |
 
+## Rule files of `decimal`
+
+The part of [decimal](extension-decimal.md) adds three files to `Values/` and a directory to `Library/`, all under `#if NET11_0_OR_GREATER` as a whole; the core paths below already cover the two that hold rules and the directory, so no pattern changes and the line of `Library/Decimals/` in the layout table stands.
+
+| File | Rules | Core |
+| :- | :- | :- |
+| `src/Great.Parts.Cel/Values/DecimalTextRules.cs` | the reading of a literal and of a string, the rounding to 34 digits, the text of a value, `double` to a decimal and back ([decimal-text](decimal-text.md)) | yes: `Values/*Rules.cs` |
+| `src/Great.Parts.Cel/Values/DecimalNumberRules.cs` | `int`, `uint` and `System.Decimal` to and from a value | yes: `Values/*Rules.cs` |
+| `src/Great.Parts.Cel/Values/DecimalParts.cs` | the struct of sign, coefficient and exponent, and the BID bits; no rule of the language | no: it is the model of the rules, as `CelTimestamp` is the model of the rules of time |
+| `src/Great.Parts.Cel/Library/Decimals/**` | the set: the table of overloads, the implementations, the cost functions | yes: `Library/**` |
+
+A defect in a core file is a wrong answer for a decimal and no visible error, but `eng/difftest` cannot see it: cel-go has no `decimal`. Its guard is the exact reference of [tests](tests.md#tests-of-decimal), which the change of a core file of the part must pass in the same way: a task of the core that changes these files is accepted by the comparison with that reference, and the differential run finds nothing about it by construction.
+
 ## Regex and Unicode
 
 `Library/Regex/` and `Library/Unicode/` are internal sub-namespaces of `Library`, so both are core by the paths below: a defect in them is a wrong answer of `matches`, not a visible error, and a change goes through `eng/difftest`. They hold the code of [regex-syntax](regex-syntax.md) and [regex-engine](regex-engine.md) and the generated tables of [unicode-tables](unicode-tables.md).

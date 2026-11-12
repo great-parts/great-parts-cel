@@ -314,6 +314,9 @@ internal sealed class Checker
         CelValueKind.Double => CelType.Double,
         CelValueKind.String => CelType.String,
         CelValueKind.Bytes => CelType.Bytes,
+#if NET11_0_OR_GREATER
+        CelValueKind.Decimal => CelType.Decimal,
+#endif
         _ => throw new UnreachableException("A literal has no other kind."),
     };
 
@@ -451,6 +454,15 @@ internal sealed class Checker
                     return null;
                 }
 
+#if NET11_0_OR_GREATER
+                // A field of the type decimal is usable only where the environment declares the type: the description is valid in
+                // every environment, and the selection is where it is refused. The node has no type and no reference.
+                if (RefusesDecimalField(description, declared, location))
+                {
+                    return null;
+                }
+#endif
+
                 if (select is not null && !optional)
                 {
                     _references.Add(select.Id, Reference.ToField(description, declared.Number));
@@ -469,6 +481,43 @@ internal sealed class Checker
 
         return isPresenceTest ? CelType.Bool : optional ? OptionalType(result) : result;
     }
+
+#if NET11_0_OR_GREATER
+    // The reason of FieldNotAccessible for a field of the type decimal in an environment without the set decimal.
+    private const string DecimalFieldReason = "the CEL type decimal needs the extension set 'decimal'";
+
+    // A field whose type mentions decimal, in an environment that has no set decimal, is FieldNotAccessible at the place; true when it
+    // was reported.
+    private bool RefusesDecimalField(CelObjectType description, CelObjectField field, CelSourceLocation location)
+    {
+        if (_declarations.Types.DecimalDeclared || !MentionsDecimal(field.Type))
+        {
+            return false;
+        }
+
+        _errors.Add(CheckErrors.FieldNotAccessible(field.Name, description.Name, DecimalFieldReason, location));
+        return true;
+    }
+
+    // Whether the type is decimal or has it at any depth: list(decimal), map(string, decimal), optional_type(decimal).
+    private static bool MentionsDecimal(CelType type)
+    {
+        if (type.Kind == CelTypeKind.Decimal)
+        {
+            return true;
+        }
+
+        foreach (CelType parameter in type.Parameters)
+        {
+            if (MentionsDecimal(parameter))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+#endif
 
     // optional_type(T).
     private static CelType OptionalType(CelType valueType) => new(CelTypeKind.Optional, OptionalTypeName, [valueType]);

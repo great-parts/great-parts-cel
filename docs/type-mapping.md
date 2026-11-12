@@ -2,7 +2,7 @@
 
 This page says how a .NET value becomes a CEL value and how a CEL value becomes a .NET value. The input rows apply wherever a value enters an expression: the bindings of `CelBindings`, the declaration `AddVariable<T>`, and the arguments and the results of the functions of the application. The result rows apply to the result of `Compile<T>`, `Evaluate<T>` and the one-step call, and to the parameters of the typed delegates of the functions of the application.
 
-Not in this version of the page: the rows of `decimal` and the descriptions of .NET types that the source generator writes. They come with their parts. The messages of protobuf have their rows in the section [Protobuf messages](#protobuf-messages), and the values of `optional` in the section [Optional values](#optional-values). The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
+Not in this version of the page: the descriptions of .NET types that the source generator writes. They come with their part. The rows of `decimal`, which exist only on .NET 11, are in the section [Decimal](#decimal). The messages of protobuf have their rows in the section [Protobuf messages](#protobuf-messages), and the values of `optional` in the section [Optional values](#optional-values). The objects of the application, the collections of the application and `JsonElement` have their rows below, and the types described at run time are on the page [Types described at run time](runtime-types.md). A .NET type outside the rows is the build error `TypeNotDeclared` (4008) for a variable or a function, and an `ArgumentException` for the type `T` of a result.
 
 An error of a conversion is an error of the result, not an exception, except the conditions that the documentation of a method names. A refusal of a value to enter the expression is an error value where the value is read: the binding when the expression reads the variable, the result of a function at the call.
 
@@ -25,7 +25,8 @@ An error of a conversion is an error of the result, not an exception, except the
 | `DateTime` of the kind `Utc` | `timestamp` | the same moment; another kind is refused, see [Time](#time) |
 | `CelDuration` | `duration` | as it is |
 | `TimeSpan` | `duration` | exactly, a tick is 100 ns; a value outside the range of `duration` is `ConversionRange` |
-| `Nullable<X>`, `X` a value type of the rows above | the wrapper of the CEL type of `X`, such as `wrapper(int)`; for time the type of `X` itself, since CEL has no wrapper of time | `null` is the value `null`; for time it fits no type, see [Time](#time) |
+| `Decimal128`, `System.Decimal`, on .NET 11 | `decimal`; needs the extension set `decimal`, see [Decimal](#decimal) | exactly: the digits, the exponent and the sign of a zero are kept; a NaN and an infinity are no values |
+| `Nullable<X>`, `X` a value type of the rows above | the wrapper of the CEL type of `X`, such as `wrapper(int)`; for time and for decimal the type of `X` itself, since CEL has no wrapper of them | `null` is the value `null`; for time and for decimal it fits no type, see [Time](#time) and [Decimal](#decimal) |
 | `CelValue` | `dyn` | as it is |
 | `CelOptional<X>`, `X` a type of these rows | `optional_type(E)`, with `E` the CEL type of `X`; needs the set `optional`, see [Optional values](#optional-values) | the empty structure is `optional.none()`, a structure that has a value is `optional.of` of the converted value, a `null` among them |
 | `CelList`, `CelMap` | `list(dyn)`, `map(dyn, dyn)` | as they are; a `null` reference is the value `null` |
@@ -108,6 +109,24 @@ CEL has no wrapper of time, so `DateTimeOffset?`, `DateTime?`, `TimeSpan?`, `Cel
 
 A time value is a scalar. In a collection it goes through `CelList`, `CelMap`, `CelValue` or `object` (boxed `DateTimeOffset`, `DateTime`, `TimeSpan`, `CelTimestamp` or `CelDuration`); a typed collection of time such as `IReadOnlyList<DateTimeOffset>` is not one of the rows: `AddVariable<T>` is `TypeNotDeclared` and `CelBindings.Add<T>` an `ArgumentException`. A field of the type `timestamp` or `duration` of a type described at run time reads `CelValue.FromTimestamp(…)` or `CelValue.FromDuration(…)`, which allocates nothing.
 
+### Decimal
+
+On .NET 11, `Decimal128` and `System.Decimal` are the CEL type `decimal`, an IEEE 754 decimal128 number of 34 significant digits. The type exists only on .NET 11 and only in an environment that has the extension set `decimal`: on .NET 10 there is no `decimal` type, no `Decimal128`, and no member of the public API for it.
+
+- **Input.** A `Decimal128` keeps its coefficient, its exponent and the sign of its zero, so `1.50` and `1.5` are the same number with different digits, and `-0` stays a negative zero. A `System.Decimal` has at most 29 digits and a scale of at most 28, which fit the 34 digits; its scale is the exponent, and the sign of its zero is kept. `Decimal128?` and `decimal?` have the CEL type of the value, since CEL has no wrapper of `decimal`: a `null` bound to such a variable is the value `null`, which fits no decimal, so it is `BindingTypeMismatch` (3011) at the first read. The static `null` is assignable to the type `decimal`, as it is to every abstract type, so `price == null` is type-checked and is `false`.
+- **A NaN and an infinity** are no values of CEL. `CelBindings.Add` of a `Decimal128` or a `Decimal128?` that is one throws `ArgumentException`. A member of an object, the result of a typed function and a boxed value in a place of type `dyn` are the evaluation error `ConversionRange` (3007), `NaN is out of the range of decimal` (`+Inf` and `-Inf` the same way); the node that reads the value gives it its place.
+- **Typed collections.** `IReadOnlyList<Decimal128>`, `IReadOnlyList<decimal>`, `IReadOnlyDictionary<string, Decimal128>`, an array or a set of decimals is not one of the rows, as a typed collection of time is not: `AddVariable<T>` is `TypeNotDeclared` and `CelBindings.Add<T>` an `ArgumentException`. A decimal goes into a list or a map as `CelValue.FromDecimal(…)` in `CelList.Create` or `CelMap.Create`, or boxed in an `IReadOnlyList<object>`. `CelList.CreateSorted` orders the elements of a set of decimals by the number; two elements that are equal as numbers, such as `1.5` and `1.50`, are an `ArgumentException`, as `0.0` and `-0.0` of a `double` are.
+- **A place of type `dyn`.** A boxed `Decimal128` or `System.Decimal` there is a decimal wherever the environment has the extension set, and the error `TypeNotAccessible` (3012) at the node that reads it where it has not.
+- **Result.** A `decimal` becomes a `Decimal128` exactly, and a `System.Decimal` rounded half to even to 28 places and 96 bits, with the scale of the value kept when it fits. A value outside the range of `System.Decimal`, such as `1E+29`, is `ResultConversion` (3015) at the root, and `ArgumentConversion` (3024) for a parameter of a typed delegate. There is no row for `double`: `Compile<double>` of a decimal expression is `ExpectedTypeMismatch`, and `double(x)` is the only way from a decimal to a `double`.
+
+Without the extension set the same declarations and values have these outcomes:
+
+| Declaration or value | .NET 11 without the set | .NET 10 |
+| :- | :- | :- |
+| `AddVariable<Decimal128>`, `AddVariable<System.Decimal>`, a delegate with such a parameter or result | `TypeNotDeclared` (4008), `…; add the extension set 'decimal'` | `System.Decimal` is `TypeNotDeclared`, `…; the extension set 'decimal' exists only on .NET 11`; there is no `Decimal128` |
+| a field of the type `System.Decimal` or `Decimal128` of an object, selected in an expression | `FieldNotAccessible` (2007) at the selection, with the name of the set | the source generator excludes the member with a warning |
+| a boxed `Decimal128` or `System.Decimal` in a place of type `dyn` | `TypeNotAccessible` (3012) at the node that reads it | the same for a boxed `System.Decimal` |
+
 ## Optional values
 
 The type `optional_type(E)` of the set [optional](extensions.md#set-optional-version-2) is `CelOptional<X>` in .NET, `E` and `X` by the rows of this page. A declaration `AddVariable<CelOptional<long>>` is the CEL type `optional_type(int)` and needs the set; without it the build error is `TypeNotDeclared` (4008), `…; add the extension set 'optional'`. A `CelOptional<X>` in a place of type `dyn`, or as an `object`, has the type `optional_type(dyn)`.
@@ -188,6 +207,7 @@ The value of the root is converted to the type `T` by the rows below. A value wh
 | `bytes` | `ReadOnlyMemory<byte>`, `byte[]` | `ReadOnlyMemory<byte>` without a copy; `byte[]` as a copy | a value of another type |
 | `timestamp` | `CelTimestamp`, `DateTimeOffset` | `CelTimestamp` exactly; `DateTimeOffset` with offset 0 | `T = DateTimeOffset` when the nanoseconds are not a multiple of 100: `ResultConversion` at the root, never rounded |
 | `duration` | `CelDuration`, `TimeSpan` | `CelDuration` exactly; `TimeSpan` exactly | `T = TimeSpan` when the nanoseconds are not a multiple of 100 |
+| `decimal`, on .NET 11 | `Decimal128`, `System.Decimal` | `Decimal128` exactly; `System.Decimal` rounded half to even to 28 places and 96 bits | `T = System.Decimal` outside its range: `ResultConversion` at the root |
 | `null_type` | reference types, `Nullable<>`, `object`, `CelValue` | `null`; for `CelValue` the value `null`. `CelEvalResult<T>.Value` is `null` also after `IsSuccess` is checked when the result is `null` for a reference `T`; `GetValueOrThrow()` returns `null` too | `T` a value type without `?` |
 | `list(E)` | `IReadOnlyList<X>` with `E` to `X` by this table, one step deep; `CelList` | a lazy view when no element can fail its conversion and the list is a collection of the library, after a check of the value; otherwise an immutable copy made at the end of the evaluation | an element that does not convert to `X`, at the root; a value that fails the check before the view |
 | `map(K, V)` | `IReadOnlyDictionary<XK, XV>` with `K` to `XK` and `V` to `XV` by this table, one step deep; `CelMap` | the same | a key or a value that does not convert, or fails the check |
@@ -196,7 +216,7 @@ The value of the root is converted to the type `T` by the rows below. A value wh
 | a wrapper such as `wrapper(int)`: a plain value or `null` | `long?`, `int?`, `ulong?`, `uint?`, `double?`, `bool?`, `ReadOnlyMemory<byte>?`, and `string`, `byte[]` | not `null`: by the row of the CEL type of the value with `T = X`, so an `int` with `T = long?` is the same as with `long`; `null` is `null` | by the row of the CEL type of the value |
 | any | `CelValue` | as it is | never |
 | an object type, also one described at run time | the .NET class, record, structure or interface of the application that the instance is, a base class or an interface of it, and the carrier class `TCarrier` of a type described at run time; `object`; `CelValue` | the same instance, by a test of its type, without reading the description | an instance that is not a `T`, with the name of its description or of its .NET type; the error is never `TypeNotAccessible` |
-| any | `object` | the natural mapping: `long`, `ulong`, `double`, `bool`, `string`, `byte[]`, `null`, `CelTimestamp`, `CelDuration`, `IReadOnlyList<object?>`, `IReadOnlyDictionary<object, object?>`, the instance of an object, `CelType` | never |
+| any | `object` | the natural mapping: `long`, `ulong`, `double`, `bool`, `string`, `byte[]`, `null`, `CelTimestamp`, `CelDuration`, `Decimal128` (on .NET 11), `IReadOnlyList<object?>`, `IReadOnlyDictionary<object, object?>`, the instance of an object, `CelType` | never |
 
 `JsonElement` and unknown values are never a result, and an error is not a value of the result: the errors of an evaluation come as the list of errors of the result.
 
@@ -232,11 +252,12 @@ The expected type of `Compile<T>` is taken from `T`. An expression whose type is
 | `ReadOnlyMemory<byte>`, `byte[]` | `bytes` |
 | `CelTimestamp`, `DateTimeOffset` | `timestamp` |
 | `CelDuration`, `TimeSpan` | `duration` |
+| `Decimal128`, `System.Decimal` (on .NET 11) | `decimal` |
 | `IReadOnlyList<X>` | `list(E')`, `E'` the expected type of `X` |
 | `IReadOnlyDictionary<XK, XV>` | `map(K', V')` from `XK` and `XV` |
 | `CelType` | `type` |
 | `CelOptional<X>` | `optional_type(E')`, `E'` the expected type of `X`; `CelOptional<CelValue>` and `CelOptional<object>` give `optional_type(dyn)` |
-| `Nullable<X>` | the wrapper of the CEL type of `X`: `int?` and `long?` give `wrapper(int)`; `uint?` and `ulong?` give `wrapper(uint)`; `double?`, `bool?` and `ReadOnlyMemory<byte>?` give `wrapper(double)`, `wrapper(bool)` and `wrapper(bytes)`; `DateTimeOffset?`, `CelTimestamp?`, `TimeSpan?` and `CelDuration?` give `timestamp` and `duration`, which have no wrapper |
+| `Nullable<X>` | the wrapper of the CEL type of `X`: `int?` and `long?` give `wrapper(int)`; `uint?` and `ulong?` give `wrapper(uint)`; `double?`, `bool?` and `ReadOnlyMemory<byte>?` give `wrapper(double)`, `wrapper(bool)` and `wrapper(bytes)`; `DateTimeOffset?`, `CelTimestamp?`, `TimeSpan?` and `CelDuration?` give `timestamp` and `duration`, and `Decimal128?` and `decimal?` give `decimal`, which have no wrapper |
 | a class, record, structure or interface of the application | its object type when a type source describes exactly this .NET type; otherwise `dyn`, and the instance is tested at the evaluation. An explicit `ExpectedType` must then be `dyn` or an object type |
 | `CelValue`, `object` | `dyn`: a result of any type |
 | `CelList` | `list(dyn)` |

@@ -87,14 +87,18 @@ public sealed class CelBindings
         }
         else if (!ConversionRules.TryFromClr(value, out converted))
         {
-            // Decimals come with their part.
-            throw ConversionRules.IsOfLaterPart<T>()
-                ? new NotImplementedException()
-                : new ArgumentException(
-                    "A value of the .NET type " + typeof(T) + " has no row in the input table of the type mapping, or its elements have no CEL order.",
-                    nameof(value));
+            throw new ArgumentException(
+                "A value of the .NET type " + typeof(T) + " has no row in the input table of the type mapping, or its elements have no CEL order.",
+                nameof(value));
         }
 
+#if NET11_0_OR_GREATER
+        if (ConversionRules.IsNotFiniteDecimal<T>(converted))
+        {
+            throw new ArgumentException("A decimal must be finite: a NaN and an infinity are not values of CEL.", nameof(value));
+        }
+
+#endif
         if (ConversionRules.IsRefusedByBindings(converted))
         {
             throw new ArgumentException(ConversionRules.BindingsRefusalMessage(converted), nameof(value));

@@ -25,6 +25,9 @@ public sealed class ValueTypeNamesTests
         [CelValueKind.Duration] = "duration",
         [CelValueKind.Optional] = "optional_type",
         [CelValueKind.Error] = "error",
+#if NET11_0_OR_GREATER
+        [CelValueKind.Decimal] = "decimal",
+#endif
     };
 
     public static TheoryData<CelValueKind> Kinds => [.. Enum.GetValues<CelValueKind>()];

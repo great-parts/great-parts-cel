@@ -9,15 +9,24 @@ namespace Great.Parts.Cel.Declarations;
 
 // The checks of Build over the extension sets of a builder, before the declaration checks: a version the catalog lacks
 // (4004), one name in two versions (4003), two different sets with one name and one version (4018) and a dependency that no
-// set meets (4005). Each step reports every error it finds, in the order of the names, the versions and the source texts, so
-// the order of the builder calls changes neither the list nor the text of an error. A set that fails the first three steps
-// contributes nothing to the environment and causes no second error.
+// set meets (4005), and the option of the decimal literals without the set decimal (4005 again). Each step reports every error it
+// finds, in the order of the names, the versions and the source texts, so the order of the builder calls changes neither the list
+// nor the text of an error. A set that fails the first three steps contributes nothing to the environment and causes no second
+// error.
 internal static class ExtensionChecks
 {
-    // Adds the errors to the list and returns the sets that remain, ordered by name (ordinal) and then by version.
-    internal static ImmutableArray<ExtensionDefinition> Check(ImmutableArray<SourcedDeclaration<CelExtension>> extensions, List<CelError> errors)
+    // The name of the set that the option of the decimal literals needs, and how the message of 4005 names the option.
+    private const string DecimalSet = "decimal";
+    private const string DecimalLiteralOption = "the decimal literal option";
+
+    // Adds the errors to the list and returns the sets that remain, ordered by name (ordinal) and then by version. decimalLiterals
+    // says that the builder enabled the decimal literals.
+    internal static ImmutableArray<ExtensionDefinition> Check(
+        ImmutableArray<SourcedDeclaration<CelExtension>> extensions,
+        List<CelError> errors,
+        bool decimalLiterals)
     {
-        if (extensions.IsEmpty)
+        if (extensions.IsEmpty && !decimalLiterals)
         {
             return [];
         }
@@ -28,6 +37,7 @@ internal static class ExtensionChecks
         RemoveVersionConflicts(remaining, errors);
         RemoveDuplicates(remaining, errors);
         CheckDependencies(remaining, errors);
+        CheckDecimalLiterals(remaining, errors, decimalLiterals);
 
         ImmutableArray<ExtensionDefinition>.Builder survivors = ImmutableArray.CreateBuilder<ExtensionDefinition>(remaining.Count);
         foreach (SourcedDeclaration<CelExtension> entry in remaining)
@@ -183,6 +193,27 @@ internal static class ExtensionChecks
                 }
             }
         }
+    }
+
+    // Step 5: the option of the decimal literals needs a set named decimal among the remaining sets, in any version; without one it is
+    // one error, whatever the number of calls that enabled it. The option has no place in an expression and no position: it is a
+    // call of the builder, not an element of a description.
+    private static void CheckDecimalLiterals(List<SourcedDeclaration<CelExtension>> remaining, List<CelError> errors, bool decimalLiterals)
+    {
+        if (!decimalLiterals)
+        {
+            return;
+        }
+
+        foreach (SourcedDeclaration<CelExtension> entry in remaining)
+        {
+            if (string.Equals(entry.Value.Name, DecimalSet, StringComparison.Ordinal))
+            {
+                return;
+            }
+        }
+
+        errors.Add(BuildErrors.MissingExtensionDependency(DecimalLiteralOption, DecimalSet));
     }
 
     private static bool Contains(List<SourcedDeclaration<CelExtension>> sets, CelExtension extension)

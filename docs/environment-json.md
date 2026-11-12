@@ -56,6 +56,8 @@ The name and the version are checked independently, so both can be errors. Build
 
 The syntax flags of a set, such as `.?`, `[?` and `{?` of `optional`, are enabled by the set; there is no key for them.
 
+The set `decimal`, on .NET 11 only, is added in code with `CelExtensions.Decimal(1)`, and so is the option of the `decimal` literals, `EnableDecimalLiterals()`: a description cannot name the set, which is the same error as any name outside the catalog, and has no key for the option. A variable, a parameter or a result can have the type `decimal` when the code added the set; without it the type is `TypeNotDeclared`, and on .NET 10 the message says that `decimal` exists only on .NET 11.
+
 ## variables
 
 | Key | Value | Required | Meaning | Errors |

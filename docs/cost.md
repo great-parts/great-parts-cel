@@ -61,7 +61,7 @@ The charge of every pair is made before the pair is compared, so a comparison th
 
 | Pair of values | eq(a, b) |
 | :- | :- |
-| values of different kinds; `null`, `bool`, `int`, `uint`, `double`, `timestamp`, `duration` and values of the type `type` | 1 |
+| values of different kinds; `null`, `bool`, `int`, `uint`, `double`, `decimal`, `timestamp`, `duration` and values of the type `type` | 1 |
 | two strings | 1 + ⌈(La + Lb)/10⌉, with the lengths of the two strings |
 | two `bytes` | 1 + ⌈(Ba + Bb)/10⌉, with the lengths of the two in bytes |
 | two lists | 1 when the sizes differ; otherwise 1 + Σ eq(aᵢ, bᵢ) by index, in order, up to the first unequal pair |
@@ -301,6 +301,19 @@ The macros `optMap` and `optFlatMap` are charged by their expansion, which is a 
 | `optFlatMap` | any other expression | c(t) + 3 | c(t) + 4 + c(e) |
 
 For example, `x.optMap(y, y + 1)` with `x` bound to `optional.of(1)` costs the read of `x` 1, `hasValue` 1, `optional.of` 1, the empty list 1, `value` 1 and the body 2, which is 7; with `x` bound to `optional.none()` it costs the read of `x`, `hasValue` and `optional.none`, which is 3. `optional.of(42).optMap(y, y + 1)` has a target that costs its call, 1, so it costs 8.
+
+### Set `decimal`
+
+A call is 1 unit. Only two overloads grow with a text, and one has a unit of its own for the work of a `double`. A value of the type `decimal` takes no memory beyond the 16 bytes of a value, so no row needs more than the unit it has, and the equality of two decimals, or of a decimal and a value of another kind, is 1. Only on .NET 11.
+
+| Overloads | Units |
+| :- | :- |
+| `add_decimal`, `subtract_decimal`, `multiply_decimal`, `divide_decimal`, `negate_decimal`, `less_decimal`, `less_equals_decimal`, `greater_decimal`, `greater_equals_decimal`, `int64_to_decimal`, `uint64_to_decimal`, `decimal_to_decimal`, `decimal_to_int64`, `decimal_to_uint64`, `decimal_to_double` | 1 |
+| `double_to_decimal` | 4: the shortest text of a `double` is found, laid out and read |
+| `string_to_decimal` | 1 + ⌈Lₐ/10⌉, with Lₐ the length of the string, charged before the string is read, so a string that does not parse has been paid for |
+| `decimal_to_string` | 1 + ⌈Lᵣ/10⌉, with Lᵣ the length of the text, at most 42, charged before the string is created |
+
+A decimal literal costs 0, as every literal does. For example, `string(1.5m + decimal('0.25'))` costs the sum 1, the conversion of the string `'0.25'` 1 + 1, and the text 1 + 1: 5 in all. An error is charged as its call: `1m / 0m` costs 1.
 
 ## Data of the application
 

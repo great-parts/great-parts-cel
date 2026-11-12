@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Immutable;
 using System.Globalization;
+#if NET11_0_OR_GREATER
+using System.Numerics;
+#endif
 using System.Text;
 using Great.Parts.Cel.Values;
 
@@ -51,7 +54,8 @@ internal sealed class Printer
 
     /// <summary>
     /// Appends a constant as a literal: <c>int</c> in decimal, <c>uint</c> with <c>u</c>, <c>double</c> in the
-    /// shortest round-trip form with a point or an exponent, a string or bytes in double quotes with escapes.
+    /// shortest round-trip form with a point or an exponent, a string or bytes in double quotes with escapes, and on .NET 11
+    /// a <c>decimal</c> in the text of its value with the suffix <c>m</c>.
     /// </summary>
     /// <param name="text">The text to append to.</param>
     /// <param name="value">The value of a constant node.</param>
@@ -71,6 +75,11 @@ internal sealed class Printer
                 _ = value.TryGetDouble(out double number);
                 AppendDouble(text, number);
                 break;
+#if NET11_0_OR_GREATER
+            case CelValueKind.Decimal:
+                AppendDecimal(text, value);
+                break;
+#endif
             case CelValueKind.String:
                 _ = value.TryGetString(out string? s);
                 AppendString(text, s!);
@@ -88,6 +97,18 @@ internal sealed class Printer
                 break;
         }
     }
+
+#if NET11_0_OR_GREATER
+    // The text of the value as string() writes it, a minus sign included, and the suffix: the coefficient, the exponent and the sign
+    // read back from it. A negative one is a minus and the magnitude, which the parser folds into the literal again.
+    private static void AppendDecimal(StringBuilder text, CelValue value)
+    {
+        _ = value.TryGetDecimal(out Decimal128 number);
+        Span<char> digits = stackalloc char[DecimalTextRules.BufferLength];
+        int count = DecimalTextRules.Format(DecimalParts.From(number), digits);
+        text.Append(digits[..count]).Append('m');
+    }
+#endif
 
     private static void AppendDouble(StringBuilder text, double number)
     {
@@ -188,7 +209,11 @@ internal sealed class Printer
     }
 
     private static bool IsNumber(ExprNode node) =>
+#if NET11_0_OR_GREATER
+        node is ConstantNode { Value.Kind: CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.Decimal };
+#else
         node is ConstantNode { Value.Kind: CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double };
+#endif
 
     private void Node(ExprNode node)
     {

@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+#if NET11_0_OR_GREATER
+using System.Numerics;
+#endif
 using System.Runtime.CompilerServices;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
@@ -482,6 +485,11 @@ internal static class ObjectRules
             return rejection;
         }
 
+        if (MayBeDecimal(value.Kind) && TryRejectDecimal(value, types, out CelValue refused))
+        {
+            return refused;
+        }
+
         if (types is null || declaredType.Kind != CelTypeKind.Object || value.Kind != CelValueKind.Object)
         {
             return value;
@@ -550,6 +558,80 @@ internal static class ObjectRules
 
         error = NotAccessible(instance.GetType());
         return true;
+    }
+
+    /// <summary>
+    /// Whether a value of this kind can be a decimal that an environment cannot have: a <c>Decimal</c> on .NET 11, and an object on
+    /// either target, which can be a bare <see cref="decimal"/>. Any other kind is not.
+    /// </summary>
+    /// <param name="kind">The kind of the value.</param>
+    /// <returns><see langword="true"/> when <see cref="TryRejectDecimal"/> has to look at the value.</returns>
+    internal static bool MayBeDecimal(CelValueKind kind) =>
+#if NET11_0_OR_GREATER
+        kind is CelValueKind.Decimal or CelValueKind.Object;
+#else
+        kind == CelValueKind.Object;
+#endif
+
+    /// <summary>
+    /// The refusal of a decimal that the environment cannot have, by a node that reads a value of the application — the identifier,
+    /// the value of a field, the result of a call: a value of the kind <c>Decimal</c> when the type index says the environment has no
+    /// set <c>decimal</c> (on .NET 11), and a bare <see cref="decimal"/> instance, which is no decimal on either target. The error
+    /// names the .NET type, <c>System.Decimal</c> for a value that a <see cref="decimal"/> made and <c>System.Numerics.Decimal128</c>
+    /// for any other.
+    /// </summary>
+    /// <param name="value">The value as the conversion gave it.</param>
+    /// <param name="types">The type index of the environment; <see langword="null"/> outside an evaluation, where only the bare instance is refused.</param>
+    /// <param name="error">The error value <c>TypeNotAccessible</c>, without a place, when the method returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when the value is refused.</returns>
+    internal static bool TryRejectDecimal(CelValue value, TypeIndex? types, out CelValue error)
+    {
+        // The nodes that read many values ask MayBeDecimal first, so the common value costs one comparison.
+        error = default;
+#if NET11_0_OR_GREATER
+        if (value.Kind == CelValueKind.Decimal)
+        {
+            if (types is null || types.DecimalDeclared)
+            {
+                return false;
+            }
+
+            error = NotAccessible(value.IsFromSystemDecimal ? typeof(decimal) : typeof(Decimal128));
+            return true;
+        }
+#endif
+        if (value.Kind == CelValueKind.Object && value.PairedType is null && value.TryGetObject(out object? instance) && instance is decimal)
+        {
+            error = NotAccessible(typeof(decimal));
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// The refusals of a value that a node reads from the application: a collection that nothing describes
+    /// (<see cref="TryRejectCollection"/>) and a decimal that the environment cannot have (<see cref="TryRejectDecimal"/>).
+    /// </summary>
+    /// <param name="value">The value as the conversion gave it.</param>
+    /// <param name="declaredType">The declared type of the place, or <see langword="null"/> without one.</param>
+    /// <param name="types">The type index of the environment.</param>
+    /// <param name="error">The error value, without a place, when the value is refused.</param>
+    /// <returns><see langword="true"/> when the value is refused.</returns>
+    internal static bool TryRejectValue(CelValue value, CelType? declaredType, TypeIndex types, out CelValue error)
+    {
+        if (value.Kind == CelValueKind.Object && TryRejectCollection(value, declaredType, types, out error))
+        {
+            return true;
+        }
+
+        if (MayBeDecimal(value.Kind))
+        {
+            return TryRejectDecimal(value, types, out error);
+        }
+
+        error = default;
+        return false;
     }
 
     // The same for the value of a field of an object: in a field of a dictionary carrier the refusal is FieldTypeMismatch

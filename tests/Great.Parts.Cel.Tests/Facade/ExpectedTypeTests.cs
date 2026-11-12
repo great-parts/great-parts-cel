@@ -71,11 +71,12 @@ public sealed class ExpectedTypeTests
         Assert.Throws<ArgumentException>(() => Environment.Compile<IReadOnlyList<DateTimeOffset>>("[1]"));
     }
 
+    // A typed collection of decimals and an optional of a decimal are outside the tables, on both targets.
     [Fact]
-    public void TypeOfALaterPart_ThrowsNotImplementedException()
+    public void TypedCollectionOfDecimals_IsAnArgumentException()
     {
-        Assert.Throws<NotImplementedException>(() => Environment.Compile<IReadOnlyList<decimal>>("1"));
-        Assert.Throws<NotImplementedException>(() => Environment.Compile<CelOptional<decimal>>("1"));
+        Assert.Throws<ArgumentException>(() => Environment.Compile<IReadOnlyList<decimal>>("1"));
+        Assert.Throws<ArgumentException>(() => Environment.Compile<CelOptional<decimal>>("1"));
     }
 
     // The derived type is the expected type of checking: list(string) does not take a list of int.

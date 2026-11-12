@@ -28,7 +28,8 @@ namespace Great.Parts.Cel.Properties.Declarations;
 // providers of protobuf as well, the set protos, variables of message types and the container of the proto3 package: a provider
 // describes the well-known types, so two of them in one model give DuplicateType for each of their names, and both orders must
 // report those errors alike. The pool has the set optional of the library too, at its version 2 and at version 1, which it does not
-// have.
+// have. On .NET 11 the pool has the set decimal as well, at its version 1 and at version 2, which it does not have, and the option of
+// the decimal literals, which needs the set.
 public sealed class BuilderOrderTests
 {
     private const ulong Seed = 20261112;
@@ -85,7 +86,20 @@ public sealed class BuilderOrderTests
         "TestAllTypes{single_int32: 3000000000}",
         "NestedEnum.BAR",
         "GlobalEnum.GAR",
+#if NET11_0_OR_GREATER
+        "12.34m",
+        "decimal('1')",
+        "1 + 1m",
+#endif
     ];
+
+    // The kinds of the draw of one call: the ones of the library on every target, and on .NET 11 the two of the set decimal and its
+    // literal option.
+#if NET11_0_OR_GREATER
+    private const uint DrawKinds = 21;
+#else
+    private const uint DrawKinds = 19;
+#endif
 
     // The providers of the pool: every test file with the nine extensions, the proto3 file alone, the same file from a second builder,
     // and the well-known types alone.
@@ -440,7 +454,15 @@ public sealed class BuilderOrderTests
         // One draw: one or two calls.
         private void AddCalls(PCG random)
         {
-            uint kind = random.Next(19);
+            uint kind = random.Next(DrawKinds);
+#if NET11_0_OR_GREATER
+            if (kind >= 19)
+            {
+                AddDecimalCalls(random, kind);
+                return;
+            }
+#endif
+
             if (kind >= 17)
             {
                 AddOptionalCalls(kind);
@@ -498,6 +520,26 @@ public sealed class BuilderOrderTests
             }
         }
 
+#if NET11_0_OR_GREATER
+        // The calls of the pool that concern the set decimal and its literal option: the set at version 1 and, now and then, at version
+        // 2, which it does not have (4004 at Build), and the option, which needs the set (4005 without it), whatever the order.
+        private void AddDecimalCalls(PCG random, uint kind)
+        {
+            if (kind == 20)
+            {
+                Add("EnableDecimalLiterals()", builder => builder.EnableDecimalLiterals());
+            }
+            else if (random.Next(4) == 0)
+            {
+                Add("AddExtension(decimal 2)", builder => builder.AddExtension(CelExtensions.Decimal(2)));
+            }
+            else
+            {
+                Add("AddExtension(decimal 1)", builder => builder.AddExtension(CelExtensions.Decimal(1)));
+            }
+        }
+
+#endif
         // The calls of the pool that concern protobuf: a provider, sometimes added again, the set protos, a variable of a message type and
         // the container of the proto3 package.
         private void AddProtobufCalls(PCG random, uint kind)

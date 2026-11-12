@@ -19,61 +19,6 @@ namespace Great.Parts.Cel.Values;
 /// </remarks>
 internal static partial class ConversionRules
 {
-    // A .NET type of decimal, directly or as an argument of Nullable<X>, CelOptional<X>, IReadOnlyList<X> or IReadOnlyDictionary<XK, XV>.
-    private static bool MentionsLaterPart(Type type)
-    {
-        if (type == typeof(decimal)
-#if NET11_0_OR_GREATER
-            || type == typeof(System.Numerics.Decimal128)
-#endif
-            )
-        {
-            return true;
-        }
-
-        if (!type.IsGenericType)
-        {
-            return false;
-        }
-
-        Type definition = type.GetGenericTypeDefinition();
-        if (definition != typeof(Nullable<>) && definition != typeof(CelOptional<>) && definition != typeof(IReadOnlyList<>) && definition != typeof(IReadOnlyDictionary<,>))
-        {
-            return false;
-        }
-
-        foreach (Type argument in type.GetGenericArguments())
-        {
-            if (MentionsLaterPart(argument))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    // A CEL type that is not supported yet, at any depth: decimal.
-    private static bool MentionsLaterPart(CelType type)
-    {
-#if NET11_0_OR_GREATER
-        if (type.Kind == CelTypeKind.Decimal)
-        {
-            return true;
-        }
-#endif
-
-        foreach (CelType parameter in type.Parameters)
-        {
-            if (MentionsLaterPart(parameter))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     // The row of T, found once per T; null outside the tables.
     private static class RowOf<T>
     {
@@ -97,6 +42,11 @@ internal static partial class ConversionRules
             var memoryRow = new PrimitiveRow<ReadOnlyMemory<byte>>(CelType.Bytes, narrowing: false, takesNull: false);
             var arrayRow = new PrimitiveRow<byte[]>(CelType.Bytes, narrowing: false, takesNull: true);
             var keys = new KeyRows(longRow, intRow, ulongRow, uintRow, boolRow, stringRow);
+#if NET11_0_OR_GREATER
+            ClrRow[] decimalRows = DecimalRows.Create();
+#else
+            ClrRow[] decimalRows = [];
+#endif
             ClrRow[] leaves =
             [
                 boolRow, longRow, intRow, ulongRow, uintRow, doubleRow, stringRow, memoryRow, arrayRow,
@@ -108,6 +58,7 @@ internal static partial class ConversionRules
                 new NullableRow<uint>(uintRow), new NullableRow<double>(doubleRow), new NullableRow<bool>(boolRow),
                 new NullableRow<ReadOnlyMemory<byte>>(memoryRow),
                 .. TimeRows.Create(),
+                .. decimalRows,
             ];
 
             var rows = new Dictionary<Type, ClrRow>();
@@ -337,6 +288,11 @@ internal static partial class ConversionRules
             {
                 case CelValueKind.Timestamp or CelValueKind.Duration:
                     return TryBoxTime(value, out result);
+#if NET11_0_OR_GREATER
+                case CelValueKind.Decimal when value.TryGetDecimal(out System.Numerics.Decimal128 number):
+                    result = number;
+                    return true;
+#endif
                 case CelValueKind.Object when value.TryGetObject(out object? instance):
                     result = instance;
                     return true;

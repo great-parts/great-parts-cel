@@ -1,0 +1,26 @@
+# The declarations of version 1 of the extension set decimal, in the order of the table. A published version never changes: a new function comes as a new version.
+# set <name> <version> | depends <set> | type <abstract type> | macro <name> <global or receiver> <argument count or *>
+# overload <function> <overload id> <global or receiver> (<parameter types, the receiver first>) -> <result type> [dyn] cost <five costs>
+# "dyn" marks an overload that is a candidate only when an argument has the static type dyn. The five costs are the units that a call charges before it runs
+# (the fixed units and the cost of the arguments) on probe arguments of size 0, 1, 10, 11 and 100: every string argument has that size, an int is that size,
+# a uint is 7, a double is 1 and a decimal is 1.5. The units that decimal_to_string charges for the text it writes are charged while it runs and are not in this file.
+set decimal 1
+type decimal
+overload _+_ add_decimal global (decimal, decimal) -> decimal cost 1 1 1 1 1
+overload _-_ subtract_decimal global (decimal, decimal) -> decimal cost 1 1 1 1 1
+overload _*_ multiply_decimal global (decimal, decimal) -> decimal cost 1 1 1 1 1
+overload _/_ divide_decimal global (decimal, decimal) -> decimal cost 1 1 1 1 1
+overload -_ negate_decimal global (decimal) -> decimal cost 1 1 1 1 1
+overload _<_ less_decimal global (decimal, decimal) -> bool cost 1 1 1 1 1
+overload _<=_ less_equals_decimal global (decimal, decimal) -> bool cost 1 1 1 1 1
+overload _>_ greater_decimal global (decimal, decimal) -> bool cost 1 1 1 1 1
+overload _>=_ greater_equals_decimal global (decimal, decimal) -> bool cost 1 1 1 1 1
+overload decimal int64_to_decimal global (int) -> decimal cost 1 1 1 1 1
+overload decimal uint64_to_decimal global (uint) -> decimal cost 1 1 1 1 1
+overload decimal double_to_decimal global (double) -> decimal cost 4 4 4 4 4
+overload decimal string_to_decimal global (string) -> decimal cost 1 2 2 3 11
+overload decimal decimal_to_decimal global (decimal) -> decimal cost 1 1 1 1 1
+overload int decimal_to_int64 global (decimal) -> int cost 1 1 1 1 1
+overload uint decimal_to_uint64 global (decimal) -> uint cost 1 1 1 1 1
+overload double decimal_to_double global (decimal) -> double cost 1 1 1 1 1
+overload string decimal_to_string global (decimal) -> string cost 1 1 1 1 1

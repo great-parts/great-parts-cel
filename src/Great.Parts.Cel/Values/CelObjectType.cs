@@ -494,7 +494,7 @@ public abstract class CelObjectType
     /// <returns>A value of the kind <see cref="CelValueKind.Decimal"/>.</returns>
     protected static CelValue FromDecimal(decimal value)
     {
-        throw new NotImplementedException();
+        return ConversionRules.FromSystemDecimal(value);
     }
 
     /// <summary>
@@ -511,7 +511,7 @@ public abstract class CelObjectType
     /// <returns>A value of the kind <see cref="CelValueKind.Decimal"/> or <see cref="CelValueKind.Error"/>.</returns>
     protected CelValue FromDecimal(int number, Decimal128 value)
     {
-        throw new NotImplementedException();
+        return Named(number, ConversionRules.FromDecimal128(value));
     }
 #endif
 }

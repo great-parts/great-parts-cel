@@ -16,7 +16,7 @@ internal sealed class ConstantNode : ExprNode
     /// <summary>
     /// The value of the literal, of the kind <see cref="CelValueKind.Null"/>, <see cref="CelValueKind.Bool"/>,
     /// <see cref="CelValueKind.Int"/>, <see cref="CelValueKind.UInt"/>, <see cref="CelValueKind.Double"/>,
-    /// <see cref="CelValueKind.String"/> or <see cref="CelValueKind.Bytes"/>.
+    /// <see cref="CelValueKind.String"/> or <see cref="CelValueKind.Bytes"/>, and on .NET 11 a <c>decimal</c>.
     /// </summary>
     internal CelValue Value { get; }
 }

@@ -141,8 +141,7 @@ internal static partial class ConversionRules
         }
 
         CelValueKind kind = values[0].Kind;
-        if (kind is not (CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.String or CelValueKind.Bytes
-            or CelValueKind.Timestamp or CelValueKind.Duration))
+        if (!IsOrderedKind(kind))
         {
             return false;
         }
@@ -166,6 +165,15 @@ internal static partial class ConversionRules
 
         return true;
     }
+
+    // The kinds that CEL orders among values of one kind: the elements of a set sorted by the order of CEL.
+    private static bool IsOrderedKind(CelValueKind kind) =>
+        kind is CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.String or CelValueKind.Bytes
+            or CelValueKind.Timestamp or CelValueKind.Duration
+#if NET11_0_OR_GREATER
+            or CelValueKind.Decimal
+#endif
+        ;
 
     internal static bool IsMapKeyType<TKey>() => KeyOf<TKey>.IsSupported;
 
@@ -281,9 +289,6 @@ internal static partial class ConversionRules
     // Whether a refusal of CelBindings.Add names an undefined JsonElement, which has no CEL value.
     internal static bool IsRefusedByBindings(CelValue value) =>
         value.TryGetError(out CelError? error) && error.Code == CelErrorCode.InvalidArgument;
-
-    // Whether the .NET type is decimal, which comes with its part, directly or inside Nullable, CelOptional, a list or a dictionary.
-    internal static bool IsOfLaterPart<T>() => MentionsLaterPart(typeof(T));
 
     // The CEL type that the rows of collections and application lists give a .NET type; null outside them.
     private static CelType? CollectionInputType(Type type)

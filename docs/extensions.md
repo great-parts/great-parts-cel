@@ -33,8 +33,9 @@ new CelEnvironmentBuilder(CelStandardLibrary.V1)
 | `network` | `network` | `Network(version)` | 1 | none |
 | `protos` | `protos` | `Protos(version)` | 0 | none |
 | `optional` | `optional` | `Optional(version)` | 2 | none |
+| `decimal`, only on `net11.0` | none: a description cannot add it | `Decimal(version)` | 1 | none |
 
-- **Versions are those of cel-go.** The number of a version is the number of the same set in cel-go, the CEL implementation in Go, and a version has the declarations that cel-go gives it. This release has one version of each set. A version that the table does not have is not a number to try: it is the build error `UnknownExtensionVersion`.
+- **Versions are those of cel-go.** The number of a version is the number of the same set in cel-go, the CEL implementation in Go, and a version has the declarations that cel-go gives it; `decimal`, which cel-go does not have, has a number of its own. This release has one version of each set. A version that the table does not have is not a number to try: it is the build error `UnknownExtensionVersion`.
 - **The functions of a version never change.** A function that cel-go adds in a later version comes as that version, and an environment that names the versions it was built with means the same after the library is updated. A fix of the behavior of a function applies to the version that has it.
 - **The sets do not depend on each other.** None of the sets above needs another, so the build error `MissingExtensionDependency` can only come from a set of the application.
 - **All sets are in both targets.** `net10.0` and `net11.0` have the same sets with the same declarations; the `decimal` set of this library is only on `net11.0`.
@@ -74,7 +75,7 @@ A macro that cannot expand a call because of its arguments is the parse error `I
 
 ## In an environment description
 
-The key `extensions` of an [environment description in JSON](environment-json.md) adds a set by its name and version, as `AddExtension(CelExtensions.<Set>(version))`. The names are those of the catalog above, once the set is part of the library; the full names of cel-go such as `cel.lib.ext.strings` are not names. A version is a string of decimal digits, and `Build` reports a version that the set does not have, with the place of its element.
+The key `extensions` of an [environment description in JSON](environment-json.md) adds a set by its name and version, as `AddExtension(CelExtensions.<Set>(version))`. The names are those of the catalog above, once the set is part of the library, except that `decimal` has no name in a description and is added in code; the full names of cel-go such as `cel.lib.ext.strings` are not names. A version is a string of decimal digits, and `Build` reports a version that the set does not have, with the place of its element.
 
 ## Optional syntax
 
@@ -390,3 +391,30 @@ optional.unwrap([optional.of(1), optional.none(), optional.of(3)])    // [1, 3]
 - **`optional.unwrap` and `unwrapOpt`** keep a held `null` and give a list of the held values, never of optionals. An element that is not an optional, which only a list of type `dyn` can have, is `EvalNoMatchingOverload`.
 - **Macros.** `o.optMap(v, e)` is `optional.of(e)` with `v` bound to the held value of `o`, and the empty optional when `o` is empty: `optional.of(1).optMap(y, y + 1)` is `optional.of(2)`. `o.optFlatMap(v, e)` is the same for an `e` that is an optional itself, and gives `e` without wrapping it again. The body `e` is not evaluated for an empty optional, and `o` is evaluated once. The first argument has to be an identifier; otherwise the parse error is `InvalidMacroCall` (1006), `invalid call of macro 'optMap': optMap() variable name must be a simple identifier`, at that argument, and for `optFlatMap` `optFlatMap() variable name must be a simple identifier`. A call with a number of arguments other than two is not a macro and stays a call, which type checking reports. The macros exist only in an environment that has the set.
 - **The version.** The set has the one version 2, as in cel-go with `OptionalTypesVersion(2)`: `CelExtensions.Optional(1)` is the build error `UnknownExtensionVersion`, `extension 'optional' has no version 1; available versions: 2`. In an environment description in JSON the set is `{"name": "optional", "version": "2"}`, and the type is written `optional_type<int>`.
+
+## Set `decimal`, version 1
+
+The type `decimal`, a decimal128 number of 34 significant digits, with `+`, `-`, `*`, `/`, the negation, the four orderings and nine conversions: 18 overloads. The set exists only on `net11.0`, whose `System.Numerics.Decimal128` it uses; on `net10.0` there is no `decimal`, no set and no member of the public API for it. The whole contract, the literal `12.34m` and its option, the grammar and the text, equality and order are on the page [Decimal](decimal.md); the units are on the page [Cost](cost.md#set-decimal).
+
+- **Not in a description.** The set is added in code, `CelExtensions.Decimal(1)`. It has no name in the catalog of an [environment description in JSON](environment-json.md): the name `decimal` there is `InvalidConfiguration` (4009), `'decimal' is not the name of an extension set of the library`.
+- **The type.** The set declares the type identifier `decimal`; without the set `decimal('1')` and `type(x) == decimal` are `UndeclaredReference` (2000).
+- **The version.** The set has the one version 1: `CelExtensions.Decimal(2)` is the build error `UnknownExtensionVersion`, `extension 'decimal' has no version 2; available versions: 1`. The same instance added twice, or `Decimal(1)` twice, is one set. The set needs no other set and brings no macro, no variable and no syntax; the literal is enabled by `CelEnvironmentBuilder.EnableDecimalLiterals()`, which needs the set (`MissingExtensionDependency`, 4005).
+
+| Overload | Call | Errors |
+| :- | :- | :- |
+| `add_decimal`, `subtract_decimal`, `multiply_decimal` | `a + b`, `a - b`, `a * b` | `Overflow` (3006) |
+| `divide_decimal` | `a / b` | `DivisionByZero` (3004), `Overflow` |
+| `negate_decimal` | `-a` | none |
+| `less_decimal`, `less_equals_decimal`, `greater_decimal`, `greater_equals_decimal` | `a < b`, `a <= b`, `a > b`, `a >= b` | none |
+| `int64_to_decimal`, `uint64_to_decimal` | `decimal(i)` | none |
+| `double_to_decimal` | `decimal(d)` | `ConversionRange` (3007) for a NaN and an infinity |
+| `string_to_decimal` | `decimal(s)` | `InvalidArgument` (3008), `ConversionRange` |
+| `decimal_to_decimal` | `decimal(x)` | none |
+| `decimal_to_int64`, `decimal_to_uint64`, `decimal_to_double` | `int(x)`, `uint(x)`, `double(x)` | `ConversionRange` |
+| `decimal_to_string` | `string(x)` | none |
+
+```text
+decimal('1.50') + 1.5m                // 3.00
+decimal(1) / decimal(3)               // 0.3333333333333333333333333333333333
+int(decimal('9.99'))                  // 9
+```

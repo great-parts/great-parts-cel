@@ -39,8 +39,12 @@ internal static class Invocation
             }
         }
 
-        // Only the special forms have no implementation, and the planner plans them as nodes of their own.
-        return overload.Implementation!(arguments, in site);
+        // Only the special forms have no implementation, and the planner plans them as nodes of their own. A library overload that
+        // gives a decimal the environment has no set for — an index, in, a function over a dyn value — is TypeNotAccessible at the call.
+        CelValue result = overload.Implementation!(arguments, in site);
+        return ObjectRules.MayBeDecimal(result.Kind) && ObjectRules.TryRejectDecimal(result, frame.Types, out CelValue refused)
+            ? EvaluationErrors.Placed(refused, frame.Lines, offset)
+            : result;
     }
 
     private static CelValue CallApplication(Frame frame, OverloadBinding overload, ReadOnlySpan<CelValue> arguments, in CallSite site, int offset)
@@ -76,8 +80,9 @@ internal static class Invocation
             return result;
         }
 
-        // A .NET collection that no source describes is TypeNotAccessible at the call, before the check of the result.
-        if (result.Kind == CelValueKind.Object && ObjectRules.TryRejectCollection(result, null, frame.Types, out CelValue rejected))
+        // A .NET collection that no source describes, and a decimal that the environment has no set for, are TypeNotAccessible at the
+        // call, before the check of the result.
+        if (ObjectRules.TryRejectValue(result, null, frame.Types, out CelValue rejected))
         {
             return EvaluationErrors.Placed(rejected, frame.Lines, offset);
         }

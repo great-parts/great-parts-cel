@@ -30,9 +30,6 @@ internal static partial class ConversionRules
     /// <exception cref="ArgumentException">
     /// <typeparamref name="T"/> is outside the tables, or it does not hold the values of the explicit type.
     /// </exception>
-    /// <exception cref="NotImplementedException">
-    /// <typeparamref name="T"/> or the explicit type is not supported yet: <c>decimal</c>.
-    /// </exception>
     internal static CelType ExpectedType<T>(CelType? explicitType, string parameterName, TypeIndex? types = null)
     {
         if (IsApplicationType<T>())
@@ -44,11 +41,6 @@ internal static partial class ConversionRules
         if (explicitType is null)
         {
             return row.ExpectedType;
-        }
-
-        if (MentionsLaterPart(explicitType))
-        {
-            throw new NotImplementedException();
         }
 
         if (!row.Holds(explicitType))
@@ -159,11 +151,6 @@ internal static partial class ConversionRules
         if (explicitType is null)
         {
             return types is not null && types.TryGetByClrType(typeof(T), out CelObjectType? described) ? described.Type : CelType.Dyn;
-        }
-
-        if (MentionsLaterPart(explicitType))
-        {
-            throw new NotImplementedException();
         }
 
         if (explicitType.Kind is not (CelTypeKind.Dyn or CelTypeKind.TypeParameter or CelTypeKind.Object))
@@ -308,12 +295,6 @@ internal static partial class ConversionRules
         if (RowOf<T>.Row is ClrRow<T> row)
         {
             return row;
-        }
-
-        if (MentionsLaterPart(typeof(T)))
-        {
-            // The result types of decimal come with their part; they are not ignored.
-            throw new NotImplementedException();
         }
 
         throw new ArgumentException("The type '" + typeof(T) + "' is not a result type of the type mapping.", nameof(T));

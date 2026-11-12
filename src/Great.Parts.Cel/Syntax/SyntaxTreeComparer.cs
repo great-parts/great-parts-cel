@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Immutable;
 using System.Globalization;
+#if NET11_0_OR_GREATER
+using System.Numerics;
+#endif
 using System.Text;
 using Great.Parts.Cel.Values;
 
@@ -12,7 +15,7 @@ namespace Great.Parts.Cel.Syntax;
 /// <remarks>
 /// Equal trees have the same node classes, children in the same order, names, functions, fields, flags — the
 /// presence test, the optional indices and entries — and comprehension variables, and constants of the same kind and
-/// value, doubles by their bits. Ids, positions and macro calls are not compared. The comparison recurses without
+/// value, doubles and decimals by their bits. Ids, positions and macro calls are not compared. The comparison recurses without
 /// checking the stack: it serves trees within the limits of parsing.
 /// </remarks>
 internal static class SyntaxTreeComparer
@@ -146,6 +149,9 @@ internal static class SyntaxTreeComparer
         CelValueKind.Int => AsInt64(left) == AsInt64(right),
         CelValueKind.UInt => AsUInt64(left) == AsUInt64(right),
         CelValueKind.Double => BitConverter.DoubleToInt64Bits(AsDouble(left)) == BitConverter.DoubleToInt64Bits(AsDouble(right)),
+#if NET11_0_OR_GREATER
+        CelValueKind.Decimal => AsDecimalBits(left) == AsDecimalBits(right),
+#endif
         CelValueKind.String => string.Equals(AsString(left), AsString(right), StringComparison.Ordinal),
         CelValueKind.Bytes => AsBytes(left).Span.SequenceEqual(AsBytes(right).Span),
         CelValueKind.Bool => AsBoolean(left) == AsBoolean(right),
@@ -157,6 +163,13 @@ internal static class SyntaxTreeComparer
     private static ulong AsUInt64(CelValue value) => value.TryGetUInt64(out ulong result) ? result : 0;
 
     private static double AsDouble(CelValue value) => value.TryGetDouble(out double result) ? result : 0;
+
+#if NET11_0_OR_GREATER
+    // The bits of the encoding, which hold the sign, the coefficient and the exponent: 100m and 1e2m are different trees, as 0.0 and
+    // -0.0 are.
+    private static UInt128 AsDecimalBits(CelValue value) =>
+        value.TryGetDecimal(out Decimal128 result) ? Decimal128.EncodeBinary(result) : UInt128.Zero;
+#endif
 
     private static string? AsString(CelValue value) => value.TryGetString(out string? result) ? result : null;
 

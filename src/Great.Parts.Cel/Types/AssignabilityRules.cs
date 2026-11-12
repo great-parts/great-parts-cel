@@ -259,9 +259,14 @@ internal static class AssignabilityRules
         return false;
     }
 
-    // The types that take null: null_type, wrappers, object types, abstract types, and the types of time, optional and decimal that do once they are supported.
+    // The types that take null: null_type, wrappers, object types, abstract types, and the types of time, optional and decimal, which is
+    // an abstract type of checked.proto and so nullable in the checker, as every opaque type is.
     private static bool TakesNull(CelType type) => type.Kind is CelTypeKind.Null or CelTypeKind.Wrapper or CelTypeKind.Object
-        or CelTypeKind.Timestamp or CelTypeKind.Duration or CelTypeKind.Any or CelTypeKind.Optional or CelTypeKind.Abstract;
+        or CelTypeKind.Timestamp or CelTypeKind.Duration or CelTypeKind.Any or CelTypeKind.Optional or CelTypeKind.Abstract
+#if NET11_0_OR_GREATER
+        or CelTypeKind.Decimal
+#endif
+        ;
 
     // The least upper bound of two types after the substitution.
     private static CelType General(CelType a, CelType b)

@@ -145,17 +145,26 @@ public sealed class ConversionRulesTests
     [Fact]
     public void TypeOutsideTheInputRows_IsNoInputType()
     {
-        Assert.Null(ConversionRules.InputType<decimal>());
-        Assert.False(ConversionRules.TryFromClr(1m, out CelValue value));
-        Assert.Equal(CelValue.Null, value);
         Assert.Null(ConversionRules.InputType<Int128?>());
         Assert.Null(ConversionRules.InputType<CelValue?>());
         Assert.False(ConversionRules.TryFromClr<Int128?>(null, out _));
         Assert.Equal(CelErrorCode.TypeNotDeclared, Assert.Single(new CelEnvironmentBuilder(CelStandardLibrary.V1).AddVariable<Int128>("v").Build().Errors).Code);
-        Assert.Throws<NotImplementedException>(() => ConversionRules.TryFromClr<object>(1m, out _));
         Assert.True(ConversionRules.TryFromClr<object>(new List<int>(), out CelValue collection));
         Assert.Equal(CelValueKind.Object, collection.Kind);
     }
+
+#if !NET11_0_OR_GREATER
+    // There is no decimal on .NET 10: a System.Decimal has no row, and in a place of type dyn it is a bare object value.
+    [Fact]
+    public void SystemDecimalOnNet10_IsNoInputType_AndABoxedOneIsABareObject()
+    {
+        Assert.Null(ConversionRules.InputType<decimal>());
+        Assert.False(ConversionRules.TryFromClr(1m, out CelValue value));
+        Assert.Equal(CelValue.Null, value);
+        Assert.True(ConversionRules.TryFromClr<object>(1m, out CelValue boxed));
+        Assert.Equal(CelValueKind.Object, boxed.Kind);
+    }
+#endif
 
     // An enumeration is int by its underlying value of any width, [Flags] included.
     [Fact]

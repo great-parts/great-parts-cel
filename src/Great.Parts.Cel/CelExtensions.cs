@@ -1,10 +1,12 @@
 using System.Collections.Frozen;
 #if NET11_0_OR_GREATER
-using System;
 using System.Diagnostics.CodeAnalysis;
 #endif
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+#if NET11_0_OR_GREATER
+using Great.Parts.Cel.Library.Decimals;
+#endif
 using Great.Parts.Cel.Library.Extensions;
 
 namespace Great.Parts.Cel;
@@ -178,9 +180,6 @@ public static class CelExtensions
         "Naming",
         "CA1720:Identifier contains type name",
         Justification = "The method is named after the CEL type decimal that the extension set adds.")]
-    public static CelExtension Decimal(uint version)
-    {
-        throw new NotImplementedException();
-    }
+    public static CelExtension Decimal(uint version) => DecimalExtension.Get(version);
 #endif
 }

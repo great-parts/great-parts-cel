@@ -9,6 +9,7 @@ using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Library;
 using Great.Parts.Cel.Library.Extensions;
 using Great.Parts.Cel.Library.Regex;
+using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
@@ -65,6 +66,9 @@ public sealed class CelEnvironmentBuilder
     // The first time zone database added, which stays; and whether a different one was added later, which Build reports.
     private CelTimeZoneDatabase? _timeZones;
     private bool _timeZoneConflict;
+
+    // Whether EnableDecimalLiterals was called; only a builder of .NET 11 has the method, so on .NET 10 it stays false.
+    private bool _decimalLiterals;
 
     /// <summary>
     /// Creates a builder for an environment with the given version of the standard library.
@@ -778,7 +782,8 @@ public sealed class CelEnvironmentBuilder
     /// <returns>This builder.</returns>
     public CelEnvironmentBuilder EnableDecimalLiterals()
     {
-        throw new NotImplementedException();
+        _decimalLiterals = true;
+        return this;
     }
 #endif
 
@@ -793,7 +798,7 @@ public sealed class CelEnvironmentBuilder
     /// <returns>The environment or the build errors.</returns>
     public CelBuildResult Build()
     {
-        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped], [.. _typeSources], [.. _extensions], _timeZones, _timeZoneConflict);
+        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped], [.. _typeSources], [.. _extensions], _timeZones, _timeZoneConflict, _decimalLiterals);
         LibraryDeclarations library = _standardLibrary.Declarations;
         ImmutableArray<CelError> errors = DeclarationChecks.Check(
             declarations,
@@ -812,7 +817,15 @@ public sealed class CelEnvironmentBuilder
         var patternCache = new PatternCache();
         DeclarationIndex index = DeclarationIndex.Create(
             [.. library.Overloads, .. overloads], variables, TypeIdentifiers(library, extensions), container, types, patternCache);
-        return new(new CelEnvironment(_standardLibrary, declarations, index, CatalogExtension.SyntaxOf(extensions), patternCache));
+        return new(new CelEnvironment(_standardLibrary, declarations, index, SyntaxOf(extensions, declarations), patternCache));
+    }
+
+    // The syntax of the sets, with the option of the decimal literals when the builder enabled it; the checks have passed, so the set
+    // that the option needs is there. An environment without the option keeps the options of the sets themselves.
+    private static SyntaxOptions SyntaxOf(ImmutableArray<ExtensionDefinition> extensions, DeclarationSet declarations)
+    {
+        SyntaxOptions syntax = CatalogExtension.SyntaxOf(extensions);
+        return declarations.DecimalLiterals ? syntax with { DecimalLiterals = true } : syntax;
     }
 
     // The type identifiers of the version and those that the abstract types of the sets add, each the identifier of its type.
@@ -843,6 +856,7 @@ public sealed class CelEnvironmentBuilder
         _typeSources.AddRange(declarations.TypeSources);
         _extensions.AddRange(declarations.Extensions);
         _timeZones = declarations.TimeZones;
+        _decimalLiterals = declarations.DecimalLiterals;
     }
 
     // The declarations of variables collected so far, in the order of the calls, each once.

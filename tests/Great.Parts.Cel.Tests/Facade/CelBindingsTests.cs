@@ -74,11 +74,16 @@ public sealed class CelBindingsTests
     }
 
     [Fact]
-    public void Add_OfATypeOutsideTheInputRows_IsNotImplementedAndBindsNothing()
+    public void Add_OfATypeOutsideTheInputRows_IsArgumentExceptionAndBindsNothing()
     {
         var bindings = new CelBindings();
 
-        Assert.Throws<NotImplementedException>(() => bindings.Add("d", 1m));
+        // A System.Decimal has no row on .NET 10; on .NET 11 it is a row, so the type there is one that is never read.
+#if NET11_0_OR_GREATER
+        Assert.Throws<ArgumentException>(() => bindings.Add("d", Int128.One));
+#else
+        Assert.Throws<ArgumentException>(() => bindings.Add("d", 1m));
+#endif
         Assert.Empty(bindings.Values);
     }
 }

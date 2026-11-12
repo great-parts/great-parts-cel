@@ -34,6 +34,27 @@ internal sealed class TypeIndex
         _byClrType = byClrType.ToFrozenDictionary();
     }
 
+#if NET11_0_OR_GREATER
+    private TypeIndex(TypeIndex other, bool decimalDeclared)
+    {
+        _objectTypes = other._objectTypes;
+        _objectTypesBySpan = other._objectTypesBySpan;
+        _enumConstants = other._enumConstants;
+        _enumConstantsBySpan = other._enumConstantsBySpan;
+        _byClrType = other._byClrType;
+        DecimalDeclared = decimalDeclared;
+    }
+
+    // Whether the environment has the set decimal, which declares the type: true exactly when a surviving set has an abstract type of
+    // the kind Decimal. The checker reads it for the fields of the type decimal and the nodes that read a value of the kind Decimal
+    // for the values that the environment cannot have. A type index that no environment made has it false.
+    internal bool DecimalDeclared { get; }
+
+    // This index with the flag set; the same instance when it has the value already, so the shared empty index stays false.
+    internal TypeIndex WithDecimalDeclared(bool decimalDeclared) =>
+        decimalDeclared == DecimalDeclared ? this : new TypeIndex(this, decimalDeclared);
+#endif
+
     // The object types by full name, for the identifiers of type checking.
     internal FrozenDictionary<string, CelObjectType> ObjectTypes => _objectTypes;
 

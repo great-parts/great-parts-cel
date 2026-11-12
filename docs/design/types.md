@@ -33,6 +33,14 @@ Inside type checking two more forms exist and never leave it:
 - **`error`** — a node with an error; `CelType?` with `null`, as in [checking](checking.md).
 - **Free type variables** — type parameters named `_var0`, `_var1`, … that the checker creates per checked expression: the type of an empty list or map literal, and one fresh variable for each type parameter of an overload at each call. The names of the parameters of a declaration therefore never meet each other or the checker's variables. A checked expression replaces every type parameter that is still free by `dyn`, so its type map and its result type have none.
 
+## `decimal`
+
+The part of the set [decimal](extension-decimal.md) gives the type its body, on `net11.0` only; this section supersedes the sentence above that leaves `Decimal` to a later part. `CelType.Decimal` is a static instance, `new CelType(CelTypeKind.Decimal, "decimal", [])`: the kind `Decimal`, the name `decimal`, no parameters, the text form `decimal`; the kind has the number 18 that the skeleton gave it. Equality, hash and substitution are those of the model, and two types are equal when their kind and name are, so `type(1m) == decimal` and `type(x) == type(1m)` are `true` when `x` is a decimal.
+
+The rules that type checking relies on change in one place. **`AssignabilityRules.TakesNull`** gets `Decimal`, under `#if NET11_0_OR_GREATER`: a static `null` is assignable to `decimal`, as to every abstract (opaque) type, because the type is the abstract type `decimal` of `checked.proto` and cel-go takes every opaque type as nullable. So `price == null` for a `price` of type `decimal` checks and is `false` at run time, and a `null` value fits no decimal ([values](values.md#decimal)). `(CelTypeKind.Decimal, CelTypeKind.Decimal)` needs no case: the last row of the switch, `from.Kind == to.Kind`, decides it, as for `timestamp`; the join and the most general type, whose rule 4 reads `TakesNull`, follow it. A decimal is assignable to no other type but `dyn`, a type parameter and `decimal`: `[1, 1.5m]` is `list(dyn)` and `1 + 1.5m` is no overload.
+
+`ConversionRules.Rows.cs` names the kind in `MentionsLaterPart`; the entry goes with the marker ([values](values.md#decimal)). The kind is declared by the set, so a variable, a field or an overload of the type without the set is `TypeNotDeclared` ([declarations](declarations.md#decimal-without-the-set-and-the-literal-option)), except a field, which is `FieldNotAccessible` when an expression selects it ([checking](checking.md#decimal-without-the-set)).
+
 ## Substitution
 
 A substitution maps type parameters to types; it belongs to one checked expression. `SubstitutionRules`:

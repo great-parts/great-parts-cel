@@ -277,7 +277,26 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <exception cref="ArgumentException"><paramref name="value"/> is a NaN or an infinity.</exception>
     public static CelValue FromDecimal(Decimal128 value)
     {
-        throw new NotImplementedException();
+        return FromDecimalBits(null, value);
+    }
+
+    // The value of a System.Decimal that a boxed place gave: it carries a mark in the reference field, which only the text of an error
+    // reads; Equals, GetHashCode and every rule ignore it.
+    internal static CelValue FromSystemDecimalOrigin(Decimal128 value) => FromDecimalBits(DecimalParts.SystemDecimalOrigin, value);
+
+    // Whether the value of the kind Decimal was made from a System.Decimal.
+    internal bool IsFromSystemDecimal => _kind == CelValueKind.Decimal && ReferenceEquals(_ref, DecimalParts.SystemDecimalOrigin);
+
+    // The 128 bits of the value, the low 64 in the first word: the digits, the exponent and the sign of a zero stay as they are.
+    private static CelValue FromDecimalBits(object? origin, Decimal128 value)
+    {
+        if (!Decimal128.IsFinite(value))
+        {
+            throw new ArgumentException("A decimal must be finite: a NaN and an infinity are not values of CEL.", nameof(value));
+        }
+
+        UInt128 bits = Decimal128.EncodeBinary(value);
+        return new CelValue(CelValueKind.Decimal, origin, (ulong)bits, (ulong)(bits >> 64));
     }
 #endif
 
@@ -464,8 +483,12 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Decimal"/>.</returns>
     public bool TryGetDecimal(out Decimal128 value)
     {
-        throw new NotImplementedException();
+        value = _kind == CelValueKind.Decimal ? DecimalOf(this) : default;
+        return _kind == CelValueKind.Decimal;
     }
+
+    // The Decimal128 of a value of the kind Decimal, from its bits.
+    private static Decimal128 DecimalOf(CelValue value) => Decimal128.DecodeBinary(new UInt128(value._p1, value._p0));
 #endif
 
     /// <summary>
@@ -521,14 +544,23 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.Bytes => BytesOf(this).Span.SequenceEqual(BytesOf(other).Span),
             CelValueKind.Type => ((CelType)_ref!).Equals((CelType?)other._ref),
             CelValueKind.List or CelValueKind.Map or CelValueKind.Error => ReferenceEquals(_ref, other._ref),
-            CelValueKind.Object => ObjectEquals(other),
-            CelValueKind.Abstract => ((AbstractValue)_ref!).ContentEquals((AbstractValue)other._ref!),
-            CelValueKind.Optional => OptionalEquals(other),
-
-            // No factory creates values of the other kinds yet.
-            _ => throw new NotImplementedException(),
+            _ => EqualsOther(other),
         };
     }
+
+    // The kinds of an object, an abstract value, an optional and a decimal; every kind has its arm in one of the two switches.
+    private bool EqualsOther(CelValue other) => _kind switch
+    {
+        CelValueKind.Object => ObjectEquals(other),
+        CelValueKind.Abstract => ((AbstractValue)_ref!).ContentEquals((AbstractValue)other._ref!),
+        CelValueKind.Optional => OptionalEquals(other),
+#if NET11_0_OR_GREATER
+
+        // By value, not by cohort: 1.50 equals 1.5 and -0 equals 0.
+        CelValueKind.Decimal => DecimalOf(this) == DecimalOf(other),
+#endif
+        _ => false,
+    };
 
     /// <summary>
     /// Compares this value with an object, as <see cref="Equals(CelValue)"/> does when the object is a <see cref="CelValue"/>.
@@ -556,17 +588,26 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             CelValueKind.Bytes => BytesHash(BytesOf(this).Span),
             CelValueKind.Type => ((CelType)_ref!).GetHashCode(),
             CelValueKind.List or CelValueKind.Map or CelValueKind.Error => RuntimeHelpers.GetHashCode(_ref),
-            CelValueKind.Object => _ref is ObjectPair pair
-                ? HashCode.Combine(RuntimeHelpers.GetHashCode(pair.Instance), RuntimeHelpers.GetHashCode(pair.Type))
-                : RuntimeHelpers.GetHashCode(_ref),
-            CelValueKind.Abstract => ((AbstractValue)_ref!).ContentHash(),
-            CelValueKind.Optional => _ref is OptionalBox box ? box.Value.GetHashCode() : 0,
-
-            // No factory creates values of the other kinds yet.
-            _ => throw new NotImplementedException(),
+            _ => HashOther(),
         };
         return HashCode.Combine(_kind, content);
     }
+
+    // The hash of the kinds of an object, an abstract value, an optional and a decimal.
+    private int HashOther() => _kind switch
+    {
+        CelValueKind.Object => _ref is ObjectPair pair
+            ? HashCode.Combine(RuntimeHelpers.GetHashCode(pair.Instance), RuntimeHelpers.GetHashCode(pair.Type))
+            : RuntimeHelpers.GetHashCode(_ref),
+        CelValueKind.Abstract => ((AbstractValue)_ref!).ContentHash(),
+        CelValueKind.Optional => _ref is OptionalBox box ? box.Value.GetHashCode() : 0,
+#if NET11_0_OR_GREATER
+
+        // The same for the cohorts of a value and for both zeros, as the equality requires.
+        CelValueKind.Decimal => DecimalOf(this).GetHashCode(),
+#endif
+        _ => 0,
+    };
 
     /// <summary>
     /// Tells whether two values are equal by .NET equality, as <see cref="Equals(CelValue)"/> does; not the CEL <c>==</c>.

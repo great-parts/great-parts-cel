@@ -106,7 +106,7 @@ public sealed class CelType : IEquatable<CelType>
     /// when the <c>decimal</c> extension is added to it; otherwise a declaration that uses it is a build
     /// error <see cref="Diagnostics.CelErrorCode.TypeNotDeclared"/>.
     /// </summary>
-    public static CelType Decimal => throw new NotImplementedException();
+    public static CelType Decimal { get; } = new(CelTypeKind.Decimal, "decimal", []);
 #endif
 
     /// <summary>
