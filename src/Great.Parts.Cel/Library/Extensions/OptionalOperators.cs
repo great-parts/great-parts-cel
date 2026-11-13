@@ -25,8 +25,9 @@ namespace Great.Parts.Cel.Library.Extensions;
 // outside the open interval (-2^63, 2^63) and a double that is no integer stay errors, as in cel-go); a key of another kind is
 // EvalNoMatchingOverload. A map finds nothing
 // for a key of a kind that is no key. The overloads over an optional take a step before: an empty operand gives the empty optional
-// for a key of any kind, a non-empty one is read through the held list or map, and a held value that is neither is
-// EvalNoMatchingOverload, since an implementation checks the kinds it reads. They cost what index_list and index_map cost for the
+// for a key of any kind, a non-empty one is read through the held value by the kind of that value, not by the kind that the overload
+// names: a held list as a list and a held map as a map, so the four overloads over an optional share one implementation. A held value
+// that is neither is EvalNoMatchingOverload, where cel-go fails too (no such key). They cost what index_list and index_map cost for the
 // held value, plus the unit of the overload, and 1 for an empty operand.
 internal static class OptionalOperators
 {
@@ -42,11 +43,9 @@ internal static class OptionalOperators
     internal const string OptionalListIndexId = "optional_list_index_int";
     internal const string OptionalMapIndexId = "optional_map_index_value";
 
-    // The units of an index over an optional beyond the unit of the overload: those of the index of the held list or map, and none for
-    // an empty optional.
-    private static readonly CelCostFunction OptionalListCost = static arguments => OptionalIndexCost(arguments, Costs.IndexList);
-
-    private static readonly CelCostFunction OptionalMapCost = static arguments => OptionalIndexCost(arguments, Costs.IndexKey);
+    // The units of an index over an optional beyond the unit of the overload: those of the index of the held list or map, by the kind of
+    // the held value, and none for an empty optional.
+    private static readonly CelCostFunction OptionalIndexCost = static arguments => IndexCostOfHeld(arguments);
 
     // The seven bindings, with the source that names the set in build errors. The extension puts them where the table of the set has
     // them, after optional_orValue_value and before list_first.
@@ -66,11 +65,11 @@ internal static class OptionalOperators
             // has to be a string literal, which the parser always writes.
             new OverloadBinding(SelectFunction, new CelOverloadDecl(SelectId, false, [CelType.Dyn, CelType.String], result), null, 0, null, source, validator: ValidateSelect),
             new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(ListOptIndexId, false, [list, @int], result), ListOptIndex, 1, Costs.IndexList, source),
-            new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(OptionalListOptIndexId, false, [optionalList, @int], result), OptionalListIndex, 1, OptionalListCost, source),
+            new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(OptionalListOptIndexId, false, [optionalList, @int], result), OptionalIndex, 1, OptionalIndexCost, source),
             new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(MapOptIndexId, false, [map, key], result), MapOptIndex, 1, Costs.IndexKey, source),
-            new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(OptionalMapOptIndexId, false, [optionalMap, key], result), OptionalMapIndex, 1, OptionalMapCost, source),
-            new OverloadBinding(IndexFunction, new CelOverloadDecl(OptionalListIndexId, false, [optionalList, @int], result), OptionalListIndex, 1, OptionalListCost, source),
-            new OverloadBinding(IndexFunction, new CelOverloadDecl(OptionalMapIndexId, false, [optionalMap, key], result), OptionalMapIndex, 1, OptionalMapCost, source),
+            new OverloadBinding(OptionalIndexFunction, new CelOverloadDecl(OptionalMapOptIndexId, false, [optionalMap, key], result), OptionalIndex, 1, OptionalIndexCost, source),
+            new OverloadBinding(IndexFunction, new CelOverloadDecl(OptionalListIndexId, false, [optionalList, @int], result), OptionalIndex, 1, OptionalIndexCost, source),
+            new OverloadBinding(IndexFunction, new CelOverloadDecl(OptionalMapIndexId, false, [optionalMap, key], result), OptionalIndex, 1, OptionalIndexCost, source),
         ];
     }
 
@@ -93,9 +92,12 @@ internal static class OptionalOperators
             ? ReadMap(map, arguments[1], in site)
             : site.NoMatchingOverload(arguments);
 
-    // optional_list_optindex_optional_int and optional_list_index_int, (optional_type(list(V)), int) -> optional_type(V): the code of
-    // the plain overload over the held list.
-    private static CelValue OptionalListIndex(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    // The four overloads over an optional — optional_list_optindex_optional_int, optional_map_optindex_optional_value,
+    // optional_list_index_int and optional_map_index_value — one implementation: the held value is read by its kind, as the optional
+    // qualifiers of cel-go read it, whichever of the pair the static type of the operand names. An operand that is no optional is
+    // EvalNoMatchingOverload, an empty one the empty optional without a read of the key, a held list or map the plain read, and a held
+    // value of another kind EvalNoMatchingOverload.
+    private static CelValue OptionalIndex(ReadOnlySpan<CelValue> arguments, in CallSite site)
     {
         if (!arguments[0].TryGetOptional(out CelOptional<CelValue> optional))
         {
@@ -107,23 +109,13 @@ internal static class OptionalOperators
             return CelValue.FromOptional(default);
         }
 
-        return optional.Value.TryGetList(out CelList? list) ? ReadList(list, arguments, in site) : site.NoMatchingOverload(arguments);
-    }
-
-    // optional_map_optindex_optional_value and optional_map_index_value, (optional_type(map(K, V)), K) -> optional_type(V).
-    private static CelValue OptionalMapIndex(ReadOnlySpan<CelValue> arguments, in CallSite site)
-    {
-        if (!arguments[0].TryGetOptional(out CelOptional<CelValue> optional))
+        CelValue held = optional.Value;
+        if (held.TryGetList(out CelList? list))
         {
-            return site.NoMatchingOverload(arguments);
+            return ReadList(list, arguments, in site);
         }
 
-        if (!optional.HasValue)
-        {
-            return CelValue.FromOptional(default);
-        }
-
-        return optional.Value.TryGetMap(out CelMap? map) ? ReadMap(map, arguments[1], in site) : site.NoMatchingOverload(arguments);
+        return held.TryGetMap(out CelMap? map) ? ReadMap(map, arguments[1], in site) : site.NoMatchingOverload(arguments);
     }
 
     // The element at the key of the list: an int, or a uint or a double with an integral value as index_list takes them. An index
@@ -178,9 +170,9 @@ internal static class OptionalOperators
     private static CelValue OptionalOf(CelValue value) =>
         value.Kind == CelValueKind.Error ? value : CelValue.FromOptional(new CelOptional<CelValue>(value));
 
-    // The argument cost of an overload over an optional: nothing for an empty operand, and for a held list or map what the plain
-    // overload answers for the held value and the key.
-    private static ulong OptionalIndexCost(ReadOnlySpan<CelValue> arguments, CelCostFunction plain)
+    // The argument cost of an overload over an optional: nothing for an empty operand, a value that is no optional and a held value that
+    // is neither list nor map, and for a held list or map what the plain overload of its kind answers for the held value and the key.
+    private static ulong IndexCostOfHeld(ReadOnlySpan<CelValue> arguments)
     {
         if (arguments.Length != 2 || !arguments[0].TryGetOptional(out CelOptional<CelValue> optional) || !optional.HasValue)
         {
@@ -188,6 +180,11 @@ internal static class OptionalOperators
         }
 
         ReadOnlySpan<CelValue> held = [optional.Value, arguments[1]];
-        return plain(held);
+        if (optional.Value.TryGetList(out _))
+        {
+            return Costs.IndexList(held);
+        }
+
+        return optional.Value.TryGetMap(out _) ? Costs.IndexKey(held) : 0;
     }
 }

@@ -433,11 +433,11 @@ public sealed class OptionalProfileTests
     }
 
     // The type of a literal is that of its first value and a dyn variable fits it, so {'a': x1}.?a is an optional of a map by its type and
-    // holds whatever x1 holds: the library gives no such overload for an index of such an optional where cel-go gives none, so the operand
-    // of an index of an optional chain that is an optional of a list or a map by its type has no dyn variable, no variable with a dyn part
-    // in its type and no dyn() in it; an operand of the type dyn is dispatched by the kind of its value and is not restricted.
+    // holds whatever x1 holds. The library reads the held value by its kind as cel-go does (docs/design/extension-optional.md,
+    // "Indexes"), so the operand of an index of an optional chain that is an optional of a list or a map by its type is not restricted: a
+    // dyn variable, a variable with a dyn part in its type or a dyn() may stand in it.
     [Fact]
-    public void OperandOfAnIndexOfAnOptional_ReadsNoNodeWhoseKindItsTypeDoesNotKeep()
+    public void OperandOfAnIndexOfAnOptional_MayReadANodeWhoseKindItsTypeDoesNotKeep()
     {
         static bool HasDyn(StaticType? type) => type is { } known && (known.IsDyn || HasDyn(known.Element) || HasDyn(known.Key) || HasDyn(known.Value));
 
@@ -447,8 +447,7 @@ public sealed class OptionalProfileTests
 
         Assert.NotEmpty(unsure);
         Assert.NotEmpty(chains);
-        Assert.All(chains, call => Assert.DoesNotContain(
-            GeneratorTests.Nodes(call.Args[0]),
+        Assert.Contains(chains, call => GeneratorTests.Nodes(call.Args[0]).Any(
             node => (node is Ident ident && unsure.Contains(ident.Name)) || node is Call { Function: ProfileTables.Dyn }));
     }
 
@@ -533,6 +532,12 @@ public sealed class OptionalProfileTests
             Overload: "optional_list_optindex_optional_int" or "optional_list_index_int" or "optional_map_optindex_optional_value" or "optional_map_index_value",
             Container: { IsDyn: true },
         };
+        forms["index of an optional of a list or a map whose operand reads a dyn variable"] = node => node is Call
+        {
+            Overload: "optional_list_optindex_optional_int" or "optional_list_index_int" or "optional_map_optindex_optional_value" or "optional_map_index_value",
+            Container: { IsDyn: false },
+            Args: [{ } operand, _],
+        } && GeneratorTests.Nodes(operand).Any(inner => inner is Ident { Name: "x1" or "x2" });
         forms["index of a list by a uint or a double in dyn()"] = node => node is Call
         {
             Overload: "list_optindex_optional_int" or "optional_list_optindex_optional_int" or "optional_list_index_int",

@@ -120,7 +120,7 @@ public sealed class OptionalOperatorsTests : IDisposable
         """;
 
     // A held value that is no list and no map, and an operand that is no optional, list or map at all, are EvalNoMatchingOverload
-    // whatever the key is: the third difference from cel-go ("Differences from cel-go" of the page of the set).
+    // whatever the key is; cel-go fails there too, with no such key ("Indexes" of the page of the set).
     private const string Mismatches = """
         Evaluate | dyn(optional.of(1))^[0] | EvalNoMatchingOverload | no such overload: _[_](optional_type, int)
         Evaluate | optional.of(dyn(1))^[?0] | EvalNoMatchingOverload | no such overload: _[?_](optional_type, int)
@@ -216,8 +216,9 @@ public sealed class OptionalOperatorsTests : IDisposable
         }
     }
 
-    // The argument cost of an overload over an optional is that of the held list or map, and nothing for an empty optional or for a
-    // value that is no optional.
+    // The argument cost of an overload over an optional is that of the held list or map by the kind of the held value, whichever
+    // overload of the pair names the type, and nothing for an empty optional, for a held value that is neither or for a value that is
+    // no optional.
     [Fact]
     public static void ArgumentCostOfAnIndexOverAnOptional_IsThatOfTheHeldValue()
     {
@@ -235,6 +236,72 @@ public sealed class OptionalOperatorsTests : IDisposable
         Assert.Equal(2UL, table[6].ArgumentCost!([Held(map), key]));
         Assert.Equal(0UL, table[4].ArgumentCost!([none, key]));
         Assert.Equal(0UL, table[6].ArgumentCost!([map, key]));
+
+        // A held map under the overloads that name a list costs as a map, and a held list under those that name a map as a list.
+        Assert.Equal(2UL, table[2].ArgumentCost!([Held(map), key]));
+        Assert.Equal(2UL, table[5].ArgumentCost!([Held(map), key]));
+        Assert.Equal(0UL, table[4].ArgumentCost!([Held(list), key]));
+        Assert.Equal(0UL, table[6].ArgumentCost!([Held(list), key]));
+
+        // A held value that is neither costs nothing.
+        foreach (int overload in new[] { 2, 4, 5, 6 })
+        {
+            Assert.Equal(0UL, table[overload].ArgumentCost!([Held(CelValue.FromString("abcdefghijk")), key]));
+        }
+    }
+
+    // The four overloads over an optional share one implementation, which reads the held value by its kind: whichever of them the call
+    // reaches, a held list is indexed as a list, a held map as a map and a value of any other kind is EvalNoMatchingOverload; an empty
+    // optional is the empty optional for a key of any kind, and an operand that is no optional is EvalNoMatchingOverload.
+    [Fact]
+    public static void IndexOverAnOptional_ReadsTheHeldValueByItsKind_WhicheverOverloadOfTheFourIsCalled()
+    {
+        ImmutableArray<OverloadBinding> table = OptionalOperators.Overloads("test");
+        int[] overloads = [2, 4, 5, 6];
+        CelValue list = CelValue.FromList(CelList.Create(CelValue.FromInt64(10), CelValue.FromInt64(20)));
+        CelValue map = CelValue.FromMap(CelMap.Create([new(CelValue.FromInt64(1), CelValue.FromString("x"))]));
+        (CelValue Key, string OfList, string OfMap)[] keys =
+        [
+            (CelValue.FromInt64(1), "of:20", "of:x"),
+            (CelValue.FromUInt64(1), "of:20", "of:x"),
+            (CelValue.FromDouble(1.0), "of:20", "of:x"),
+            (CelValue.FromDouble(1.5), "!InvalidArgument", "none"),
+            (CelValue.FromString("a"), "!EvalNoMatchingOverload", "none"),
+            (CelValue.FromBoolean(true), "!EvalNoMatchingOverload", "none"),
+            (CelValue.FromBytes("a"u8.ToArray()), "!EvalNoMatchingOverload", "none"),
+            (CelValue.Null, "!EvalNoMatchingOverload", "none"),
+        ];
+        CelValue[] others =
+        [
+            CelValue.FromTimestamp(new CelTimestamp(0, 0)),
+            CelValue.FromDuration(new CelDuration(1_000_000_000)),
+            CelValue.FromType(CelType.Int),
+            CelValue.FromDouble(2.5),
+            CelValue.FromUInt64(7),
+            CelValue.FromInt64(0),
+            CelValue.FromBoolean(false),
+            CelValue.FromString(string.Empty),
+            CelValue.FromBytes(Array.Empty<byte>()),
+            CelValue.Null,
+        ];
+
+        foreach (int overload in overloads)
+        {
+            foreach ((CelValue key, string ofList, string ofMap) in keys)
+            {
+                Assert.Equal(ofList, Describe(Index(table[overload], Held(list), key)));
+                Assert.Equal(ofMap, Describe(Index(table[overload], Held(map), key)));
+                Assert.Equal("none", Describe(Index(table[overload], CelValue.FromOptional(default), key)));
+                Assert.Equal("!EvalNoMatchingOverload", Describe(Index(table[overload], list, key)));
+                Assert.Equal("!EvalNoMatchingOverload", Describe(Index(table[overload], map, key)));
+                Assert.Equal("!EvalNoMatchingOverload", Describe(Index(table[overload], Held(Held(list)), key)));
+                foreach (CelValue other in others)
+                {
+                    Assert.Equal("!EvalNoMatchingOverload", Describe(Index(table[overload], Held(other), key)));
+                    Assert.Equal("!EvalNoMatchingOverload", Describe(Index(table[overload], other, key)));
+                }
+            }
+        }
     }
 
     [Fact]
@@ -399,6 +466,30 @@ public sealed class OptionalOperatorsTests : IDisposable
         .Add("jl", jsonList.RootElement);
 
     private static CelValue Held(CelValue value) => CelValue.FromOptional(new CelOptional<CelValue>(value));
+
+    // The implementation of an overload called on the operand and the key, as the plan calls it.
+    private static CelValue Index(OverloadBinding binding, CelValue operand, CelValue key) =>
+        binding.Implementation!([operand, key], new CallSite(binding.Function, 0, new LineTable("x")));
+
+    // The outcome of an index in one word: "!" and the code of an error, "none" for the empty optional, "of:" and the element, an int or
+    // a string, of an optional that holds one.
+    private static string Describe(CelValue value)
+    {
+        if (value.TryGetError(out CelError? error))
+        {
+            return "!" + error.Code;
+        }
+
+        Assert.True(value.TryGetOptional(out CelOptional<CelValue> optional));
+        if (!optional.HasValue)
+        {
+            return "none";
+        }
+
+        return optional.Value.TryGetInt64(out long number)
+            ? "of:" + number.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : optional.Value.TryGetString(out string? text) ? "of:" + text : "of:?";
+    }
 
     // The outcome of a key of a kind that no overload takes, in the form that IndexRows reads: "!" and the code with the kind.
     private static string NoOverload(string kind) => "!EvalNoMatchingOverload:" + kind;

@@ -201,6 +201,45 @@ public sealed class OptionalAccessTests
         Evaluate | optional.none()[dyn(1) ^/ 0] | DivisionByZero | division by zero
         """;
 
+    // An index of an optional is read by the kind of the value that it holds, whichever overload of the pair its static type names
+    // ("Indexes" of the page of the set): a held list is indexed as a list and a held map as a map, a key of the type dyn included.
+    // The two directions are here: an operand of a map type that holds a list, and an operand of a list type that holds a map. The
+    // outcomes are those of the optional qualifiers of cel-go (refQualify), whatever the static types of the operands are.
+    private const string HeldKinds = """
+        {'a': {'x': 1}, 'b': dyn([10, 20])}.?b[dyn(1u)] => optional.of(20)
+        {'a': {'x': 1}, 'b': dyn([10, 20])}.?b[?dyn(1)] => optional.of(20)
+        {'a': {'x': 1}, 'b': dyn([10, 20])}.?b[dyn(1.0)] => optional.of(20)
+        {'a': {'x': 1}, 'b': dyn([10, 20])}.?b[?dyn(2u)] => optional.none()
+        {'a': {'x': 1}, 'b': dyn([10, 20])}.?b[dyn(-1)] => optional.none()
+        {'a': {'x': 1}, 'b': dyn([10, 20])}.?c[?dyn(1u)] => optional.none()
+        [[1], dyn({'a': 5})][?1][dyn('a')] => optional.of(5)
+        [[1], dyn({'a': 5})][?1][?dyn('a')] => optional.of(5)
+        [[1], dyn({'a': 5})][?1][?dyn('b')] => optional.none()
+        [[1], dyn({'a': 5})][?1][dyn(1)] => optional.none()
+        [[1], dyn({'a': 5})][?1][?dyn(1u)] => optional.none()
+        [[1], dyn({'a': 5})][?1][?dyn(1.0)] => optional.none()
+        [[1], dyn({1: 'x'})][?1][dyn(1u)] => optional.of('x')
+        [[1], dyn({1: 'x'})][?1][?dyn(1.0)] => optional.of('x')
+        [[1], dyn({1: 'x'})][?1][?dyn(true)] => optional.none()
+        """;
+
+    // A held value that is no list and no map is an error whichever overload the static type names, and so is a held list by a key that
+    // is no index of a list (a map finds nothing for a key of another kind, which is none: HeldKinds). cel-go fails with no such key
+    // there; the library has EvalNoMatchingOverload ("Differences from cel-go" of the page of the set). The place is the "[".
+    private const string HeldKindErrors = """
+        Evaluate | {'a': {'x': 1}, 'b': dyn(5)}.?b^[dyn('x')] | EvalNoMatchingOverload | no such overload: _[_](optional_type, string)
+        Evaluate | {'a': {'x': 1}, 'b': dyn(5)}.?b^[?dyn('x')] | EvalNoMatchingOverload | no such overload: _[?_](optional_type, string)
+        Evaluate | {'a': {'x': 1}, 'b': dyn('s')}.?b^[dyn(1u)] | EvalNoMatchingOverload | no such overload: _[_](optional_type, uint)
+        Evaluate | {'a': {'x': 1}, 'b': dyn(null)}.?b^[?dyn('x')] | EvalNoMatchingOverload | no such overload: _[?_](optional_type, string)
+        Evaluate | {'a': {'x': 1}, 'b': dyn(b'a')}.?b^[dyn(0)] | EvalNoMatchingOverload | no such overload: _[_](optional_type, int)
+        Evaluate | {'a': {'x': 1}, 'b': dyn(int)}.?b^[?dyn(0)] | EvalNoMatchingOverload | no such overload: _[?_](optional_type, int)
+        Evaluate | {'a': {'x': 1}, 'b': dyn([10, 20])}.?b^[dyn('x')] | EvalNoMatchingOverload | no such overload: _[_](optional_type, string)
+        Evaluate | {'a': {'x': 1}, 'b': dyn([10, 20])}.?b^[?dyn(1.5)] | InvalidArgument | -
+        Evaluate | {'a': {'x': 1}, 'b': dyn([10, 20])}.?b^[dyn(9223372036854775808u)] | IndexOutOfRange | -
+        Evaluate | [[1], dyn(5)][?1]^[dyn(0)] | EvalNoMatchingOverload | no such overload: _[_](optional_type, int)
+        Evaluate | [[1], dyn('s')][?1]^[?dyn('x')] | EvalNoMatchingOverload | no such overload: _[?_](optional_type, string)
+        """;
+
     // The selection of a value that is not a map, a message or an optional of one is an error of the evaluation when the type
     // was dyn: FieldSelectionNotSupported at the ".", with the text of the table of the codes.
     private const string EvaluationErrors = """
@@ -283,6 +322,13 @@ public sealed class OptionalAccessTests
 
         Assert.Empty(failures);
     }
+
+    [Fact]
+    public void IndexOfAnOptional_IsReadByTheKindOfTheHeldValue() => Assert.Empty(ExtensionRows.CheckValues(environment, HeldKinds, bindings));
+
+    [Fact]
+    [Trait("Requirement", "F-4")]
+    public void IndexOfAnOptionalThatHoldsNoListAndNoMap_IsAnError() => Assert.Empty(ExtensionRows.CheckErrors(environment, HeldKindErrors, bindings));
 
     [Fact]
     [Trait("Requirement", "F-4")]
