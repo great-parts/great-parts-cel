@@ -432,6 +432,26 @@ public sealed class OptionalProfileTests
         }
     }
 
+    // The type of a literal is that of its first value and a dyn variable fits it, so {'a': x1}.?a is an optional of a map by its type and
+    // holds whatever x1 holds: the library gives no such overload for an index of such an optional where cel-go gives none, so the operand
+    // of an index of an optional chain that is an optional of a list or a map by its type has no dyn variable, no variable with a dyn part
+    // in its type and no dyn() in it; an operand of the type dyn is dispatched by the kind of its value and is not restricted.
+    [Fact]
+    public void OperandOfAnIndexOfAnOptional_ReadsNoNodeWhoseKindItsTypeDoesNotKeep()
+    {
+        static bool HasDyn(StaticType? type) => type is { } known && (known.IsDyn || HasDyn(known.Element) || HasDyn(known.Key) || HasDyn(known.Value));
+
+        HashSet<string> unsure = [.. ProfileTables.Variables.Where(variable => HasDyn(variable.Declared)).Select(variable => variable.Name)];
+        List<Call> chains = [.. Sample(ManyCases).SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Call>()
+            .Where(call => call is { Function: ProfileTables.Index or ProfileTables.OptionalIndex, Container: { IsDyn: false } })];
+
+        Assert.NotEmpty(unsure);
+        Assert.NotEmpty(chains);
+        Assert.All(chains, call => Assert.DoesNotContain(
+            GeneratorTests.Nodes(call.Args[0]),
+            node => (node is Ident ident && unsure.Contains(ident.Name)) || node is Call { Function: ProfileTables.Dyn }));
+    }
+
     // Every form of the set occurs: the search ends when all have occurred.
     [Fact]
     public void EveryFormOfTheSetOptional_Occurs()

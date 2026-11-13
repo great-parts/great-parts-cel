@@ -478,6 +478,16 @@ internal sealed partial class ExprBuilder
         bool optionalIndex = pcg.OneIn(2);
         Built inner = OptionalOperand(depth + 1, limit - 2, list ? ProfileType.ListType : ProfileType.MapType, false, null);
         StaticType? container = inner.Type?.Element;
+
+        // An operand that is an optional of a list or a map by its type has to hold that kind by its value too: the type of a literal is
+        // that of its first value and a dyn variable fits it, so {'a': x1}.?a is an optional of a map by its type and holds whatever x1
+        // holds. The overload that the type names is the only candidate then, and a list held there gives the error no such overload where
+        // cel-go gives none (CI, the runs after the profile of the optional indexes). An operand of the type dyn is dispatched by its kind.
+        if (MayHoldOtherKind(container, inner.Expr))
+        {
+            return null;
+        }
+
         Built index = list
             ? OptionalIndexValue(null, depth + 1, limit - 1 - inner.Nodes)
             : Key(null, container, depth + 1, limit - 1 - inner.Nodes);
@@ -490,6 +500,30 @@ internal sealed partial class ExprBuilder
             1 + inner.Nodes + index.Nodes,
             held);
     }
+
+    // Whether an optional node, whose type names a list or a map, may hold another kind: its operand reads a value that its type does not keep.
+    private static bool MayHoldOtherKind(StaticType? container, Expr operand) =>
+        container is { IsDyn: false, Kind: ProfileType.ListType or ProfileType.MapType } && !KindsAreSure(operand);
+
+    // Whether every value that a node reads is of the kind that its static type says: no dyn variable, no variable with a dyn part in its
+    // type, no iteration variable, no dyn() and no type identifier stands in it, since the table of variables tells no kind for them.
+    private static bool KindsAreSure(Expr node) => node switch
+    {
+        Ident ident => IsSureVariable(ident.Name),
+        Call { Function: ProfileTables.Dyn } => false,
+        Call call => call.Args.All(KindsAreSure),
+        ListLiteral list => list.Elements.All(KindsAreSure),
+        MapLiteral map => map.Entries.All(entry => KindsAreSure(entry.Key) && KindsAreSure(entry.Value)),
+        Select select => KindsAreSure(select.Operand),
+        PresenceTest test => KindsAreSure(test.Operand),
+        Comprehension macro => KindsAreSure(macro.Range) && macro.Arguments.All(KindsAreSure),
+        _ => true,
+    };
+
+    private static bool IsSureVariable(string name) =>
+        ProfileTables.Variables.Any(variable => variable.Name == name && !HasDyn(variable.Declared));
+
+    private static bool HasDyn(StaticType? type) => type is { } known && (known.IsDyn || HasDyn(known.Element) || HasDyn(known.Key) || HasDyn(known.Value));
 
     // An index: -1, 0, 1, the size, the size + 1 or 100, where the size of a literal is its number of elements and otherwise 2; one time
     // in six a node of the type int, and one time in six a node of the type dyn, whose value the library reads by its kind as cel-go
