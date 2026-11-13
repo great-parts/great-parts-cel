@@ -1,0 +1,131 @@
+# Mutation testing before release 1.0 (docs/design/eng-mutate.md, "Run on GitHub"): by hand, on main only. It runs the commands of the
+# container check, eng/mutate, through eng/compose.yaml, as a developer machine does: the control set of Stryker.NET
+# (eng/stryker-control.json) and the run on the whole library whose score is read. Stryker.NET is a local tool of the repository, so
+# the workflow has no tool setup. The workflow runs no trigger but the manual one: the control set left ci.yml, and the run of the
+# whole library is made once, before the release.
+# The result is the artifact of the run, the reports and the finding lines of each run, and the step summary: the last line of
+# eng/run, the counts of the mutants by status and of the finding codes ENG501 to ENG504. The workflow sets no timeout-minutes: the
+# protection against a hung job is the default limit of GitHub Actions, 6 hours.
+name: mutate
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "What to run: both (the control set, then the whole library), control (the control set only) or library (the whole library only)."
+        type: choice
+        options:
+          - both
+          - control
+          - library
+        default: both
+      since:
+        description: "Commit from which the changes are counted in the run on the library (a SHA or a branch name). Without it: the first commit of the history, so every file of the library is mutated."
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# One run at a time: the run uses the whole runner for hours.
+concurrency:
+  group: mutate
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  mutate:
+    name: Mutation testing
+    # Only the main branch: a manual run from another branch is skipped.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      # since compares the working copy with a commit, and eng/run reads git, so the whole history and the branch main are there.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Mutation testing (eng/mutate)
+        env:
+          # The values reach the script only through the environment, never through the text of the script.
+          RUNS: ${{ inputs.runs }}
+          SINCE: ${{ inputs.since }}
+        run: |
+          set -u
+          if ! [[ "$RUNS" =~ ^(both|control|library)$ ]]; then
+            echo "The runs are both, control or library."
+            exit 2
+          fi
+          if [ -n "$SINCE" ] && ! [[ "$SINCE" =~ ^[0-9A-Za-z._/-]+$ ]]; then
+            echo "The since is a SHA or a branch name."
+            exit 2
+          fi
+          if [ -z "$SINCE" ]; then
+            SINCE=$(git rev-list --max-parents=0 HEAD | tail -n 1)
+          fi
+
+          results="$RUNNER_TEMP/mutate-results"
+          mkdir -p "$results"
+          failed=0
+
+          # One run: the log, the reports and the lines of the summary of the run named by the first argument; the rest are the
+          # arguments of the service. eng/run deletes artifacts/mutate before a run, so the reports of a run are copied away at once.
+          run_one() {
+            local name="$1"
+            shift
+            local output="$results/$name.txt"
+            local status=0
+            docker compose -f eng/compose.yaml run --rm -T mutate "$@" > "$output" || status=$?
+            cat "$output"
+            if [ -d artifacts/mutate ]; then
+              cp -r artifacts/mutate "$results/$name"
+            fi
+
+            local last
+            last=$(grep -E '^mutate: ' "$output" | tail -n 1 || true)
+            {
+              echo "### mutate $name"
+              echo
+              echo '```text'
+              echo "${last:-No summary line (exit code $status).}"
+              echo '```'
+              echo
+              echo "Finding lines: $(grep -cE 'ENG50[1-4]' "$output" || true)"
+              if [ -f "$results/$name/reports/mutation-report.json" ]; then
+                echo
+                echo "Mutants by status:"
+                echo
+                echo '```text'
+                jq -r '[.files[].mutants[].status] | group_by(.) | map("\(.[0]) \(length)") | .[]' "$results/$name/reports/mutation-report.json" || true
+                echo '```'
+              fi
+              echo
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            if [ "$status" -ne 0 ]; then
+              failed=1
+            fi
+          }
+
+          # The control set checks the tool and the test runner; its failure does not skip the run on the library, whose result is
+          # still of use, but fails the job.
+          if [ "$RUNS" != "library" ]; then
+            run_one control eng/stryker-control.json
+          fi
+          if [ "$RUNS" != "control" ]; then
+            run_one library --since "$SINCE"
+          fi
+          exit "$failed"
+
+      # The artifact is uploaded even after a failed run: the report and the findings are what the failure is read from.
+      - name: Reports and findings
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mutate-results
+          path: ${{ runner.temp }}/mutate-results
+          if-no-files-found: warn

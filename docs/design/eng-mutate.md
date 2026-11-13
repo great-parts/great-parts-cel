@@ -70,7 +70,7 @@ The set has no `since`, so it runs from a linked worktree too ([Linked worktrees
 
 ### Triggers
 
-CI does not run the set. It runs before release 1.0, together with `eng/mutate` on the whole library: first `eng/mutate eng/stryker-control.json`, which checks the tool and the test runner, then the run whose score is read. A run before the release needs no filter by paths. By hand, for example after a change of the Stryker.NET version, the set is needed when a change touches a path of the list below; the check is `git diff --name-only main...HEAD -- <paths>`. They are the paths on which the result of the set depends: the set itself — its configuration, the code that it mutates and the code that code uses, the tests that detect its mutants; the steps of `eng/mutate`; the container; the settings of the compiler; the versions of the tool, of the test platform, of the SDK and of the image.
+`ci.yml` does not run the set. It runs before release 1.0, with the workflow `mutate.yml` ([Run on GitHub](#run-on-github)), together with `eng/mutate` on the whole library: first `eng/mutate eng/stryker-control.json`, which checks the tool and the test runner, then the run whose score is read. A run before the release needs no filter by paths. By hand, for example after a change of the Stryker.NET version, the set is needed when a change touches a path of the list below; the check is `git diff --name-only main...HEAD -- <paths>`. They are the paths on which the result of the set depends: the set itself — its configuration, the code that it mutates and the code that code uses, the tests that detect its mutants; the steps of `eng/mutate`; the container; the settings of the compiler; the versions of the tool, of the test platform, of the SDK and of the image.
 
 | Path | Why |
 | :- | :- |
@@ -88,6 +88,24 @@ CI does not run the set. It runs before release 1.0, together with `eng/mutate` 
 | `Directory.Build.props` | the settings of the compiler that Stryker.NET takes into the compilation of the mutants: `Nullable`, `WarningsAsErrors`, `WarningsNotAsErrors`, `NoWarn`; a change can turn mutants into `CompileError` without failing the build |
 
 Not triggers: `src/`, `tests/`; in `eng/tests/` — `Difftest/`, `Analyzers/`, `EngRun/`, `Findings/`, `CodeRegistryTests.cs`; `eng/difftest/`, `eng/oracle/`, `eng/analyzers/`, `eng/ratchet.json`, `eng/layers.txt`, `eng/BannedSymbols.txt`, `eng/min-sdk/`, `eng/packages/`; in the root — `stryker-config.json`, `Directory.Packages.props`, `NuGet.config`, `.editorconfig`; the documents. Such a change breaks the set only through the build or a failing test, and the jobs of the build and of the tests of `ci.yml` show that. A change of package versions in `Directory.Packages.props` reaches the set through the lock file of `eng/tests` or `eng/checks`, which is a trigger. Stryker.NET 5.0.0 compiles the mutants without the analyzer configuration: the severities of `.editorconfig` do not reach that compilation, which runs no analyzer.
+
+## Run on GitHub
+
+`.github/workflows/mutate.yml` runs `eng/mutate` before release 1.0, by hand (`workflow_dispatch`), on `main` only: a run from another branch is skipped. It is the only place where the control set and the run on the whole library are made in CI; `ci.yml` has neither. The workflow runs the Compose service `mutate` on a hosted runner, as `difftest-nightly.yml` runs `difftest`, so the run on GitHub is the run on a developer machine, and it needs no tool setup: Stryker.NET is a local tool of the repository. It has the permission `contents: read` only, its actions are pinned by SHA, and it sets no `timeout-minutes`: a job that hangs is stopped by the default limit of GitHub Actions, 6 hours ([eng-test.md](eng-test.md#ci)).
+
+| Input | Value | Meaning |
+| :- | :- | :- |
+| `runs` | `both` (default), `control`, `library` | `control` is `eng/mutate eng/stryker-control.json`; `library` is `eng/mutate --since <commit>`, the score whose result is read; `both` runs the first, then the second |
+| `since` | a SHA or a branch name; without it, the first commit of the history | the commit from which the run on the library counts the changes ([Steps](#steps)); the first commit makes every file of the library a changed file, so the run mutates the whole library |
+
+The workflow checks out the whole history, as `since` and `eng/run` read git. The control set runs first; its failure does not skip the run on the library, but the job fails at the end. `eng/run` deletes `artifacts/mutate` before a run, so the workflow copies the output of each run away at once.
+
+### Reading the result
+
+- The artifact `mutate-results` of the run has, for each run (`control`, `library`): the file `<run>.txt`, the whole output with the finding lines (`ENG501` to `ENG504`, [mutation](#mutation)), and the directory `<run>/` with the report `reports/mutation-report.json` and the other files of Stryker.NET. The log of the job holds the same output.
+- The summary of the run has, for each run: the last line of `eng/run` (`mutate: passed` or `mutate: failed`, the commit, the duration, the exit code), the number of finding lines and the number of mutants by status of the report. The score is detected mutants (`Killed`, `Timeout`) divided by those and the not detected (`Survived`, `NoCoverage`); the statuses that are not counted are in [mutation](#mutation).
+- The job is red when a run ends with a non-zero exit code: a score below the threshold (`ENG503`), a changed file without a score (`ENG504`), a failed step or, in the control set, a mutant that the tests of `eng/tests` did not detect. A surviving mutant alone (`ENG501`, `ENG502`) is a warning while the score is at or above the threshold, as everywhere in `eng/mutate`.
+- The surviving mutants are read from the finding lines or from the report; the next step is the same as for a local run: kill the mutant with a test, or mark it equivalent in the code with a Stryker.NET comment that gives the reason ([Steps](#steps)).
 
 ## Test projects and since
 
