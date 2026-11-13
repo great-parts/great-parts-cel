@@ -139,6 +139,66 @@ public sealed class OptionalAccessTests
         optional.of([[1], [2]])[3][0] => optional.none()
         """;
 
+    // A key of the type dyn is read by the kind of its value, as the optional qualifiers of cel-go read it ("Indexes" of the
+    // page of the set): a list takes an int, a uint and a double with an integral value, a map looks the key up across the
+    // numeric kinds and finds nothing for a kind that is no key, and an empty optional is empty for any key, whatever the
+    // static type of the operand is, optional.none() and an optional of dyn included.
+    private const string DynKeys = """
+        [1, 2][?dyn(1u)] => optional.of(2)
+        [1, 2][?dyn(2u)] => optional.none()
+        [1, 2][?dyn(9223372036854775807u)] => optional.none()
+        [1, 2][?dyn(1.0)] => optional.of(2)
+        [1, 2][?dyn(-0.0)] => optional.of(1)
+        [1, 2][?dyn(5.0)] => optional.none()
+        [1, 2][?dyn(-1.0)] => optional.none()
+        optional.of([1, 2])[?dyn(1u)] => optional.of(2)
+        optional.of([1, 2])[dyn(1.0)] => optional.of(2)
+        optional.of([1, 2])[dyn(2u)] => optional.none()
+        optional.of(dyn([1, 2]))[dyn(1u)] => optional.of(2)
+        optional.of(dyn([1, 2]))[?dyn(1.0)] => optional.of(2)
+        optional.none()[dyn(1u)] => optional.none()
+        optional.none()[dyn('a')] => optional.none()
+        optional.none()[dyn(b'a')] => optional.none()
+        optional.none()[?dyn(1.0)] => optional.none()
+        optional.none()[?dyn(null)] => optional.none()
+        optional.none()[?dyn([1])] => optional.none()
+        optional.none()[?dyn({'a': 1})] => optional.none()
+        optional.none()[?dyn(int)] => optional.none()
+        dyn(optional.none())[dyn(b'a')] => optional.none()
+        optional.of(dyn({'a': 1}))[dyn('a')] => optional.of(1)
+        optional.of(dyn({'a': 1}))[dyn(1)] => optional.none()
+        optional.of(dyn({'a': 1}))[?dyn('b')] => optional.none()
+        optional.of({1: 'x'})[dyn(1u)] => optional.of('x')
+        optional.of({1: 'x'})[dyn(1.0)] => optional.of('x')
+        optional.of({1: 'x'})[?dyn(2u)] => optional.none()
+        optional.of({1: 'x'})[dyn('a')] => optional.none()
+        optional.of({1: 'x'})[?dyn(true)] => optional.none()
+        {'a': 1}[?dyn('a')] => optional.of(1)
+        {'a': 1}[?dyn(1)] => optional.none()
+        {'a': 1}[?dyn(1.5)] => optional.none()
+        {1: 'x'}[?dyn(1u)] => optional.of('x')
+        {1: 'x'}[?dyn(1.0)] => optional.of('x')
+        {1: 'x'}[?dyn(1.5)] => optional.none()
+        {1: 'x'}[?dyn(true)] => optional.none()
+        {1: 'x'}[?dyn('a')] => optional.none()
+        """;
+
+    // A key that is no index of a list stays an error where cel-go fails too: a kind that a list is not indexed by, a double that
+    // is not integral, and a uint or a double beyond the range of int64, which is no empty optional either. The place is the "[".
+    private const string DynKeyErrors = """
+        Evaluate | [1, 2]^[?dyn('a')] | EvalNoMatchingOverload | no such overload: _[?_](list, string)
+        Evaluate | [1, 2]^[?dyn(true)] | EvalNoMatchingOverload | no such overload: _[?_](list, bool)
+        Evaluate | [1, 2]^[?dyn(b'a')] | EvalNoMatchingOverload | no such overload: _[?_](list, bytes)
+        Evaluate | [1, 2]^[?dyn(null)] | EvalNoMatchingOverload | no such overload: _[?_](list, null_type)
+        Evaluate | [1, 2]^[?dyn([1])] | EvalNoMatchingOverload | no such overload: _[?_](list, list)
+        Evaluate | optional.of([1, 2])^[dyn('a')] | EvalNoMatchingOverload | no such overload: _[_](optional_type, string)
+        Evaluate | optional.of([1, 2])^[?dyn(b'a')] | EvalNoMatchingOverload | no such overload: _[?_](optional_type, bytes)
+        Evaluate | [1, 2]^[?dyn(1.5)] | InvalidArgument | -
+        Evaluate | [1, 2]^[?dyn(9223372036854775808u)] | IndexOutOfRange | -
+        Evaluate | [1, 2]^[?dyn(1e19)] | IndexOutOfRange | -
+        Evaluate | optional.none()[dyn(1) ^/ 0] | DivisionByZero | division by zero
+        """;
+
     // The selection of a value that is not a map, a message or an optional of one is an error of the evaluation when the type
     // was dyn: FieldSelectionNotSupported at the ".", with the text of the table of the codes.
     private const string EvaluationErrors = """
@@ -148,8 +208,8 @@ public sealed class OptionalAccessTests
         """;
 
     // The selection and the index of the set apply to the kinds that have them: not to a scalar, not to a list by a string,
-    // not to a map by a key of another kind, and the index of a list by an int only (the uint and double indexes that a plain
-    // index takes are not taken). The place is the "." of a selection and the "[" of an index; the text of the selection
+    // not to a map by a key of another kind, and the index of a list by an int only when the type of the key is known (a key of
+    // the type dyn is read by its kind: DynKeys). The place is the "." of a selection and the "[" of an index; the text of the selection
     // that a message does not have is that of the table of the codes.
     private const string Mistakes = """
         Check | 'abc'^.?size | NoSuchField | -
@@ -199,6 +259,13 @@ public sealed class OptionalAccessTests
 
     [Fact]
     public void IndexOfAnOptional_IsOptional() => Assert.Empty(ExtensionRows.CheckValues(environment, IndexOfAnOptional, bindings));
+
+    [Fact]
+    public void IndexByADynKey_IsReadByTheKindOfTheKey() => Assert.Empty(ExtensionRows.CheckValues(environment, DynKeys, bindings));
+
+    [Fact]
+    [Trait("Requirement", "F-4")]
+    public void IndexByADynKeyThatIsNoIndexOfAList_IsAnError() => Assert.Empty(ExtensionRows.CheckErrors(environment, DynKeyErrors, bindings));
 
     [Fact]
     [Trait("Requirement", "F-4")]

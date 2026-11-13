@@ -18,7 +18,7 @@ internal static class Collections
         "index " + IndexText(ErrorValueParts.ValueOf(error)) + " out of range [0, " + ((CelList)error.First!).Count.ToString(CultureInfo.InvariantCulture) + ")";
 
     // The function name is the first part, the bits of the index the number.
-    private static readonly Func<CelError, string> NotAnIntegerText = static error =>
+    internal static readonly Func<CelError, string> NotAnIntegerText = static error =>
         "invalid argument to '" + (string)error.First! + "': index " + NumberText.FormatDouble(BitConverter.Int64BitsToDouble(error.Number))
         + " is not an integer";
 
@@ -164,7 +164,7 @@ internal static class Collections
             ? site.Error(CelErrorCode.NoSuchKey, "no such key: " + ValueTypeRules.NameOf(key, site.Types))
             : site.ErrorWithValue(CelErrorCode.NoSuchKey, NoSuchKeyText, null, key);
 
-    private static CelValue OutOfRange(in CallSite site, CelValue index, CelList list) =>
+    internal static CelValue OutOfRange(in CallSite site, CelValue index, CelList list) =>
         site.ErrorWithValue(CelErrorCode.IndexOutOfRange, OutOfRangeText, list, index);
 
     // An index as string() writes it: an int or a uint in decimal, a double in its shortest form.

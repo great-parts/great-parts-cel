@@ -335,7 +335,7 @@ internal sealed partial class ExprBuilder
             return null;
         }
 
-        Built index = OptionalIndexValue((list.Expr as ListLiteral)?.Elements.Count);
+        Built index = OptionalIndexValue((list.Expr as ListLiteral)?.Elements.Count, depth + 1, limit - 1 - list.Nodes);
         return OptionalBuilt(
             new Call(ProfileTables.OptionalIndex, [list.Expr, index.Expr]) { Overload = "list_optindex_optional_int" },
             1 + list.Nodes + index.Nodes,
@@ -357,13 +357,13 @@ internal sealed partial class ExprBuilder
         if (limit >= 5 && depth + 2 <= ProfileTables.MaxDepth && pcg.OneIn(2))
         {
             (map, held) = ValueMap(kind, null, depth + 1, limit - 2);
-            key = OptionalKey((MapLiteral)map.Expr, map.Type, depth + 1, limit - 1 - map.Nodes);
+            key = Key((MapLiteral)map.Expr, map.Type, depth + 1, limit - 1 - map.Nodes);
         }
         else if (CollectionVariableFor(ProfileType.MapType, kind) is { } variable)
         {
             map = VariableNode(variable);
             held = ElementOf(variable);
-            key = OptionalKey(null, variable.Declared, depth + 1, limit - 1 - map.Nodes);
+            key = Key(null, variable.Declared, depth + 1, limit - 1 - map.Nodes);
         }
         else
         {
@@ -478,17 +478,9 @@ internal sealed partial class ExprBuilder
         bool optionalIndex = pcg.OneIn(2);
         Built inner = OptionalOperand(depth + 1, limit - 2, list ? ProfileType.ListType : ProfileType.MapType, false, null);
         StaticType? container = inner.Type?.Element;
-
-        // The operand has to be an optional of a list or a map by its type: an optional of dyn, such as optional.of(x1), holds any kind at
-        // run time, and the library gives the error no such overload for an index where cel-go gives none.
-        if (container is not { IsDyn: false, Kind: ProfileType.ListType or ProfileType.MapType })
-        {
-            return null;
-        }
-
         Built index = list
-            ? OptionalIndexValue(null)
-            : OptionalKey(null, container, depth + 1, limit - 1 - inner.Nodes);
+            ? OptionalIndexValue(null, depth + 1, limit - 1 - inner.Nodes)
+            : Key(null, container, depth + 1, limit - 1 - inner.Nodes);
         StaticType? held = container is { IsDyn: true } ? StaticType.Dyn : list ? container?.Element : container?.Value;
         string id = list
             ? (optionalIndex ? "optional_list_optindex_optional_int" : "optional_list_index_int")
@@ -499,54 +491,35 @@ internal sealed partial class ExprBuilder
             held);
     }
 
-    // An int index: -1, 0, 1, the size, the size + 1 or 100, where the size of a literal is its number of elements and otherwise 2; one
-    // time in six a variable of the type int. No node of the type dyn stands here: its value may be a uint or a double, which the
-    // index of an optional does not take, or any other kind, and cel-go gives none where the library gives an error.
-    private Built OptionalIndexValue(int? length)
+    // An index: -1, 0, 1, the size, the size + 1 or 100, where the size of a literal is its number of elements and otherwise 2; one time
+    // in six a node of the type int, and one time in six a node of the type dyn, whose value the library reads by its kind as cel-go
+    // reads the qualifier of an index: an element for an int, a uint or an integral double, none outside the list, an error for the
+    // rest.
+    private Built OptionalIndexValue(int? length, int depth, int budget)
     {
-        // The variable of a wrapper holds null now and then, which is no int.
-        List<ProfileVariable> ints = [.. ProfileTables.Variables.Where(variable => variable.Type == ProfileType.IntType && !variable.Wrapper)];
-        if (pcg.OneIn(6) && ints.Count > 0)
+        switch (pcg.Below(6))
         {
-            return VariableNode(pcg.Pick(ints));
+            case 0:
+                return Make(ProfileType.IntType, depth, budget);
+            case 1:
+                return OptionalDynIndex(depth, budget);
+            default:
+                long size = length ?? 2;
+                return new Built(new IntLiteral(pcg.Pick<long>([-1, 0, 1, size, size + 1, 100]), IntegerForm.DecimalDigits), 1, Of(ProfileType.IntType));
         }
-
-        long size = length ?? 2;
-        return new Built(new IntLiteral(pcg.Pick<long>([-1, 0, 1, size, size + 1, 100]), IntegerForm.DecimalDigits), 1, Of(ProfileType.IntType));
     }
 
-    // The key of an index of a map by an optional: half the time an equal copy of a key of the map literal, otherwise a literal of an
-    // int, a uint, a bool or a string, or one time in six a double, which the lookup across the numeric kinds finds. No dyn variable and no
-    // other node of the type dyn stands here: it holds bytes, a list, a map, null or a type, which cel-go refuses with 'invalid qualifier
-    // type' where the library gives none. dyn() of a literal of a kind that a map may hold is built, and both sides answer it alike.
-    private Built OptionalKey(MapLiteral? map, StaticType? mapType, int depth, int budget)
+    // A node of the type dyn that is an index: dyn() of a literal of a uint, a double — integral or not — or an int, or a dyn variable
+    // of the manifest, whose value is a scalar, null, a list or a map.
+    private Built OptionalDynIndex(int depth, int budget)
     {
-        if (map is { Entries.Count: > 0 } && pcg.OneIn(2))
+        if (depth < ProfileTables.MaxDepth && budget >= 2 && !pcg.OneIn(3))
         {
-            Expr copy = pcg.Pick(map.Entries).Key with { Parenthesized = false };
-            if (StaticType.Compatible(StaticType.Of(KeyKind(copy)), mapType?.Key) == Compatibility.Yes)
-            {
-                return new Built(copy, 1, StaticType.Of(KeyKind(copy)));
-            }
+            ProfileType kind = pcg.Pick<ProfileType>([ProfileType.UintType, ProfileType.DoubleType, ProfileType.IntType]);
+            return Wrap(new Built(Literal(kind), 1, Of(kind)));
         }
 
-        // A literal of another kind than the keys of the map stands in dyn(), as in every index of a map: the type check refuses it
-        // otherwise, and its value is of a kind that a map may hold, which the lookup of both sides answers alike.
-        ProfileType kind = pcg.OneIn(6) ? ProfileType.DoubleType : pcg.Pick(ProfileTables.KeyTypes);
-        Built literal = new(Literal(kind), 1, Of(kind));
-        if (StaticType.Compatible(literal.Type, mapType?.Key) == Compatibility.Yes)
-        {
-            return literal;
-        }
-
-        if (depth < ProfileTables.MaxDepth && budget >= 2)
-        {
-            return Wrap(literal);
-        }
-
-        // No room for dyn(): a literal of the kind of the keys.
-        ProfileType keyKind = mapType?.Key is { IsDyn: false, Kind: var known } && ProfileTables.KeyTypes.Contains(known) ? known : ProfileType.IntType;
-        return new Built(Literal(keyKind), 1, Of(keyKind));
+        return DynVariable();
     }
 
     // A list or a map variable of the manifest whose elements or values fit the kind, or null when there is none.

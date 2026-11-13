@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using Great.Parts.Cel.Declarations;
@@ -18,10 +19,72 @@ namespace Great.Parts.Cel.Tests.Library.Extensions;
 // The seven operators of the set optional (OptionalOperators): the table of their declarations in the order of the set, the argument
 // costs, the six index overloads on keys of every numeric kind, on an operand of the type dyn, on a held value that is no list and
 // no map, and on lists and maps of the application with an element that is an error value, and the units of an index of an empty
-// optional and of a JSON array that an optional holds. The values that the examples fix for lists and maps are not repeated.
+// optional and of a JSON array that an optional holds. The values that the examples fix for lists and maps are not repeated. The
+// keys of the type dyn of every kind are tried on each operand a list, a map and an empty optional can be written as, in both
+// syntaxes, with the outcome of the table "Indexes" of the page of the set.
 public sealed class OptionalOperatorsTests : IDisposable
 {
+    private const string None = "optional.none()";
+
     private static readonly CelError Failure = new(CelErrorCode.InvalidArgument, CelErrorStage.Evaluate, "failed", default, null, null);
+
+    // The key of a list of two elements, 10 and 20, and what the index gives: a value as an expression, or "!" and the error, with
+    // the kind of the key for EvalNoMatchingOverload. An index outside the list is none, but a key that is no index at all is an error.
+    private static readonly (string Key, string Outcome)[] ListKeys =
+    [
+        ("dyn(0u)", "optional.of(10)"),
+        ("dyn(1u)", "optional.of(20)"),
+        ("dyn(2u)", None),
+        ("dyn(9223372036854775807u)", None),
+        ("dyn(9223372036854775808u)", "!IndexOutOfRange"),
+        ("dyn(18446744073709551615u)", "!IndexOutOfRange"),
+        ("dyn(-0.0)", "optional.of(10)"),
+        ("dyn(1.0)", "optional.of(20)"),
+        ("dyn(-1.0)", None),
+        ("dyn(1.5)", "!InvalidArgument"),
+        ("dyn(0.0 / 0.0)", "!InvalidArgument"),
+        ("dyn(1.0 / 0.0)", "!InvalidArgument"),
+        ("dyn(-1.0 / 0.0)", "!InvalidArgument"),
+        ("dyn(1e19)", "!IndexOutOfRange"),
+        ("dyn(-1e19)", "!IndexOutOfRange"),
+        ("dyn(9223372036854775808.0)", "!IndexOutOfRange"),
+        ("dyn(true)", "!EvalNoMatchingOverload:bool"),
+        ("dyn('a')", "!EvalNoMatchingOverload:string"),
+        ("dyn(b'a')", "!EvalNoMatchingOverload:bytes"),
+        ("dyn(null)", "!EvalNoMatchingOverload:null_type"),
+        ("dyn([1])", "!EvalNoMatchingOverload:list"),
+        ("dyn({1: 2})", "!EvalNoMatchingOverload:map"),
+        ("dyn(int)", "!EvalNoMatchingOverload:type"),
+        ("dyn(duration('1s'))", "!EvalNoMatchingOverload:duration"),
+        ("dyn(timestamp(0))", "!EvalNoMatchingOverload:timestamp"),
+    ];
+
+    // The key of {1: 'x'}: the key lookup across the numeric kinds, and nothing for a kind that is no key.
+    private static readonly (string Key, string Outcome)[] MapKeys =
+    [
+        ("dyn(1)", "optional.of('x')"),
+        ("dyn(1u)", "optional.of('x')"),
+        ("dyn(1.0)", "optional.of('x')"),
+        ("dyn(2)", None),
+        ("dyn(2u)", None),
+        ("dyn(1.5)", None),
+        ("dyn(true)", None),
+        ("dyn('a')", None),
+        ("dyn(b'a')", None),
+        ("dyn([1])", None),
+        ("dyn({1: 2})", None),
+        ("dyn(null)", None),
+        ("dyn(int)", None),
+        ("dyn(duration('1s'))", None),
+        ("dyn(timestamp(0))", None),
+    ];
+
+    private static readonly string[] EmptyOperands = [None, "dyn(optional.none())", "optional.ofNonZeroValue([])"];
+
+    private static readonly string[] CostOperands = ["optional.of([10, 20])", "optional.of(jl)", "jl"];
+
+    // The syntaxes of an index that gives an optional: with the "?", and, over an optional operand, without it.
+    private static readonly string[] Syntaxes = ["?", string.Empty];
 
     private const string Keys = """
         dyn({1: 'a'})[?1u] => optional.of('a')
@@ -46,15 +109,21 @@ public sealed class OptionalOperatorsTests : IDisposable
         dyn(optional.none())['a'] => optional.none()
         dyn([1, 2])[1] => 2
         dyn({'a': 1})['a'] => 1
+        dyn([1, 2])[?1u] => optional.of(2)
+        dyn([1, 2])[?1.0] => optional.of(2)
+        dyn([1, 2])[?2u] => optional.none()
+        optional.of(dyn([1, 2]))[?1u] => optional.of(2)
+        optional.of(dyn([1, 2]))[1.0] => optional.of(2)
+        optional.of(dyn({1: 'a'}))[1.0] => optional.of('a')
         """;
 
-    // The index of an optional takes an int only, and the held value has to be a list or a map: the kinds are the guard of the
-    // dispatch, so the call is EvalNoMatchingOverload where the index of the standard library takes a uint or a double.
+    // A held value that is no list and no map, and an operand that is no optional, list or map at all, are EvalNoMatchingOverload
+    // whatever the key is: the third difference from cel-go ("Differences from cel-go" of the page of the set).
     private const string Mismatches = """
-        Evaluate | dyn([1, 2])^[?1u] | EvalNoMatchingOverload | no such overload: _[?_](list, uint)
-        Evaluate | dyn([1, 2])^[?1.0] | EvalNoMatchingOverload | no such overload: _[?_](list, double)
         Evaluate | dyn(optional.of(1))^[0] | EvalNoMatchingOverload | no such overload: _[_](optional_type, int)
         Evaluate | optional.of(dyn(1))^[?0] | EvalNoMatchingOverload | no such overload: _[?_](optional_type, int)
+        Evaluate | dyn(1)^[?0] | EvalNoMatchingOverload | no such overload: _[?_](int, int)
+        Evaluate | dyn(1)^[?dyn('a')] | EvalNoMatchingOverload | no such overload: _[?_](int, string)
         """;
 
     // An element that is an error value is the result of the index, with the place of the call; an element that nothing reads is no error.
@@ -79,12 +148,19 @@ public sealed class OptionalOperatorsTests : IDisposable
         .AddVariable("ys", CelType.ListOf(CelType.Dyn))
         .AddVariable("ms", CelType.MapOf(CelType.String, CelType.Dyn))
         .AddVariable("j", CelType.Dyn)
+        .AddVariable("jl", CelType.Dyn)
         .Build()
         .GetEnvironmentOrThrow();
 
     private readonly JsonDocument document = JsonDocument.Parse("""{"a": 1, "l": [10, 20, 30]}""");
 
-    public void Dispose() => document.Dispose();
+    private readonly JsonDocument jsonList = JsonDocument.Parse("[10, 20]");
+
+    public void Dispose()
+    {
+        document.Dispose();
+        jsonList.Dispose();
+    }
 
     [Fact]
     public static void Overloads_AreTheSevenOfTheTableInItsOrder()
@@ -168,7 +244,7 @@ public sealed class OptionalOperatorsTests : IDisposable
         Assert.Empty(ExtensionRows.CheckValues(Environment, DynOperand, Bindings()));
 
     [Fact]
-    public void IndexOfAnOptional_TakesAnIntAndAHeldListOrMap() =>
+    public void IndexOfAValueThatIsNoListOrMap_IsEvalNoMatchingOverload() =>
         Assert.Empty(ExtensionRows.CheckErrors(Environment, Mismatches, Bindings()));
 
     [Fact]
@@ -178,6 +254,119 @@ public sealed class OptionalOperatorsTests : IDisposable
     [Fact]
     public void ElementThatIsAnErrorValue_IsTheResultAtTheCall() =>
         Assert.Empty(ExtensionRows.CheckErrors(Environment, ErrorElementErrors, Bindings()));
+
+    // The six overloads fit a key of any kind: what the call does is decided by the kinds of its values, so Matches reads the kind of
+    // the operand and not that of the key, with or without the marks of the planner. An operand that is no list, map or optional
+    // fits none of them.
+    [Fact]
+    public static void IndexOverloads_FitAKeyOfAnyKind_ButNotAnOperandThatIsNoListMapOrOptional()
+    {
+        ImmutableArray<OverloadBinding> table = OptionalOperators.Overloads("test");
+        CelValue list = CelValue.FromList(CelList.Create(CelValue.FromInt64(1)));
+        CelValue map = CelValue.FromMap(CelMap.Create([new(CelValue.FromString("key"), CelValue.FromInt64(1))]));
+        CelValue[] keys =
+        [
+            CelValue.Null,
+            CelValue.FromBoolean(true),
+            CelValue.FromInt64(1),
+            CelValue.FromUInt64(1),
+            CelValue.FromDouble(1.5),
+            CelValue.FromString("a"),
+            CelValue.FromBytes("a"u8.ToArray()),
+            list,
+            map,
+            CelValue.FromType(CelType.Int),
+        ];
+        (int Overload, CelValue Operand)[] operands = [(1, list), (2, Held(list)), (3, map), (4, Held(map)), (5, Held(list)), (6, Held(map))];
+
+        foreach ((int overload, CelValue operand) in operands)
+        {
+            foreach (CelValue key in keys)
+            {
+                Assert.True(table[overload].Matches([operand, key], [], null).IsFit);
+                Assert.True(table[overload].Matches([operand, key], [true, true], null).IsFit);
+                Assert.False(table[overload].Matches([CelValue.FromInt64(1), key], [], null).IsFit);
+            }
+        }
+    }
+
+    // The units do not depend on the key: the argument cost reads the held list or map, and an index is the unit of the overload
+    // whether the key is a uint, a double, an int or no index at all; a JSON array charges its length in each case.
+    [Fact]
+    public void IndexOfAListOrAnOptionalList_ChargesTheSameForAKeyOfAnyKind()
+    {
+        CelBindings bindings = Bindings();
+
+        foreach (string operand in CostOperands)
+        {
+            ulong expected = Units(operand + "[?dyn(1)]", bindings);
+
+            Assert.Equal(expected, Units(operand + "[?dyn(1u)]", bindings));
+            Assert.Equal(expected, Units(operand + "[?dyn(1.0)]", bindings));
+            Assert.Equal(expected, Units(operand + "[?dyn(9)]", bindings));
+            Assert.Equal(expected, Units(operand + "[?dyn(true)]", bindings, allowError: true));
+            Assert.Equal(expected, Units(operand + "[?dyn(null)]", bindings, allowError: true));
+        }
+    }
+
+    [Fact]
+    public void IndexOfAListByAKeyOfTheTypeDyn_GivesAnElementOrNone()
+    {
+        (string values, _) = IndexRows(["[10, 20]", "dyn([10, 20])", "jl"], ["optional.of([10, 20])", "optional.of(dyn([10, 20]))", "optional.of(jl)"], ListKeys);
+
+        Assert.Empty(ExtensionRows.CheckValues(Environment, values, Bindings()));
+    }
+
+    [Fact]
+    public void IndexOfAListByAKeyThatIsNoIndex_IsTheErrorOfTheKey()
+    {
+        (_, string errors) = IndexRows(["[10, 20]", "dyn([10, 20])", "jl"], ["optional.of([10, 20])", "optional.of(dyn([10, 20]))", "optional.of(jl)"], ListKeys);
+
+        Assert.Empty(ExtensionRows.CheckErrors(Environment, errors, Bindings()));
+    }
+
+    [Fact]
+    public void IndexOfAMapByAKeyOfTheTypeDyn_FindsTheKeyOrGivesNone()
+    {
+        (string values, _) = IndexRows(["{1: 'x'}", "dyn({1: 'x'})"], ["optional.of({1: 'x'})", "optional.of(dyn({1: 'x'}))"], MapKeys);
+
+        Assert.Empty(ExtensionRows.CheckValues(Environment, values, Bindings()));
+    }
+
+    [Fact]
+    public void IndexOfAnEmptyOptionalByAKeyOfAnyKind_IsTheEmptyOptional()
+    {
+        var rows = new StringBuilder();
+        foreach (string operand in EmptyOperands)
+        {
+            foreach (string syntax in Syntaxes)
+            {
+                foreach (string key in ListKeys.Concat(MapKeys).Select(entry => entry.Key).Distinct())
+                {
+                    rows.Append(operand).Append('[').Append(syntax).Append(key).Append("] == ").Append(None).Append(" => true\n");
+                }
+            }
+        }
+
+        Assert.Empty(ExtensionRows.CheckValues(Environment, rows.ToString(), Bindings()));
+    }
+
+    // The key of an index of an empty optional is evaluated like every argument, so an error in it is the result, where cel-go
+    // returns the empty optional (the registry of known differences has the signature).
+    [Fact]
+    public void KeyThatIsAnErrorOfAnIndexOfAnEmptyOptional_IsTheResult()
+    {
+        var rows = new StringBuilder();
+        foreach (string operand in EmptyOperands)
+        {
+            foreach (string syntax in Syntaxes)
+            {
+                rows.Append("Evaluate | ").Append(operand).Append('[').Append(syntax).Append("dyn(1) ^/ 0] | DivisionByZero | division by zero\n");
+            }
+        }
+
+        Assert.Empty(ExtensionRows.CheckErrors(Environment, rows.ToString(), Bindings()));
+    }
 
     // An empty optional costs the unit of the overload and nothing for an argument: the operand is the 1 of optional.none().
     [Theory]
@@ -204,17 +393,55 @@ public sealed class OptionalOperatorsTests : IDisposable
     private CelBindings Bindings() => new CelBindings()
         .Add<CelValue>("ys", CelValue.FromList(Elements(1L, Failure)))
         .Add<CelValue>("ms", CelValue.FromMap(Entries(("a", 1L), ("b", Failure))))
-        .Add("j", document.RootElement);
+        .Add("j", document.RootElement)
+        .Add("jl", jsonList.RootElement);
 
     private static CelValue Held(CelValue value) => CelValue.FromOptional(new CelOptional<CelValue>(value));
 
-    private static ulong Units(string expression, CelBindings bindings)
+    private static ulong Units(string expression, CelBindings bindings, bool allowError = false)
     {
         Plan plan = Environment.Compile<CelValue>(expression).GetProgramOrThrow().Plan;
         Frame frame = plan.CreateFrame(bindings.Values, ulong.MaxValue, CancellationToken.None);
         CelValue value = plan.Run(frame);
-        Assert.NotEqual(CelValueKind.Error, value.Kind);
+        Assert.Equal(allowError, value.Kind == CelValueKind.Error);
         return frame.ChargedUnits;
+    }
+
+    // The rows of an index of each operand by each key: a value row for an outcome that is a value, and an error row, at the "[" of
+    // the index, for an outcome that starts with "!". An operand that is an optional is indexed in both syntaxes.
+    private static (string Values, string Errors) IndexRows(string[] operands, string[] optionalOperands, (string Key, string Outcome)[] keys)
+    {
+        var values = new StringBuilder();
+        var errors = new StringBuilder();
+        foreach (string operand in operands)
+        {
+            AddRows(values, errors, operand, "?", "list", keys);
+        }
+
+        foreach (string operand in optionalOperands)
+        {
+            AddRows(values, errors, operand, "?", "optional_type", keys);
+            AddRows(values, errors, operand, string.Empty, "optional_type", keys);
+        }
+
+        return (values.ToString(), errors.ToString());
+    }
+
+    private static void AddRows(StringBuilder values, StringBuilder errors, string operand, string syntax, string kind, (string Key, string Outcome)[] keys)
+    {
+        string function = syntax.Length > 0 ? "_[?_]" : "_[_]";
+        foreach ((string key, string outcome) in keys)
+        {
+            if (outcome[0] != '!')
+            {
+                values.Append(operand).Append('[').Append(syntax).Append(key).Append("] == ").Append(outcome).Append(" => true\n");
+                continue;
+            }
+
+            string[] error = outcome[1..].Split(':');
+            string text = error.Length > 1 ? "no such overload: " + function + "(" + kind + ", " + error[1] + ")" : "-";
+            errors.Append("Evaluate | ").Append(operand).Append("^[").Append(syntax).Append(key).Append("] | ").Append(error[0]).Append(" | ").Append(text).Append('\n');
+        }
     }
 
     // A list of the application whose elements are longs and error values.

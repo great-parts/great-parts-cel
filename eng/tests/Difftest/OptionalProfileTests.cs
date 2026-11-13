@@ -440,6 +440,7 @@ public sealed class OptionalProfileTests
         AddMacroAndSelectionForms(forms);
         AddLiteralAndPresenceForms(forms);
         AddCallForms(forms);
+        AddIndexForms(forms);
         AddPoolForms(forms);
 
         HashSet<string> missing = [.. forms.Keys];
@@ -495,6 +496,33 @@ public sealed class OptionalProfileTests
         forms["optional.unwrap of a literal without elements"] = node => node is Call { Function: "optional.unwrap", Args: [ListLiteral { Elements.Count: 0 }] };
         forms["optional.unwrap of a literal of three"] = node => node is Call { Function: "optional.unwrap", Args: [ListLiteral { Elements.Count: 3 }] };
         forms["unwrapOpt"] = node => node is Call { Function: "unwrapOpt", Receiver: true };
+    }
+
+    // The indexes by a key or on an operand of the type dyn: the operand optional.none(), an optional of dyn, the list by a uint or a
+    // double in dyn(), and the map by a node of the type dyn. The library and cel-go read the kind of the key and of the operand alike
+    // ([extension-optional](extension-optional.md#indexes)), but for the differences of the registry.
+    private static void AddIndexForms(Dictionary<string, Func<Expr, bool>> forms)
+    {
+        forms["index of optional.none()"] = node => node is Call
+        {
+            Overload: "optional_list_optindex_optional_int" or "optional_list_index_int" or "optional_map_optindex_optional_value" or "optional_map_index_value",
+            Args: [Call { Overload: "optional_none" }, _],
+        };
+        forms["index of an optional of dyn"] = node => node is Call
+        {
+            Overload: "optional_list_optindex_optional_int" or "optional_list_index_int" or "optional_map_optindex_optional_value" or "optional_map_index_value",
+            Container: { IsDyn: true },
+        };
+        forms["index of a list by a uint or a double in dyn()"] = node => node is Call
+        {
+            Overload: "list_optindex_optional_int" or "optional_list_optindex_optional_int" or "optional_list_index_int",
+            Args: [_, Call { Function: ProfileTables.Dyn, Args: [UintLiteral or DoubleLiteral] }],
+        };
+        forms["index of a map by a node of the type dyn"] = node => node is Call
+        {
+            Overload: "map_optindex_optional_value" or "optional_map_optindex_optional_value" or "optional_map_index_value",
+            Args: [_, Call { Function: ProfileTables.Dyn } or Ident { Name: "x1" or "x2" }],
+        };
     }
 
     private static void AddPoolForms(Dictionary<string, Func<Expr, bool>> forms)

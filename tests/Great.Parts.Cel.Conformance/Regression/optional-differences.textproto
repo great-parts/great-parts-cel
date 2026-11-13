@@ -1,7 +1,7 @@
 # Minimized cases of known divergences from cel-go in the optional extension set. The expectation of each case is the answer of cel-go.
 
 name: "optional_differences"
-description: "Presence of a field of an empty optional and the right part of or that is not an optional"
+description: "Presence of a field of an empty optional, the right part of or that is not an optional, and the key of an index of an optional or of a map"
 section {
   name: "presence"
   description: "has() of a selection from an empty optional: cel-go fails with a missing key, the library returns false, as the cel-spec case optionals/optionals/map_optional_select_has expects"
@@ -133,6 +133,296 @@ section {
     expr: "optional.none().or(dyn(1u))"
     value: {
       uint64_value: 1
+    }
+  }
+}
+section {
+  name: "index_error_key"
+  description: "The key of an index of an empty optional is evaluated by the library, as every argument is, and its error is the result; cel-go does not evaluate it and returns the empty optional"
+  test {
+    name: "index"
+    description: "_[_](optional_type, error) we-error"
+    expr: "optional.none()[dyn(1) / 0].hasValue()"
+    value: {
+      bool_value: false
+    }
+  }
+  test {
+    name: "optindex"
+    description: "_[?_](optional_type, error) we-error"
+    expr: "optional.none()[?dyn(1) / 0].hasValue()"
+    value: {
+      bool_value: false
+    }
+  }
+}
+section {
+  name: "key_kind_index_of_optional_dyn"
+  description: "A key of a kind that no map holds, in the index [ ] of an optional that holds a map under dyn: the library gives the empty optional, cel-go fails with invalid qualifier type"
+  test {
+    name: "bytes"
+    description: "optional_map_index_value(optional_type, bytes) we-value"
+    expr: "optional.of(dyn({'a': 1}))[dyn(b'a')].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "list"
+    description: "optional_map_index_value(optional_type, list) we-value"
+    expr: "optional.of(dyn({'a': 1}))[dyn([1])].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseList"
+      }
+    }
+  }
+  test {
+    name: "map"
+    description: "optional_map_index_value(optional_type, map) we-value"
+    expr: "optional.of(dyn({'a': 1}))[dyn({'a': 1})].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseMap"
+      }
+    }
+  }
+  test {
+    name: "null"
+    description: "optional_map_index_value(optional_type, null_type) we-value"
+    expr: "optional.of(dyn({'a': 1}))[dyn(null)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Null"
+      }
+    }
+  }
+  test {
+    name: "type"
+    description: "optional_map_index_value(optional_type, type) we-value"
+    expr: "optional.of(dyn({'a': 1}))[dyn(int)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.Type"
+      }
+    }
+  }
+}
+section {
+  name: "key_kind_index_of_optional_map"
+  description: "A key of a kind that no map holds, in the index [ ] of an optional of a map: the library gives the empty optional, cel-go fails with invalid qualifier type"
+  test {
+    name: "bytes"
+    description: "optional_map_index_value(optional_type(map), bytes) we-value"
+    expr: "optional.of({'a': 1})[dyn(b'a')].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "list"
+    description: "optional_map_index_value(optional_type(map), list) we-value"
+    expr: "optional.of({'a': 1})[dyn([1])].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseList"
+      }
+    }
+  }
+  test {
+    name: "map"
+    description: "optional_map_index_value(optional_type(map), map) we-value"
+    expr: "optional.of({'a': 1})[dyn({'a': 1})].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseMap"
+      }
+    }
+  }
+  test {
+    name: "null"
+    description: "optional_map_index_value(optional_type(map), null_type) we-value"
+    expr: "optional.of({'a': 1})[dyn(null)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Null"
+      }
+    }
+  }
+  test {
+    name: "type"
+    description: "optional_map_index_value(optional_type(map), type) we-value"
+    expr: "optional.of({'a': 1})[dyn(int)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.Type"
+      }
+    }
+  }
+}
+section {
+  name: "key_kind_optindex_of_map"
+  description: "A key of a kind that no map holds, in the index [? ] of a map: the library gives the empty optional, cel-go fails with invalid qualifier type"
+  test {
+    name: "bytes"
+    description: "map_optindex_optional_value(map, bytes) we-value"
+    expr: "{'a': 1}[?dyn(b'a')].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "list"
+    description: "map_optindex_optional_value(map, list) we-value"
+    expr: "{'a': 1}[?dyn([1])].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseList"
+      }
+    }
+  }
+  test {
+    name: "map"
+    description: "map_optindex_optional_value(map, map) we-value"
+    expr: "{'a': 1}[?dyn({'a': 1})].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseMap"
+      }
+    }
+  }
+  test {
+    name: "null"
+    description: "map_optindex_optional_value(map, null_type) we-value"
+    expr: "{'a': 1}[?dyn(null)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Null"
+      }
+    }
+  }
+  test {
+    name: "type"
+    description: "map_optindex_optional_value(map, type) we-value"
+    expr: "{'a': 1}[?dyn(int)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.Type"
+      }
+    }
+  }
+}
+section {
+  name: "key_kind_optindex_of_optional_dyn"
+  description: "A key of a kind that no map holds, in the index [? ] of an optional that holds a map under dyn: the library gives the empty optional, cel-go fails with invalid qualifier type"
+  test {
+    name: "bytes"
+    description: "optional_map_optindex_optional_value(optional_type, bytes) we-value"
+    expr: "optional.of(dyn({'a': 1}))[?dyn(b'a')].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "list"
+    description: "optional_map_optindex_optional_value(optional_type, list) we-value"
+    expr: "optional.of(dyn({'a': 1}))[?dyn([1])].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseList"
+      }
+    }
+  }
+  test {
+    name: "map"
+    description: "optional_map_optindex_optional_value(optional_type, map) we-value"
+    expr: "optional.of(dyn({'a': 1}))[?dyn({'a': 1})].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseMap"
+      }
+    }
+  }
+  test {
+    name: "null"
+    description: "optional_map_optindex_optional_value(optional_type, null_type) we-value"
+    expr: "optional.of(dyn({'a': 1}))[?dyn(null)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Null"
+      }
+    }
+  }
+  test {
+    name: "type"
+    description: "optional_map_optindex_optional_value(optional_type, type) we-value"
+    expr: "optional.of(dyn({'a': 1}))[?dyn(int)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.Type"
+      }
+    }
+  }
+}
+section {
+  name: "key_kind_optindex_of_optional_map"
+  description: "A key of a kind that no map holds, in the index [? ] of an optional of a map: the library gives the empty optional, cel-go fails with invalid qualifier type"
+  test {
+    name: "bytes"
+    description: "optional_map_optindex_optional_value(optional_type(map), bytes) we-value"
+    expr: "optional.of({'a': 1})[?dyn(b'a')].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "list"
+    description: "optional_map_optindex_optional_value(optional_type(map), list) we-value"
+    expr: "optional.of({'a': 1})[?dyn([1])].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseList"
+      }
+    }
+  }
+  test {
+    name: "map"
+    description: "optional_map_optindex_optional_value(optional_type(map), map) we-value"
+    expr: "optional.of({'a': 1})[?dyn({'a': 1})].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.baseMap"
+      }
+    }
+  }
+  test {
+    name: "null"
+    description: "optional_map_optindex_optional_value(optional_type(map), null_type) we-value"
+    expr: "optional.of({'a': 1})[?dyn(null)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Null"
+      }
+    }
+  }
+  test {
+    name: "type"
+    description: "optional_map_optindex_optional_value(optional_type(map), type) we-value"
+    expr: "optional.of({'a': 1})[?dyn(int)].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: *types.Type"
+      }
     }
   }
 }

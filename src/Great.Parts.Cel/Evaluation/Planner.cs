@@ -43,6 +43,13 @@ internal sealed class Planner
     private const string OptionalListIndexId = "optional_list_index_int";
     private const string OptionalMapIndexId = "optional_map_index_value";
 
+    // The function and the four overloads of the optional index _[?_], which a call on a dyn operand also takes.
+    private const string OptionalIndexFunction = "_[?_]";
+    private const string ListOptIndexId = "list_optindex_optional_int";
+    private const string OptionalListOptIndexId = "optional_list_optindex_optional_int";
+    private const string MapOptIndexId = "map_optindex_optional_value";
+    private const string OptionalMapOptIndexId = "optional_map_optindex_optional_value";
+
     // The conversions of a string to a moment or a span of time, which the planner runs once for a string literal.
     private const string StringToTimestampId = "string_to_timestamp";
     private const string StringToDurationId = "string_to_duration";
@@ -637,10 +644,10 @@ internal sealed class Planner
             argumentTypes[i] = _checked.Types[argumentNodes[i].Id];
         }
 
-        if (call.Target is null && argumentTypes.Length == 2 && argumentTypes[0].Kind is CelTypeKind.Dyn or CelTypeKind.Any
-            && string.Equals(call.Function, IndexFunction, StringComparison.Ordinal))
+        if (call.Target is null && argumentTypes.Length == 2 && HasDynamicOperand(argumentTypes[0])
+            && call.Function is IndexFunction or OptionalIndexFunction)
         {
-            candidates = IndexCandidates(candidates);
+            candidates = IndexCandidates(candidates, call.Function);
         }
 
         if (candidates.Length == 1)
@@ -694,19 +701,26 @@ internal sealed class Planner
         return new ConstantPlanNode(offset, value, cost);
     }
 
-    // The candidates of _[_] on an operand of the static type dyn: those of the reference map, and index_list and
-    // index_map of the library and the two index overloads of an optional of the set optional, in the order of the
-    // declarations. cel-go v0.32.0 indexes by the kind of the operand at run time, so x[0u] with x bound to [7] is 7,
-    // though a uint key leaves type checking only index_map.
-    private ImmutableArray<OverloadBinding> IndexCandidates(ImmutableArray<OverloadBinding> kept)
+    // Whether the operand of an index has the static type dyn, which is all that _[_] needed for the extra candidates, or, for the
+    // optional indexes of the set optional, also an optional of dyn: both hold a list or a map that type checking cannot tell.
+    private static bool HasDynamicOperand(CelType operand) =>
+        operand.Kind is CelTypeKind.Dyn or CelTypeKind.Any
+        || operand is { Kind: CelTypeKind.Optional, Parameters: [{ Kind: CelTypeKind.Dyn or CelTypeKind.Any }] };
+
+    // The candidates of _[_] or _[?_] on an operand of the static type dyn: those of the reference map, and for _[_] index_list and
+    // index_map of the library and the two index overloads of an optional of the set optional, for _[?_] its four overloads, in the
+    // order of the declarations. cel-go v0.32.0 indexes by the kind of the operand at run time, so x[0u] with x bound to [7] is 7,
+    // though a uint key leaves type checking only index_map; so is x[?1u] of the set optional.
+    private ImmutableArray<OverloadBinding> IndexCandidates(ImmutableArray<OverloadBinding> kept, string function)
     {
-        ImmutableArray<OverloadBinding> overloads = _declarations.GetOverloads(IndexFunction, 2);
+        ImmutableArray<OverloadBinding> overloads = _declarations.GetOverloads(function, 2);
         ImmutableArray<OverloadBinding>.Builder candidates = ImmutableArray.CreateBuilder<OverloadBinding>(overloads.Length);
         foreach (OverloadBinding overload in overloads)
         {
             if (kept.Contains(overload)
                 || (!overload.IsApplication
-                    && overload.Declaration.OverloadId is IndexListId or IndexMapId or OptionalListIndexId or OptionalMapIndexId))
+                    && overload.Declaration.OverloadId is IndexListId or IndexMapId or OptionalListIndexId or OptionalMapIndexId
+                        or ListOptIndexId or OptionalListOptIndexId or MapOptIndexId or OptionalMapOptIndexId))
             {
                 candidates.Add(overload);
             }

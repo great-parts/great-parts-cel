@@ -20,10 +20,13 @@ namespace Great.Parts.Cel.Library.Extensions;
 //
 // An index with ? gives the empty optional where the index of the standard library is an error — an index outside the list, a key
 // that the map does not have — and optional.of(element) where it has one; an element that is an error value is the result. The index
-// is an int: the uint and double indexes that index_list also takes are not taken here. The overloads over an optional take a step
-// before: an empty operand gives the empty optional, a non-empty one is read through the held list or map, and a held value that is
-// neither is EvalNoMatchingOverload, since an implementation checks the kinds it reads. They cost what index_list and index_map cost
-// for the held value, plus the unit of the overload, and 1 for an empty operand.
+// is read by its kind, as the optional qualifiers of cel-go read it: an int, and also a uint or a double with an integral value, as
+// index_list takes them, except that an index outside the list is the empty optional (a uint or a double outside the range of int64
+// and a double that is no integer stay errors, as in cel-go); a key of another kind is EvalNoMatchingOverload. A map finds nothing
+// for a key of a kind that is no key. The overloads over an optional take a step before: an empty operand gives the empty optional
+// for a key of any kind, a non-empty one is read through the held list or map, and a held value that is neither is
+// EvalNoMatchingOverload, since an implementation checks the kinds it reads. They cost what index_list and index_map cost for the
+// held value, plus the unit of the overload, and 1 for an empty operand.
 internal static class OptionalOperators
 {
     internal const string SelectFunction = "_?._";
@@ -79,8 +82,8 @@ internal static class OptionalOperators
 
     // list_optindex_optional_int, (list(V), int) -> optional_type(V).
     private static CelValue ListOptIndex(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
-        arguments[0].TryGetList(out CelList? list) && arguments[1].TryGetInt64(out long index)
-            ? ReadList(list, index, in site)
+        arguments[0].TryGetList(out CelList? list)
+            ? ReadList(list, arguments, in site)
             : site.NoMatchingOverload(arguments);
 
     // map_optindex_optional_value, (map(K, V), K) -> optional_type(V).
@@ -93,7 +96,7 @@ internal static class OptionalOperators
     // the plain overload over the held list.
     private static CelValue OptionalListIndex(ReadOnlySpan<CelValue> arguments, in CallSite site)
     {
-        if (!arguments[0].TryGetOptional(out CelOptional<CelValue> optional) || !arguments[1].TryGetInt64(out long index))
+        if (!arguments[0].TryGetOptional(out CelOptional<CelValue> optional))
         {
             return site.NoMatchingOverload(arguments);
         }
@@ -103,7 +106,7 @@ internal static class OptionalOperators
             return CelValue.FromOptional(default);
         }
 
-        return optional.Value.TryGetList(out CelList? list) ? ReadList(list, index, in site) : site.NoMatchingOverload(arguments);
+        return optional.Value.TryGetList(out CelList? list) ? ReadList(list, arguments, in site) : site.NoMatchingOverload(arguments);
     }
 
     // optional_map_optindex_optional_value and optional_map_index_value, (optional_type(map(K, V)), K) -> optional_type(V).
@@ -120,6 +123,40 @@ internal static class OptionalOperators
         }
 
         return optional.Value.TryGetMap(out CelMap? map) ? ReadMap(map, arguments[1], in site) : site.NoMatchingOverload(arguments);
+    }
+
+    // The element at the key of the list: an int, or a uint or a double with an integral value as index_list takes them. An index
+    // that is no index at all stays an error as in index_list and cel-go: a double that is not integral (NaN and the infinities too)
+    // is InvalidArgument, a uint or an integral double outside the range of int64 is IndexOutOfRange; a key of another kind is
+    // EvalNoMatchingOverload.
+    private static CelValue ReadList(CelList list, ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        CelValue key = arguments[1];
+        if (key.TryGetInt64(out long signed))
+        {
+            return ReadList(list, signed, in site);
+        }
+
+        if (key.TryGetUInt64(out ulong unsigned))
+        {
+            return unsigned <= long.MaxValue ? ReadList(list, (long)unsigned, in site) : Collections.OutOfRange(in site, key, list);
+        }
+
+        if (key.TryGetDouble(out double number))
+        {
+            // NaN and the infinities are not integral either; -0.0 is the index 0.
+            if (!double.IsFinite(number) || Math.Floor(number) != number)
+            {
+                return site.Error(CelErrorCode.InvalidArgument, Collections.NotAnIntegerText, site.Function, number: BitConverter.DoubleToInt64Bits(number));
+            }
+
+            // 2^63 is the first double above int64.
+            return number >= -9223372036854775808.0 && number < 9223372036854775808.0
+                ? ReadList(list, (long)number, in site)
+                : Collections.OutOfRange(in site, key, list);
+        }
+
+        return site.NoMatchingOverload(arguments);
     }
 
     // The element at the index, or the empty optional for a negative index or one past the end, where index_list is an error.

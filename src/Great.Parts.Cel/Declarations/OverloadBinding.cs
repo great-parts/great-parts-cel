@@ -21,6 +21,7 @@ internal sealed class OverloadBinding
     // without descending and without charging.
     private readonly ImmutableArray<CelType> _topLevelTypes;
     private readonly bool _isIndexList;
+    private readonly bool _isOptionalIndex;
 
     internal OverloadBinding(
         string function,
@@ -48,7 +49,18 @@ internal sealed class OverloadBinding
         ConstantArgument = constantArgument;
         _topLevelTypes = TopLevel(declaration.ParameterTypes);
         _isIndexList = !isApplication && string.Equals(declaration.OverloadId, IndexListId, StringComparison.Ordinal);
+        _isOptionalIndex = !isApplication && IsOptionalIndex(declaration.OverloadId);
     }
+
+    // The six overloads of indexes of the set optional: what a call does is decided by the kinds of its values, as the optional
+    // qualifiers of cel-go decide it, so the key of any kind fits and the implementation reads it.
+    private static bool IsOptionalIndex(string overloadId) =>
+        overloadId is "list_optindex_optional_int"
+            or "optional_list_optindex_optional_int"
+            or "map_optindex_optional_value"
+            or "optional_map_optindex_optional_value"
+            or "optional_list_index_int"
+            or "optional_map_index_value";
 
     // The same binding with another declaration of the same overload, whose types the environment resolved.
     internal OverloadBinding WithDeclaration(CelOverloadDecl declaration) =>
@@ -109,6 +121,11 @@ internal sealed class OverloadBinding
                     return TypeFit.No;
                 }
 
+                continue;
+            }
+
+            if (_isOptionalIndex && i == 1)
+            {
                 continue;
             }
 
