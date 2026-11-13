@@ -21,8 +21,9 @@ namespace Great.Parts.Cel.Library.Extensions;
 // An index with ? gives the empty optional where the index of the standard library is an error — an index outside the list, a key
 // that the map does not have — and optional.of(element) where it has one; an element that is an error value is the result. The index
 // is read by its kind, as the optional qualifiers of cel-go read it: an int, and also a uint or a double with an integral value, as
-// index_list takes them, except that an index outside the list is the empty optional (a uint or a double outside the range of int64
-// and a double that is no integer stay errors, as in cel-go); a key of another kind is EvalNoMatchingOverload. A map finds nothing
+// index_list takes them, except that an index outside the list is the empty optional (a uint above the range of int64, a double
+// outside the open interval (-2^63, 2^63) and a double that is no integer stay errors, as in cel-go); a key of another kind is
+// EvalNoMatchingOverload. A map finds nothing
 // for a key of a kind that is no key. The overloads over an optional take a step before: an empty operand gives the empty optional
 // for a key of any kind, a non-empty one is read through the held list or map, and a held value that is neither is
 // EvalNoMatchingOverload, since an implementation checks the kinds it reads. They cost what index_list and index_map cost for the
@@ -127,8 +128,8 @@ internal static class OptionalOperators
 
     // The element at the key of the list: an int, or a uint or a double with an integral value as index_list takes them. An index
     // that is no index at all stays an error as in index_list and cel-go: a double that is not integral (NaN and the infinities too)
-    // is InvalidArgument, a uint or an integral double outside the range of int64 is IndexOutOfRange; a key of another kind is
-    // EvalNoMatchingOverload.
+    // is InvalidArgument, a uint above the range of int64 and a double outside the open interval (-2^63, 2^63) are IndexOutOfRange:
+    // the interval is that of double_to_int64, and cel-go refuses -2^63 itself; a key of another kind is EvalNoMatchingOverload.
     private static CelValue ReadList(CelList list, ReadOnlySpan<CelValue> arguments, in CallSite site)
     {
         CelValue key = arguments[1];
@@ -150,8 +151,9 @@ internal static class OptionalOperators
                 return site.Error(CelErrorCode.InvalidArgument, Collections.NotAnIntegerText, site.Function, number: BitConverter.DoubleToInt64Bits(number));
             }
 
-            // 2^63 is the first double above int64.
-            return number >= -9223372036854775808.0 && number < 9223372036854775808.0
+            // The open interval, as double_to_int64 has it: -2^63 is a double that cel-go refuses as an index, and 2^63 is the first
+            // double above int64.
+            return number > -9223372036854775808.0 && number < 9223372036854775808.0
                 ? ReadList(list, (long)number, in site)
                 : Collections.OutOfRange(in site, key, list);
         }

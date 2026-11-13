@@ -1202,6 +1202,45 @@ internal sealed partial class ExprBuilder
         Built body = Make(target, depth + 1, limit - 1 - init.Nodes);
         scope.RemoveAt(scope.Count - 1);
         macros--;
+
+        // The minimization takes the body with the value in place of the name, once for each read of the name. A value that holds a
+        // macro, copied by two reads, is no smaller case than the macro (Minimizer.IsSmaller counts the macros of the copies), so the
+        // instance is dropped, and a divergence of the body stays the signature comprehension(...) even when it is a known one (the
+        // run of seed 2211168051, case 520214): such a body reads the name once at most.
+        if (HoldsMacro(init.Expr) && ReadsOf(body.Expr, name) > 1)
+        {
+            return null;
+        }
+
         return new Built(new Comprehension(ProfileTables.BindMacro, init.Expr, name, [body.Expr]), 1 + init.Nodes + body.Nodes, body.Type);
     }
+
+    /// <summary>Whether a node holds a macro: a comprehension anywhere in it.</summary>
+    /// <param name="node">The node.</param>
+    internal static bool HoldsMacro(Expr node) => node switch
+    {
+        Comprehension => true,
+        Call call => call.Args.Any(HoldsMacro),
+        ListLiteral list => list.Elements.Any(HoldsMacro),
+        MapLiteral map => map.Entries.Any(entry => HoldsMacro(entry.Key) || HoldsMacro(entry.Value)),
+        Select selection => HoldsMacro(selection.Operand),
+        PresenceTest test => HoldsMacro(test.Operand),
+        _ => false,
+    };
+
+    /// <summary>The number of reads of a name in a node: those that no macro on the way hides by binding the same name.</summary>
+    /// <param name="node">The node.</param>
+    /// <param name="name">The name.</param>
+    internal static int ReadsOf(Expr node, string name) => node switch
+    {
+        Ident ident => ident.Name == name ? 1 : 0,
+        Call call => call.Args.Sum(argument => ReadsOf(argument, name)),
+        ListLiteral list => list.Elements.Sum(element => ReadsOf(element, name)),
+        MapLiteral map => map.Entries.Sum(entry => ReadsOf(entry.Key, name) + ReadsOf(entry.Value, name)),
+        Select selection => ReadsOf(selection.Operand, name),
+        PresenceTest test => ReadsOf(test.Operand, name),
+        Comprehension macro => ReadsOf(macro.Range, name)
+            + (macro.Variable == name || macro.SecondVariable == name ? 0 : macro.Arguments.Sum(argument => ReadsOf(argument, name))),
+        _ => 0,
+    };
 }

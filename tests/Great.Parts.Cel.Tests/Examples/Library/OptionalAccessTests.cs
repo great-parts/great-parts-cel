@@ -184,7 +184,8 @@ public sealed class OptionalAccessTests
         """;
 
     // A key that is no index of a list stays an error where cel-go fails too: a kind that a list is not indexed by, a double that
-    // is not integral, and a uint or a double beyond the range of int64, which is no empty optional either. The place is the "[".
+    // is not integral, and a uint above int64 or a double outside the open interval (-2^63, 2^63), which is no empty optional either.
+    // The place is the "[".
     private const string DynKeyErrors = """
         Evaluate | [1, 2]^[?dyn('a')] | EvalNoMatchingOverload | no such overload: _[?_](list, string)
         Evaluate | [1, 2]^[?dyn(true)] | EvalNoMatchingOverload | no such overload: _[?_](list, bool)
@@ -196,6 +197,7 @@ public sealed class OptionalAccessTests
         Evaluate | [1, 2]^[?dyn(1.5)] | InvalidArgument | -
         Evaluate | [1, 2]^[?dyn(9223372036854775808u)] | IndexOutOfRange | -
         Evaluate | [1, 2]^[?dyn(1e19)] | IndexOutOfRange | -
+        Evaluate | [1, 2]^[?dyn(-9223372036854775808.0)] | IndexOutOfRange | -
         Evaluate | optional.none()[dyn(1) ^/ 0] | DivisionByZero | division by zero
         """;
 
@@ -258,14 +260,29 @@ public sealed class OptionalAccessTests
     public void OptionalIndex_IsEmptyForAnAbsentKeyOrAnIndexOutOfRange() => Assert.Empty(ExtensionRows.CheckValues(environment, OptionalIndex, bindings));
 
     [Fact]
-    public void IndexOfAnOptional_IsOptional() => Assert.Empty(ExtensionRows.CheckValues(environment, IndexOfAnOptional, bindings));
+    public void IndexOfAnOptional_IsOptional()
+    {
+        var failures = ExtensionRows.CheckValues(environment, IndexOfAnOptional, bindings);
+
+        Assert.Empty(failures);
+    }
 
     [Fact]
-    public void IndexByADynKey_IsReadByTheKindOfTheKey() => Assert.Empty(ExtensionRows.CheckValues(environment, DynKeys, bindings));
+    public void IndexByADynKey_IsReadByTheKindOfTheKey()
+    {
+        var failures = ExtensionRows.CheckValues(environment, DynKeys, bindings);
+
+        Assert.Empty(failures);
+    }
 
     [Fact]
     [Trait("Requirement", "F-4")]
-    public void IndexByADynKeyThatIsNoIndexOfAList_IsAnError() => Assert.Empty(ExtensionRows.CheckErrors(environment, DynKeyErrors, bindings));
+    public void IndexByADynKeyThatIsNoIndexOfAList_IsAnError()
+    {
+        var failures = ExtensionRows.CheckErrors(environment, DynKeyErrors, bindings);
+
+        Assert.Empty(failures);
+    }
 
     [Fact]
     [Trait("Requirement", "F-4")]

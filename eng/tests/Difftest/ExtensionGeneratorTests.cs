@@ -282,6 +282,23 @@ public sealed class ExtensionGeneratorTests
         Assert.Contains(binds, bind => bind.Range is Call { Function: ProfileTables.Dyn, Args: [{ } value] } && IsTypeValue(value));
     }
 
+    // The minimization takes the body of cel.bind with the value in place of the name, once for each read. A value that holds a macro,
+    // copied by two reads, is no smaller case than the macro, so the instance is dropped and a divergence of the body stays the
+    // signature comprehension(...) (the run of seed 2211168051, case 520214): the name is read once at most then.
+    [Fact]
+    public void CelBind_ReadsItsNameOnceAtMostWhenItsValueHoldsAMacro()
+    {
+        List<Comprehension> binds =
+        [
+            .. Sample(ManyCases).SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>().Where(macro => macro.Macro == ProfileTables.BindMacro),
+        ];
+
+        Assert.NotEmpty(binds);
+        Assert.All(binds, bind => Assert.True(!ExprBuilder.HoldsMacro(bind.Range) || ExprBuilder.ReadsOf(bind.Arguments[0], bind.Variable) <= 1, ExprPrinter.Print(bind)));
+        Assert.Contains(binds, bind => ExprBuilder.HoldsMacro(bind.Range) && ExprBuilder.ReadsOf(bind.Arguments[0], bind.Variable) == 1);
+        Assert.Contains(binds, bind => !ExprBuilder.HoldsMacro(bind.Range) && ExprBuilder.ReadsOf(bind.Arguments[0], bind.Variable) > 1);
+    }
+
     [Fact]
     public void CasesOfTheExtensionProfile_KeepTheLimitsAndEachMacroVariableIsReadInsideItsMacro()
     {

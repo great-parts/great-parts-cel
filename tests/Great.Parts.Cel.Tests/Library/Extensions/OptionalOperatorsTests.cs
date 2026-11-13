@@ -47,16 +47,18 @@ public sealed class OptionalOperatorsTests : IDisposable
         ("dyn(-1.0 / 0.0)", "!InvalidArgument"),
         ("dyn(1e19)", "!IndexOutOfRange"),
         ("dyn(-1e19)", "!IndexOutOfRange"),
+        ("dyn(-9223372036854775808.0)", "!IndexOutOfRange"),
+        ("dyn(-9223372036854774784.0)", None),
         ("dyn(9223372036854775808.0)", "!IndexOutOfRange"),
-        ("dyn(true)", "!EvalNoMatchingOverload:bool"),
-        ("dyn('a')", "!EvalNoMatchingOverload:string"),
-        ("dyn(b'a')", "!EvalNoMatchingOverload:bytes"),
-        ("dyn(null)", "!EvalNoMatchingOverload:null_type"),
-        ("dyn([1])", "!EvalNoMatchingOverload:list"),
-        ("dyn({1: 2})", "!EvalNoMatchingOverload:map"),
-        ("dyn(int)", "!EvalNoMatchingOverload:type"),
-        ("dyn(duration('1s'))", "!EvalNoMatchingOverload:duration"),
-        ("dyn(timestamp(0))", "!EvalNoMatchingOverload:timestamp"),
+        ("dyn(true)", NoOverload("bool")),
+        ("dyn('a')", NoOverload("string")),
+        ("dyn(b'a')", NoOverload("bytes")),
+        ("dyn(null)", NoOverload("null_type")),
+        ("dyn([1])", NoOverload("list")),
+        ("dyn({1: 2})", NoOverload("map")),
+        ("dyn(int)", NoOverload("type")),
+        ("dyn(duration('1s'))", NoOverload("duration")),
+        ("dyn(timestamp(0))", NoOverload("timestamp")),
     ];
 
     // The key of {1: 'x'}: the key lookup across the numeric kinds, and nothing for a kind that is no key.
@@ -397,6 +399,9 @@ public sealed class OptionalOperatorsTests : IDisposable
         .Add("jl", jsonList.RootElement);
 
     private static CelValue Held(CelValue value) => CelValue.FromOptional(new CelOptional<CelValue>(value));
+
+    // The outcome of a key of a kind that no overload takes, in the form that IndexRows reads: "!" and the code with the kind.
+    private static string NoOverload(string kind) => "!EvalNoMatchingOverload:" + kind;
 
     private static ulong Units(string expression, CelBindings bindings, bool allowError = false)
     {
