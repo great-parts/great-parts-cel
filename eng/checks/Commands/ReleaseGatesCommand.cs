@@ -132,7 +132,7 @@ internal sealed class ReleaseGatesCommand : ICheckCommand
         findings.AddRange(ChangelogGate.Check(root, tag));
         findings.AddRange(MainAncestryGate.Check(root, tag, commit));
         findings.AddRange(RegressionListGate.Check(root, tag));
-        findings.AddRange(LongRunGate.Check(tag, commit, repository, api));
+        findings.AddRange(LongRunGate.Check(tag, root, commit, repository, api));
         findings.AddRange(WorkflowsGreenGate.Check(tag, commit, repository, api));
         findings.AddRange(CelSpecPinGate.Check(root, Date(context), CelSpec(context)));
         findings.AddRange(SkipReasonGate.Check(root));

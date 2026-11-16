@@ -154,6 +154,97 @@ public sealed class ReleaseGatesTests
         Assert.Contains(fixture.Stubs.Api.Paths, path => path.StartsWith("repos/" + Repository + "/actions/runs/101/jobs", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("docs/guide.md")]
+    [InlineData("README.md")]
+    [InlineData("eng/checks/Other.cs")]
+    [InlineData("eng/tests/Other.cs")]
+    [InlineData(".github/workflows/release.yml")]
+    public static void Eng904_RunOnAnAncestorAndNoCodePathChangedSince_Passes(string changed)
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeAfterTheRun(changed);
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(fixture.Gates(), 0);
+    }
+
+    [Theory]
+    [InlineData("src/Lib.cs")]
+    [InlineData("eng/difftest/Other.cs")]
+    [InlineData("eng/oracle/main.go")]
+    [InlineData("eng/run/Other.cs")]
+    [InlineData("eng/compose.yaml")]
+    [InlineData("tests/Great.Parts.Cel.Conformance/Regression/extra.md")]
+    [InlineData("tests/Great.Parts.Cel.Conformance/Runner/Other.cs")]
+    [InlineData("tests/cel-spec/extra.txt")]
+    [InlineData("Directory.Build.props")]
+    [InlineData("Directory.Packages.props")]
+    [InlineData("global.json")]
+    [InlineData(".github/workflows/difftest-nightly.yml")]
+    public static void Eng904_RunOnAnAncestorAndACodePathChangedSince_IsReportedWithTheRunAndThePath(string changed)
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeAfterTheRun(changed);
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: {changed}");
+    }
+
+    [Fact]
+    public void Eng904_TwoRunsOnAncestors_TheClosestWithoutCodeChangesIsTaken()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string older = fixture.ChangeAfterTheRun("src/Lib.cs");
+        string nearer = fixture.ChangeAfterTheRun("docs/guide.md");
+        fixture.Stubs.Api.RunCommits = [older, nearer];
+
+        Result.Expect(fixture.Gates(), 0);
+        Assert.Contains(fixture.Stubs.Api.Paths, path => path.StartsWith("repos/" + Repository + "/actions/runs/102/jobs", StringComparison.Ordinal));
+        Assert.DoesNotContain(fixture.Stubs.Api.Paths, path => path.StartsWith("repos/" + Repository + "/actions/runs/101/jobs", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Eng904_TwoRunsOnAncestorsWithCodeChangesSince_TheMessageNamesTheClosest()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string older = fixture.ChangeAfterTheRun("src/Lib.cs");
+        string nearer = fixture.ChangeAfterTheRun("src/Other.cs");
+        fixture.Stubs.Api.RunCommits = [older, nearer];
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {nearer[..8]}, and these paths changed since it: src/Other.cs");
+    }
+
+    [Fact]
+    public void Eng904_ShortRunOnAnAncestorWithoutCodeChanges_IsReported()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeAfterTheRun("docs/guide.md");
+        fixture.Stubs.Api.RunCommits = [run];
+        fixture.Stubs.Api.Minutes = 110;
+
+        Result.Expect(fixture.Gates(), 1, $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]}");
+    }
+
+    [Fact]
+    public void Eng904_RunOnACommitThatIsNotAnAncestor_IsReported()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        fixture.Git("switch", "-q", "-c", "side");
+        fixture.Commit("on the side");
+        string side = fixture.Git("rev-parse", "HEAD");
+        fixture.Git("switch", "-q", "main");
+        fixture.Stubs.Api.RunCommits = [side];
+
+        Result.Expect(fixture.Gates(), 1, $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]}");
+    }
+
     // ENG908
 
     [Theory]
@@ -715,6 +806,7 @@ public sealed class ReleaseGatesTests
             fixture.Commit("the content of the release");
             fixture.Git("tag", tag);
             fixture.Git("update-ref", "refs/remotes/origin/main", "HEAD");
+            fixture.Stubs.Api.TagCommit = fixture.Head;
             return fixture;
         }
 
@@ -723,6 +815,18 @@ public sealed class ReleaseGatesTests
             Execute(Root.Path, Stubs, Tag, ["--date", ChangelogDate, "--repository", Repository, "--cel-spec", _celSpec.Path, .. options]);
 
         internal string Git(params string[] arguments) => RunGit(Root.Path, arguments);
+
+        // A commit after the long run that adds one file, and the tag and origin/main move to it. Returns the commit that the long run is on.
+        internal string ChangeAfterTheRun(string path)
+        {
+            string run = Head;
+            Root.Write(path, "changed\n");
+            Git("add", "-A");
+            Commit("change " + path);
+            Git("tag", "-f", Tag);
+            Git("update-ref", "refs/remotes/origin/main", "HEAD");
+            return run;
+        }
 
         internal void Commit(string message) => Git("commit", "-q", "--allow-empty", "-m", message);
 
@@ -740,6 +844,11 @@ public sealed class ReleaseGatesTests
         internal string Conclusion { get; set; } = "success";
 
         internal string? HeadSha { get; set; }
+
+        // The commit of the tag, which a long run is on unless a test says otherwise, and the commits of the long runs when a test gives them.
+        internal string TagCommit { get; set; } = string.Empty;
+
+        internal string[]? RunCommits { get; set; }
 
         internal int Minutes { get; set; } = 125;
 
@@ -766,6 +875,15 @@ public sealed class ReleaseGatesTests
                 string started = start.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
                 string completed = start.AddMinutes(Minutes).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
                 return $$"""{"jobs":[{"name":"Differential run","conclusion":"success","started_at":"{{started}}","completed_at":"{{completed}}"}]}""";
+            }
+
+            // The runs of the long run: on the commits of the test, or on the commit of the tag, or on the one that a test gives.
+            if (path.Contains("/workflows/difftest-nightly.yml/", StringComparison.Ordinal))
+            {
+                string[] commits = RunCommits ?? [HeadSha ?? TagCommit];
+                IEnumerable<string> runs = commits.Select((commit, index) =>
+                    $$"""{"id":{{101 + index}},"event":"{{Event}}","head_sha":"{{commit}}","conclusion":"{{Conclusion}}"}""");
+                return $$"""{"workflow_runs":[{{string.Join(",", runs)}}]}""";
             }
 
             // The run is on the commit that the gate asks for, unless a test gives another one.
