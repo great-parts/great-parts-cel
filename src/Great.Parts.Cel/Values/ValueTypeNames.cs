@@ -1,4 +1,4 @@
-using System;
+using System.Diagnostics;
 
 namespace Great.Parts.Cel.Values;
 
@@ -9,8 +9,9 @@ namespace Great.Parts.Cel.Values;
 internal static class ValueTypeNames
 {
     /// <summary>
-    /// Gives the name of the CEL type of a value of <paramref name="kind"/>, for the kinds that evaluation
-    /// produces so far.
+    /// Gives the name of the CEL type of a value of <paramref name="kind"/>, for the kinds that the kind alone names. The kinds
+    /// <see cref="CelValueKind.Object"/> and <see cref="CelValueKind.Abstract"/> are named by the description or the type of the
+    /// value, as <see cref="ValueTypeRules.NameOf"/> does.
     /// </summary>
     /// <param name="kind">The kind of the value.</param>
     /// <returns>The name of the type, such as <c>null_type</c> or <c>list</c>.</returns>
@@ -33,6 +34,6 @@ internal static class ValueTypeNames
 #if NET11_0_OR_GREATER
         CelValueKind.Decimal => "decimal",
 #endif
-        _ => throw new NotImplementedException(),
+        _ => throw new UnreachableException("The kind has no name of its own: an object or an abstract value is named by its type."),
     };
 }

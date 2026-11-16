@@ -44,7 +44,7 @@ networkFactory(element) -> (option, handled):
     anything else                                  ->  nil, false
 ```
 
-`version` is `Extension.VersionNumber()` of the manifest entry. The manifest of the walking skeleton has no extension sets.
+`version` is `Extension.VersionNumber()` of the manifest entry.
 
 A manifest that cel-go cannot read, or from which it builds no environment — an unknown extension set, an invalid declaration — is refused with exit code 2 as well, with the message of cel-go.
 

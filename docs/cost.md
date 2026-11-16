@@ -390,24 +390,307 @@ The copies nested in a copy are charged in the same way. A lazy view and a `Read
 | :- | :- |
 | B, the bytes allocated beyond the frame for one unit | 64 |
 | the divisor of a pass over a string | 10 |
+| the divisor of the build of the program of a pattern of `matches` | 4 |
+| the divisor of the search of `matches` | 10 |
+| the divisor of the box of a structure | 64 |
+| the units of `decimal(double)` | 4 |
 
-The units are calibrated by a property test that compares `GC.GetAllocatedBytesForCurrentThread` with the charged units. B is 64 until 1.0, when the final number is published; after 1.0 the numbers change only in a major version. The largest numbers of bytes per unit that the calibration of this release measured, for the sizes 0, 1, 10, 100 and 1 000 (`net10.0`, Debug):
+These numbers are final: B is 64, and the units of this page are the units of 1.0. After 1.0 a number changes only in a major version.
 
-| Operation | Bytes per unit |
-| :- | :- |
-| a list literal | 26.7 |
-| `add_list` | 32.0 |
-| `add_string` | 10.0 |
-| `add_bytes` | 6.9 |
-| `string_to_bytes` | 9.6 |
-| `bytes_to_string` | 12.0 |
-| `int64_to_string` | 14.0 |
-| `uint64_to_string`, `double_to_string` | 16.0 |
-| `bool_to_string`, the parsing of numbers from strings | 0 |
-| `map` and `filter` | 28.0 |
-| `contains` with a pattern longer than 256 | 9.2 |
+The units are calibrated by a property test that compares `GC.GetAllocatedBytesForCurrentThread` with the charged units. With the cost limit `ulong.MaxValue` the bytes that an evaluation allocates beyond its frame are at most the units it charges times B. The bytes are counted from after the frame is made to the end of the evaluation, as the smallest of three evaluations after the first, so that the one-time initialization is not counted, and neither are the few kilobytes that the runtime allocates on the thread of the evaluation when it moves methods between tiers. Each row of the tables below was measured on data of the sizes 0, 1, 10, 100 and 1,000 (a row that needs an element, or whose units grow with the square of the size, has its own sizes), through `Compile` and through the planner without type checking, on `net11.0`, JIT, Release. The number of the row is the largest number of bytes per unit over the sizes and the two ways; the test fails when a row is above B. B does not rise to fit a row: a row that did not fit changed its formula or its allocation.
+
+Every row fits B. The largest rows are 64.0: the two error values of one unit, since the creation of the error value of an operation that fails, such as `1 / 0` or `lists.range(-1)`, allocates one object of 64 bytes (see below), and the sorted copy of a `SortedSet<string>`, whose enumerator allocates a stack of its own. All the other rows are at most 62.7.
+
+### Strings set
+
+| Row | Bytes per unit |
+| :- | -: |
+| strings, charAt | 6.0 |
+| strings, format, %f with a precision of 100 | 19.4 |
+| strings, format, %s of a list | 20.0 |
+| strings, format, %s of a long string | 19.8 |
+| strings, format, %s of a map | 21.7 |
+| strings, format, %x of a long string | 19.9 |
+| strings, indexOf, pattern over 256 | 9.2 |
+| strings, join | 5.3 |
+| strings, lowerAscii | 12.0 |
+| strings, quote | 13.3 |
+| strings, replace, many matches | 13.3 |
+| strings, replace, no match | 0.0 |
+| strings, reverse | 12.0 |
+| strings, split, many parts | 29.1 |
+| strings, substring | 0.0 |
+| strings, trim | 10.0 |
+| strings, upperAscii | 12.0 |
+
+### Lists set
+
+| Row | Bytes per unit |
+| :- | -: |
+| lists, distinct | 18.7 |
+| lists, flatten of a deep list | 26.7 |
+| lists, flatten of lists | 24.0 |
+| lists, range | 40.0 |
+| lists, reverse | 32.0 |
+| lists, slice | 32.0 |
+| lists, sort of numbers | 16.0 |
+| lists, sort of strings | 6.7 |
+| lists, sortBy | 20.0 |
+
+### Sets set
+
+| Row | Bytes per unit |
+| :- | -: |
+| sets, contains | 0.0 |
+| sets, equivalent | 0.0 |
+| sets, intersects | 0.0 |
+
+### Math set
+
+| Row | Bytes per unit |
+| :- | -: |
+| math, greatest of a list | 0.0 |
+| math, least of a list | 0.0 |
+
+### Encoders set
+
+| Row | Bytes per unit |
+| :- | -: |
+| encoders, base64.decode | 8.0 |
+| encoders, base64.encode | 11.4 |
+| encoders, json.encode of a nested value | 20.0 |
+
+### Network set
+
+| Row | Bytes per unit |
+| :- | -: |
+| network, ip() of a prefix | 14.7 |
+| network, isCIDR of a text of the size | 0.0 |
+| network, isIP of a text of the size | 0.0 |
+| network, masked | 16.0 |
+| network, string(cidr) | 13.0 |
+| network, string(ip) | 12.6 |
+
+### Macros of the sets
+
+| Row | Bytes per unit |
+| :- | -: |
+| macros, cel.bind | 32.0 |
+| macros, math.greatest of three arguments | 18.0 |
+| macros, transformList | 28.0 |
+| macros, transformList with a filter | 28.0 |
+| macros, transformMap | 26.7 |
+| macros, transformMap with a filter | 20.0 |
+| macros, transformMapEntry | 31.2 |
+| macros, transformMapEntry with a filter | 26.0 |
+
+### Macros of two variables
+
+| Row | Bytes per unit |
+| :- | -: |
+| two variables, all | 0.0 |
+| two variables, all over a map | 8.0 |
+| two variables, exists | 0.0 |
+| two variables, existsOne | 0.0 |
+
+### Optional set
+
+| Row | Bytes per unit |
+| :- | -: |
+| optional, first | 24.0 |
+| optional, hasValue | 16.0 |
+| optional, last | 24.0 |
+| optional, list literal with ? | 42.7 |
+| optional, list literal with ? of empty optionals | 24.0 |
+| optional, map literal with ? | 33.6 |
+| optional, none | 0.0 |
+| optional, of | 24.0 |
+| optional, ofNonZeroValue of a list | 24.0 |
+| optional, optFlatMap with a value | 18.0 |
+| optional, optional index of a list | 24.0 |
+| optional, optional index of a map | 16.0 |
+| optional, optional selection of a map | 0.0 |
+| optional, optMap of an empty optional | 6.0 |
+| optional, optMap with a value | 18.0 |
+| optional, or of an empty optional | 12.0 |
+| optional, orValue of an empty optional | 0.0 |
+| optional, unwrap | 25.1 |
+| optional, unwrapOpt | 25.1 |
+| optional, value | 16.0 |
+
+### Decimal set
+
+| Row | Bytes per unit |
+| :- | -: |
+| decimal, comparison | 0.0 |
+| decimal, decimal(double), a large number | 0.0 |
+| decimal, decimal(double), a third | 0.0 |
+| decimal, decimal(int) | 0.0 |
+| decimal, decimal(string) | 0.0 |
+| decimal, decimal(string) of a text that does not parse | 32.0 |
+| decimal, difference | 0.0 |
+| decimal, double(decimal) | 0.0 |
+| decimal, equality | 0.0 |
+| decimal, int(decimal) | 0.0 |
+| decimal, negation | 0.0 |
+| decimal, product | 0.0 |
+| decimal, quotient | 0.0 |
+| decimal, string(decimal) | 8.7 |
+| decimal, sum | 0.0 |
+
+### Protobuf messages
+
+| Row | Bytes per unit |
+| :- | -: |
+| protobuf, Any with a string | 19.9 |
+| protobuf, Any with bytes | 11.6 |
+| protobuf, equality of two messages | 51.8 |
+| protobuf, field, bytes | 0.0 |
+| protobuf, field, Duration | 0.0 |
+| protobuf, field, enum | 12.0 |
+| protobuf, field, int64 | 12.0 |
+| protobuf, field, message | 0.0 |
+| protobuf, field, string | 0.0 |
+| protobuf, field, Timestamp | 0.0 |
+| protobuf, field, wrapper | 12.0 |
+| protobuf, ListValue | 24.0 |
+| protobuf, literal of a small message | 44.0 |
+| protobuf, literal with a bytes value | 36.0 |
+| protobuf, map field | 40.0 |
+| protobuf, map field, in | 26.0 |
+| protobuf, map field, traversal | 62.7 |
+| protobuf, repeated Any | 8.0 |
+| protobuf, repeated field | 36.0 |
+| protobuf, repeated field, traversal | 19.2 |
+| protobuf, repeated message field, traversal | 16.0 |
+| protobuf, Struct | 28.0 |
+| protobuf, Struct, traversal | 41.3 |
+| protobuf, Value with a string | 0.0 |
+
+### Data of the application (generated types)
+
+| Row | Bytes per unit |
+| :- | -: |
+| generated, Dictionary<Guid, long>, traversal | 39.1 |
+| generated, Dictionary<long, string>, traversal | 49.6 |
+| generated, Dictionary<string, long>, read | 28.0 |
+| generated, Dictionary<string, long>, traversal | 41.3 |
+| generated, HashSet<long> | 30.0 |
+| generated, ImmutableArray<long>, read | 24.0 |
+| generated, ImmutableArray<long>, traversal | 24.0 |
+| generated, ImmutableHashSet<long> | 56.0 |
+| generated, IReadOnlySet<long> | 30.0 |
+| generated, LinkedList<long> | 32.0 |
+| generated, List<long>, read | 24.0 |
+| generated, List<long>, traversal | 24.0 |
+| generated, long[], read | 24.0 |
+| generated, nested lists, traversal | 24.0 |
+| generated, objects in a list, traversal | 24.0 |
+| generated, Queue<long> | 32.0 |
+| generated, SortedDictionary<string, long>, traversal | 52.0 |
+| generated, SortedSet<string> | 64.0 |
+| generated, Stack<string> | 32.0 |
+| generated, structure that is a list | 22.0 |
+
+### JSON documents
+
+| Row | Bytes per unit |
+| :- | -: |
+| in, JSON object | 52.5 |
+| json, a string of the size | 19.3 |
+| json, equality of two objects | 27.2 |
+| json, has() on an object | 0.0 |
+| json, in on an array | 0.0 |
+| json, index of an array | 0.0 |
+| json, index of an object by a name | 0.0 |
+| json, key lookup in an object | 0.0 |
+| json, size of an array | 0.0 |
+| json, traversal of an array | 0.0 |
+| json, traversal of an object | 24.8 |
+| size, JSON object | 52.5 |
+
+### Copies of arguments of application functions
+
+| Row | Bytes per unit |
+| :- | -: |
+| copy, bytes | 10.0 |
+| copy, list(int) | 16.0 |
+| copy, map(string, int) | 19.4 |
+
+### Time
+
+| Row | Bytes per unit |
+| :- | -: |
+| time, duration(string) | 0.0 |
+| time, getDayOfWeek without a zone | 0.0 |
+| time, getHours with a zone name | 0.0 |
+| time, getHours with an offset | 0.0 |
+| time, string(duration) | 14.4 |
+| time, string(timestamp) | 17.6 |
+| time, timestamp plus duration | 0.0 |
+| time, timestamp(string) | 0.0 |
+
+### Error values
+
+| Row | Bytes per unit |
+| :- | -: |
+| error, 1 / 0 | 64.0 |
+| error, a duplicate key in transformMapEntry | 25.5 |
+| error, base64.decode(x) | 21.3 |
+| error, charAt past the end | 32.0 |
+| error, cidr(x) | 32.0 |
+| error, format with a precision of 101 | 24.0 |
+| error, format with an unknown letter | 24.0 |
+| error, getHours with the zone +1:5 | 16.0 |
+| error, int(x) | 32.0 |
+| error, ip(x) | 32.0 |
+| error, lists.range(-1) | 64.0 |
+| error, timestamp(i) outside the range | 32.0 |
+
+### Standard library and literals
+
+| Row | Bytes per unit |
+| :- | -: |
+| add_bytes | 6.9 |
+| add_list | 32.0 |
+| add_string | 10.0 |
+| bool_to_string | 0.0 |
+| bytes_to_string | 12.0 |
+| contains, a short pattern | 0.0 |
+| contains, pattern over 256 | 9.2 |
+| double_to_string | 16.0 |
+| endsWith | 0.0 |
+| equality, two bytes | 0.0 |
+| equality, two lists | 0.0 |
+| equality, two maps with string keys | 5.3 |
+| equality, two strings | 0.0 |
+| filter | 28.0 |
+| in, a list | 0.0 |
+| in, a map with string keys | 0.0 |
+| index, a list | 0.0 |
+| index, a map with string keys | 0.0 |
+| int64_to_string | 14.0 |
+| list literal | 40.0 |
+| map | 28.0 |
+| map literal | 40.4 |
+| matches, a literal pattern | 0.0 |
+| matches, a pattern from a variable | 0.0 |
+| ordering, two bytes | 0.0 |
+| ordering, two strings | 0.0 |
+| size, a list | 0.0 |
+| size, a string | 0.0 |
+| startsWith | 0.0 |
+| string_to_bytes | 9.6 |
+| string_to_double | 0.0 |
+| string_to_int64 | 0.0 |
+| string_to_uint64 | 0.0 |
+| uint64_to_string | 16.0 |
+
+The evaluation that a cost limit stops while a loop builds its result, `map` and `filter` over 1,000 elements with the limits 2, 3, 10 and 100, allocates at most B bytes for each unit charged at the stop and the bytes of the stop itself, the exception that leaves the evaluation and the error value: 2,048 bytes at most, measured 469.3 bytes for each unit with the stop included, so the array of the result is not made for the whole range at the first units.
 
 A map literal did not fit 1 + n: a pair is two values of 32 bytes, so the index that finds a key in constant time did not fit 64 bytes for each unit; the unit count of a map is therefore 1 + 2n. The creation of an error value allocates at most 64 bytes, one object without strings or arrays, whose text and position are built when the error is read, so a refusal of an operation of 1 unit, such as `1 / 0`, fits. An error value itself is not charged.
+
+Two constants of the descriptions of protobuf messages are outside B, and the rows of messages above measure what grows with the data: the instance of a class that protoc generates allocates each of its `repeated` and `map` fields when it is made, 27,904 bytes for `TestAllTypes`, which is the code of the application, as a function of the application is, and not limited by the library; and the reflection of Google.Protobuf boxes the value of each field of the description that a comparison of two messages tests, about 1.7 KB for two empty `TestAllTypes`, a constant of the description that does not grow with the data. The rows of messages use a small message of the tests for these two. The set that a read of an application collection makes is the shared empty list when the collection has no element, so the read of an empty set allocates nothing.
 
 `matches` at n = 0, a string of no characters, for patterns of the sizes m = 1, 10, 100, 1,000, 10,000 and 100,000 (`net10.0`, JIT, Release; the bytes of a call of the program after the bytes of a call of a program that reads the same variables and compares them, so that the frame and the result are not counted, and the units of the whole expression, among them the reads of the operands):
 

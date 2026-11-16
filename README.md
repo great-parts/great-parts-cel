@@ -2,13 +2,34 @@
 
 CEL (Common Expression Language) for .NET / C#.
 
-**Status:** pre-release. No package has been published yet, and the public API is unstable: it may change in any commit.
+**Status:** release 1.0. From this version the public API follows [Semantic Versioning](docs/versioning.md): a breaking change comes only in a major version.
 
 [CEL](https://cel.dev/) is an expression language that is not Turing complete: an expression reads only the data that the application passes to it. An application compiles an expression once and evaluates it on different data many times. Great.Parts.Cel does both in a .NET application, under JIT and under Native AOT.
 
+## Install
+
+The library targets `net10.0` and `net11.0`. Add the package to a project:
+
+```shell
+dotnet add package Great.Parts.Cel
+```
+
+Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](docs/protobuf.md). The type `decimal` is available on `net11.0` only; see [Decimal](docs/decimal.md).
+
 ## Quick start
 
-No package is on nuget.org yet. To try the library, clone the repository and reference `src/Great.Parts.Cel/Great.Parts.Cel.csproj` from a console application. The library also targets `net11.0`, so its build needs the .NET SDK named in [global.json](global.json).
+The steps below take a clean machine with the .NET SDK 10 to a first result in less than five minutes; CI runs them in a clean container on every push to `main`.
+
+<!-- quick-start:begin -->
+Create a console application and add the package:
+
+```shell
+dotnet new console -o QuickStart
+cd QuickStart
+dotnet add package Great.Parts.Cel
+```
+
+Replace the content of `Program.cs` with the example:
 
 ```csharp
 using Great.Parts.Cel;
@@ -24,19 +45,37 @@ Console.WriteLine(program.Evaluate(new CelBindings().Add("x", 40L)).GetValueOrTh
 Console.WriteLine(program.Evaluate(new CelBindings().Add("x", -5L)).GetValueOrThrow()); // Output: -1
 ```
 
+Run it:
+
+```shell
+dotnet run
+```
+<!-- quick-start:end -->
+
 The environment declares what an expression may use: here the standard library and one variable `x` of the CEL type `int`. `Compile<long>` parses the expression, checks its types and returns a program. The program is immutable: it is evaluated any number of times, from any number of threads. Errors are returned as results, each with its place in the expression; `Get…OrThrow()` turns an error into an exception and keeps the example short.
 
-## What works now
+## What it covers
 
-Every part of the library runs end to end: parsing, type checking, planning and evaluation. The language is implemented in steps, and today it covers:
+- **The language.** The complete CEL syntax, the type checking of the CEL language definition and the standard library, [version 1](docs/standard-library.md): arithmetic, comparisons, strings, lists, maps, `timestamp` and `duration` with time zones from a database that the application supplies, the standard macros, and `matches` with the syntax of RE2, found in time linear in the length of the string.
+- **Extension sets.** The sets of cel-go, each added with an explicit version: `strings`, `math`, `lists`, `sets`, `encoders`, `bindings`, `two-var-comprehensions`, `network`, `optional` with its syntax, and `protos`; and `decimal`, a set of this library, on `net11.0`. See [Extension sets](docs/extensions.md).
+- **Data of the application.** Variables and results of .NET types — numbers, strings, time, enumerations, collections, `JsonElement`; objects of the application, described by a source generator at build time, with no reflection, so they work under Native AOT and trimming ([Type mapping](docs/type-mapping.md)), or described at run time ([Types described at run time](docs/runtime-types.md)); messages of protobuf, with `Any`, in the package `Great.Parts.Cel.Protobuf`. An environment can also be described in [JSON](docs/environment-json.md), and an application can add functions of its own, with the implementations and the costs it declares ([Application functions](docs/recipes/application-functions.md)).
+- **Untrusted expressions.** The length and the nesting of the text are limited, an evaluation can have a cost limit and can be cancelled, and the cost of every operation is a published number ([Limits](docs/limits.md), [Cost](docs/cost.md)). The library sets no cost limit by default.
+- **Errors.** A parse, type or evaluation error is a result with a code of `CelErrorCode`, a stage and a place in the expression, never an exception for a wrong expression ([Error codes](docs/error-codes.md)).
 
-- literals: `int`, `uint`, `double`, `string`, `bytes`, `bool`, `null`, lists and maps;
-- `int` addition, division and negation, with an error on overflow and on division by zero;
-- logical or, `||`: when one side is `true`, an error on the other side does not make the result an error;
-- variables declared in code or in an environment description in JSON;
-- parse and type errors: a compilation returns every error it finds, each with its offset, line and column.
+## Conformance
 
-Other functions and operators are not declared yet, so an expression that uses them fails type checking. A member of the public API that is not implemented yet throws `NotImplementedException`.
+The library runs the conformance suite of [cel-spec](https://github.com/google/cel-spec) on every platform and every target it supports. The page [Conformance](docs/conformance.md) has the share of the cases that pass with its date, the commit of cel-spec and the CI run, the skip list with the reasons, and the result of the last run on the master branch of cel-spec.
+
+## Where the packages come from
+
+Every package of a release on nuget.org has an attestation of its origin: GitHub Actions built the package from the commit of the release, and the attestation is recorded in the public log of Sigstore. To check a package that you downloaded, use the [GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). For version 1.0.0:
+
+```shell
+curl -LO https://api.nuget.org/v3-flatcontainer/great.parts.cel/1.0.0/great.parts.cel.1.0.0.nupkg
+gh attestation verify great.parts.cel.1.0.0.nupkg --repo great-parts/great-parts-cel --signer-workflow great-parts/great-parts-cel/.github/workflows/release.yml --source-ref refs/tags/v1.0.0 --deny-self-hosted-runners
+```
+
+The second command is the check, on the file as nuget.org gives it. It succeeds only for a package that the workflow `release.yml` of this repository built on a standard GitHub runner from the tag `v1.0.0`. For another version, replace `1.0.0` and `v1.0.0`; the package `Great.Parts.Cel.Protobuf` is checked the same way.
 
 ## How it is checked
 
@@ -47,20 +86,30 @@ Every pull request and every push to `main` runs [CI](.github/workflows/ci.yml):
 | `net10.0` | yes | yes | yes |
 | `net11.0` | yes | yes | yes |
 
-- In every cell the tests include the conformance tests of [cel-spec](https://github.com/google/cel-spec) at a pinned commit ([tests/cel-spec/COMMIT](tests/cel-spec/COMMIT)). A case that does not pass yet is in the [skip list](tests/Great.Parts.Cel.Conformance/CelSpec/skips.md) with its reason.
+- In every cell the tests include the conformance tests of [cel-spec](https://github.com/google/cel-spec) at a pinned commit ([tests/cel-spec/COMMIT](tests/cel-spec/COMMIT)). A case that does not pass is in the [skip list](tests/Great.Parts.Cel.Conformance/CelSpec/skips.md) with its reason; the page [Conformance](docs/conformance.md) shows the result.
 - The Native AOT cells publish the test projects, run them and compare the test count with the JIT run.
 - The examples of this README and of `docs/` are compiled and run, and their output is compared with the output they show. The links are checked.
-- Differences from cel-go that have been analysed are listed in [known-differences.md](tests/Great.Parts.Cel.Conformance/Regression/known-differences.md).
+- A differential run compares the library with cel-go on generated expressions on every push to `main`. Differences that have been analysed are listed in [known-differences.md](tests/Great.Parts.Cel.Conformance/Regression/known-differences.md).
 
 ## Documentation
 
+- [Standard library](docs/standard-library.md): the functions, operators, macros and type identifiers of version 1, with their errors.
+- [Extension sets](docs/extensions.md): the catalog, the versions and every function of every set.
 - [API concepts](docs/api-concepts.md): every public type and the CEL concept it stands for.
 - [Type mapping](docs/type-mapping.md): how .NET values, collections, objects and `JsonElement` become CEL values and back.
 - [Types described at run time](docs/runtime-types.md): object types that an application describes when it builds the environment.
+- [Protobuf messages](docs/protobuf.md): the package `Great.Parts.Cel.Protobuf`.
+- [Decimal](docs/decimal.md): the type `decimal` and its extension set, on `net11.0`.
 - [Environment description in JSON](docs/environment-json.md): the keys and the type records of the JSON form of an environment.
+- [Cost](docs/cost.md): the units of every operation.
+- [Limits](docs/limits.md): the sizes past which the library reports an error.
 - [Error codes](docs/error-codes.md): every code of `CelErrorCode`, its stage and when it occurs.
+- [Source generator diagnostics](docs/generator-diagnostics.md): `GPCEL001` to `GPCEL009`.
 - [Application functions](docs/recipes/application-functions.md): how to give the functions of an application the data they need.
 - [Time zone database](docs/recipes/time-zone-database.md): how to give an environment the time zones that `getHours('Europe/Moscow')` needs.
+- [Conformance](docs/conformance.md): the result of the cel-spec suite.
+- [Versioning and compatibility](docs/versioning.md): what is a breaking change and what a minor version may change.
+- [Roadmap](ROADMAP.md): what comes after 1.0.
 - [Design](docs/design/): how the library and its checks are built, for contributors.
 
 ## How it is built

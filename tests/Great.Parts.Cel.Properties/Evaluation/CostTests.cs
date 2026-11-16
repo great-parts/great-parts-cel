@@ -110,7 +110,7 @@ public sealed class CostTests
         }
 
         // The calibration is written before the verdict, so a row over B still gives its number.
-        TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{row}: {largest:0.0} bytes/unit"));
+        CostRows.Report(string.Create(CultureInfo.InvariantCulture, $"{row}: {largest:0.0} bytes/unit"));
         Assert.True(failure is null, failure);
     }
 
@@ -138,7 +138,7 @@ public sealed class CostTests
             }
         }
 
-        TestContext.Current.TestOutputHelper?.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{row}, stopped by a limit: {largest:0.0} bytes/unit, with the stop"));
+        CostRows.Report(string.Create(CultureInfo.InvariantCulture, $"{row}, stopped by a limit: {largest:0.0} bytes/unit, with the stop"));
         Assert.True(failure is null, failure);
     }
 

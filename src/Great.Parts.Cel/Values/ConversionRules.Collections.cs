@@ -23,6 +23,9 @@ internal static partial class ConversionRules
 
     private static readonly Func<object, CelValue> ObjectConverter = static item => FromObject(item);
 
+    // The list of a set of no element, shared: a list is immutable.
+    private static readonly ValueArrayList EmptySorted = new([]);
+
     private static readonly Func<CelError, string> ApplicationExceptionText =
         static error => "application code threw " + error.First!.GetType() + " in " + (string)error.Second!;
 
@@ -111,6 +114,13 @@ internal static partial class ConversionRules
     // kind that CEL orders, a NaN, or two elements equal in CEL.
     internal static CelList SortList<T>(IReadOnlyCollection<T> source, Func<T, CelValue> converter)
     {
+        // A set of no element is the shared empty list: it takes no array, no enumerator (that of a SortedSet<T> allocates a stack
+        // and its array) and no object of its own, so the read of an empty set is within the unit it costs.
+        if (source.Count == 0)
+        {
+            return EmptySorted;
+        }
+
         var items = new CelValue[source.Count];
         int index = 0;
         foreach (T item in source)

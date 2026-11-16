@@ -1,0 +1,222 @@
+# Release: `release.yml`, release gates and the quick-start check
+
+A release of the two packages is made by `.github/workflows/release.yml` when the maintainer pushes a tag `v*`. Two commands of [eng/checks](eng-checks.md) belong to it: `release-gates`, the checks that stand before the build and after the publication, and `quick-start`, the check that the steps of the README work on a clean machine in the time the README promises; the second one also runs in every `ci.yml` run. This page describes the workflow, the order in which a release is made, and both commands.
+
+## Order of a release
+
+The long run against cel-go runs on `main` ([Nightly run](eng-difftest.md#nightly-run)), and the gates take a run on the commit of the tag. The order below keeps the three — the run, the dry run and the tag — on one commit, X:
+
+1. X is the last commit of the content of the release, on `main`. The `CHANGELOG.md` entry of the version is in it. The pinned commit of cel-spec is moved last, shortly before X: a commit of cel-spec master that becomes older than 6 weeks between the move and the day of the tag fails the gate `ENG905`, and moving the pin again makes a new X.
+2. The run `ci.yml` and the run `difftest-main.yml` on X are green.
+3. The long run: `difftest-nightly.yml` is started by hand (`workflow_dispatch`) on `main` while the head of `main` is X, with the budget `2h`. The workflow runs only on `main`, so the run belongs to the head of `main` at the time of the start.
+4. The dry run of `release.yml` on X ([Dry run](#dry-run)), at the same time as the long run or after it.
+5. The tag `v1.0.0` is set on X and pushed by the maintainer. The tag stands on X, not on the head of `main`: the gate `ENG902` asks that the commit of the tag is reachable from `main`, and the gate `ENG904` asks for a long run whose `head_sha` is the commit of the tag. A commit that reaches `main` after the long run does not cancel the run while the tag stays on X; a tag on another commit needs another long run.
+6. The run of `release.yml` on the tag, described below. It stops at the environment `release` until the maintainer approves it.
+
+A failure before step 6 of the workflow (publication) leaves nothing public. If the fix is a commit, X changes: the long run, the dry run and the tag start again, and a tag that nothing was published for is removed and set on the new commit by the maintainer. A failed job that has a transient cause, such as an unreachable API, is run again with no commit.
+
+## `release.yml`
+
+```text
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag: the name of the tag the release will have, for example v1.0.0; the tag does not have to exist
+```
+
+The event has three uses: a push of a tag is the release; a `workflow_dispatch` on `main` with the input `tag` is the [dry run](#dry-run); a `workflow_dispatch` whose ref is a tag `v*` is the repeat of steps 7 and 8 ([When step 7 fails after the publication](#when-step-7-fails-after-the-publication)), and it takes no input. A dispatch on any other ref does nothing.
+
+The tag is `v` and a semantic version. Both packages have one version, the version of the tag without `v`; it reaches the build as `-p:Version=<version>`. Every value that comes from the event or from an input reaches a script only through the environment, never through the text of the script.
+
+| Job | Runs when | Permissions | Steps of the release | What it does |
+| :- | :- | :- | :- | :- |
+| `gates` | tag push; dispatch on `main` | `contents: read`, `actions: read` | 1 | checks out with the history and `origin/main`, builds `eng/checks`, runs `release-gates <tag>`; in a dry run with `--commit` the commit of the run |
+| `build` | after `gates` | `contents: read` | 2 | restore in locked mode, build with `ContinuousIntegrationBuild`, the tests of both targets under JIT, `eng/checks packages`, `dotnet pack`, the quick-start check (the last section of this page) when the version has no pre-release suffix, the packages as an artifact |
+| `attest` | tag push, after `build` | `contents: read`, `id-token: write`, `attestations: write`, `artifact-metadata: write` | 3 | the SBOM, the attestation of origin and the attestation of the SBOM for each `.nupkg` |
+| `draft` | after `attest` | `contents: write`, `attestations: read` | 4 | the check of origin of the built packages, then the draft Release with the `.nupkg`, `.snupkg` and the bundles `.intoto.jsonl` |
+| `publish` | after `draft` | `contents: read`, `id-token: write` | 5 and 6 | environment `release`; publishes the packages on nuget.org |
+| `verify` | after `publish`; in the repeat run, alone | `contents: read`, `actions: read`, `id-token: write`, `attestations: write`, `artifact-metadata: write` | 7 | downloads the packages from nuget.org, issues the second attestation of origin for them and checks the command of the README on them |
+| `release` | after `verify` | `contents: write` | 8 | adds the bundles of the second attestation to the draft Release and publishes it |
+
+- The default permission of the workflow is `contents: read`; a job takes more only as the table says. `id-token: write` is only in `attest`, `publish` and `verify`. `pull_request_target` is not used. No job sets `timeout-minutes`: a job that hangs is stopped by the limit of GitHub Actions, 6 hours, as in the other workflows ([eng-test.md](eng-test.md#time-limits)). In the repeat run only `verify` and `release` run; the others are skipped by the condition on the event and the ref.
+- Every action is pinned by the SHA of a commit with the version in a comment, as in `ci.yml`; Dependabot proposes the updates. The actions are `actions/checkout`, `actions/setup-dotnet`, `actions/upload-artifact`, `actions/download-artifact`, `actions/attest` and `NuGet/login`.
+- **Step 3.** The SBOM is the export of the dependency graph of the repository at the commit, SPDX JSON, taken with `gh api repos/<repository>/dependency-graph/sbom`; no tool is added to make it. `actions/attest` runs twice: for the `.nupkg` files with no other input (the attestation of origin), and for the same files with `sbom-path` (the attestation of the SBOM): the action does not combine them. The bundles that the action writes (its output `bundle-path`) are copied to `<name>.intoto.jsonl` files for the Release.
+- **Step 4.** The check of origin runs on the packages as they were built, before anything is public: `release-gates <tag> --provenance <directory>` ([Provenance](#provenance)). A wrong flag of the command, or an attestation that does not match the package, stops the release here, not after the publication. The Release is created as a draft with `gh release create --draft --verify-tag`.
+- **Step 5.** The job `publish` has `environment: release`, which waits for the approval of the maintainer. Before a release of a new minor or major version after 1.0 the approval comes after the speed measurement of the benchmark rig, which the maintainer runs on the packages of the draft Release.
+- **Step 6.** `NuGet/login` exchanges the OIDC token of the job for an API key that lives one hour; its input `user` is the nuget.org profile that holds the policy of Trusted Publishing (owner `great-parts`, repository `great-parts-cel`, file `release.yml`, environment `release`), kept as the variable `NUGET_USER` of the environment, not as a secret. `dotnet nuget push "artifacts/release/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key <the key of the login> --skip-duplicate`; the `.snupkg` next to each `.nupkg` is pushed by the same command. `--skip-duplicate` makes a run again safe when one of the two packages was pushed and the other was not. No long-lived key exists anywhere.
+- **Step 7.** nuget.org adds the signature of the repository (`.signature.p7s`) to a package, so a downloaded package is not the file that step 3 attested and `gh attestation verify` does not pass on it. The job `verify` therefore attests the downloaded file, in three sub-steps, all in the directory `nuget` of the job, the built packages being downloaded from the artifact of the build into the directory `built`:
+  0. The artifact `packages` belongs to the run of the push of the tag, so `verify` first takes the id of that run: in the run of the push it is the run itself; in the repeat run it is the newest run of `release.yml` with the event `push` on the branch `<tag>` whose `head_sha` is the commit of the repeat run (`gh run list`), and the step fails if there is none. `actions/download-artifact` then takes `run-id` and `github-token`; this is why `verify` has `actions: read`. The artifact lives as long as the retention of the repository (90 days by default); after that the repeat run is not possible and the maintainer decides as for a wrong package.
+  1. `release-gates <tag> --nuget <directory> --same-content-as <built directory>` downloads both packages of the version from nuget.org, waits until it gives them, and compares the content of each with the package of the same name that the build made and step 4 checked ([Provenance](#provenance)). This is the guard of the second attestation: it is issued only for a file whose content is the content the build attested, never for whatever nuget.org serves. The comparison is by content, not by bytes of the file: a zip written again has other bytes, and the attestation cannot be asked about a copy;
+  2. `actions/attest` with `subject-path: nuget/*.nupkg` issues the second attestation for the downloaded files as they are; its bundles are copied to `<name>.nuget.intoto.jsonl` and uploaded as an artifact of the run;
+  3. `release-gates <tag> --provenance <directory>` runs the command of the README on the downloaded files as they are, and finds the new attestation (it is visible after some seconds, [Provenance](#provenance)).
+- **Step 8.** The job `release` downloads the artifact with the bundles of the second attestation, adds them to the draft Release (`gh release upload <tag> <bundle>...`) and runs `gh release edit <tag> --draft=false`. After it the assets and the tag of the Release do not change.
+
+### Dry run
+
+`workflow_dispatch` on `main` with the input `tag` runs `gates` and `build` only, on the head of `main` with the version of the planned tag. The gates are the real gates: `ENG901` for the entry of that version, `ENG903` and `ENG906` for the lists, `ENG905` for today's date, and `ENG904` for the long run on the head of `main`; `ENG902` is true of the head of `main`. The build is the real build with the real version, the tests and the quick-start check included.
+
+Steps 3 to 8 do not run in a dry run: the attestations go to a public log that is never edited, the publication on nuget.org cannot be taken back, and a published Release cannot be changed. So a dry run finds the faults of the gates and of the build and creates nothing public. What a dry run does not exercise are the actions of steps 3 to 8 and the check of origin of the packages: the second is covered by the tests of `release-gates` with a replaced `gh` and, on the real tag, by step 4 before the publication.
+
+### When step 7 fails after the publication
+
+At that point the packages are on nuget.org and the Release is still a draft. A version cannot be pushed to nuget.org again; the workflow stops, so step 8 does not run and nothing in the Release is final. What to do depends on the sub-step of step 7 that failed:
+
+- **Sub-step 1, 3 or 4 failed, or sub-step 2 failed because the file could not be read** (nuget.org does not give the package within 15 minutes, the service of attestations or `gh` does not answer, the new attestation is not visible yet): the cause is transient. The maintainer starts the repeat run: `workflow_dispatch` of `release.yml` with the ref set to the tag `v*` (`gh workflow run release.yml --ref <tag>`). It runs `verify` and `release` alone: it takes the packages of the build from the artifact of the run of the push of this tag, downloads the packages from nuget.org again, issues the second attestation (a second one for a file that already has it is harmless: the log keeps both and `gh` accepts either) and publishes the Release. It does not publish anything to nuget.org again and takes the same `--source-ref` as the first run, because its ref is the tag. No decision is needed.
+- **Sub-step 2 failed because a file differs** (the content on nuget.org without `.signature.p7s` is not the content that step 3 attested; no second attestation was issued): the package is wrong. The maintainer decides, as the step is public and not reversible: unlist the version on nuget.org, publish the fixed content as the next version (for 1.0.0, 1.0.1), delete the draft Release.
+- **Sub-step 4 failed with the second attestation issued** (the command found no attestation for the file for a reason other than time, or one of its flags does not match): the package is right and the command is wrong. The same command ran on the built packages in step 4, so a wrong flag of the command is found there, before the publication, and what is left is a change on the side of nuget.org or of GitHub. The maintainer decides: fix the command in `release-gates` and in the README, check the published packages by hand with the fixed command, publish the Release by hand with `gh release edit <tag> --draft=false`, and note the fix in the `CHANGELOG.md` of the next version.
+
+A tag is never moved back to make the first run happen again (it is already used by the packages).
+
+## `eng/checks release-gates`
+
+```text
+eng/checks release-gates <tag> [--commit <sha>] [--date <yyyy-MM-dd>] [--cel-spec <repository>] [--repository <owner/name>] [--api <url>]
+eng/checks release-gates <tag> --provenance <directory> [--repository <owner/name>]
+eng/checks release-gates <tag> --nuget <directory> [--same-content-as <directory>] [--repository <owner/name>]
+```
+
+`<tag>` is the name with `v`; a name that is not `v` and a semantic version is exit code 2, as it is for any input that cannot be used ([eng-checks.md](eng-checks.md#finding-and-output)). Findings have the form of the other commands; a finding without a file names the tag, `tag/<name>(1,1)`.
+
+| Option | Meaning |
+| :- | :- |
+| `--commit <sha>` | the commit to check instead of the commit of the tag; the dry run gives the commit of the run, because the tag does not exist |
+| `--date <yyyy-MM-dd>` | the date of the release for `ENG905`; without it today, UTC |
+| `--cel-spec <repository>` | the address or the path of the repository of cel-spec for `ENG905`; without it `https://github.com/google/cel-spec.git`; the tests give a temporary repository |
+| `--repository <owner/name>` | the repository of the workflow runs and of the origin; without it the environment variable `GITHUB_REPOSITORY`, and without that `great-parts/great-parts-cel` |
+| `--api <url>` | the address of the API of GitHub; without it `https://api.github.com`; the tests give a stub |
+| `--provenance <directory>` | the mode of the check of origin of every `.nupkg` of the directory ([Provenance](#provenance)); the gates below do not run in it |
+| `--same-content-as <directory>` | with `--nuget`: after the download compare each package with the package of the same file name in the directory (the packages of the build); without `--nuget` it is exit code 2 |
+| `--nuget <directory>` | the mode of the download: both packages of the version of the tag from nuget.org into the directory ([Provenance](#provenance)); the gates below do not run in it |
+
+All gates run in one invocation and every finding is printed; the exit code is 1 when any of them is an error. A gate whose input is missing or cannot be read — a file, the repository, the API — is exit code 2 with the message on standard error.
+
+| Code | What it checks | Where the data comes from | Place |
+| :- | :- | :- | :- |
+| `ENG901` | `CHANGELOG.md` has the entry of the version: the heading `## [<version>] - <yyyy-MM-dd>`, where `<version>` is the tag without `v`, and a non-empty text up to the next `## ` heading | `CHANGELOG.md` of the checked commit | `CHANGELOG.md(1,1)` |
+| `ENG902` | the commit of the tag is reachable from `main` | `git merge-base --is-ancestor <commit> origin/main` in the checked-out repository; the workflow fetched `origin/main` (a missing `origin/main` is exit code 2) | `tag/<name>(1,1)` |
+| `ENG903` | no record of the regression list is an unresolved divergence signature (`Verdict` is `pending`) or an open one of the highest severity (`Verdict` is `our-bug` and `Severity` is `S1`) | `tests/Great.Parts.Cel.Conformance/Regression/skips.md`, its columns read by header name | `tag/<name>(1,1)`, one finding per record, the message names the signature and the severity |
+| `ENG904` | a successful long run on the commit of the tag exists | the API of GitHub Actions: the runs of the workflow `difftest-nightly.yml` with the event `workflow_dispatch`, the `head_sha` of the commit and the status `success`; for each run the jobs, and the job `Differential run` with the conclusion `success` and the time from `started_at` to `completed_at` of at least 7 200 s | `tag/<name>(1,1)` |
+| `ENG905` | the pinned commit of cel-spec includes every commit of master older than 6 weeks | `tests/cel-spec/COMMIT`, a clone of the repository of cel-spec (`git clone --bare --filter=blob:none`, the branch `master`) in a temporary directory; the gate fails when `git rev-list <pinned>..master --before=<date − 42 days, 00:00 UTC>` is not empty, and the message names the newest such commit with its date; a pinned commit that is not in the history of `master` fails it too | `tests/cel-spec/COMMIT(1,1)` |
+| `ENG803` | every record of the list of the cel-spec suite has a reason and a link `https://github.com/great-parts/great-parts-cel/issues/<N>` | `tests/Great.Parts.Cel.Conformance/CelSpec/skips.md`, the columns `Reason` and `Issue` | the line of the record |
+| `ENG906` | in the version `1.0.0` every record of the list of the cel-spec suite has a `Reference`; the gate does not apply to another version, and an empty list passes | the same file, the column `Reference` | the line of the record |
+| `ENG907` | the packages of the release have the attestation of origin: see [Provenance](#provenance) | the packages, `gh` | `tag/<name>(1,1)` |
+
+- **`ENG904`.** The input `budget` of a manual run is not in the answer of the API, so the length of the job is the only evidence that the run was long. The job is longer than the budget by the time of the build of the image. A run of the event `schedule`, the nightly one of 20 minutes, never counts. The token is `GITHUB_TOKEN` of the job (permission `actions: read`); without a token the requests are anonymous. An API that does not answer is exit code 2: a transient failure is a run again, not a missing long run.
+- **`ENG905`.** The clone and the API-free comparison need no token and no limit of requests. The date of the release is the date of the run of the gate, so the pin has to hold on the day of the tag ([Order of a release](#order-of-a-release)).
+- **Lists.** The reader of the two lists is part of the command: a Markdown table whose columns are found by the names of the header row, as the format of the lists defines them ([conformance.md](conformance.md)). It does not share code with the runner of the suites, which is a different assembly; a test reads both lists of the repository with it.
+- **Code and tests.** The code of the gates is in the directory `ReleaseGates/` of `eng/checks`, one class per gate; the codes `ENG803` and `ENG901`–`ENG907` are constants of `EngCodes` ([eng-checks.md](eng-checks.md#one-source-of-the-eng-codes)). The API of GitHub and `gh` are behind interfaces so that the tests give their own answers.
+
+### Provenance
+
+`release-gates <tag> --provenance <directory>` takes every `.nupkg` of the directory (not subdirectories), and for each one:
+
+1. runs `gh attestation verify <file> --repo <repository>` with the flags of `ProvenanceFlags` on the file as it is;
+2. a non-zero exit code of `gh` is repeated 5 times, 15 seconds apart (6 calls in all), because a new attestation is not visible at once. The output of `gh` does not tell "not found" from another cause, so every non-zero code is repeated; a wrong flag costs 75 seconds of waiting and then fails, and a wrong flag is caught earlier by step 4, before the publication;
+3. after the last attempt a non-zero exit code is `ENG907` with the name of the package and the first line of the output of the last attempt.
+
+`release-gates <tag> --nuget <directory>` downloads the two packages of the version of the tag (the ids `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf`, one constant list) from nuget.org (`https://api.nuget.org/v3-flatcontainer/<id>/<version>/<id>.<version>.nupkg`, id and version in lower case) into the directory, as nuget.org gives them, with the signature of the repository inside. It asks again every 30 seconds for up to 15 minutes while nuget.org does not give a package yet; a package that does not appear is `ENG907`. With `--same-content-as <directory>` it then compares each downloaded package with the package of the same file name (case ignored) in that directory: the sets of entries without `.signature.p7s` are equal, and each entry has the same decompressed bytes. A package with no counterpart, an entry that differs, a missing or an extra entry (other than `.signature.p7s`) is `ENG907` with the name of the package and of the first such entry.
+
+`gh` that cannot be started is exit code 2. `ProvenanceFlags` is the constant of the flags that make the check exact, and it is one for the workflow and for the README:
+
+```text
+--repo <repository> --signer-workflow <repository>/.github/workflows/release.yml --source-ref refs/tags/<tag> --deny-self-hosted-runners
+```
+
+`--signer-workflow` names the workflow that issued the attestation, `--source-ref` the tag the release was built from, `--deny-self-hosted-runners` refuses a build on a runner that is not standard. The code builds the flags from `<repository>` and `<tag>`; the README shows the same line with the values of the release.
+
+The command of the README is `gh attestation verify <package> <ProvenanceFlags>` on the downloaded file as it is, one command with no preparation. Step 7 of the release runs the same command on the same kind of file (sub-step 3), so a change of the flags is a change of the README and of the constant at once.
+
+Two attestations of the origin exist for a published package, both issued by `release.yml` for the same tag: the one of step 3 for the file that the build made, and the one of step 7 for the file nuget.org gives. The user's command finds the second. The first stays for the check of step 4 and for the Release, whose assets are the files of the build.
+
+### Tests
+
+`eng/tests/Checks/ReleaseGatesTests.cs` runs the command on temporary repositories and with replaced API and `gh`. Every gate has a red and a green case:
+
+| Gate | Red | Green |
+| :- | :- | :- |
+| `ENG901` | the file without the entry of the version; the entry with an empty text | the entry with a text |
+| `ENG902` | a tag on a commit of a branch that is not `main` | a tag on an older commit of `main` |
+| `ENG903` | a record with `pending`; a record with `our-bug` and `S1` | a record with `our-bug` and `S2`; a record with `by-design` and `S1` |
+| `ENG904` | a run of 1 h 50 min; a run that did not succeed; a run of the event `schedule` of 2 h 10 min; a run on another commit | a successful `workflow_dispatch` run of 2 h 5 min on the commit |
+| `ENG905` | a temporary cel-spec repository with a commit older than 6 weeks after the pinned one | the pinned commit is the newest commit older than 6 weeks; commits newer than that are not required |
+| `ENG803` | a record without a reason; a link to another repository; an empty link | a record with a reason and a link to the repository |
+| `ENG906` | the tag `v1.0.0` and a record with an empty `Reference` | the tag `v1.0.0` and an empty list; the tag `v1.0.1` and a record with an empty `Reference` |
+| `ENG907` | a replaced `gh` that exits with an error on every call (6 calls, 5 waits of 15 s); a package that nuget.org does not have (an answer 404 for 15 minutes, with a replaced clock); with `--same-content-as`, a downloaded package with a changed entry, with a missing entry, with an extra entry, or with no counterpart | a replaced `gh` that exits with an error 2 times and then with 0; a replaced `gh` that exits with an error 5 times and passes on the sixth call; a replaced `gh` that exits with 0, and the file it received is byte for byte the downloaded file with its `.signature.p7s`; with `--same-content-as`, a downloaded package that differs from the built one only by `.signature.p7s` and by the bytes of the zip; the flags it received are the line of `ProvenanceFlags` for the tag |
+
+The tests of invocation: a tag that is not a version, a missing `origin/main`, a missing list and an API that does not answer are exit code 2.
+
+## `eng/checks quick-start`
+
+```text
+eng/checks quick-start --packages <directory> --image <image>
+```
+
+The command runs the steps of the quick start of `README.md` in a clean container with the .NET SDK 10 and reports whether they work and how long they take.
+
+- **The steps.** They are the block of the README between the lines `<!-- quick-start:begin -->` and `<!-- quick-start:end -->`: fenced blocks of shell commands, one block with the C# program, and the command that runs it. The command runs the steps as they are written; it substitutes nothing in the text. The format of the block is below. A README without the block, or a block that cannot be read, is exit code 2.
+- **The package.** `<directory>` has one stable `Great.Parts.Cel` package built from the checked commit (a version with no suffix, so that `dotnet add package Great.Parts.Cel` without a version takes it); a directory without it is exit code 2. `ci.yml` builds it with `dotnet pack src/Great.Parts.Cel -c Release -p:Version=1.0.0`; `release.yml` passes the packages of the release, for a version that has no pre-release suffix.
+- **The container.** `<image>` is `mcr.microsoft.com/dotnet/sdk:10.0.100`, the tag of the stage `sdk-min` of the container file, the oldest SDK 10 on which the generator of the package loads ([min-sdk](eng-test.md#min-sdk)); the two tags change together. The container is new for every run, so it has no package cache and no build server of an earlier run. It starts with `--network none`: the steps need nothing from the network, and a step that does reaches no source other than the local one. The only difference from the machine of a reader is the source of the package: `/work/NuGet.config` with `<clear />` and one source, the mounted directory of packages. The working directory of the session is `/work`.
+- **The session.** One `bash` session in the container runs the commands of the block in order, with a common current directory. The `csharp` block is written to `Program.cs` of the current directory where it stands in the README.
+- **The time.** One stopwatch from the start of the first command to the end of the last one. It does not count the pull of the image, the start of the container and the build of the package. The limit is 300 seconds. A session that does not end within 10 minutes is killed.
+- **The result.**
+
+| Situation | Code | Place |
+| :- | :- | :- |
+| a command exits with a non-zero code; the session is killed at 10 minutes; the end of the output of the last command is not the expected output of the example | `ENG304` | the line of the command in `README.md`; for the output, the first line of the expected output |
+| the time of a run in which every step passed is more than 300 s | `ENG305` | the line of the begin marker |
+
+A failed step is only `ENG304`: the time of a run that did not finish is not judged. The message of `ENG304` has one line of the output of the failed command: the first line that contains `error` (any case), looked for in the error output and then in the standard output (`dotnet` prints some errors to the standard output); without such a line, the last non-empty line of the error output, or of the standard output when the error output is empty. After the run the container is removed, whatever the result.
+
+```text
+README.md(14,1): error ENG304: step 'dotnet add package Great.Parts.Cel' exited with code 1: error: Unable to find package 'Great.Parts.Cel'
+README.md(10,1): error ENG305: the quick start took 412 s, the limit is 300 s
+```
+
+### Format of the block
+
+- A block is one pair of the marker lines; a README has one block. A missing or unpaired marker, a second block or a block of code of the kinds below that cannot be read is exit code 2.
+- Inside, the command reads only fenced blocks of code, with the rules of fences of the check of the examples (three or more backticks or tildes); the text around them is for the reader. The kind of a block is the first word of its information string:
+  - `shell`: every non-empty line that does not start with `#` is one command. The commands of all blocks `shell` run in order in one session.
+  - `csharp`: exactly one block, with no word after `csharp`. Its text goes to `Program.cs`. The expected output is read as in [eng-docs.md](eng-docs.md#examples): the comments `// Output: <line>` in the lines that print, or a `text` block directly after the example. A block with no expected output is a block that cannot be read (exit code 2): the quick start has to show what the reader will see.
+  - other kinds, such as `xml`, are shown to the reader and not run.
+- The last command of the last `shell` block runs the example (`dotnet run`). The expected output is the final lines of its standard output: lines are compared one by one, line endings are normalized, the final line break is ignored, and the lines before them, the messages of the build, are not compared. The exact comparison of the whole output of the program is the check of the examples ([eng-docs.md](eng-docs.md#examples)).
+
+An example of the block:
+
+````text
+<!-- quick-start:begin -->
+```shell
+dotnet new console -o QuickStart
+cd QuickStart
+dotnet add package Great.Parts.Cel
+```
+```csharp
+// the example, with its `// Output:` comments
+```
+```shell
+dotnet run
+```
+<!-- quick-start:end -->
+````
+
+### Where it runs
+
+- `ci.yml`, the job `Quick start`, on every push to `main` and every pull request: checks out, sets up .NET as the other jobs do, builds `eng/checks`, packs the library into `artifacts/quick-start/packages`, runs `quick-start` with the image from the variable `QUICK_START_IMAGE` of the job. The permission is `contents: read`, the actions are pinned by SHA, the job sets no time limit of its own (the check itself ends a session at 10 minutes).
+- `release.yml`, the job `build`: the same command on the packages of the release, before they are attested.
+
+### Code and tests
+
+The code is the directory `QuickStart/` of `eng/checks`: the reader of the block, the runner of the session and the command; the codes `ENG304` and `ENG305` are constants of `EngCodes`. The container and the clock are behind interfaces. `eng/tests/Checks/QuickStartTests.cs` runs the command with a replaced container and a replaced clock, so it needs no Docker:
+
+| Case | Result |
+| :- | :- |
+| a command exits with 1 | `ENG304` at the line of the command |
+| the end of the output is not the expected output | `ENG304` at the first expected line |
+| the session is killed at 10 minutes | `ENG304` |
+| the time is 301 s | `ENG305` |
+| the time is 300 s | no finding |
+| the output has build messages before the expected lines | no finding |
+| a README without the block, with an unpaired marker or with two blocks | exit code 2 |
+| a directory without a stable package | exit code 2 |

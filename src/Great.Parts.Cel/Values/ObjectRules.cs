@@ -167,7 +167,7 @@ internal static class ObjectRules
 
         if (value.Kind != CelValueKind.Object)
         {
-            actualType = ValueTypeNames.Of(value.Kind);
+            actualType = ValueTypeRules.NameOf(value, types);
             return false;
         }
 
@@ -520,7 +520,7 @@ internal static class ObjectRules
             : ValueTypeRules.FitsTopLevel(value, declaredType);
         return fits
             ? value
-            : FieldTypeMismatch(owner, number, value.Kind == CelValueKind.Object ? TypeName(value, null) : ValueTypeNames.Of(value.Kind));
+            : FieldTypeMismatch(owner, number, ValueTypeRules.NameOf(value, null));
     }
 
     // The source of a lazy view that the input rows made, which the place rule looks through; null for any other value.

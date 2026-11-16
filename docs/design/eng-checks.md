@@ -33,8 +33,11 @@ A command that takes an argument is followed by it, for example `signoff <range>
 | `--since <commit>` | `mutation`: the commit against which the changed files are listed; without it `main`. It enables `since` as it does in Stryker.NET, also when the configuration disables it ([eng-mutate.md](eng-mutate.md#mutation)). `eng/mutate` gives the full SHA of its own `--since`; other commands ignore it |
 | `--page <file>` | `error-codes`: the page of error codes, see [eng-docs.md](eng-docs.md#error-codes); other commands ignore it |
 | `--write` | `error-codes`: rewrite the table of the page from the members of `CelErrorCode` before the comparison; other commands ignore it |
+| `--commit <sha>`, `--date <yyyy-MM-dd>`, `--cel-spec <repository>`, `--repository <owner/name>`, `--api <url>` | `release-gates`: the commit, the date of the release, the repository of cel-spec, the repository of the workflow runs and the address of the API of GitHub; see [eng-release.md](eng-release.md); other commands ignore them |
+| `--provenance <directory>`, `--nuget <directory>`, `--same-content-as <directory>` | `release-gates`: the mode of the check of origin of the packages of a directory, and the mode that downloads the packages of the version from nuget.org into a directory (`--same-content-as` then compares them by content with the packages of the build, ignoring the signature of nuget.org); other commands ignore them |
+| `--packages <directory>`, `--image <image>` | `quick-start`: the directory of the package built from the commit and the image of the clean container; see [eng-release.md](eng-release.md); other commands ignore them |
 
-A relative path of a report, a configuration file or a page is taken from the working directory. `test-count` without any of its three options, or `mutation` without `--report` or without `--config`, or `error-codes` without `--page`, or `links` without `--report`, is exit code 2.
+A relative path of a report, a configuration file, a page or a directory is taken from the working directory. `test-count` without any of its three options, or `mutation` without `--report` or without `--config`, or `error-codes` without `--page`, or `links` without `--report`, or `quick-start` without `--packages` or without `--image`, is exit code 2.
 
 Commands run in the given order. Several commands in one run share their scans: `ratchet` uses the suppressions and the duplicate pairs that `suppressions` and `duplicates` found in the same run instead of scanning again. The container commands call it this way, see [eng-test.md](eng-test.md).
 
@@ -50,6 +53,8 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `examples` | `README.md`, `docs/**/*.md`, `<code>` of XML documentation | `ENG301`, `ENG302`; compiler errors | `eng/docs`; CI, one Linux cell | [eng-docs.md](eng-docs.md) |
 | `links` | lychee report | `ENG401`–`ENG404`, `ENG409` | the same; external links only in CI | [eng-docs.md](eng-docs.md) |
 | `error-codes` | built library and its XML documentation, error codes page | `ENG303` | the same | [eng-docs.md](eng-docs.md) |
+| `quick-start` | the block of steps of `README.md`, the package built from the commit, a container of the .NET SDK 10 | `ENG304`, `ENG305` | CI, the job `Quick start`; `release.yml`, the job `build` | [eng-release.md](eng-release.md) |
+| `release-gates <tag>` | the tag, `CHANGELOG.md`, the lists of the two suites, `tests/cel-spec/COMMIT`, the history of cel-spec, the API of GitHub Actions; with `--provenance` the packages and `gh`; with `--nuget` nuget.org | `ENG803`, `ENG901`–`ENG907` | `release.yml`, the jobs `gates`, `draft` and `verify` | [eng-release.md](eng-release.md) |
 
 ## Layout
 
@@ -62,6 +67,8 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `Suppressions/` | the scanners of the forms of `suppressions`, the reason, the reader of `lychee.toml` |
 | `Duplicates/` | tokens, the search and the joining of pairs of `duplicates` |
 | `Ratchet/` | the reader of `eng/ratchet.json`, the comparison, the lines added against `main` |
+| `ReleaseGates/` | one class per gate of `release-gates`, the reader of the lists, the clone of cel-spec, the access to the API of GitHub and to `gh`, [eng-release.md](eng-release.md) |
+| `QuickStart/` | the reader of the block of `README.md`, the session in the container, [eng-release.md](eng-release.md) |
 
 A command added later puts the types that only it uses, the readers of its input formats included, into a directory of its own named after it.
 

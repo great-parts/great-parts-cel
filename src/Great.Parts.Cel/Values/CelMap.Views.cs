@@ -141,5 +141,5 @@ public abstract partial class CelMap
     /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
     /// <param name="readValues"><see langword="false"/> for an operation that reads only the keys: a map over a JSON object then creates no value.</param>
     /// <returns>The enumerator.</returns>
-    internal virtual IEnumerator<KeyValuePair<CelValue, CelValue>> EnumerateEntries(IEvaluationMeter? meter, bool readValues) => GetEnumerator();
+    internal virtual IEnumerator<KeyValuePair<CelValue, CelValue>> EnumerateEntries(IEvaluationMeter? meter, bool readValues) => GetEnumeratorCore();
 }

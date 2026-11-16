@@ -45,6 +45,12 @@ public static class EngCodes
     /// <summary>The page of error codes differs from the members of <c>CelErrorCode</c>: a member has no row, a row has no member, or a row has another number or stage.</summary>
     public const string Eng303 = "ENG303";
 
+    /// <summary>A step of the quick start of the README failed in a clean container: a command ended with an exit code other than 0, the session did not end in time, or the end of the output is not the expected output of the example.</summary>
+    public const string Eng304 = "ENG304";
+
+    /// <summary>The steps of the quick start of the README all passed, but their time is more than 300 seconds.</summary>
+    public const string Eng305 = "ENG305";
+
     /// <summary>An external link of the documentation answered 404 or 410.</summary>
     public const string Eng401 = "ENG401";
 
@@ -102,6 +108,9 @@ public static class EngCodes
     /// <summary>A case of a suite passed, and an entry of the skip list of the suite applies to the cell of the run: the entry has to be removed.</summary>
     public const string Eng802 = "ENG802";
 
+    /// <summary>An entry of the skip list of the cel-spec suite has no reason or no link to an issue of the repository of the library.</summary>
+    public const string Eng803 = "ENG803";
+
     /// <summary>An entry of the skip list of a suite names a case that the suite does not have.</summary>
     public const string Eng804 = "ENG804";
 
@@ -122,4 +131,25 @@ public static class EngCodes
 
     /// <summary>A time zone offset differs from Go.</summary>
     public const string Eng822 = "ENG822";
+
+    /// <summary>The changelog has no entry with a text for the version of the release tag.</summary>
+    public const string Eng901 = "ENG901";
+
+    /// <summary>The commit of the release tag is not reachable from <c>main</c>.</summary>
+    public const string Eng902 = "ENG902";
+
+    /// <summary>The regression list has an unresolved divergence signature or an open one of the highest severity.</summary>
+    public const string Eng903 = "ENG903";
+
+    /// <summary>There is no successful long run against cel-go on the commit of the release tag.</summary>
+    public const string Eng904 = "ENG904";
+
+    /// <summary>The pinned commit of cel-spec does not include a commit of master that is older than 6 weeks on the day of the release.</summary>
+    public const string Eng905 = "ENG905";
+
+    /// <summary>In the release 1.0.0 an entry of the skip list of the cel-spec suite has no reference to the language definition or to a minimal case.</summary>
+    public const string Eng906 = "ENG906";
+
+    /// <summary>The check of origin of a package of the release failed, or the package could not be downloaded from nuget.org.</summary>
+    public const string Eng907 = "ENG907";
 }

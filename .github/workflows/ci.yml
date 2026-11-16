@@ -1,5 +1,5 @@
 # Build and tests on GitHub: JIT on Linux and macOS, Native AOT on linux-x64, both for net10.0 and net11.0, the documentation checks (examples,
-# error codes page, links) on Linux, plus the Signed-off-by check.
+# error codes page, links) on Linux, the quick start of the README on the package of the commit, plus the Signed-off-by check.
 # The cells run the same commands as the container checks of eng/ (docs/design/eng-test.md), without containers: the runners have no
 # SDK 11, so actions/setup-dotnet installs the SDK of global.json and the SDK 10.0.x whose runtime the net10.0 tests need.
 name: ci
@@ -257,6 +257,42 @@ jobs:
 
       - name: min-sdk (Compose)
         run: docker compose -f eng/compose.yaml run --rm -T min-sdk
+
+  # The quick-start check (docs/design/eng-release.md, "eng/checks quick-start"): the steps of the quick start of README.md run in a clean container
+  # with the SDK 10 and no network, on the package built from this commit, and take no more than 300 seconds. The package has the version
+  # 1.0.0, a version with no suffix, so that "dotnet add package Great.Parts.Cel" without a version takes it. The image is the tag of the
+  # stage sdk-min of the container file, as in the job build of release.yml (QUICK_START_IMAGE); the two change together. The job runs on
+  # every push and pull request: the steps depend on the library and its generator, not only on the paths of eng/ and README.md.
+  quick-start:
+    name: Quick start
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      QUICK_START_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.100
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: |
+          dotnet restore eng/checks --locked-mode
+          dotnet restore src/Great.Parts.Cel --locked-mode
+
+      - name: Build eng/checks
+        run: dotnet build eng/checks -c Release --no-restore
+
+      - name: Pack the library
+        run: dotnet pack src/Great.Parts.Cel -c Release --no-restore -p:Version=1.0.0 -o artifacts/quick-start/packages
+
+      - name: Quick start (eng/checks quick-start)
+        run: dotnet run --project eng/checks -c Release --no-build -- quick-start --packages artifacts/quick-start/packages --image "$QUICK_START_IMAGE"
 
   # Signed-off-by of every commit that reaches main (push: before..after, merges and bots included) and of every commit of a pull
   # request except those of Dependabot. A new branch or the first push has before = 0000..., then all commits of after are checked.

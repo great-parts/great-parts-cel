@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 
@@ -42,7 +43,7 @@ internal static class ValueTypeRules
 #endif
 
         // Objects come with their part.
-        _ => throw new NotImplementedException(),
+        _ => throw new UnreachableException("The caller handles object values."),
     };
 
     // The type of the object of a value of the kind Abstract.
@@ -388,7 +389,7 @@ internal static class ValueTypeRules
 #endif
 
             // Every kind of type has its arm above.
-            _ => throw new NotImplementedException(),
+            _ => throw new UnreachableException("Every kind of type has its arm above."),
         };
     }
 }

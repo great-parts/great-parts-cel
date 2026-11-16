@@ -1,6 +1,6 @@
 # Contributing
 
-Great.Parts.Cel is in pre-release, and the public API is unstable. Contributions are welcome.
+Contributions to Great.Parts.Cel are welcome.
 
 ## Before you start
 
@@ -35,7 +35,7 @@ The design of the library and of the checks is in [docs/design](docs/design/); t
 ## How a change is made
 
 1. For a bug, open an issue first, unless the fix is small and obvious. For a new feature, open an issue and describe the use case.
-2. A change of the public API is discussed in an issue before the pull request. The public API is recorded in the `PublicAPI` directory of each package project, `src/Great.Parts.Cel` and `src/Great.Parts.Cel.Protobuf`, and the build fails when the code and these files differ.
+2. A change of the public API is discussed in an issue before the pull request. The public API is recorded in the `PublicAPI` directory of each package project, `src/Great.Parts.Cel` and `src/Great.Parts.Cel.Protobuf`, and the build fails when the code and these files differ. A breaking change comes only in a major version, see [Versioning and compatibility](docs/versioning.md).
 3. Every change of behavior comes with a test that fails without it. A difference from cel-spec or cel-go is shown by the expression, its variables and the expected result.
 4. A change that users of the package can see gets a line under `Unreleased` in [CHANGELOG.md](CHANGELOG.md). A change of the result or of the error of an expression that was valid before goes under `Behavior changes`.
 5. Sign off every commit (below) and open a pull request against `main`. You can run `eng/test` and, if the change needs it, `eng/docs` on your machine first, but you do not have to.

@@ -38,7 +38,7 @@ Great.Parts.Cel.Library.Extensions -> Great.Parts.Cel.Library.Extensions.Strings
 | `Source` | the label that build errors and the declaration index use: `extension <name> v<version>` for a set of the catalog, `application` for a set of the application, as for every other declaration of the application |
 | `Overloads` | `ImmutableArray<OverloadBinding>` in the order of the table of the set: function, declaration, implementation, `FixedCost`, `ArgumentCost`, `DynOnly`, `Source`, `IsApplication` ([library](library.md#tables)) |
 | `AbstractTypes` | the abstract types the set declares, each a name and its `CelType` of the kind `Abstract` ([extension-network](extension-network.md#abstract-types)): the identifiers `net.IP` and `net.CIDR` |
-| `Variables` | declarations of variables, for internal sets only; none in this part |
+| `Variables` | declarations of variables, for internal sets only; the one such set is `block` |
 | `Dependencies` | the names of the sets that this one needs |
 
 `CatalogExtension : ExtensionDefinition` adds `Macros` (`ImmutableArray<Macro>`) and, for the sets that bring syntax, the flags of `SyntaxOptions`. `ApplicationExtension` takes the declarations of `CelExtension.Create`: its overloads are application overloads (`IsApplication`), so they get everything an application function gets — the exception boundary, the check of arguments and results against the declared types, the cost function — and their names follow the rules of `CelFunctionDecl`. It has no macros, abstract types or variables: `Create` takes none, and a later minor version may add them.
@@ -59,14 +59,16 @@ Great.Parts.Cel.Library.Extensions -> Great.Parts.Cel.Library.Extensions.Strings
 | `bindings` | `bindings` | 1 | — | 1 overload, `cel_block_list` | `cel.bind` | — |
 | two-variable macros | `two-var-comprehensions` | 0 | — | 2 overloads of `cel.@mapInsert` | 7 macros of 3 and 4 arguments | — |
 | `network` | `network` | 1 | — | 21 overloads | — | `net.IP`, `net.CIDR` |
+| `protos` | `protos` | 0 | — | none | `proto.getExt`, `proto.hasExt` | — |
+| `optional` | `optional` | 2 | — | 18 overloads | `optMap`, `optFlatMap` | `optional_type` |
 
 The catalog is `FrozenDictionary<string, ExtensionFamily>` by the short name, ordinal; a family has the table of its versions — in this release one row — and the factory `Func<uint, ExtensionDefinition?>`: the definition of that version, or `null`. `ExtensionCatalog.Names` is the frozen set of names that an environment description accepts ([configuration](configuration.md#extension-sets)), and `CelExtensions` and the reader of descriptions both read it. The counts are those of the tables of the documentation; a test compares the identifiers of each set with those tables, and the number of overloads, macros and abstract types with the counts above.
 
-The sets of the catalog exist in both targets, `net10.0` and `net11.0`, with the same declarations, and a definition has no target of its own; only `decimal`, in its own part, is for `net11.0` alone and is compiled under `#if NET11_0_OR_GREATER`.
+The sets of the catalog exist in both targets, `net10.0` and `net11.0`, with the same declarations, and a definition has no target of its own; only `decimal` is for `net11.0` alone and is compiled under `#if NET11_0_OR_GREATER`.
 
-`CelExtensions.<Set>(version)` calls the catalog and wraps the result, whatever the number: a version outside the table of the family is the missing definition. The XML documentation names the version of each set, as the placeholders of the skeleton do.
+`CelExtensions.<Set>(version)` calls the catalog and wraps the result, whatever the number: a version outside the table of the family is the missing definition. The XML documentation names the version of each set.
 
-A later part adds a family with its row, and the name joins `ExtensionCatalog.Names` with it; `optional` and `protos` are such parts; `decimal` is not a row and its name is not in `Names` ([the set `decimal`](#the-set-decimal)). The internal set `block` is not in the catalog and has no name in a description.
+A family has a row, and its name is in `ExtensionCatalog.Names`; `protos` ([library](library.md#the-set-protos)) and `optional` ([below](#the-sets-optional-and-block)) are such families; `decimal` is not a row and its name is not in `Names` ([the set `decimal`](#the-set-decimal)). The internal set `block` is not in the catalog and has no name in a description.
 
 ## Build checks
 
@@ -90,7 +92,7 @@ The surviving sets then join the declaration checks of [declarations](declaratio
 The environment keeps the surviving sets, ordered by name (ordinal) and then by version. They give:
 
 - **Declaration index.** The overloads of the sets follow those of the standard library and precede those of the application, in the order of the sets and of each table, so the candidates of a call have an order that does not depend on the order of the builder calls ([checking](checking.md#extension-sets-in-the-index)). The abstract types join the type identifiers and the variables of the internal sets the variables.
-- **Syntax options.** `SyntaxOptions` of the environment is `SyntaxOptions.Standard` with the macros of the sets added to its `MacroTable` ([extension-macros](extension-macros.md#the-macro-table-of-an-environment)); the optional syntax flag will come with `optional`.
+- **Syntax options.** `SyntaxOptions` of the environment is `SyntaxOptions.Standard` with the macros of the sets added to its `MacroTable` ([extension-macros](extension-macros.md#the-macro-table-of-an-environment)); the set `optional` turns the optional syntax flag on.
 - **Costs and implementations.** Each overload carries its own, as for the standard library.
 
 `Compile`, `Evaluate`, the cache of compilations and the internal `Parse`, which takes the options of the environment when it gets none, use these syntax options, so a macro of a set is expanded in every path and only in an environment that has the set.
@@ -117,9 +119,9 @@ Each element that is looked up is an `in` over the other list, which costs as `i
 
 ## The sets `optional` and `block`
 
-This section adds a set to the catalog and an internal set beside it. It supersedes "Not in this part" and the sentences of this page that leave `optional` and `block` to a later part.
+This section is about the set `optional`, a row of the catalog, and the internal set `block` beside it.
 
-**`optional`, version 2** ([extension-optional](extension-optional.md)). The catalog table gets the row below, and the eight sets of the first row of "The catalog" become nine: `ExtensionCatalog.Names` and so the names of a description gain `optional`, and `CelExtensions.Optional(version)` — whose body the skeleton left to this part — calls the catalog as the other members do. The counts below are those of the tables of the documentation; the test of the catalog compares them.
+**`optional`, version 2** ([extension-optional](extension-optional.md)). The catalog table has the row below: `ExtensionCatalog.Names`, and so the names of a description, have `optional`, and `CelExtensions.Optional(version)` calls the catalog as the other members do. The counts below are those of the tables of the documentation; the test of the catalog compares them.
 
 | Set | Name in a description | Version | Dependencies | Functions | Macros | Abstract types |
 | :- | :- | :- | :- | :- | :- | :- |
@@ -135,7 +137,7 @@ The definition is a `CatalogExtension` with `optionalSyntax: true`: `CatalogExte
 | definition | a `CatalogExtension`: name `block`, version 1, source `extension block v1`, no overloads, no abstract types, the dependency `bindings`, the four macros of `ExtensionMacros.Block` ([extension-macros](extension-macros.md#optional-and-block)), and the 30 variables below |
 | variables | `@index0` to `@index29`, each a `CelVariableDecl` of the type `dyn`; the first use of `ExtensionDefinition.Variables`, which the model reserved for internal sets |
 | entry | `ExtensionCatalog.Block`, an `internal static CelExtension`, made once with `Lazy<T>` from `BlockExtension.Create(1)` and the table of versions `[1]`; it is not in `ExtensionFamilies`, so not in `Names`, and `CelExtensions.Create("block", 1)` finds no factory |
-| access | the runner reads `ExtensionCatalog.Block` through `InternalsVisibleTo`, which `Great.Parts.Cel.Conformance` already has; no new `InternalsVisibleTo` is added and no member of the public API |
+| access | the runner reads `ExtensionCatalog.Block` through `InternalsVisibleTo`, which `Great.Parts.Cel.Conformance` has; no other `InternalsVisibleTo` is added and no member of the public API |
 | not there | a member `CelExtensions.Block`, which the public API snapshot lacks; the name `block` in `ExtensionCatalog.Names`; a file `block-v1.txt` among the snapshots of the sets |
 
 **The variables.** A variable of an internal set is an entry of the declaration index like a variable of the application. The name check of a variable of the application — an identifier or a qualified name, `InvalidVariableName` (4016) — does not apply to a set of the catalog, as the name check of a function does not (4015, "Extension sets in the declaration checks" of [declarations](declarations.md)): `@index0` is not an identifier. A variable of the application cannot have the name, since `@` fails 4016, so the sets have no conflict. The planner takes `@index`N as a slot of the innermost block that has N slots ([evaluation](evaluation.md#blocks)) before it looks at the declarations; outside any block it is a variable that nobody binds, `Unbound` (3009) `no value is bound to variable '@index3'`. The checker has no rule for it: it is an identifier of the type `dyn`, so `cel.block([1, cel.index(0) + 1], cel.index(1))` is `dyn` throughout and its type is that of the second argument, `T` of `cel.@block`. The cases that need a more precise type — an operand of `?:`, an optional element — see `dyn`, which the rules of the optional syntax accept.
@@ -146,9 +148,9 @@ The definition is a `CatalogExtension` with `optionalSyntax: true`: `CatalogExte
 
 **Without the set.** `cel.block(...)`, `cel.index(0)` and the other three are ordinary receiver calls in every public environment, and the checker answers as for any receiver call whose target is a name that nothing declares: `UndeclaredReference` at `cel`, `undeclared reference to 'cel' (in container '')`, as cel-go does. The macros of `bindings` have the same namespace and are not affected. A description with `"name": "block"` is `InvalidConfiguration` (4009) at the value of `name`, the text of any name outside the catalog; the test that checks it exists beside that of `regex` and stays.
 
-**Public API snapshot.** The public API has no member for `block`: `CelExtensions` has `Strings`, `Math`, `Lists`, `Sets`, `Encoders`, `Bindings`, `Optional`, `TwoVarComprehensions`, `Network` and `Protos` and nothing named `Block`, and `PublicAPI.Unshipped.txt` is unchanged by the part. The snapshot of the declarations of `optional` version 2 is the file `optional-v2.txt`, written once the set is complete ([tests](tests.md#tests-of-optional-and-block)).
+**Public API snapshot.** The public API has no member for `block`: `CelExtensions` has `Strings`, `Math`, `Lists`, `Sets`, `Encoders`, `Bindings`, `Optional`, `TwoVarComprehensions`, `Network` and `Protos` and nothing named `Block`. The snapshot of the declarations of `optional` version 2 is the file `optional-v2.txt` ([tests](tests.md#tests-of-optional-and-block)).
 
-**Files that two groups of changes edit** ([extension-optional](extension-optional.md)): `ExtensionCatalog.cs` gets the row `optional` and `SetOfAbstractType` in the part of `optional`, and `Block` in the part of `block`; `ExtensionMacros.cs` gets `Optional` and `Block` as two arrays beside `Math`, `Lists`, `Bindings`, so that the second edit adds a property and a case to what the first left.
+**Where the two sets live.** `ExtensionCatalog.cs` has the row `optional`, `SetOfAbstractType` and `Block`; `ExtensionMacros.cs` has `Optional` and `Block` as two arrays beside `Math`, `Lists` and `Bindings`.
 
 ## Abstract types
 
@@ -166,7 +168,7 @@ The implementations of the catalog follow the rules of the standard library ([li
 
 ## The set `decimal`
 
-The set [decimal](extension-decimal.md) is the one set of the library that is for `net11.0` alone, and it is not a row of "The catalog". This section supersedes the sentences of this page that count it among the later parts with "its row" and "Not in this part" for `decimal`.
+The set [decimal](extension-decimal.md) is the one set of the library that is for `net11.0` alone, and it is not a row of "The catalog".
 
 | Set | Name in a description | Version | Dependencies | Functions | Macros | Abstract types |
 | :- | :- | :- | :- | :- | :- | :- |
@@ -177,8 +179,8 @@ The set [decimal](extension-decimal.md) is the one set of the library that is fo
 - **The build checks** are unchanged and run on it as on any set: `Decimal(0)` and `Decimal(2)` are `UnknownExtensionVersion` (4004), `extension 'decimal' has no version 2; available versions: 1`; `Decimal(1)` twice, and the instance twice, is one set; there is no version of the set that another set conflicts with.
 - **The abstract type.** `AbstractTypeDeclaration("decimal", CelType.Decimal)`, a type of the kind `Decimal` as `optional_type` has one of the kind `Optional`: the declaration index gets the identifier `decimal`, and `TypeIdentifiers` and the check of `TypeNotDeclared` read the name as for any abstract type. The hint of 4008 is not looked up in `ExtensionCatalog.SetOfAbstractType`, which `Declarations` cannot see for this set; `DeclarationChecks` writes it for the kind `Decimal`, for the object name `decimal` of a description and for a `System.Decimal` ([declarations](declarations.md#decimal-without-the-set-and-the-literal-option)).
 
-## Not in this part
+## Limits
 
-The sets `protos` and `decimal`: each comes with its part; `optional` and the internal set `block` are in "The sets `optional` and `block`" above, and the name of a set in a description is in [configuration](configuration.md#extension-sets). A set cannot be removed from an environment; there is no replacement of one version by another.
+The name of a set in a description is in [configuration](configuration.md#extension-sets). A set cannot be removed from an environment; there is no replacement of one version by another.
 
 Related pages: [declarations](declarations.md), [checking](checking.md), [evaluation](evaluation.md), [library](library.md), [configuration](configuration.md), [core](core.md), [facade](facade.md).

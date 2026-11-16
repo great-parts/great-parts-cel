@@ -167,6 +167,7 @@ The service is not part of `test`; CI runs it in its own job ([CI](#ci)). A manu
 | `AOT linux-x64 <target>`, `net10.0` and `net11.0` | build, JIT run of the published projects, the Native AOT publish and run, `test-count` | stage 2 (publish lanes) and stage 3 of `test` |
 | `Docs` | the build of the library, `examples`, `error-codes`, lychee offline and `links`, then lychee for external links and `links` | `docs`, with the external links ([eng-docs.md](eng-docs.md)) |
 | `min-sdk` | restore, build, `dotnet pack`, then the service `min-sdk` ([min-sdk](#min-sdk)) | the order `test`, `min-sdk` of a manual run |
+| `Quick start` | restore, the build of `eng/checks`, `dotnet pack` of the library with the version `1.0.0`, then `quick-start`: the steps of the README in a clean container of the SDK 10 ([eng-release.md](eng-release.md#engchecks-quick-start)) | |
 | `Signed-off-by` | `eng/checks signoff` on the new commits | |
 
 The differential run `difftest-main` is not a job of `ci`: it runs on a push to `main` only, never on a pull request, and has its own section ([eng-difftest.md](eng-difftest.md#run-on-a-push-to-main)).

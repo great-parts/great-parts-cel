@@ -17,14 +17,14 @@ The set adds two abstract types, `net.IP` and `net.CIDR`, and 21 overloads over 
 
 ## Abstract types
 
-**The public enumerations get one member each.** The kind of a type and of a value cannot be `Object`: `Object` means a type with fields, described by a source, and a program reads `CelType.Kind` to learn that; `optional_type` and `decimal` have kinds of their own for the same reason, and `checked.proto`, which the kinds follow, has `abstract_type`. A new kind is a non-breaking change that the documentation of both enumerations already announces:
+**The public enumerations have one member each.** The kind of a type and of a value cannot be `Object`: `Object` means a type with fields, described by a source, and a program reads `CelType.Kind` to learn that; `optional_type` and `decimal` have kinds of their own for the same reason, and `checked.proto`, which the kinds follow, has `abstract_type`. A new kind is a non-breaking change that the documentation of both enumerations already announces:
 
 ```text
 CelTypeKind.Abstract = 19     // numbers 17 and 18 are Optional and, on .NET 11 only, Decimal
 CelValueKind.Abstract = 16    // 12 is Optional, 15 is Decimal on .NET 11 only
 ```
 
-Both are in `PublicAPI/PublicAPI.Unshipped.txt`, the file common to both targets, not in the file of `net11.0`:
+Both are in `PublicAPI/PublicAPI.Shipped.txt`, the file common to both targets, not in the file of `net11.0`:
 
 ```text
 Great.Parts.Cel.Types.CelTypeKind.Abstract = 19 -> Great.Parts.Cel.Types.CelTypeKind
@@ -119,6 +119,6 @@ Equality of two values of `net.IP` is the same family and the same bits; of `net
 
 ## Records and the list of skips
 
-The registry of known differences has fourteen records for this increment: `string_index_of_string_int`, `string_last_index_of_string_int` ([extension-strings](extension-strings.md)), `string_to_cidr` and `string_to_ip`; `string_format` ([extension-format](extension-format.md)); `list_double_sort` and eight `list_<U>_sortByAssociatedKeys` ([extension-library](extension-library.md)). The case `network_ext/ip_type/is_ip_cidr_compile_error`, `isIP(cidr('192.168.0.0/24'))`, expects an evaluation error, while type checking rejects `isIP` applied to a `net.CIDR` in every implementation; it is the one entry of the skip list of the cel-spec suite that this increment keeps, with its reason, and the other 68 cases of `network_ext` pass ([tests](tests.md#conformance-runner-and-the-extension-sets)).
+The registry of known differences has fourteen records for these sets: `string_index_of_string_int`, `string_last_index_of_string_int` ([extension-strings](extension-strings.md)), `string_to_cidr` and `string_to_ip`; `string_format` ([extension-format](extension-format.md)); `list_double_sort` and eight `list_<U>_sortByAssociatedKeys` ([extension-library](extension-library.md)). The case `network_ext/ip_type/is_ip_cidr_compile_error`, `isIP(cidr('192.168.0.0/24'))`, expects an evaluation error, while type checking rejects `isIP` applied to a `net.CIDR` in every implementation; it is the one entry of the skip list of the cel-spec suite, with its reason, and the other 68 cases of `network_ext` pass ([tests](tests.md#conformance-runner-and-the-extension-sets)).
 
 Related pages: [extensions](extensions.md), [checking](checking.md), [types](types.md), [values](values.md), [library](library.md), [tests](tests.md).

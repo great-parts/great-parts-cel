@@ -96,9 +96,13 @@ internal static class MarkdownExamples
         return expected;
     }
 
-    private static string FirstWord(string info) => info.Split(Blanks, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
+    /// <summary>The first word of the information string of a block, such as <c>csharp</c>; empty when there is none.</summary>
+    /// <param name="info">The information string of the opening fence.</param>
+    internal static string FirstWord(string info) => info.Split(Blanks, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty;
 
-    private static List<FencedBlock> Blocks(string[] lines)
+    /// <summary>The fenced blocks of the lines of a page, in the order of the page; the quick-start check reads its steps from them.</summary>
+    /// <param name="lines">The lines of the page.</param>
+    internal static List<FencedBlock> Blocks(string[] lines)
     {
         List<FencedBlock> blocks = [];
         int index = 0;
@@ -135,5 +139,11 @@ internal static class MarkdownExamples
         return trimmed.Length >= length && trimmed.All(character => character == fence);
     }
 
-    private sealed record FencedBlock(string Info, int FenceLine, int Indent, List<string> Lines, int EndLine);
+    /// <summary>A fenced block of a page.</summary>
+    /// <param name="Info">The information string of the opening fence, trimmed.</param>
+    /// <param name="FenceLine">The line of the opening fence, from 1.</param>
+    /// <param name="Indent">The number of spaces before the opening fence.</param>
+    /// <param name="Lines">The lines inside the fences; the first one is in the line <c>FenceLine + 1</c>.</param>
+    /// <param name="EndLine">The line of the closing fence, or the last line of the page for a block that is not closed.</param>
+    internal sealed record FencedBlock(string Info, int FenceLine, int Indent, List<string> Lines, int EndLine);
 }

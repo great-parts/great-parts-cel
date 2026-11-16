@@ -40,12 +40,8 @@ public sealed class ReaderTests
     [InlineData("3400;<X, First>;Lo\n3500;<Y, First>;Lo", "UnicodeData.txt(2): a range that starts is not closed before the next one starts")]
     [InlineData("3400;<X, Last>;Lo", "UnicodeData.txt(1): a range that ends has no matching line that starts it")]
     [InlineData("3400;<X, First>;Lo\n4DBF;<Y, Last>;Lo", "UnicodeData.txt(2): a range that ends has no matching line that starts it")]
-    public static void UnicodeDataOfAnotherForm_IsRefusedWithTheFileAndTheLine(string text, string message)
-    {
-        UcdFormatException exception = Assert.Throws<UcdFormatException>(() => UcdReaders.ReadUnicodeData(text));
-
-        Assert.Equal(message, exception.Message);
-    }
+    public static void UnicodeDataOfAnotherForm_IsRefusedWithTheFileAndTheLine(string text, string message) =>
+        AssertRefused(input => UcdReaders.ReadUnicodeData(input), text, message);
 
     [Fact]
     public static void Scripts_GivesTheRangesOfEachScriptBySkippingCommentsAndKeepingTheUnderscore()
@@ -65,12 +61,8 @@ public sealed class ReaderTests
     [InlineData("005A..0041 ; Latin", "Scripts.txt(1): the range 005A..0041 goes back")]
     [InlineData("004G ; Latin", "Scripts.txt(1): '004G' is not a code point of 4 to 6 hexadecimal digits up to 10FFFF")]
     [InlineData("0041 ; Latin\n0042 ; Latin ; x", "Scripts.txt(2): a line has not 2 fields")]
-    public static void ScriptsOfAnotherForm_IsRefusedWithTheFileAndTheLine(string text, string message)
-    {
-        UcdFormatException exception = Assert.Throws<UcdFormatException>(() => UcdReaders.ReadScripts(text));
-
-        Assert.Equal(message, exception.Message);
-    }
+    public static void ScriptsOfAnotherForm_IsRefusedWithTheFileAndTheLine(string text, string message) =>
+        AssertRefused(input => UcdReaders.ReadScripts(input), text, message);
 
     [Fact]
     public static void CaseFolding_ReadsTheLinesOfTheStatusesCAndSAndSkipsFAndT()
@@ -89,12 +81,8 @@ public sealed class ReaderTests
     [InlineData("0041; C; 0061 0062;", "CaseFolding.txt(1): a line of status C has more than one code point")]
     [InlineData("0041; C; 0061;\n0041; S; 0061;", "CaseFolding.txt(2): the code point 0041 has two lines of the statuses C and S")]
     [InlineData("0041; C; 006;", "CaseFolding.txt(1): '006' is not a code point of 4 to 6 hexadecimal digits up to 10FFFF")]
-    public static void CaseFoldingOfAnotherForm_IsRefusedWithTheFileAndTheLine(string text, string message)
-    {
-        UcdFormatException exception = Assert.Throws<UcdFormatException>(() => UcdReaders.ReadCaseFolding(text));
-
-        Assert.Equal(message, exception.Message);
-    }
+    public static void CaseFoldingOfAnotherForm_IsRefusedWithTheFileAndTheLine(string text, string message) =>
+        AssertRefused(input => UcdReaders.ReadCaseFolding(input), text, message);
 
     [Fact]
     public static void CaseFoldingLinesOfStatusFAndTWithManyCodePoints_AreNotRead()
@@ -138,20 +126,22 @@ public sealed class ReaderTests
     [InlineData("version 17.0.0\nfile UnicodeData.txt " + Sha + " http://x.example/a\n", "inputs.txt(2): the address of UnicodeData.txt is not an absolute https address")]
     [InlineData("version 17.0.0\nfile UnicodeData.txt " + Sha + " https://x.example/a\nfile UnicodeData.txt " + Sha + " https://x.example/b\n", "inputs.txt(3): the file UnicodeData.txt is listed twice")]
     [InlineData("version 17.0.0\nsomething else\n", "inputs.txt(2): expected 'version <version>' once or 'file <name> <sha256> <address>'")]
-    public static void InputsOfAnotherForm_AreRefusedWithTheFileAndTheLine(string text, string message)
-    {
-        UcdFormatException exception = Assert.Throws<UcdFormatException>(() => UcdInputs.Parse(text));
-
-        Assert.Equal(message, exception.Message);
-    }
+    public static void InputsOfAnotherForm_AreRefusedWithTheFileAndTheLine(string text, string message) =>
+        AssertRefused(input => UcdInputs.Parse(input), text, message);
 
     [Fact]
     public static void InputsWithAFileOtherThanTheThree_AreRefused()
     {
         string text = Excerpts.InputsText() + "file Extra.txt " + Sha + " https://x.example/e\n";
 
-        UcdFormatException exception = Assert.Throws<UcdFormatException>(() => UcdInputs.Parse(text));
+        AssertRefused(input => UcdInputs.Parse(input), text, "inputs.txt: a file other than UnicodeData.txt, Scripts.txt, CaseFolding.txt is listed");
+    }
 
-        Assert.Equal("inputs.txt: a file other than UnicodeData.txt, Scripts.txt, CaseFolding.txt is listed", exception.Message);
+    // The reader refuses the text with the exception that names the file and the line.
+    private static void AssertRefused(Action<string> read, string text, string message)
+    {
+        UcdFormatException exception = Assert.Throws<UcdFormatException>(() => read(text));
+
+        Assert.Equal(message, exception.Message);
     }
 }

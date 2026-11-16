@@ -2,7 +2,7 @@
     "codeMetrics": {
         "CA1502": 15
     },
-    "duplicates": 847,
+    "duplicates": 846,
     "suppressions": {
         "CA1002": 1,
         "CA1008": 2,
@@ -29,7 +29,6 @@
         "CA2227": 1,
         "CS1591": 6,
         "IDE0005": 1,
-        "example": 1,
         "nullable": 1,
         "xUnit1051": 1
     }

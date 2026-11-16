@@ -86,19 +86,20 @@ public abstract partial class CelList : IReadOnlyList<CelValue>
     /// <summary>
     /// Returns an enumerator over the elements in order. Elements are read as with the indexer.
     /// </summary>
-    /// <returns>The enumerator.</returns>
-    public IEnumerator<CelValue> GetEnumerator()
+    /// <returns>The enumerator, a structure, so that <c>foreach</c> over a list allocates nothing for it.</returns>
+    public Enumerator GetEnumerator()
     {
-        int count = CountCore;
-        for (int index = 0; index < count; index++)
-        {
-            yield return GetCore(index);
-        }
+        return new Enumerator(this);
+    }
+
+    IEnumerator<CelValue> IEnumerable<CelValue>.GetEnumerator()
+    {
+        return new Enumerator(this);
     }
 
     IEnumerator IEnumerable.GetEnumerator()
     {
-        return GetEnumerator();
+        return new Enumerator(this);
     }
 
     /// <summary>
@@ -107,4 +108,66 @@ public abstract partial class CelList : IReadOnlyList<CelValue>
     /// <param name="index">The zero-based index of the element.</param>
     /// <returns>The element.</returns>
     private protected abstract CelValue GetCore(int index);
+
+    /// <summary>
+    /// The enumerator of a <see cref="CelList"/>: reads the elements in order, one for each step.
+    /// </summary>
+    /// <remarks>
+    /// The structure is mutable, so keep it in a variable and do not copy it between steps. It is not safe for
+    /// concurrent use. <c>default(Enumerator)</c> enumerates nothing: <see cref="MoveNext"/> gives
+    /// <see langword="false"/>.
+    /// </remarks>
+    public struct Enumerator : IEnumerator<CelValue>
+    {
+        private readonly CelList? _list;
+        private readonly int _count;
+        private int _next;
+        private CelValue _current;
+
+        internal Enumerator(CelList list)
+        {
+            _list = list;
+            _count = list.CountCore;
+        }
+
+        /// <summary>
+        /// The element that <see cref="MoveNext"/> read last; the default value of <see cref="CelValue"/> before the
+        /// first step and after the end.
+        /// </summary>
+        public readonly CelValue Current => _current;
+
+        /// <inheritdoc/>
+        readonly object IEnumerator.Current => _current;
+
+        /// <summary>
+        /// Goes to the next element and reads it as the indexer does.
+        /// </summary>
+        /// <returns><see langword="true"/> when there is a next element; <see langword="false"/> at the end of the list.</returns>
+        public bool MoveNext()
+        {
+            if (_list is null || _next >= _count)
+            {
+                _current = default;
+                return false;
+            }
+
+            _current = _list.GetCore(_next);
+            _next++;
+            return true;
+        }
+
+        /// <summary>
+        /// Releases nothing: the enumerator holds no resources. It is here for the <see cref="IDisposable"/> contract.
+        /// </summary>
+        public readonly void Dispose()
+        {
+        }
+
+        /// <inheritdoc/>
+        void IEnumerator.Reset()
+        {
+            _next = 0;
+            _current = default;
+        }
+    }
 }

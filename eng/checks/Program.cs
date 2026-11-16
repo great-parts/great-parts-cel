@@ -17,17 +17,32 @@ internal static class Program
     private const string WriteOption = ErrorCodesCommand.WriteOption;
 
     // The options that take the next token as their value, with what the value is, for the message of a missing one.
-    private static readonly Dictionary<string, string> ValueOptions = new(StringComparer.Ordinal)
+    private static readonly Dictionary<string, string> ValueOptions = Describe(
+        ("a directory", [RootOption, ReleaseGatesCommand.ProvenanceOption, ReleaseGatesCommand.NuGetOption, ReleaseGatesCommand.SameContentOption, QuickStartCommand.PackagesOption]),
+        ("a report", [TestCountCommand.JitOption, TestCountCommand.AotOption, MutationCommand.ReportOption]),
+        ("a text", [TestCountCommand.WhereOption]),
+        ("a configuration file", [MutationCommand.ConfigOption]),
+        ("a commit", [MutationCommand.SinceOption, ReleaseGatesCommand.CommitOption]),
+        ("a page", [ErrorCodesCommand.PageOption]),
+        ("a date", [ReleaseGatesCommand.DateOption]),
+        ("a repository", [ReleaseGatesCommand.CelSpecOption, ReleaseGatesCommand.RepositoryOption]),
+        ("an address", [ReleaseGatesCommand.ApiOption]),
+        ("an image", [QuickStartCommand.ImageOption]));
+
+    // The options of each kind of value, as one entry for each option.
+    private static Dictionary<string, string> Describe(params (string What, string[] Options)[] groups)
     {
-        [RootOption] = "a directory",
-        [TestCountCommand.JitOption] = "a report",
-        [TestCountCommand.AotOption] = "a report",
-        [TestCountCommand.WhereOption] = "a text",
-        [MutationCommand.ReportOption] = "a report",
-        [MutationCommand.ConfigOption] = "a configuration file",
-        [MutationCommand.SinceOption] = "a commit",
-        [ErrorCodesCommand.PageOption] = "a page",
-    };
+        Dictionary<string, string> described = new(StringComparer.Ordinal);
+        foreach ((string what, string[] options) in groups)
+        {
+            foreach (string option in options)
+            {
+                described[option] = what;
+            }
+        }
+
+        return described;
+    }
 
     internal static int Main(string[] args) =>
         Run(args, CommandRegistry.All, Directory.GetCurrentDirectory(), Console.Out, Console.Error);
@@ -58,7 +73,7 @@ internal static class Program
         }
 
         // A relative path of a report or a configuration file is taken from the working directory, not from the root of the repository.
-        foreach (string reportOption in new[] { TestCountCommand.JitOption, TestCountCommand.AotOption, MutationCommand.ReportOption, MutationCommand.ConfigOption, ErrorCodesCommand.PageOption })
+        foreach (string reportOption in new[] { TestCountCommand.JitOption, TestCountCommand.AotOption, MutationCommand.ReportOption, MutationCommand.ConfigOption, ErrorCodesCommand.PageOption, ReleaseGatesCommand.ProvenanceOption, ReleaseGatesCommand.NuGetOption, ReleaseGatesCommand.SameContentOption, QuickStartCommand.PackagesOption })
         {
             if (options.TryGetValue(reportOption, out string? report) && report.Length > 0)
             {

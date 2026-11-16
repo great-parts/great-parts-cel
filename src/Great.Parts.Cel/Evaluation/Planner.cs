@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -210,7 +211,7 @@ internal sealed class Planner
             case ComprehensionNode comprehension:
                 return VisitComprehension(comprehension, offset, out stackSize);
             default:
-                throw new NotImplementedException();
+                throw new UnreachableException("The parser creates no other node.");
         }
     }
 

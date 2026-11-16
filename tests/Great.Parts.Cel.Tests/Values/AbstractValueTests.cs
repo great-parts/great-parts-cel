@@ -216,6 +216,53 @@ public sealed class AbstractValueTests
         Assert.Equal(CelErrorCode.BindingTypeMismatch, Assert.Single(program.Evaluate(new CelBindings().Add("address", "1.2.3.4"), null, TestContext.Current.CancellationToken).Errors).Code);
     }
 
+    // A variable of an object type takes a bare instance or a pair; a value of an abstract type that an application binds to it is a
+    // mismatch that names the abstract type, as for any other kind, and no exception.
+    [Theory]
+    [InlineData("ip('1.2.3.4')", "net.IP")]
+    [InlineData("cidr('10.0.0.0/8')", "net.CIDR")]
+    public static void VariableOfAnObjectType_BoundToAValueOfAnAbstractType_IsBindingTypeMismatchNamingThatType(string expression, string typeName)
+    {
+        CelError error = SingleError("c", ValueOf(expression), static _ => CelValue.Null);
+
+        Assert.Equal(
+            (CelErrorCode.BindingTypeMismatch, "value of variable 'c' has type '" + typeName + "', which does not match the declared type 'acme.crm.Contact'"),
+            (error.Code, error.Message));
+    }
+
+    // The read delegate of a field of another type may return a value of an abstract type that an evaluation gave: the mismatch of the
+    // field names that type.
+    [Fact]
+    public static void FieldOfAnotherType_ReadingAValueOfAnAbstractType_IsFieldTypeMismatchNamingThatType()
+    {
+        CelValue address = ValueOf("ip('1.2.3.4')");
+
+        CelError error = SingleError("c.name", new ContactCarrier(), _ => address);
+
+        Assert.Equal(
+            (CelErrorCode.FieldTypeMismatch, "field 'name' of type 'acme.crm.Contact' has a value of type 'net.IP', expected 'string'"),
+            (error.Code, error.Message));
+    }
+
+    // The error of the expression on the variable c of the type acme.crm.Contact, a type described at run time whose field name is a
+    // string read by the delegate; the library with the set network.
+    private static CelError SingleError<T>(string expression, T binding, Func<ContactCarrier, CelValue> readName)
+    {
+        CelObjectType contact = new CelObjectTypeBuilder<ContactCarrier>("acme.crm.Contact").AddField("name", CelType.String, readName).Build();
+        CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+            .AddExtension(CelExtensions.Network(1))
+            .AddTypes(CelTypeProvider.Create("crm", contact))
+            .AddVariable("c", contact.Type)
+            .Build()
+            .GetEnvironmentOrThrow();
+        CelProgram<CelValue> program = environment.Compile<CelValue>(expression).GetProgramOrThrow();
+
+        return Assert.Single(program.Evaluate(new CelBindings().Add("c", binding), null, TestContext.Current.CancellationToken).Errors);
+    }
+
+    // The .NET type that carries the object type acme.crm.Contact.
+    private sealed class ContactCarrier;
+
     // A type that is a list of the abstract type is resolved at any depth.
     [Fact]
     public static void NameOfTheTypeInsideAList_IsResolved()

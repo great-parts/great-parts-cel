@@ -119,8 +119,13 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     /// Returns an enumerator over the entries in the order described for the map. Values are read as
     /// with <see cref="TryGetValue"/>.
     /// </summary>
-    /// <returns>The enumerator.</returns>
-    public IEnumerator<KeyValuePair<CelValue, CelValue>> GetEnumerator()
+    /// <returns>The enumerator, a structure.</returns>
+    public Enumerator GetEnumerator()
+    {
+        return new Enumerator(GetEnumeratorCore());
+    }
+
+    IEnumerator<KeyValuePair<CelValue, CelValue>> IEnumerable<KeyValuePair<CelValue, CelValue>>.GetEnumerator()
     {
         return GetEnumeratorCore();
     }
@@ -143,4 +148,54 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     /// </summary>
     /// <returns>The enumerator.</returns>
     private protected abstract IEnumerator<KeyValuePair<CelValue, CelValue>> GetEnumeratorCore();
+
+    /// <summary>
+    /// The enumerator of a <see cref="CelMap"/>: reads the entries in the order described for the map.
+    /// </summary>
+    /// <remarks>
+    /// <c>default(Enumerator)</c> enumerates nothing: <see cref="MoveNext"/> gives <see langword="false"/>. The
+    /// enumerator is not safe for concurrent use.
+    /// </remarks>
+    public readonly struct Enumerator : IEnumerator<KeyValuePair<CelValue, CelValue>>
+    {
+        private readonly IEnumerator<KeyValuePair<CelValue, CelValue>>? _entries;
+
+        internal Enumerator(IEnumerator<KeyValuePair<CelValue, CelValue>> entries)
+        {
+            _entries = entries;
+        }
+
+        /// <summary>
+        /// The entry that <see cref="MoveNext"/> read last. Read it only after <see cref="MoveNext"/> gave
+        /// <see langword="true"/>: before the first step and after the end the value is not defined, except that the
+        /// default enumerator gives the default entry.
+        /// </summary>
+        public KeyValuePair<CelValue, CelValue> Current => _entries is null ? default : _entries.Current;
+
+        /// <inheritdoc/>
+        object IEnumerator.Current => Current;
+
+        /// <summary>
+        /// Goes to the next entry and reads its value as <see cref="TryGetValue"/> does.
+        /// </summary>
+        /// <returns><see langword="true"/> when there is a next entry; <see langword="false"/> at the end of the map.</returns>
+        public bool MoveNext()
+        {
+            return _entries is not null && _entries.MoveNext();
+        }
+
+        /// <summary>
+        /// Releases the resources of the enumeration of a view over application data.
+        /// </summary>
+        public void Dispose()
+        {
+            _entries?.Dispose();
+        }
+
+        /// <inheritdoc/>
+        void IEnumerator.Reset()
+        {
+            _entries?.Reset();
+        }
+    }
 }

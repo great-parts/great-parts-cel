@@ -221,6 +221,90 @@ public sealed class CelMapTests
         Assert.Equal("entries", Assert.Throws<ArgumentNullException>(() => CelMap.Create(null!)).ParamName);
     }
 
+    [Fact]
+    public void GetEnumerator_IsAStructure_ThatForeachStepsThroughInOrder()
+    {
+        CelMap map = CelMap.Create(Entries(MixedKeys));
+
+        var seen = new List<KeyValuePair<CelValue, CelValue>>();
+        foreach (KeyValuePair<CelValue, CelValue> entry in map)
+        {
+            seen.Add(entry);
+        }
+
+        Assert.True(typeof(CelMap.Enumerator).IsValueType);
+        Assert.Equal(MixedKeys, seen.Select(entry => entry.Key));
+        Assert.Equal(Values(MixedKeys.Length), seen.Select(entry => entry.Value));
+    }
+
+    [Fact]
+    public void Enumerator_StepsOneEntryAtATime()
+    {
+        CelMap map = CelMap.Create(Entries([CelValue.FromString("a"), CelValue.FromInt64(2)]));
+        CelMap.Enumerator enumerator = map.GetEnumerator();
+
+        Assert.True(enumerator.MoveNext());
+        Assert.Equal(CelValue.FromString("a"), enumerator.Current.Key);
+        Assert.True(enumerator.MoveNext());
+        Assert.Equal(CelValue.FromInt64(2), enumerator.Current.Key);
+        Assert.False(enumerator.MoveNext());
+        enumerator.Dispose();
+    }
+
+    [Fact]
+    public void Enumerator_OfAnEmptyMap_HasNoEntries()
+    {
+        CelMap.Enumerator enumerator = CelMap.Create([]).GetEnumerator();
+
+        Assert.False(enumerator.MoveNext());
+    }
+
+    [Fact]
+    public void Enumerator_ByDefault_HasNoEntries()
+    {
+        var created = new CelMap.Enumerator();
+        CelMap.Enumerator byDefault = default;
+
+        Assert.False(created.MoveNext());
+        Assert.False(byDefault.MoveNext());
+        Assert.Equal(default(KeyValuePair<CelValue, CelValue>), byDefault.Current);
+        byDefault.Dispose();
+    }
+
+    [Fact]
+    public void Enumerator_ThroughTheInterfaces_StepsInOrder()
+    {
+        CelMap map = CelMap.Create(Entries([CelValue.FromInt64(1), CelValue.FromInt64(2)]));
+
+        using IEnumerator<KeyValuePair<CelValue, CelValue>> generic = ((IEnumerable<KeyValuePair<CelValue, CelValue>>)map).GetEnumerator();
+        IEnumerator plain = ((IEnumerable)map).GetEnumerator();
+
+        Assert.True(generic.MoveNext());
+        Assert.Equal(CelValue.FromInt64(1), generic.Current.Key);
+        Assert.True(generic.MoveNext());
+        Assert.False(generic.MoveNext());
+        Assert.True(plain.MoveNext());
+        Assert.Equal(CelValue.FromInt64(1), ((KeyValuePair<CelValue, CelValue>)plain.Current).Key);
+    }
+
+    [Fact]
+    public void Enumerator_OverAViewWithAFailingValue_GivesTheErrorValue()
+    {
+        CelMap view = CelMap.CreateView(
+            new Dictionary<string, long> { ["k"] = 1 },
+            _ => throw new InvalidOperationException(),
+            keepSourceOrder: false);
+
+        CelMap.Enumerator enumerator = view.GetEnumerator();
+
+        Assert.True(enumerator.MoveNext());
+        Assert.Equal(CelValue.FromString("k"), enumerator.Current.Key);
+        Assert.True(enumerator.Current.Value.TryGetError(out CelError? error));
+        Assert.Equal(CelErrorCode.ApplicationException, error.Code);
+        Assert.False(enumerator.MoveNext());
+        enumerator.Dispose();
+    }
+
     private static CelValue Key(string kind, int number) => kind switch
     {
         "int" => CelValue.FromInt64(number * 7919L),

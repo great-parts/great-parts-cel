@@ -2,7 +2,7 @@
 
 This page lists what the standard library `CelStandardLibrary.V1` declares and how each function behaves: the type identifiers, the macros, and the functions and operators with their overloads. An environment names the version it uses in `new CelEnvironmentBuilder(CelStandardLibrary.V1)`.
 
-Not in this version of the page: the extension sets, which have their own page. They are added to the library in a later release; until then a call to them is a type checking error.
+The extension sets are not on this page: they have their own page, [Extension sets](extensions.md). Without the set that declares it, a call to a function of a set is a type checking error.
 
 The sources are the language definition of CEL (`doc/langdef.md` of cel-spec), cited by section title, and the CEL implementation in Go, cel-go v0.32.0, which is the reference where the language definition is silent. The costs of the overloads are on the page [Cost](cost.md), the error codes on the page [Error codes](error-codes.md), and the limits on the page [Limits](limits.md).
 

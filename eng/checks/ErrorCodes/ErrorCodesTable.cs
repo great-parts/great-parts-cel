@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Text;
 using Great.Parts.Cel.Eng.Findings;
 
 namespace Great.Parts.Cel.Eng.Checks;
@@ -46,7 +45,7 @@ internal sealed class ErrorCodesTable
                 List<(int Line, List<string> Cells)> rows = [];
                 for (int row = index + 2; row < lines.Count && lines[row].TrimStart().StartsWith('|'); row++)
                 {
-                    rows.Add((row, SplitCells(lines[row])));
+                    rows.Add((row, MarkdownCells.Split(lines[row])));
                 }
 
                 return new ErrorCodesTable(index, rows);
@@ -146,42 +145,9 @@ internal sealed class ErrorCodesTable
     private static bool IsTable(IReadOnlyList<string> lines, int index) =>
         index + 1 < lines.Count
         && lines[index].TrimStart().StartsWith('|')
-        && SplitCells(lines[index]).SequenceEqual(Columns)
-        && SplitCells(lines[index + 1]).All(IsSeparatorCell);
+        && MarkdownCells.Split(lines[index]).SequenceEqual(Columns)
+        && MarkdownCells.Split(lines[index + 1]).All(IsSeparatorCell);
 
     private static bool IsSeparatorCell(string cell) =>
         cell.Trim(':').Length > 0 && cell.Trim(':').All(character => character == '-');
-
-    // The cells of a row of a table; a pipe in a cell is written \|.
-    private static List<string> SplitCells(string line)
-    {
-        List<string> cells = [];
-        StringBuilder cell = new();
-        string text = line.Trim();
-        for (int index = 1; index < text.Length; index++)
-        {
-            char character = text[index];
-            if (character == '\\' && index + 1 < text.Length && text[index + 1] == '|')
-            {
-                cell.Append('|');
-                index++;
-            }
-            else if (character == '|')
-            {
-                cells.Add(cell.ToString().Trim());
-                cell.Clear();
-            }
-            else
-            {
-                cell.Append(character);
-            }
-        }
-
-        if (cell.ToString().Trim().Length > 0)
-        {
-            cells.Add(cell.ToString().Trim());
-        }
-
-        return cells;
-    }
 }

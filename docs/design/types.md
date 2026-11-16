@@ -26,7 +26,7 @@ The rule files follow the naming and the content rules of [core](core.md).
 
 `WrapperOf` takes `bool`, `bytes`, `double`, `int`, `uint` and `string`; any other type is `ArgumentException`. `TypeOf(Dyn)` is the type of any type value; the identifier `type` has the static type `type(type(dyn))`. `ObjectNamed` only creates the reference: the environment rejects it as `TypeNotDeclared` while no type source describes it (see [declarations](declarations.md)). The text form is what error messages show; it is the notation of the language definition, and cel-go writes wrappers the same way.
 
-`OptionalOf` is the type of the set `optional` ([below](#optional-types-in-the-rules)); `Decimal` arrives with `decimal` and until then throws `NotImplementedException`. `Any` and the names of protobuf are on the two sections below.
+`OptionalOf` is the type of the set `optional` ([below](#optional-types-in-the-rules)); `Decimal` is the type of the set `decimal`, on `net11.0` only ([below](#decimal)). `Any` and the names of protobuf are on the two sections below.
 
 Inside type checking two more forms exist and never leave it:
 
@@ -35,11 +35,11 @@ Inside type checking two more forms exist and never leave it:
 
 ## `decimal`
 
-The part of the set [decimal](extension-decimal.md) gives the type its body, on `net11.0` only; this section supersedes the sentence above that leaves `Decimal` to a later part. `CelType.Decimal` is a static instance, `new CelType(CelTypeKind.Decimal, "decimal", [])`: the kind `Decimal`, the name `decimal`, no parameters, the text form `decimal`; the kind has the number 18 that the skeleton gave it. Equality, hash and substitution are those of the model, and two types are equal when their kind and name are, so `type(1m) == decimal` and `type(x) == type(1m)` are `true` when `x` is a decimal.
+The type belongs to the set [decimal](extension-decimal.md) and exists on `net11.0` only. `CelType.Decimal` is a static instance, `new CelType(CelTypeKind.Decimal, "decimal", [])`: the kind `Decimal`, the name `decimal`, no parameters, the text form `decimal`; the kind has the number 18. Equality, hash and substitution are those of the model, and two types are equal when their kind and name are, so `type(1m) == decimal` and `type(x) == type(1m)` are `true` when `x` is a decimal.
 
-The rules that type checking relies on change in one place. **`AssignabilityRules.TakesNull`** gets `Decimal`, under `#if NET11_0_OR_GREATER`: a static `null` is assignable to `decimal`, as to every abstract (opaque) type, because the type is the abstract type `decimal` of `checked.proto` and cel-go takes every opaque type as nullable. So `price == null` for a `price` of type `decimal` checks and is `false` at run time, and a `null` value fits no decimal ([values](values.md#decimal)). `(CelTypeKind.Decimal, CelTypeKind.Decimal)` needs no case: the last row of the switch, `from.Kind == to.Kind`, decides it, as for `timestamp`; the join and the most general type, whose rule 4 reads `TakesNull`, follow it. A decimal is assignable to no other type but `dyn`, a type parameter and `decimal`: `[1, 1.5m]` is `list(dyn)` and `1 + 1.5m` is no overload.
+**`AssignabilityRules.TakesNull`** has `Decimal`, under `#if NET11_0_OR_GREATER`: a static `null` is assignable to `decimal`, as to every abstract (opaque) type, because the type is the abstract type `decimal` of `checked.proto` and cel-go takes every opaque type as nullable. So `price == null` for a `price` of type `decimal` checks and is `false` at run time, and a `null` value fits no decimal ([values](values.md#decimal)). `(CelTypeKind.Decimal, CelTypeKind.Decimal)` needs no case: the last row of the switch, `from.Kind == to.Kind`, decides it, as for `timestamp`; the join and the most general type, whose rule 4 reads `TakesNull`, follow it. A decimal is assignable to no other type but `dyn`, a type parameter and `decimal`: `[1, 1.5m]` is `list(dyn)` and `1 + 1.5m` is no overload.
 
-`ConversionRules.Rows.cs` names the kind in `MentionsLaterPart`; the entry goes with the marker ([values](values.md#decimal)). The kind is declared by the set, so a variable, a field or an overload of the type without the set is `TypeNotDeclared` ([declarations](declarations.md#decimal-without-the-set-and-the-literal-option)), except a field, which is `FieldNotAccessible` when an expression selects it ([checking](checking.md#decimal-without-the-set)).
+The kind is declared by the set, so a variable, a field or an overload of the type without the set is `TypeNotDeclared` ([declarations](declarations.md#decimal-without-the-set-and-the-literal-option)), except a field, which is `FieldNotAccessible` when an expression selects it ([checking](checking.md#decimal-without-the-set)).
 
 ## Substitution
 
@@ -53,16 +53,16 @@ A trial against a substitution works on a copy: a failed trial leaves the substi
 
 ## Optional types in the rules
 
-This section is read after "Assignability" and "Most general" below; it adds what the set [optional](extension-optional.md) needs of them and supersedes the sentence of "The model" that leaves `OptionalOf` to a later part. Nothing is added to the public API: the changes are in `AssignabilityRules`, and `SubstitutionRules` already walks the parameters of any kind (`Apply`, `Occurs`, `HasTypeParameters`).
+This section is read after "Assignability" and "Most general" below; it says what the set [optional](extension-optional.md) needs of them. The rules are in `AssignabilityRules`, and `SubstitutionRules` walks the parameters of any kind (`Apply`, `Occurs`, `HasTypeParameters`); the public API has no member for them.
 
-**What changes.** Two rules compare the parameters of a type one by one, and until now they did so for `list` and `map` (the most general type) and for abstract types (assignability) only:
+**Parameters compared one by one.** Two rules compare the parameters of a type, for `list`, `map`, `optional_type` and abstract types:
 
-| Rule | Before | After |
-| :- | :- | :- |
-| 8, assignability | `optional_type(A)` against `optional_type(B)` fell to "no": the kind `Optional` is among the kinds that are assignable to no other | the two are assignable when `A` is assignable to `B`, by the same rules with the same substitution and the same deducible variables; an `optional_type` is assignable to no other kind but through the rules 1 to 4 (`dyn`, type parameters, `null`) |
-| most general, rule 3 | `list` and `map` only | `list`, `map`, `optional_type`, and abstract types of one name and the same number of parameters: parameter by parameter, `optional_type(MostGeneral(A, B))` and `N(MostGeneral(A₁, B₁), …)` |
+| Rule | What it does |
+| :- | :- |
+| 8, assignability | `optional_type(A)` and `optional_type(B)` are assignable when `A` is assignable to `B`, by the same rules with the same substitution and the same deducible variables; an `optional_type` is assignable to no other kind but through the rules 1 to 4 (`dyn`, type parameters, `null`) |
+| most general, rule 3 | `list`, `map`, `optional_type`, and abstract types of one name and the same number of parameters: parameter by parameter, `optional_type(MostGeneral(A, B))` and `N(MostGeneral(A₁, B₁), …)` |
 
-Abstract types are not new: the rule 8 of "Assignability" already compares the parameters of two abstract types of one name; the generalization of those parameters is what is added, which the types `tuple(T, U, V)` of the cases of `type_deduction` need.
+The rule 8 of "Assignability" compares the parameters of two abstract types of one name too; the generalization of those parameters is what the types `tuple(T, U, V)` of the cases of `type_deduction` need.
 
 **The table of the most general type.** `MostGeneral(a, b)` after the substitution, with the cases that pin each row; the first row that applies wins, and a pair is symmetric unless a row says so:
 
@@ -83,19 +83,19 @@ Abstract types are not new: the rule 8 of "Assignability" already compares the p
 
 Two types that are not assignable — `wrapper(int)` and `wrapper(string)`, `optional_type(int)` and `list(int)` — are not generalized: the join of a literal takes `dyn` for them, as it does for `[1, 'a']`.
 
-**The cases of `type_deduction`.** The file has 66 cases, of which cel-go v0.32.0 gives another type for 15; Great.Parts.Cel follows the cel-spec case and no record of the registry is needed, since only the deduced type differs. By the state of the library at the start of the part:
+**The cases of `type_deduction`.** The file has 66 cases, of which cel-go v0.32.0 gives another type for 15; Great.Parts.Cel follows the cel-spec case and no record of the registry is needed, since only the deduced type differs. The 15 cases are given by these rules:
 
-| Cases | Count | State |
+| Cases | Count | Rule |
 | :- | :- | :- |
-| `type_decay/*` | 6 | pass: the rule of "Most general" for type values is in the library |
-| `type_parameters_in_type_type/type_param_in_type_type_int`, `…_string`, `composite_type_param_in_type_type`, `nested_type_param_in_type_type` | 4 | the rule 6 of "Assignability" gives their types; the cases wait for the runner to declare the functions of a case ([conformance](conformance.md#the-sets-optional-and-block-in-the-runner)) |
-| `wrappers/wrapper_promotion_2` | 1 | the rule of the wrapper is there; the case needs the messages of the protobuf package |
-| `legacy_nullable_types/null_assignable_to_message_parameter_candidate`, `…_duration_…`, `…_timestamp_…` | 3 | the rule 4 is there; the cases need the messages of the protobuf package |
-| `legacy_nullable_types/null_assignable_to_abstract_parameter_candidate` | 1 | the rule 4 lists `optional_type(T)`; the case needs the set `optional` |
+| `type_decay/*` | 6 | the rule of "Most general" for type values |
+| `type_parameters_in_type_type/type_param_in_type_type_int`, `…_string`, `composite_type_param_in_type_type`, `nested_type_param_in_type_type` | 4 | the rule 6 of "Assignability" |
+| `wrappers/wrapper_promotion_2` | 1 | the rule of the wrapper |
+| `legacy_nullable_types/null_assignable_to_message_parameter_candidate`, `…_duration_…`, `…_timestamp_…` | 3 | the rule 4 |
+| `legacy_nullable_types/null_assignable_to_abstract_parameter_candidate` | 1 | the rule 4, which lists `optional_type(T)` |
 
-So none of the 15 cases needs a change of `AssignabilityRules`. The change above is for the others that the part closes: `flexible_type_parameter_assignment/optional_none`, `optional_none_2`, `optional_dyn_promotion`, `optional_dyn_promotion_2`, `optional_in_ternary` need the two rows for `optional_type`, and `type_parameters/multiple_parameters_generality`, `multiple_parameters_generality_2`, `…_parameterized_ovl` and `…_parameterized_ovl_2` need the row for abstract types: `[tuple(1, 2u, 3.0), tuple(dyn(1), dyn(2u), dyn(3.0))][0]` joins `tuple(int, uint, double)` with `tuple(dyn, dyn, dyn)`, and the first one is kept without the row.
+The other cases need the two rows for `optional_type` — `flexible_type_parameter_assignment/optional_none`, `optional_none_2`, `optional_dyn_promotion`, `optional_dyn_promotion_2`, `optional_in_ternary` — and the row for abstract types — `type_parameters/multiple_parameters_generality`, `multiple_parameters_generality_2`, `…_parameterized_ovl` and `…_parameterized_ovl_2`: `[tuple(1, 2u, 3.0), tuple(dyn(1), dyn(2u), dyn(3.0))][0]` joins `tuple(int, uint, double)` with `tuple(dyn, dyn, dyn)`, and the first one is kept without the row.
 
-**Checks of the rules.** The rules are core, so the tests of the part pin each row of the table by a type pair and each case of the list by its expression: the deduced type, in both orders where the case has two. A pair of an `optional_type` and an abstract type with another name is not assignable, and an `optional_type(T)` that holds a type parameter is generalized only after the parameter is bound.
+**Checks of the rules.** The rules are core, so the tests pin each row of the table by a type pair and each case of the list by its expression: the deduced type, in both orders where the case has two. A pair of an `optional_type` and an abstract type with another name is not assignable, and an `optional_type(T)` that holds a type parameter is generalized only after the parameter is bound.
 
 ## Assignability
 
@@ -104,7 +104,7 @@ So none of the 15 cases needs a change of `AssignabilityRules`. The change above
 1. `to` is a type parameter: when it is bound to `B`, the result is that of `from` against `B`, and on success the binding becomes `MostGeneral(from, B)` (below) if the occurs check allows; when it is free, it is bound to `from` if the occurs check allows, otherwise the rules below decide.
 2. `from` is a type parameter: the same with the roles swapped, except that when the occurs check fails the answer is no.
 3. Either is `dyn` or `error`: yes.
-4. Either is `null_type`: yes when the other is `null_type`, a wrapper, an object type, `timestamp`, `duration`, or a type that the later parts add as nullable — `google.protobuf.Any`, `optional_type(T)` and `decimal`: cel-go takes every abstract (opaque) type as nullable, `isLegacyNullable` of `checker/types.go` in v0.32.0, together with object types, `Any`, `timestamp` and `duration`. This is the static rule, as in cel-go; at run time a `null` value fits neither `timestamp` nor `duration` ([values](values.md), "Fits a type"). `list`, `map`, `type` and the primitive types do not take `null`.
+4. Either is `null_type`: yes when the other is `null_type`, a wrapper, an object type, `timestamp`, `duration`, `google.protobuf.Any`, `optional_type(T)`, `decimal`: cel-go takes every abstract (opaque) type as nullable, `isLegacyNullable` of `checker/types.go` in v0.32.0, together with object types, `Any`, `timestamp` and `duration`. This is the static rule, as in cel-go; at run time a `null` value fits neither `timestamp` nor `duration` ([values](values.md), "Fits a type"). `list`, `map`, `type` and the primitive types do not take `null`.
 5. Primitive types: yes when they are equal. A wrapper and its primitive are assignable both ways: `wrapper(int)` takes `int`, and `int` takes `wrapper(int)`; a mismatch at evaluation is a value of the wrong kind, not a type error.
 6. `type(A)` and `type(B)`: always yes — every type value is compatible where a type value is expected (language definition, "Type-Checking Type Values"). The parameters are tried too, `A` against `B` by these rules, as a trial that may bind only the variables in `deducible`. Any other type variable — of an empty literal, of an iteration variable, of an earlier call — is neither bound nor bound again in that trial: a bound one stands for its binding, a free one matches only itself, `dyn`, `error` and a free deducible variable, which rule 1 or 2 binds to it. When the trial succeeds its bindings are kept; when it fails nothing is bound, and the answer is still yes. In the join of a literal and in the check against the binding of a bound variable (rules 1 and 2) nothing is deducible, so a trial there binds nothing.
 
@@ -116,7 +116,7 @@ So none of the 15 cases needs a change of `AssignabilityRules`. The change above
 
 1. Either is `dyn`: `dyn`. Otherwise either is a type parameter still free: that parameter, `a` when both are.
 2. `type(A)` and `type(B)`: `type(A)` when `A` and `B` are equal, otherwise `type(dyn)` — whatever the order, and whether or not `A` or `B` holds free type parameters (language definition, "Type Generalization").
-3. `list(A)` and `list(B)`: `list(MostGeneral(A, B))`; `map(K1, V1)` and `map(K2, V2)`: `map(MostGeneral(K1, K2), MostGeneral(V1, V2))`. A difference between type values deep inside is generalized where it is, and the rest is kept. The parameterized types of later parts (`optional_type(T)`, abstract types) follow the same rule, parameter by parameter.
+3. `list(A)` and `list(B)`: `list(MostGeneral(A, B))`; `map(K1, V1)` and `map(K2, V2)`: `map(MostGeneral(K1, K2), MostGeneral(V1, V2))`. A difference between type values deep inside is generalized where it is, and the rest is kept. The other parameterized types (`optional_type(T)`, abstract types) follow the same rule, parameter by parameter.
 4. A wrapper and its primitive: the wrapper. `null_type` and a type that takes `null` (rule 4 above): that type.
 5. Otherwise the types are equal: `a`.
 
@@ -160,10 +160,10 @@ A declaration that uses `Any` at any depth — a variable, a field, a parameter 
 | `google.protobuf.UInt32Value`, `google.protobuf.UInt64Value` | `wrapper(uint)` |
 | `google.protobuf.StringValue` | `wrapper(string)` |
 
-Any other name, `google.protobuf.Timestamp` and `google.protobuf.Duration` among them, is the object type of that name as before; those two names are type identifiers of the standard library, and the types `timestamp` and `duration` come from `CelType.Timestamp` and `CelType.Duration`. The effect is the same wherever a name becomes a type: the record `"google.protobuf.Int32Value"` of a description in JSON, a `message_type` of the conformance runner, the `Type` of a `CelObjectType` that has such a name — its `Type` is the type of the table, not an object type, which is how the checker types the literal `google.protobuf.Int32Value{value: 1}` ([checking](checking.md#message-literals-of-constructible-types)). A declaration with such a name needs no source for it, except `Any`; a literal needs the description that the protobuf package makes.
+Any other name, `google.protobuf.Timestamp` and `google.protobuf.Duration` among them, is the object type of that name; those two names are type identifiers of the standard library, and the types `timestamp` and `duration` come from `CelType.Timestamp` and `CelType.Duration`. The effect is the same wherever a name becomes a type: the record `"google.protobuf.Int32Value"` of a description in JSON, a `message_type` of the conformance runner, the `Type` of a `CelObjectType` that has such a name — its `Type` is the type of the table, not an object type, which is how the checker types the literal `google.protobuf.Int32Value{value: 1}` ([checking](checking.md#message-literals-of-constructible-types)). A declaration with such a name needs no source for it, except `Any`; a literal needs the description that the protobuf package makes.
 
-## Implemented members
+## Members
 
-`CelType`: everything in the table above, `Equals`, `GetHashCode` and `ToString`; with `Any` and the rule of the well-known names the properties `CelType.Any` and `ObjectNamed` of this page. `CelTypeKind` has all its members already. A type parameter in the type of a variable declaration is erased to `dyn` when the environment is built (see [declarations](declarations.md)); only overload declarations bind type parameters.
+`CelType`: everything in the table above, `Equals`, `GetHashCode` and `ToString`; with `Any` and the rule of the well-known names the properties `CelType.Any` and `ObjectNamed` of this page. `CelTypeKind` has all its members. A type parameter in the type of a variable declaration is erased to `dyn` when the environment is built (see [declarations](declarations.md)); only overload declarations bind type parameters.
 
 Related pages: [checking](checking.md), [values](values.md), [declarations](declarations.md), [core](core.md).

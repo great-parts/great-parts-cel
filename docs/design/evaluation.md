@@ -143,7 +143,7 @@ A value of a `System.Decimal` or a `Decimal128` that the application puts in a p
 - `Charge(units)` subtracts from the remaining units. More units than remain — a sum that does not fit the counter included — means the operation does not run: the meter throws `CostLimitException`, and `Plan.Evaluate` returns `CostLimitExceeded` at the recorded node as the single error. A total equal to the limit is allowed. The exception is not an error value, so `||` and `all` cannot absorb it.
 - An argument that is invalid without work on the data — a list index out of range — fails after the constant unit only, before the formula of the operation.
 - The frame, with its slots and argument stack, is allocated once before the root is evaluated and is not charged; everything allocated after it counts against the bound of B = 64 bytes per unit that the property test of cost checks.
-- What the bound asks of the values of this part. A list of n elements holds n values of 32 bytes and costs 1 + n. A map of n entries holds 2n values, a key and a value each, so it costs 1 + 2n and takes at most 64 · (1 + 2n) bytes with its index, at every n ([values](values.md), "Lists and maps"). An error value takes at most 64 bytes ("Errors as values"), so an operation of 1 unit that fails, such as `1 / 0`, fits.
+- What the bound asks of the values. A list of n elements holds n values of 32 bytes and costs 1 + n. A map of n entries holds 2n values, a key and a value each, so it costs 1 + 2n and takes at most 64 · (1 + 2n) bytes with its index, at every n ([values](values.md), "Lists and maps"). An error value takes at most 64 bytes ("Errors as values"), so an operation of 1 unit that fails, such as `1 / 0`, fits.
 
 **Application data** — the rows of the cost table for application data, charged by the node or the implementation that does the work, before it:
 
@@ -160,9 +160,9 @@ A value of a `System.Decimal` or a `Decimal128` that the application puts in a p
 | a collection without an index of n elements that an application function returns | 1 + n | the call, after the implementation, before the copy |
 | a JSON string value of length L read | 1 + ⌈L/10⌉ at each read, before the string is created; L is the length of the raw UTF-8 token without its quotes, escape sequences included, the upper bound that is known without decoding, as Lᵢ of a name; it is the decoded length for a string without escapes and without non-ASCII characters. The property names of an enumeration are inside the terms of their row and are not charged again | the node that reads it: the selection, the index of an array, the element of a range or of a comparison, and the identifier of a variable bound to a JSON string |
 | equality of two objects | 1 + Σ over the fields compared: 1 for each of the two reads + eq of the values | `EqualityRules` |
-| check against a declared type | n before descending into a list of n elements or a map of n entries; a typed view that already fits, 0 | as for the bindings of this part |
+| check against a declared type | n before descending into a list of n elements or a map of n entries; a typed view that already fits, 0 | as for the bindings |
 
-The memory of each row stays within B per unit: a pair or a JSON adapter is one object of at most 64 bytes inside the unit of its read, and the sorted keys of a map view, n references, are inside the n · ⌈log₂(n + 1)⌉ units of the sort. The rows of sets and of collections without an index read as members, of struct members, and of the unpacking of `google.protobuf.Any` come with the generator and protobuf; a set and a collection without an index bound as a variable are converted by `CelBindings.Add`, before the evaluation, and cost nothing; returned by an application function they are copied at the call by the two rows above.
+The memory of each row stays within B per unit: a pair or a JSON adapter is one object of at most 64 bytes inside the unit of its read, and the sorted keys of a map view, n references, are inside the n · ⌈log₂(n + 1)⌉ units of the sort. The rows of sets and of collections without an index read as members, of struct members, and of the unpacking of `google.protobuf.Any` are charged by the code of the generator ([generator-output](generator-output.md)) and of the protobuf package ([protobuf](protobuf.md#cost-of-a-read)); a set and a collection without an index bound as a variable are converted by `CelBindings.Add`, before the evaluation, and cost nothing; returned by an application function they are copied at the call by the two rows above.
 
 ## Extension sets in the evaluator
 
@@ -274,7 +274,7 @@ The planner does not look up a constant zone. The reasons: a wrong constant must
 | a time argument or result of an application function | the check of the type charges 0 for a scalar; no copy | the call |
 | a call that fails | its units as above; the error value holds references and numbers only — the zone string, the database, the text of the string, a number in a field — at most 64 bytes | the call |
 
-The rows that a measurement of the earlier parts found missing came from operations whose work grows with data that no argument length shows. Time has three that could: the length of the zone string of a receiver (the receiver is not a string, so the argument cost reads the other argument), the length of the result of `string()` (known before the string exists), and the folded constant (the same units as the call). A time scalar has no data to copy and no elements to check. The test of memory against units ([tests](tests.md), "Properties of evaluation") gets time in its generator and in its rows: the 1-unit failures `timestamp(253402300800)` and `timestamp(0).getHours('+1:5')` fit B per unit without the error allowance E; E = 256 is added to a case of the generator that ends in an error exactly as for the other kinds; and the rows `string(timestamp)` and `string(duration)` hold their string of at most 30 characters inside B per unit.
+The rows that a measurement found missing came from operations whose work grows with data that no argument length shows. Time has three that could: the length of the zone string of a receiver (the receiver is not a string, so the argument cost reads the other argument), the length of the result of `string()` (known before the string exists), and the folded constant (the same units as the call). A time scalar has no data to copy and no elements to check. The test of memory against units ([tests](tests.md), "Properties of evaluation") gets time in its generator and in its rows: the 1-unit failures `timestamp(253402300800)` and `timestamp(0).getHours('+1:5')` fit B per unit without the error allowance E; E = 256 is added to a case of the generator that ends in an error exactly as for the other kinds; and the rows `string(timestamp)` and `string(duration)` hold their string of at most 30 characters inside B per unit.
 
 ## Message literals
 
@@ -347,13 +347,13 @@ Types of values in messages are the names of runtime types without parameters ([
 
 So `f_unknown(17)` evaluates to `EvalNoMatchingOverload`, and `x` without a binding to `Unbound`. The value of the root is returned as it is, without conversion to a .NET type.
 
-## This part and later parts
+## What the evaluator covers
 
-| Part | This part | Later |
-| :- | :- | :- |
-| nodes | all nodes above, fields of objects and presence on them included; the nodes of `optional` ([Optional values and the optional syntax](#optional-values-and-the-optional-syntax)) and the slots of `cel.block` ([Blocks](#blocks)); comprehensions of two variables | message literals of protobuf |
-| values read | bindings by name, checked against the declared type at any depth; objects of types described at run time and of descriptions with a .NET type; collections of the application; `JsonElement` | members of .NET types and their place rule inside collections (generator), protobuf messages, `decimal`; time is read from bindings and fields as scalars ([Time](#time)) |
-| calls | the standard library with time and `matches`, application functions, the extension sets | — |
-| cost and cancellation | the meter, the event counter, the rows of application data above | the rows of later parts |
+| Area | Covered |
+| :- | :- |
+| nodes | all nodes above, fields of objects and presence on them, message literals of protobuf; the nodes of `optional` ([Optional values and the optional syntax](#optional-values-and-the-optional-syntax)) and the slots of `cel.block` ([Blocks](#blocks)); comprehensions of two variables |
+| values read | bindings by name, checked against the declared type at any depth; objects of types described at run time and of descriptions with a .NET type, their place rule inside collections included; protobuf messages; collections of the application; `JsonElement`; `decimal` ([Decimal in a dyn place](#decimal-in-a-dyn-place)); time is read from bindings and fields as scalars ([Time](#time)) |
+| calls | the standard library with time and `matches`, application functions, the extension sets |
+| cost and cancellation | the meter, the event counter, the rows of application data above and the rows of the sets |
 
 Related pages: [checking](checking.md), [library](library.md), [values](values.md), [objects](objects.md), [types](types.md), [declarations](declarations.md), [facade](facade.md), [core](core.md).

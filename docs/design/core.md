@@ -56,7 +56,7 @@ The set `optional` and the internal set `block` follow the same split ([extensio
 - a rule file holds internal static classes with rule logic and nothing else, and no other file in `Types` or `Values` holds rule logic;
 - a public member that exposes a rule delegates to the rule class and keeps no logic of its own.
 
-Code that a later part of the library adds to `Values` follows the same rule: logic that computes the value or the error of an expression — for example time zone offsets or the text form of `decimal` — goes into a rule file.
+Any code added to `Values` follows the same rule: logic that computes the value or the error of an expression — for example time zone offsets or the text form of `decimal` — goes into a rule file.
 
 | Rule file | Rules | First needed for |
 | :- | :- | :- |
@@ -78,7 +78,7 @@ Code that a later part of the library adds to `Values` follows the same rule: lo
 
 ## Rule files of `decimal`
 
-The part of [decimal](extension-decimal.md) adds three files to `Values/` and a directory to `Library/`, all under `#if NET11_0_OR_GREATER` as a whole; the core paths below already cover the two that hold rules and the directory, so no pattern changes and the line of `Library/Decimals/` in the layout table stands.
+The set [decimal](extension-decimal.md) has three files in `Values/` and a directory in `Library/`, all under `#if NET11_0_OR_GREATER` as a whole; the core paths below cover the two files that hold rules and the directory.
 
 | File | Rules | Core |
 | :- | :- | :- |
@@ -87,7 +87,7 @@ The part of [decimal](extension-decimal.md) adds three files to `Values/` and a 
 | `src/Great.Parts.Cel/Values/DecimalParts.cs` | the struct of sign, coefficient and exponent, and the BID bits; no rule of the language | no: it is the model of the rules, as `CelTimestamp` is the model of the rules of time |
 | `src/Great.Parts.Cel/Library/Decimals/**` | the set: the table of overloads, the implementations, the cost functions | yes: `Library/**` |
 
-A defect in a core file is a wrong answer for a decimal and no visible error, but `eng/difftest` cannot see it: cel-go has no `decimal`. Its guard is the exact reference of [tests](tests.md#tests-of-decimal), which the change of a core file of the part must pass in the same way: a task of the core that changes these files is accepted by the comparison with that reference, and the differential run finds nothing about it by construction.
+A defect in a core file is a wrong answer for a decimal and no visible error, but `eng/difftest` cannot see it: cel-go has no `decimal`. Its guard is the exact reference of [tests](tests.md#tests-of-decimal), which a change of these files must pass: it is accepted by the comparison with that reference, and the differential run finds nothing about it by construction.
 
 ## Regex and Unicode
 

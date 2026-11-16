@@ -1,0 +1,437 @@
+# The release of the two packages (docs/design/eng-release.md): a push of a tag v* is the release, steps 1 to 8 of the order below.
+# workflow_dispatch has two more uses. On main with the input tag it is the dry run: the gates and the build with the version of the
+# planned tag, nothing public. On a tag v* it is the repeat of steps 7 and 8 after a failure of step 7: only verify and release run, and
+# nothing is published to nuget.org again. A dispatch on any other ref does nothing.
+#
+# Steps of the release (docs/design/eng-release.md): 1 gates; 2 build, tests, packages; 3 attestation of origin and of the SBOM; 4 check of origin of
+# the built packages and the draft Release; 5 the environment release waits for the approval of the maintainer; 6 publication on nuget.org
+# by Trusted Publishing; 7 the second attestation for the packages as nuget.org gives them and the command of the README on them;
+# 8 publication of the Release.
+#
+# Every value that comes from the event or from an input reaches a script only through the environment. Every action is pinned by the
+# SHA of a commit. id-token: write is only in attest, publish and verify.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The dry run on main: the name of the planned tag, for example v1.0.0; the tag does not have to exist. Not used on a tag."
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# One run per ref at a time; a run of a release is never cancelled.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  # The tag of the release: the input of a dry run on main, otherwise the name of the tag the run stands on.
+  TAG: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') && inputs.tag || github.ref_name }}
+
+jobs:
+  # Step 1. The gates on the commit of the tag, or in a dry run on the head of main.
+  gates:
+    name: Gates
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      # The gates read the history down to origin/main and the tags.
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore eng/checks (locked)
+        run: dotnet restore eng/checks --locked-mode
+
+      - name: Build eng/checks
+        run: dotnet build eng/checks -c Release --no-restore
+
+      - name: Gates (eng/checks release-gates)
+        env:
+          EVENT: ${{ github.event_name }}
+          COMMIT: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          arguments=("$TAG")
+          # A dry run has no tag: the gates take the commit of the run.
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            arguments+=(--commit "$COMMIT")
+          fi
+          dotnet run --project eng/checks -c Release --no-build -- release-gates "${arguments[@]}"
+
+  # Step 2. Build with the version of the tag, the tests of both targets under JIT, the packages. A dry run ends here.
+  build:
+    name: Build
+    needs: gates
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # The tag of the stage sdk-min of the container file, as in the job Quick start of ci.yml; the two change together.
+      QUICK_START_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.100
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Version of the tag
+        id: version
+        run: |
+          set -eu
+          if ! [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "The tag is v and a semantic version."
+            exit 2
+          fi
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore (locked)
+        run: dotnet restore Great.Parts.Cel.slnx --locked-mode
+
+      - name: Build
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: dotnet build Great.Parts.Cel.slnx -c Release --no-restore -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true
+
+      - name: Tests of both targets (JIT)
+        run: |
+          set -u
+          status=0
+          for TARGET in net10.0 net11.0; do
+            for project in tests/*/*.csproj; do
+              directory=$(dirname "$project")
+              name=$(basename "$project" .csproj)
+              echo "== $name $TARGET"
+              dotnet "$directory/bin/Release/$TARGET/$name.dll" -noColor -showLiveOutput \
+                -result-xml "artifacts/test-results/jit/$name/$TARGET/report.xml" || status=1
+            done
+          done
+          exit $status
+
+      - name: Content of the packages (eng/checks packages)
+        run: dotnet run --project eng/checks -c Release --no-build -- packages --no-build
+
+      # The packages of the release: the version of the tag in the name, the symbol packages next to them.
+      - name: Pack
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: dotnet pack Great.Parts.Cel.slnx -c Release --no-build -p:Version="$VERSION" -p:ContinuousIntegrationBuild=true -o artifacts/release
+
+      # The check of the README on the packages of the release: a version with a pre-release suffix is not a quick-start version, because
+      # dotnet add package without a version takes the stable one.
+      - name: Quick start (eng/checks quick-start)
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -eu
+          if [[ "$VERSION" == *-* ]]; then
+            echo "The version $VERSION has a pre-release suffix: the quick-start check is skipped."
+            exit 0
+          fi
+          dotnet run --project eng/checks -c Release --no-build -- quick-start --packages artifacts/release --image "$QUICK_START_IMAGE"
+
+      - name: Packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: packages
+          path: |
+            artifacts/release/*.nupkg
+            artifacts/release/*.snupkg
+          if-no-files-found: error
+
+  # Step 3. The SBOM, the attestation of origin and the attestation of the SBOM of every .nupkg. The action does not combine them, so
+  # it runs twice. Its bundles are copied to files for the Release.
+  attest:
+    name: Attestations
+    needs: build
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/release
+
+      # The export of the dependency graph of the repository at the commit, SPDX JSON; no tool is added to make it.
+      - name: SBOM
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir -p artifacts
+          gh api "repos/$GITHUB_REPOSITORY/dependency-graph/sbom" --jq .sbom > artifacts/sbom.spdx.json
+
+      - name: Attestation of origin
+        id: provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/release/*.nupkg
+
+      - name: Attestation of the SBOM
+        id: sbom
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: artifacts/release/*.nupkg
+          sbom-path: artifacts/sbom.spdx.json
+
+      - name: Bundles for the Release
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.provenance.outputs.bundle-path }}
+          SBOM_BUNDLE: ${{ steps.sbom.outputs.bundle-path }}
+        run: |
+          set -eu
+          mkdir -p artifacts/bundles
+          cp "$PROVENANCE_BUNDLE" artifacts/bundles/provenance.intoto.jsonl
+          cp "$SBOM_BUNDLE" artifacts/bundles/sbom.intoto.jsonl
+
+      - name: Bundles
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bundles
+          path: artifacts/bundles/*.intoto.jsonl
+          if-no-files-found: error
+
+  # Step 4. The check of origin of the packages as they were built, before anything is public: a wrong flag of the command or an
+  # attestation that does not match the package stops the release here. Then the draft Release.
+  draft:
+    name: Draft Release
+    needs: attest
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      attestations: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore eng/checks (locked)
+        run: dotnet restore eng/checks --locked-mode
+
+      - name: Build eng/checks
+        run: dotnet build eng/checks -c Release --no-restore
+
+      - name: Packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/release
+
+      - name: Bundles
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bundles
+          path: artifacts/bundles
+
+      - name: Check of origin of the built packages (eng/checks release-gates)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: dotnet run --project eng/checks -c Release --no-build -- release-gates "$TAG" --provenance artifacts/release
+
+      - name: Draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          arguments=(--repo "$GITHUB_REPOSITORY" --title "$TAG" --notes "The changes of this version are in CHANGELOG.md." --draft --verify-tag)
+          if [[ "$TAG" == *-* ]]; then
+            arguments+=(--prerelease)
+          fi
+          gh release create "$TAG" artifacts/release/*.nupkg artifacts/release/*.snupkg artifacts/bundles/*.intoto.jsonl "${arguments[@]}"
+
+  # Steps 5 and 6. The environment release waits for the approval of the maintainer. Before a release of a new minor or major version after
+  # 1.0 the approval comes after the speed measurement of the benchmark rig on the packages of the draft Release. Then the packages go to
+  # nuget.org with the key that NuGet/login makes of the OIDC token of the job (it lives one hour): there is no key in the repository.
+  # NUGET_USER, the profile of nuget.org that holds the policy of Trusted Publishing, is a variable of the environment, not a secret.
+  publish:
+    name: Publish on nuget.org
+    needs: draft
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: artifacts/release
+
+      - name: Key of nuget.org (Trusted Publishing)
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      # The .snupkg next to each .nupkg is pushed by the same command. --skip-duplicate makes a run again safe when one of the two packages
+      # was pushed and the other was not.
+      - name: Push
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "artifacts/release/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_API_KEY" --skip-duplicate
+
+  # Step 7. nuget.org adds its signature (.signature.p7s) to a package, so the downloaded file is not the file that step 3 attested. The
+  # job downloads the packages, checks that their content is the content of the packages of the build (the artifact packages, attested in
+  # step 3 and checked in step 4), attests the downloaded files as they are, and runs the command of the README on them. In the repeat
+  # run on a tag it runs alone.
+  verify:
+    name: Verify the published packages
+    needs: publish
+    if: ${{ !cancelled() && (needs.publish.result == 'success' || (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/v'))) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore eng/checks (locked)
+        run: dotnet restore eng/checks --locked-mode
+
+      - name: Build eng/checks
+        run: dotnet build eng/checks -c Release --no-restore
+
+      # The artifact packages belongs to the run of the push of the tag. In the repeat run (a dispatch on the tag) the job takes the run
+      # of the push on the same commit; in the run of the push it is this run.
+      - name: Run that built the packages
+        id: built
+        env:
+          EVENT: ${{ github.event_name }}
+          COMMIT: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if [ "$EVENT" != "workflow_dispatch" ]; then
+            echo "run-id=$RUN_ID" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          found=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow release.yml --event push --branch "$TAG" --limit 20 \
+            --json databaseId,headSha --jq "[.[] | select(.headSha == \"$COMMIT\")][0].databaseId // empty")
+          if [ -z "$found" ]; then
+            echo "No run of the push of the tag $TAG on the commit $COMMIT: the packages of the build cannot be found."
+            exit 1
+          fi
+          echo "run-id=$found" >> "$GITHUB_OUTPUT"
+
+      # The packages of the build, attested in step 3: what the downloaded packages are compared with.
+      - name: Packages of the build
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: built
+          run-id: ${{ steps.built.outputs.run-id }}
+          github-token: ${{ github.token }}
+
+      # Sub-step 1: both packages of the version from nuget.org, as it gives them; the command waits until it gives them. Then it compares
+      # the content of each with the package of the build of the same name: the guard of the second attestation, which is issued only for a
+      # file whose content is the content that the build attested.
+      - name: Download the packages and compare them with the build
+        run: dotnet run --project eng/checks -c Release --no-build -- release-gates "$TAG" --nuget nuget --same-content-as built
+
+      # Sub-step 2: the second attestation of origin, for the downloaded files as they are.
+      - name: Second attestation of origin
+        id: second
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: nuget/*.nupkg
+
+      - name: Bundle for the Release
+        env:
+          SECOND_BUNDLE: ${{ steps.second.outputs.bundle-path }}
+        run: |
+          set -eu
+          mkdir -p bundles
+          cp "$SECOND_BUNDLE" bundles/provenance.nuget.intoto.jsonl
+
+      - name: Bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bundles-nuget
+          path: bundles/*.intoto.jsonl
+          if-no-files-found: error
+
+      # Sub-step 3: the command of the README on the downloaded files as they are. The new attestation is visible after some seconds;
+      # the command asks again.
+      - name: Check of origin of the downloaded packages (the command of the README)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: dotnet run --project eng/checks -c Release --no-build -- release-gates "$TAG" --provenance nuget
+
+  # Step 8. The bundles of the second attestation go to the draft Release and the Release is published. After it the assets and the tag do
+  # not change. --clobber makes a repeat run safe after a run that ended between the two commands.
+  release:
+    name: Publish the Release
+    needs: verify
+    if: ${{ !cancelled() && needs.verify.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bundles-nuget
+          path: bundles
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release upload "$TAG" bundles/*.intoto.jsonl --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false

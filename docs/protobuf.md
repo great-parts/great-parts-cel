@@ -169,9 +169,9 @@ A cost limit stops an evaluation before the work that the next charge pays for, 
 
 ## The set `protos`
 
-The set `protos` version 0 adds the macros `proto.getExt(m, pkg.name)` and `proto.hasExt(m, pkg.name)` for the extensions of proto2, which a type source describes as fields of their message:
+The set `protos` version 0 adds the macros `proto.getExt(m, pkg.name)` and `proto.hasExt(m, pkg.name)` for the extensions of proto2, which a type source describes as fields of their message. The fragment below uses the classes and the extension object that `protoc` generates for your own proto2 file (`MessagesReflection`, `Message` and `MessagesExtensions.Priority` stand for them), so it is shown as text and is not compiled with the documentation:
 
-```csharp skip: the example needs the classes and the extension object that protoc generates for a proto2 file
+```text
 CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
     .AddTypes(new CelProtobufTypesBuilder("messages")
         .AddFile(MessagesReflection.Descriptor)

@@ -52,7 +52,7 @@ Errors are `InvalidArgument` (3008) at the call, `invalid argument to '{function
 | `list_reverse` | the elements in reverse order | — |
 | `list_distinct` | the first of each group of equal elements, in the order of first appearance | — |
 
-`<T>` and `<U>` are the eight types `int`, `uint`, `double`, `bool`, `google.protobuf.Duration`, `google.protobuf.Timestamp`, `string`, `bytes`. The overloads of `duration` and `timestamp` need the time types of the part that brings them.
+`<T>` and `<U>` are the eight types `int`, `uint`, `double`, `bool`, `google.protobuf.Duration`, `google.protobuf.Timestamp`, `string`, `bytes`.
 
 **`flatten`** walks the list with an explicit stack in an array, not by recursion: the depth of a list nested in the application data is not bounded by the expression. The size of every list is charged before its elements are viewed.
 
@@ -91,7 +91,7 @@ A NaN among keys is no error; the comparison `less(a, b)` is false when either i
 | `duration`, `timestamp` | the text of `string()` in double quotes: `"1.5s"`, `"3600s"`, `"2020-01-01T00:00:00.123Z"` |
 | `list` | `[` the elements separated by `,` `]`, with no spaces |
 | `map` | `{` the entries as `"key":value` separated by `,` `}`, ordered by the key by code points. A key that is not a string is an error, `unsupported type conversion from 'int' to string` |
-| `type`, abstract values, objects of the application | an error, `unsupported type conversion`: the kinds of a part that has its own JSON — messages, `optional`, `decimal` — are added by that part |
+| `type`, abstract values, `optional`, `decimal`, objects of the application | an error, `unsupported type conversion` |
 
 The writer appends to a `ResultBuilder` and charges as it grows ([extension-strings](extension-strings.md#conventions)); every node of the value gives at least one character, so the walk is inside the charge. It descends by recursion with `RuntimeHelpers.TryEnsureSufficientExecutionStack()` before each level, `false` being `InsufficientStack` (9000) at the call. A map or list over data of the application is read by its enumeration, and an error element is the error of the call. The pairs of a map are written, and charged, in the order of its enumeration and then written again in the order of the keys into room that is already charged, with no second charge; the text of a map is in memory twice while it is arranged.
 

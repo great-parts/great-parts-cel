@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Great.Parts.Cel.Values;
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Values;
 
-// ValueTypeNames: every kind of value has the name of its CEL type, as cel-go writes it in messages, or is
-// not implemented yet.
+// ValueTypeNames: every kind of value has the name of its CEL type, as cel-go writes it in messages, except
+// the kinds Object and Abstract, which carry the type of their value and are named by ValueTypeRules.NameOf.
 public sealed class ValueTypeNamesTests
 {
     private static readonly Dictionary<CelValueKind, string> Names = new()
@@ -42,7 +43,7 @@ public sealed class ValueTypeNamesTests
         }
         else
         {
-            Assert.Throws<NotImplementedException>(() => ValueTypeNames.Of(kind));
+            Assert.Throws<UnreachableException>(() => ValueTypeNames.Of(kind));
         }
     }
 }

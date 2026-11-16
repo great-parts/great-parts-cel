@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
@@ -275,7 +276,7 @@ internal static partial class ConversionRules
                 return FromUnsignedEnum(Unsafe.As<T, ulong>(ref value));
             default:
                 // C# declares enumerations only on the integral types above.
-                throw new NotImplementedException();
+                throw new UnreachableException("C# declares enumerations only on the integral types above.");
         }
     }
 
