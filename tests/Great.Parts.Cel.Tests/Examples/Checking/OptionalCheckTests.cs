@@ -1,5 +1,4 @@
 using System;
-using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Tests.Examples.Library;
 using Great.Parts.Cel.Tests.Examples.Values;
 using Great.Parts.Cel.Types;
@@ -159,13 +158,7 @@ public sealed class OptionalCheckTests
     [Fact]
     public void ArgumentThatBindsTheVariable_IsCheckedBeforeTheReceiverThatReadsIt()
     {
-        const string expression = "d.optMap(x, x.?f.or(m[?x]))";
-
-        CelError error = Assert.Single(environment.Compile<CelValue>(expression).Errors);
-
-        Assert.Equal(
-            (CelErrorCode.NoSuchField, expression.IndexOf(".?f", StringComparison.Ordinal), "undefined field 'f' in type 'string'"),
-            (error.Code, error.Location.Offset, error.Message));
+        AssertNoSuchField("d.optMap(x, x.?f.or(m[?x]))", ".?f", "undefined field 'f' in type 'string'");
     }
 
     // The condition binds the variable of optFlatMap over a dyn to uint, the first overload of > that fits, and v.?a selects from a uint:
@@ -174,12 +167,16 @@ public sealed class OptionalCheckTests
     [Fact]
     public void SelectionFromTheVariableThatAnOrderingBoundToUInt_IsNoSuchField()
     {
-        const string expression = "d.optFlatMap(v, v > 1u ? v.?a : optional.of(null))";
+        AssertNoSuchField("d.optFlatMap(v, v > 1u ? v.?a : optional.of(null))", ".?a", "undefined field 'a' in type 'uint'");
+    }
 
-        CelError error = Assert.Single(environment.Compile<CelValue>(expression).Errors);
+    // The one error of the expression is NoSuchField at the selection that starts with the text.
+    private void AssertNoSuchField(string expression, string selection, string message)
+    {
+        var error = Assert.Single(environment.Compile<CelValue>(expression).Errors);
 
         Assert.Equal(
-            (CelErrorCode.NoSuchField, expression.IndexOf(".?a", StringComparison.Ordinal), "undefined field 'a' in type 'uint'"),
+            (Great.Parts.Cel.Diagnostics.CelErrorCode.NoSuchField, expression.IndexOf(selection, StringComparison.Ordinal), message),
             (error.Code, error.Location.Offset, error.Message));
     }
 }
