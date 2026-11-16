@@ -69,6 +69,24 @@ At that point the packages are on nuget.org and the Release is still a draft. A 
 
 A tag is never moved back to make the first run happen again (it is already used by the packages).
 
+## Package metadata
+
+The metadata of both packages comes from MSBuild properties; the values shared by the packages are in `Directory.Build.props`, the description of each package in its project under `src/`. `eng/checks packages` checks the result ([eng-checks-artifacts.md](eng-checks-artifacts.md#packages), `ENG208`).
+
+| Property | Value | Where |
+| :- | :- | :- |
+| `Authors` | `The Great.Parts Authors` | `Directory.Build.props` |
+| `Description` | `Great.Parts.Cel`: "Common Expression Language (CEL) for .NET 10 and .NET 11: compile and evaluate CEL expressions, with a source generator for typed objects and Native AOT support." `Great.Parts.Cel.Protobuf`: "Protocol Buffers support for Great.Parts.Cel: use protobuf messages and well-known types as values in CEL expressions." | the project of the package |
+| `PackageProjectUrl`, `RepositoryUrl` | `https://github.com/great-parts/great-parts-cel` | `Directory.Build.props` |
+| `RepositoryType` | `git` | `Directory.Build.props` |
+| `PublishRepositoryUrl` | `true`: the URL is written to the `.nuspec` and to the source link of the symbols | `Directory.Build.props` |
+| `PackageTags` | `cel;common-expression-language;expression;expressions;rules;validation;dotnet;nativeaot;source-generator`; `Great.Parts.Cel.Protobuf` adds `protobuf` | `Directory.Build.props`, the Protobuf project |
+| `IncludeSymbols`, `SymbolPackageFormat` | `true`, `snupkg` | `Directory.Build.props` |
+| `PackageLicenseExpression`, `Copyright`, `Version` | see `Directory.Build.props` | `Directory.Build.props` |
+
+- `dotnet pack` writes a `.snupkg` next to every `.nupkg`: the portable PDBs of both target frameworks, with the source link to the repository. The `.nupkg` has no PDB. `release.yml` publishes the `.snupkg` with the same `dotnet nuget push`.
+- The README and the icon of the package are not part of the metadata before 1.0.
+
 ## `eng/checks release-gates`
 
 ```text

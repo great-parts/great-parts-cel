@@ -49,6 +49,7 @@ internal sealed class PackagesCommand : ICheckCommand
         List<Finding> findings = [.. lists.SelectMany(list => list.Problems)];
         foreach (PackageContent package in packages)
         {
+            findings.AddRange(PackageMetadata.Check(package, Path.Combine(context.Root, package.Path)));
             PackageList? list = lists.Find(candidate => string.Equals(candidate.Id, package.Id, StringComparison.OrdinalIgnoreCase));
             if (list is null)
             {

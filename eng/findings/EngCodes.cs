@@ -36,6 +36,9 @@ public static class EngCodes
     /// <summary>The license expression of the package is missing or differs from the package list.</summary>
     public const string Eng207 = "ENG207";
 
+    /// <summary>The package has the default description or authors of the SDK, no repository url, or no <c>.snupkg</c> next to it.</summary>
+    public const string Eng208 = "ENG208";
+
     /// <summary>The output of a C# example of the documentation differs from the output shown next to it.</summary>
     public const string Eng301 = "ENG301";
 

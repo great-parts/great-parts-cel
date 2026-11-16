@@ -19,14 +19,26 @@ internal sealed record PackageGroup(string Target, IReadOnlyList<string> Depende
 /// </summary>
 internal sealed class PackageContent
 {
-    private PackageContent(string path, string id, IReadOnlyList<string> entries, IReadOnlyList<PackageGroup> groups, string? license)
+    private PackageContent(string path, string id, IReadOnlyList<string> entries, IReadOnlyList<PackageGroup> groups, string? license, XElement metadata)
     {
         Path = path;
         Id = id;
         Entries = entries;
         Groups = groups;
         License = license;
+        Authors = TextOf(metadata, "authors");
+        Description = TextOf(metadata, "description");
+        RepositoryUrl = metadata.Elements().FirstOrDefault(element => element.Name.LocalName == "repository")?.Attribute("url")?.Value.Trim() ?? string.Empty;
     }
+
+    /// <summary>The text of <c>&lt;authors&gt;</c>; empty when the <c>.nuspec</c> has none.</summary>
+    internal string Authors { get; }
+
+    /// <summary>The text of <c>&lt;description&gt;</c>; empty when the <c>.nuspec</c> has none.</summary>
+    internal string Description { get; }
+
+    /// <summary>The <c>url</c> of <c>&lt;repository&gt;</c>; empty when the <c>.nuspec</c> has none.</summary>
+    internal string RepositoryUrl { get; }
 
     /// <summary>The path of the <c>.nupkg</c>, relative to the repository root, with <c>/</c>.</summary>
     internal string Path { get; }
@@ -78,7 +90,7 @@ internal sealed class PackageContent
                     .Where(name => !name.EndsWith('/') && !IsFormatEntry(name))
                     .Order(StringComparer.Ordinal),
             ];
-            return new PackageContent(path, id, entries, ReadGroups(metadata), ReadLicense(metadata));
+            return new PackageContent(path, id, entries, ReadGroups(metadata), ReadLicense(metadata), metadata);
         }
         catch (Exception exception) when (exception is InvalidDataException or XmlException or IOException)
         {
@@ -122,6 +134,9 @@ internal sealed class PackageContent
     private static IEnumerable<string> IdsOf(XElement parent) => parent.Elements()
         .Where(element => element.Name.LocalName == "dependency")
         .Select(element => element.Attribute("id")?.Value.Trim() ?? string.Empty);
+
+    private static string TextOf(XElement metadata, string name) =>
+        metadata.Elements().FirstOrDefault(element => element.Name.LocalName == name)?.Value.Trim() ?? string.Empty;
 
     private static string? ReadLicense(XElement metadata)
     {

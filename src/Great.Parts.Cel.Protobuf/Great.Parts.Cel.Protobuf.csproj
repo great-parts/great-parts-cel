@@ -3,6 +3,8 @@
   <PropertyGroup>
     <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <RootNamespace>Great.Parts.Cel.Protobuf</RootNamespace>
+    <Description>Protocol Buffers support for Great.Parts.Cel: use protobuf messages and well-known types as values in CEL expressions.</Description>
+    <PackageTags>$(PackageTags);protobuf</PackageTags>
     <!-- Trimming and Native AOT analyzers: IL2xxx and IL3xxx are build errors. -->
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>

@@ -46,7 +46,7 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `suppressions` | repository files | `ENG101`, `ENG102` | `eng/test`; CI, cell JIT Linux `net11.0` | [eng-checks-source.md](eng-checks-source.md) |
 | `duplicates` | C# files, `eng/ratchet.json` | `ENG601` | the same | [eng-checks-source.md](eng-checks-source.md) |
 | `ratchet` | `eng/ratchet.json`, `CodeMetricsConfig.txt`, results of the two commands above | `ENG600`, `ENG602`–`ENG605` | the same | [eng-checks-source.md](eng-checks-source.md) |
-| `packages` | result of `dotnet pack`, `eng/packages/*.txt` | `ENG200`–`ENG207` | the same | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
+| `packages` | result of `dotnet pack`, `eng/packages/*.txt` | `ENG200`–`ENG208` | the same | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `signoff` | commits of a range | `ENG701` | CI: push to `main`, pull request of an outside contributor | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `test-count` | two test reports | `ENG810`, `ENG811` | `eng/test` for Native AOT; CI, Native AOT cells | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `mutation` | mutation report, its configuration file, changed files from git when `since` is enabled | `ENG501`–`ENG504` | `eng/mutate` | [eng-mutate.md](eng-mutate.md) |

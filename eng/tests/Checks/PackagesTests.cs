@@ -287,6 +287,40 @@ public sealed class PackagesTests
     }
 
     [Fact]
+    public void Eng208_DefaultDescriptionAuthorsNoRepositoryAndNoSymbols_AreReportedAtThePathOfThePackage()
+    {
+        const string PackagePath = "artifacts/packages/Great.Parts.Cel.0.0.0-dev.nupkg";
+        using TempDirectory root = Repository(CelList);
+        Pack(
+            root,
+            "Great.Parts.Cel",
+            CelFiles,
+            Groups(("net10.0", []), ("net11.0", [])),
+            metadata: new Metadata(Authors: "Great.Parts.Cel", Description: "Package Description", RepositoryUrl: null),
+            symbols: false);
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng208, PackagePath, 1, "the description is missing or is the default of the SDK (Great.Parts.Cel)"),
+            Error(EngCodes.Eng208, PackagePath, 1, "the authors are missing or are the default of the SDK (Great.Parts.Cel)"),
+            Error(EngCodes.Eng208, PackagePath, 1, "the package has no repository url (Great.Parts.Cel)"),
+            Error(EngCodes.Eng208, PackagePath, 1, "the .snupkg next to the package is missing (Great.Parts.Cel)"));
+    }
+
+    [Fact]
+    public void Eng208_MissingDescriptionAndAuthors_AreReported()
+    {
+        const string PackagePath = "artifacts/packages/Great.Parts.Cel.0.0.0-dev.nupkg";
+        using TempDirectory root = Repository(CelList);
+        Pack(root, "Great.Parts.Cel", CelFiles, Groups(("net10.0", []), ("net11.0", [])), metadata: new Metadata(Authors: null, Description: null));
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng208, PackagePath, 1, "the description is missing or is the default of the SDK (Great.Parts.Cel)"),
+            Error(EngCodes.Eng208, PackagePath, 1, "the authors are missing or are the default of the SDK (Great.Parts.Cel)"));
+    }
+
+    [Fact]
     public void EveryLineOfTheOutput_MatchesTheFindingPattern()
     {
         using TempDirectory root = Repository(CelList, ProtobufList);
@@ -408,20 +442,32 @@ public sealed class PackagesTests
         (string Target, string[] Dependencies)[] groups,
         string? license = "Apache-2.0",
         string licenseType = "expression",
-        string version = "0.0.0-dev")
+        string version = "0.0.0-dev",
+        Metadata? metadata = null,
+        bool symbols = true)
     {
         string path = Path.Combine(root.Path, "artifacts", "packages", $"{id}.{version}.nupkg");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        using ZipArchive archive = ZipFile.Open(path, ZipArchiveMode.Create);
-        AddEntry(archive, "[Content_Types].xml", "<Types />");
-        AddEntry(archive, "_rels/.rels", "<Relationships />");
-        AddEntry(archive, "package/services/metadata/core-properties/id.psmdcp", "<coreProperties />");
-        AddEntry(archive, $"{id}.nuspec", Nuspec(id, version, groups, license, licenseType));
-        foreach (string file in files)
+        using (ZipArchive archive = ZipFile.Open(path, ZipArchiveMode.Create))
         {
-            AddEntry(archive, file, file.EndsWith('/') ? string.Empty : "content");
+            AddEntry(archive, "[Content_Types].xml", "<Types />");
+            AddEntry(archive, "_rels/.rels", "<Relationships />");
+            AddEntry(archive, "package/services/metadata/core-properties/id.psmdcp", "<coreProperties />");
+            AddEntry(archive, $"{id}.nuspec", Nuspec(id, version, groups, license, licenseType, metadata ?? new Metadata()));
+            foreach (string file in files)
+            {
+                AddEntry(archive, file, file.EndsWith('/') ? string.Empty : "content");
+            }
+        }
+
+        if (symbols)
+        {
+            File.WriteAllText(Path.ChangeExtension(path, ".snupkg"), "symbols");
         }
     }
+
+    // The metadata of a .nuspec; the defaults are the values of a package that passes the check.
+    private sealed record Metadata(string? Authors = "The Great.Parts Authors", string? Description = "A description.", string? RepositoryUrl = "https://example.test/repo");
 
     private static void AddEntry(ZipArchive archive, string name, string content)
     {
@@ -430,11 +476,26 @@ public sealed class PackagesTests
         writer.Write(content);
     }
 
-    private static string Nuspec(string id, string version, (string Target, string[] Dependencies)[] groups, string? license, string licenseType)
+    private static string Nuspec(string id, string version, (string Target, string[] Dependencies)[] groups, string? license, string licenseType, Metadata metadata)
     {
         StringBuilder text = new();
         text.Append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd\">\n<metadata>\n");
         text.Append(CultureInfo.InvariantCulture, $"<id>{id}</id>\n<version>{version}</version>\n");
+        if (metadata.Authors is not null)
+        {
+            text.Append(CultureInfo.InvariantCulture, $"<authors>{metadata.Authors}</authors>\n");
+        }
+
+        if (metadata.Description is not null)
+        {
+            text.Append(CultureInfo.InvariantCulture, $"<description>{metadata.Description}</description>\n");
+        }
+
+        if (metadata.RepositoryUrl is not null)
+        {
+            text.Append(CultureInfo.InvariantCulture, $"<repository type=\"git\" url=\"{metadata.RepositoryUrl}\" />\n");
+        }
+
         if (license is not null)
         {
             text.Append(CultureInfo.InvariantCulture, $"<license type=\"{licenseType}\">{license}</license>\n");

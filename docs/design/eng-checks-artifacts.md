@@ -22,9 +22,11 @@ Checks the packages of the solution against the lists `eng/packages/<package id>
 | a list without a package | `ENG206` | the first line of the list |
 | no license expression in the `.nuspec`, or another expression | `ENG207` | the `license` line |
 | a list without a `license` line | `ENG207` | the first line of the list |
+| the `.nuspec` has no `description` or the SDK default `Package Description`; no `authors` or the package ID as the authors (the SDK default); no `repository` `url`; no `.snupkg` next to the `.nupkg` | `ENG208` | the path of the `.nupkg`, `(1,1)`; one finding per problem |
 
 - Entries of the package format — `[Content_Types].xml`, `_rels/`, `package/` and `<id>.nuspec` — are not compared as files.
 - From the `.nuspec` only the dependency groups and the license expression (`<license type="expression">`) are compared. Groups are matched by the target framework as the `.nuspec` writes it. Dependencies of the `.nuspec` outside any `<group>` form one group without a target; a group line of a list always names a target, so such dependencies are always an `ENG201`, and the message calls the group `without a target`.
+- The metadata of a package is described in [eng-release.md](eng-release.md#package-metadata); the symbol package is read only by its presence: `<name>.snupkg` next to `<name>.nupkg`.
 - A list and a package are paired by the package ID: the name of the list without `.txt` and the `<id>` of the `.nuspec`, compared without regard to case, as NuGet does.
 - A repeated `file` line, or a package ID repeated within one group line, is not an error: the list describes sets, and the comparison in both directions still finds every difference.
 - A list with an `ENG200` is not compared with its package: the line that did not parse would show again as differences. It still pairs with its package, so `ENG205` and `ENG206` work as for any other list.

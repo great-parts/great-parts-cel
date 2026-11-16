@@ -25,6 +25,17 @@
     <Copyright>Copyright 2026 The Great.Parts Authors</Copyright>
     <!-- Version of a local build; release.yml passes the version of the tag with -p:Version. Both packages have one version. -->
     <Version>0.0.0-dev</Version>
+    <!-- Package metadata shared by both packages; Description is set in each project (docs/design/eng-release.md, "Package metadata"). -->
+    <Authors>The Great.Parts Authors</Authors>
+    <PackageProjectUrl>https://github.com/great-parts/great-parts-cel</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/great-parts/great-parts-cel</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <!-- The repository URL goes to the package metadata and to the source link of the symbols. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageTags>cel;common-expression-language;expression;expressions;rules;validation;dotnet;nativeaot;source-generator</PackageTags>
+    <!-- A symbol package .snupkg is written next to every .nupkg. -->
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
 
   <!-- Thresholds of the code metrics rules (CA1502 and others). -->

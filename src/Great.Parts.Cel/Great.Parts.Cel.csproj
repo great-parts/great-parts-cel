@@ -3,6 +3,7 @@
   <PropertyGroup>
     <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
     <RootNamespace>Great.Parts.Cel</RootNamespace>
+    <Description>Common Expression Language (CEL) for .NET 10 and .NET 11: compile and evaluate CEL expressions, with a source generator for typed objects and Native AOT support.</Description>
     <!-- Trimming and Native AOT analyzers: IL2xxx and IL3xxx are build errors. -->
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
