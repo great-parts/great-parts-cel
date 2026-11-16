@@ -161,7 +161,8 @@ public sealed class CheckErrorTests
     }
 
     // An exception inside the checker, here from a call whose argument array is not initialized, becomes
-    // InternalError at that call, after the errors found before it, with the exception kept.
+    // InternalError at that call, after the errors found before it, with the exception kept. The arguments of a call are checked
+    // before its receiver, as cel-go checks them, so the exception comes first and the undeclared receiver is not reached.
     [Fact]
     public static void ExceptionInsideTheChecker_IsInternalErrorAtTheNodeBeingChecked()
     {
@@ -176,9 +177,9 @@ public sealed class CheckErrorTests
 
         Assert.Null(result.Expression);
         Assert.Equal(
-            [(CelErrorCode.UndeclaredReference, 1), (CelErrorCode.UndeclaredReference, 11), (CelErrorCode.InternalError, 13)],
+            [(CelErrorCode.UndeclaredReference, 1), (CelErrorCode.InternalError, 13)],
             result.Errors.Select(error => (error.Code, error.Location.Offset)));
-        CelError error = result.Errors[2];
+        CelError error = result.Errors[1];
         Assert.Equal(CelErrorStage.Check, error.Stage);
         Assert.Equal("internal error during type checking; the original exception is in CelError.Exception", error.Message);
         Assert.Equal((2, 4), (error.Location.Line, error.Location.Column));
