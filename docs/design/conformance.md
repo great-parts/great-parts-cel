@@ -170,7 +170,7 @@ A failure lists every failed case with its name, the place of its `test` token a
 
 ## Run on master
 
-`.github/workflows/conformance-master.yml` runs the cel-spec suite on the last commit of the master branch of `google/cel-spec`, so a change in the test data shows up before the pinned commit moves. It runs every night (02:47 UTC) and by hand, on `main` only, in one cell: JIT, `linux-x64`, `net11.0`, on `ubuntu-latest`.
+`.github/workflows/conformance-master.yml` runs the cel-spec suite on the last commit of the master branch of `cel-expr/cel-spec`, so a change in the test data shows up before the pinned commit moves. It runs every night (02:47 UTC) and by hand, on `main` only, in one cell: JIT, `linux-x64`, `net11.0`, on `ubuntu-latest`.
 
 1. The workflow clones the last commit of master without its history and replaces the data of `tests/cel-spec/` in its workspace, file for file as [Data and build](#data-and-build) lists it: `tests/simple/testdata`, the `.proto` files, `doc/langdef.md`, `LICENSE`, and `COMMIT`, which then holds the full SHA of the master commit.
 2. It replaces `CelSpec/skips.md` with its table without entries. The skip list belongs to the pinned commit; so a case of master that fails is `ENG801`, and no entry gives `ENG802` or `ENG804`. The regression corpus and its list are not run.

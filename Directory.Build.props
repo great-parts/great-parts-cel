@@ -32,7 +32,7 @@
     <RepositoryType>git</RepositoryType>
     <!-- The repository URL goes to the package metadata and to the source link of the symbols. -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
-    <PackageTags>cel;common-expression-language;expression;expressions;rules;validation;dotnet;nativeaot;source-generator</PackageTags>
+    <PackageTags>cel;common-expression-language;expression;expressions;expression-evaluator;rules;rules-engine;cel-spec;csharp;validation;dotnet;nativeaot;source-generator</PackageTags>
     <!-- A symbol package .snupkg is written next to every .nupkg. -->
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>

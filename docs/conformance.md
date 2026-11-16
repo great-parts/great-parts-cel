@@ -1,6 +1,6 @@
 # Conformance
 
-This page says how much of the CEL specification the library passes. The measure is the conformance suite of [cel-spec](https://github.com/google/cel-spec): the cases of `tests/simple/testdata` at a pinned commit. Each case is an expression with its variables and the result or the error it must give. The library runs every case on every platform it supports, and a case counts as passed by the rule of the conformance runner of cel-go.
+This page says how much of the CEL specification the library passes. The measure is the conformance suite of [cel-spec](https://github.com/cel-expr/cel-spec): the cases of `tests/simple/testdata` at a pinned commit. Each case is an expression with its variables and the result or the error it must give. The library runs every case on every platform it supports, and a case counts as passed by the rule of the conformance runner of cel-go.
 
 ## Result
 

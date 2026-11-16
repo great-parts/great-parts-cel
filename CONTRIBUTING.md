@@ -26,7 +26,7 @@ docker compose -f eng/compose.yaml run --rm docs
 
 This is `eng/docs`. It compiles and runs every C# example of `README.md`, `docs/` and the XML documentation and compares its output with the output the example shows, checks that the [error codes page](docs/error-codes.md) matches `CelErrorCode`, and checks the relative links, files and anchors. External links are checked only in CI. The list of paths that change the result of `eng/docs` is in [eng-docs.md](docs/design/eng-docs.md#triggers).
 
-Two more checks: the `min-sdk` check, which runs in CI and by hand, which shows that the source generator of the package loads into the oldest supported .NET SDK (`docker compose -f eng/compose.yaml run --rm min-sdk`, after `test`), and the control set of mutation testing, which runs before release 1.0 and by hand (`docker compose -f eng/compose.yaml run --rm mutate eng/stryker-control.json`). See [eng-test.md](docs/design/eng-test.md#min-sdk) and [eng-mutate.md](docs/design/eng-mutate.md#control-set).
+Two more checks: the `min-sdk` check, which runs in CI and by hand, which shows that the source generator of the package loads into the oldest supported .NET SDK (`docker compose -f eng/compose.yaml run --rm min-sdk`, after `test`), and the control set of mutation testing, which CI does not run: it is started by hand, on your machine or with the workflow [`mutate.yml`](.github/workflows/mutate.yml) (`docker compose -f eng/compose.yaml run --rm mutate eng/stryker-control.json`). See [eng-test.md](docs/design/eng-test.md#min-sdk) and [eng-mutate.md](docs/design/eng-mutate.md#control-set).
 
 From a linked worktree (`git worktree add`), both commands need a second Compose file; see [Linked worktrees](docs/design/eng-test.md#linked-worktrees).
 
@@ -50,7 +50,6 @@ The design of the library and of the checks is in [docs/design](docs/design/); t
 - the repository checks and the tests of `eng/`, once, in the cell for Ubuntu and `net11.0`;
 - the documentation: the examples, the error codes page, and the links, both relative and external;
 - `min-sdk`: the source generator of the package loads into the oldest supported .NET SDK;
-- the control set of mutation testing: Stryker.NET on the code of `eng/checks`, every mutant of which the tests must detect;
 - `Signed-off-by` in every commit of the pull request or of the push to `main`.
 
 A second workflow, [`.github/workflows/difftest-main.yml`](.github/workflows/difftest-main.yml), runs the differential run against cel-go (`eng/difftest`) on every push to `main`, and a third runs it every night with a longer budget. Do not run it by hand before you push; to reproduce a case that the summary of a run names, check out its commit and run `docker compose -f eng/compose.yaml run --rm difftest --seed <seed> --case <n>`, see [eng-difftest.md](docs/design/eng-difftest.md#reproducing-a-case).
@@ -73,6 +72,6 @@ Pull requests are not merged with the button on GitHub. The maintainer merges th
 
 ## How the library is developed
 
-Great.Parts.Cel is designed by its maintainer, implemented by a team of AI agents under the maintainer's direction, and verified by cel-spec and CI.
+The maintainer sets the requirements and makes the design decisions; AI agents write the design documents, the code and the tests under his direction; cel-spec and CI verify every change.
 
 A change made by the agents is checked by CI, the same checks that apply to a change of any contributor; a change of the core of the library is also checked against cel-go with `eng/difftest`, which CI runs on every push to `main`. It reaches `main` as one commit under the name of the maintainer, signed off by the maintainer.

@@ -2,7 +2,7 @@
 
 CEL (Common Expression Language) for .NET / C#.
 
-**Status:** release 1.0. From this version the public API follows [Semantic Versioning](docs/versioning.md): a breaking change comes only in a major version.
+**Status:** the source in this repository is version 1.0.0. From this version the public API follows [Semantic Versioning](docs/versioning.md): a breaking change comes only in a major version.
 
 [CEL](https://cel.dev/) is an expression language that is not Turing complete: an expression reads only the data that the application passes to it. An application compiles an expression once and evaluates it on different data many times. Great.Parts.Cel does both in a .NET application, under JIT and under Native AOT.
 
@@ -64,18 +64,17 @@ The environment declares what an expression may use: here the standard library a
 
 ## Conformance
 
-The library runs the conformance suite of [cel-spec](https://github.com/google/cel-spec) on every platform and every target it supports. The page [Conformance](docs/conformance.md) has the share of the cases that pass with its date, the commit of cel-spec and the CI run, the skip list with the reasons, and the result of the last run on the master branch of cel-spec.
+The library runs the conformance suite of [cel-spec](https://github.com/cel-expr/cel-spec) on every platform and every target it supports. The page [Conformance](docs/conformance.md) has the share of the cases that pass with its date, the commit of cel-spec and the CI run, the skip list with the reasons, and the result of the last run on the master branch of cel-spec.
 
 ## Where the packages come from
 
-Every package of a release on nuget.org has an attestation of its origin: GitHub Actions built the package from the commit of the release, and the attestation is recorded in the public log of Sigstore. To check a package that you downloaded, use the [GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). For version 1.0.0:
+Every package of a release on nuget.org has an attestation of its origin: GitHub Actions built the package from the commit of the release, and the attestation is recorded in the public log of Sigstore. To check a package that you downloaded, use the [GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). For version 1.0.0, download the package `great.parts.cel.1.0.0.nupkg` from nuget.org, then run the check in the folder of the file:
 
 ```shell
-curl -LO https://api.nuget.org/v3-flatcontainer/great.parts.cel/1.0.0/great.parts.cel.1.0.0.nupkg
 gh attestation verify great.parts.cel.1.0.0.nupkg --repo great-parts/great-parts-cel --signer-workflow great-parts/great-parts-cel/.github/workflows/release.yml --source-ref refs/tags/v1.0.0 --deny-self-hosted-runners
 ```
 
-The second command is the check, on the file as nuget.org gives it. It succeeds only for a package that the workflow `release.yml` of this repository built on a standard GitHub runner from the tag `v1.0.0`. For another version, replace `1.0.0` and `v1.0.0`; the package `Great.Parts.Cel.Protobuf` is checked the same way.
+The command checks the file as nuget.org gives it. If `gh` asks you to sign in, run `gh auth login` (or set `GH_TOKEN`) first. The check succeeds only for a package that the workflow `release.yml` of this repository built on a standard GitHub runner from the tag `v1.0.0`. For another version, replace `1.0.0` and `v1.0.0`; the package `Great.Parts.Cel.Protobuf` is checked the same way.
 
 ## How it is checked
 
@@ -86,12 +85,14 @@ Every pull request and every push to `main` runs [CI](.github/workflows/ci.yml):
 | `net10.0` | yes | yes | yes |
 | `net11.0` | yes | yes | yes |
 
-- In every cell the tests include the conformance tests of [cel-spec](https://github.com/google/cel-spec) at a pinned commit ([tests/cel-spec/COMMIT](tests/cel-spec/COMMIT)). A case that does not pass is in the [skip list](tests/Great.Parts.Cel.Conformance/CelSpec/skips.md) with its reason; the page [Conformance](docs/conformance.md) shows the result.
+- In every cell the tests include the conformance tests of [cel-spec](https://github.com/cel-expr/cel-spec) at a pinned commit ([tests/cel-spec/COMMIT](tests/cel-spec/COMMIT)). A case that does not pass is in the [skip list](tests/Great.Parts.Cel.Conformance/CelSpec/skips.md) with its reason; the page [Conformance](docs/conformance.md) shows the result.
 - The Native AOT cells publish the test projects, run them and compare the test count with the JIT run.
 - The examples of this README and of `docs/` are compiled and run, and their output is compared with the output they show. The links are checked.
 - A differential run compares the library with cel-go on generated expressions on every push to `main`. Differences that have been analysed are listed in [known-differences.md](tests/Great.Parts.Cel.Conformance/Regression/known-differences.md).
 
 ## Documentation
+
+The documentation of a release is the content of this repository at the tag of the release, for example `v1.0.0`. The pages below and the links in the XML documentation of the packages point to the branch `main`, which can be newer than the version you use: open the page at the tag of your version.
 
 - [Standard library](docs/standard-library.md): the functions, operators, macros and type identifiers of version 1, with their errors.
 - [Extension sets](docs/extensions.md): the catalog, the versions and every function of every set.
@@ -114,7 +115,7 @@ Every pull request and every push to `main` runs [CI](.github/workflows/ci.yml):
 
 ## How it is built
 
-Great.Parts.Cel is designed by its maintainer, implemented by a team of AI agents under the maintainer's direction, and verified by cel-spec and CI. Every change passes the same checks, whoever wrote it, and every commit of `main` carries the maintainer's sign-off. [CONTRIBUTING.md](CONTRIBUTING.md#how-the-library-is-developed) says more.
+The maintainer sets the requirements and makes the design decisions; AI agents write the design documents, the code and the tests under his direction; cel-spec and CI verify every change. Every change passes the same checks, whoever wrote it, and every commit of `main` carries the maintainer's sign-off. [CONTRIBUTING.md](CONTRIBUTING.md#how-the-library-is-developed) says more.
 
 ## Maintainers
 

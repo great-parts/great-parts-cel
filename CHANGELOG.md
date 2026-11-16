@@ -34,4 +34,5 @@ The first stable release of the packages `Great.Parts.Cel` and `Great.Parts.Cel.
 
 None: 1.0.0 is the first release, so there is no earlier version whose results or errors change. From this version on, a change of the result or of the error of an expression that was valid before is listed here, in the entry of its version.
 
-[Unreleased]: https://github.com/great-parts/great-parts-cel/commits/main
+[Unreleased]: https://github.com/great-parts/great-parts-cel/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/great-parts/great-parts-cel/releases/tag/v1.0.0
