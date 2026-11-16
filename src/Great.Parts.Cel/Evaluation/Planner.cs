@@ -938,21 +938,28 @@ internal sealed class Planner
 
     private MapPlanNode VisitMap(StructNode map, int offset, out int stackSize)
     {
-        ImmutableArray<PlanNode>.Builder keys = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
-        ImmutableArray<PlanNode>.Builder values = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
+        VisitEntries(map, out ImmutableArray<PlanNode> keys, out ImmutableArray<PlanNode> values, out stackSize);
+        return new MapPlanNode(offset, keys, values);
+    }
+
+    // The keys and the values of the entries of a map literal, in the order of the text, and the room that they need: the keys and the
+    // values before an entry stay on the stack, and then its key.
+    private void VisitEntries(StructNode map, out ImmutableArray<PlanNode> keys, out ImmutableArray<PlanNode> values, out int stackSize)
+    {
+        ImmutableArray<PlanNode>.Builder keyNodes = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
+        ImmutableArray<PlanNode>.Builder valueNodes = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
         stackSize = 0;
         foreach (StructEntry entry in map.Entries)
         {
-            // The keys and the values before the entry stay on the stack, and then its key.
-            int pushed = 2 * keys.Count;
-            keys.Add(Visit(entry.Key, out int keyStackSize));
-            values.Add(Visit(entry.Value, out int valueStackSize));
+            int pushed = 2 * keyNodes.Count;
+            keyNodes.Add(Visit(entry.Key, out int keyStackSize));
+            valueNodes.Add(Visit(entry.Value, out int valueStackSize));
             stackSize = Math.Max(stackSize, Math.Max(pushed + keyStackSize, pushed + 1 + valueStackSize));
         }
 
         stackSize = Math.Max(stackSize, 2 * map.Entries.Length);
-
-        return new MapPlanNode(offset, keys.MoveToImmutable(), values.MoveToImmutable());
+        keys = keyNodes.MoveToImmutable();
+        values = valueNodes.MoveToImmutable();
     }
 
     // A list literal with optional elements, ?e: the elements that are not stored leave the stack, so the room is that of a plain list.
@@ -971,24 +978,14 @@ internal sealed class Planner
     // A map literal with optional entries, ?k: v: the room on the stack is that of a plain map.
     private OptionalMapPlanNode VisitOptionalMap(StructNode map, int offset, out int stackSize)
     {
-        ImmutableArray<PlanNode>.Builder keys = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
-        ImmutableArray<PlanNode>.Builder values = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
+        VisitEntries(map, out ImmutableArray<PlanNode> keys, out ImmutableArray<PlanNode> values, out stackSize);
         var optional = new bool[map.Entries.Length];
-        stackSize = 0;
-        for (int i = 0; i < map.Entries.Length; i++)
+        for (int i = 0; i < optional.Length; i++)
         {
-            StructEntry entry = map.Entries[i];
-            optional[i] = entry.IsOptional;
-
-            // The keys and the values of the stored entries before this one stay on the stack, and then its key.
-            int pushed = 2 * keys.Count;
-            keys.Add(Visit(entry.Key, out int keyStackSize));
-            values.Add(Visit(entry.Value, out int valueStackSize));
-            stackSize = Math.Max(stackSize, Math.Max(pushed + keyStackSize, pushed + 1 + valueStackSize));
+            optional[i] = map.Entries[i].IsOptional;
         }
 
-        stackSize = Math.Max(stackSize, 2 * map.Entries.Length);
-        return new OptionalMapPlanNode(offset, keys.MoveToImmutable(), values.MoveToImmutable(), ImmutableArray.Create(optional));
+        return new OptionalMapPlanNode(offset, keys, values, ImmutableArray.Create(optional));
     }
 
     // A message literal: the values stay on the stack while the next ones are evaluated. With type checking the description and

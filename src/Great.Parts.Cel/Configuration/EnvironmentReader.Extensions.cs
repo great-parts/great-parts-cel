@@ -10,29 +10,11 @@ namespace Great.Parts.Cel.Configuration;
 // 32-bit integer. An element whose name and version are both valid is a pending call of AddExtension.
 internal sealed partial class EnvironmentReader
 {
-    private void ReadExtensions(ref Utf8JsonReader reader)
-    {
-        if (reader.TokenType != JsonTokenType.StartArray)
-        {
-            WrongKind(ref reader, "'extensions'", "an array");
-            return;
-        }
-
-        while (Advance(ref reader) != JsonTokenType.EndArray)
-        {
-            ReadExtension(ref reader);
-        }
-    }
+    private void ReadExtensions(ref Utf8JsonReader reader) => ReadObjects(ref reader, "extensions", ReadExtension);
 
     // The name and the version are checked independently, so both can be errors.
     private void ReadExtension(ref Utf8JsonReader reader)
     {
-        if (reader.TokenType != JsonTokenType.StartObject)
-        {
-            WrongKind(ref reader, "an element of 'extensions'", "an object");
-            return;
-        }
-
         int objectIndex = TokenIndex(ref reader);
         HashSet<string> keys = new(StringComparer.Ordinal);
         string? name = null;

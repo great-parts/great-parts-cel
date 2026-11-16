@@ -221,6 +221,53 @@ internal sealed partial class EnvironmentReader
         }
     }
 
+    private delegate void ObjectReader(ref Utf8JsonReader reader);
+
+    // The elements of the array at the reader, each an object that readElement reads. A value that is not an array, and an element that
+    // is not an object, are errors at it; the reading goes on with the next element.
+    private void ReadObjects(ref Utf8JsonReader reader, string key, ObjectReader readElement)
+    {
+        if (reader.TokenType != JsonTokenType.StartArray)
+        {
+            WrongKind(ref reader, $"'{key}'", "an array");
+            return;
+        }
+
+        while (Advance(ref reader) != JsonTokenType.EndArray)
+        {
+            if (reader.TokenType == JsonTokenType.StartObject)
+            {
+                readElement(ref reader);
+            }
+            else
+            {
+                WrongKind(ref reader, $"an element of '{key}'", "an object");
+            }
+        }
+    }
+
+    // The string at the reader when it is not empty; an empty one is null with the error detail at the value.
+    private string? ReadNonEmptyString(ref Utf8JsonReader reader, string subject, string emptyDetail)
+    {
+        int index = TokenIndex(ref reader);
+        string? text = ReadString(ref reader, subject);
+        if (text?.Length == 0)
+        {
+            AddError(index, emptyDetail);
+            return null;
+        }
+
+        return text;
+    }
+
+    // The type named by the string at the reader, or null with an error at the value.
+    private CelType? ReadType(ref Utf8JsonReader reader, string subject, bool allowTypeParameters, string owner)
+    {
+        int index = TokenIndex(ref reader);
+        string? text = ReadString(ref reader, subject);
+        return text is null ? null : ResolveType(text, index, allowTypeParameters, owner);
+    }
+
     // The type of a record, or null with an error at the value.
     private CelType? ResolveType(string text, int index, bool allowTypeParameters, string subject)
     {

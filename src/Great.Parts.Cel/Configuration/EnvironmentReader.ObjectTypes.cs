@@ -33,29 +33,11 @@ internal sealed partial class EnvironmentReader
         }
     }
 
-    private void ReadObjectTypes(ref Utf8JsonReader reader)
-    {
-        if (reader.TokenType != JsonTokenType.StartArray)
-        {
-            WrongKind(ref reader, "'objectTypes'", "an array");
-            return;
-        }
-
-        while (Advance(ref reader) != JsonTokenType.EndArray)
-        {
-            ReadObjectType(ref reader);
-        }
-    }
+    private void ReadObjectTypes(ref Utf8JsonReader reader) => ReadObjects(ref reader, "objectTypes", ReadObjectType);
 
     // A type with an error in itself or in a field is not built; the reading goes on with the next element.
     private void ReadObjectType(ref Utf8JsonReader reader)
     {
-        if (reader.TokenType != JsonTokenType.StartObject)
-        {
-            WrongKind(ref reader, "an element of 'objectTypes'", "an object");
-            return;
-        }
-
         int objectIndex = TokenIndex(ref reader);
         int errorsBefore = _errors.Count;
         string? name = null;
@@ -137,7 +119,7 @@ internal sealed partial class EnvironmentReader
                     name = ReadFieldName(ref reader, names);
                     break;
                 case "type":
-                    type = ReadFieldType(ref reader);
+                    type = ReadType(ref reader, "'type'", allowTypeParameters: false, "a field");
                     break;
                 default:
                     KeyError(ref reader, key, keyIndex, isKnown: false);
@@ -184,13 +166,6 @@ internal sealed partial class EnvironmentReader
         }
 
         return name;
-    }
-
-    private CelType? ReadFieldType(ref Utf8JsonReader reader)
-    {
-        int index = TokenIndex(ref reader);
-        string? text = ReadString(ref reader, "'type'");
-        return text is null ? null : ResolveType(text, index, allowTypeParameters: false, "a field");
     }
 
     // The description of the type over a dictionary, and the byte indexes of its fields in the order of the fields.

@@ -10,28 +10,10 @@ namespace Great.Parts.Cel.Configuration;
 // The key variables: objects of name, type or type_name with params, and description.
 internal sealed partial class EnvironmentReader
 {
-    private void ReadVariables(ref Utf8JsonReader reader)
-    {
-        if (reader.TokenType != JsonTokenType.StartArray)
-        {
-            WrongKind(ref reader, "'variables'", "an array");
-            return;
-        }
-
-        while (Advance(ref reader) != JsonTokenType.EndArray)
-        {
-            ReadVariable(ref reader);
-        }
-    }
+    private void ReadVariables(ref Utf8JsonReader reader) => ReadObjects(ref reader, "variables", ReadVariable);
 
     private void ReadVariable(ref Utf8JsonReader reader)
     {
-        if (reader.TokenType != JsonTokenType.StartObject)
-        {
-            WrongKind(ref reader, "an element of 'variables'", "an object");
-            return;
-        }
-
         int objectIndex = TokenIndex(ref reader);
         Variable variable = new();
         HashSet<string> keys = new(StringComparer.Ordinal);
@@ -48,10 +30,10 @@ internal sealed partial class EnvironmentReader
         switch (key)
         {
             case "name":
-                variable.Name = ReadVariableName(ref reader);
+                variable.Name = ReadNonEmptyString(ref reader, "'name'", "the name of a variable is empty");
                 break;
             case "type":
-                variable.Type = ReadVariableType(ref reader);
+                variable.Type = ReadType(ref reader, "'type'", allowTypeParameters: false, "a variable");
                 break;
             case "type_name":
                 variable.TypeNameIndex = TokenIndex(ref reader);
@@ -97,26 +79,6 @@ internal sealed partial class EnvironmentReader
         {
             _variables.Add(new PendingVariable(new CelVariableDecl(variable.Name, variable.Type), objectIndex));
         }
-    }
-
-    private string? ReadVariableName(ref Utf8JsonReader reader)
-    {
-        int index = TokenIndex(ref reader);
-        string? name = ReadString(ref reader, "'name'");
-        if (name?.Length == 0)
-        {
-            AddError(index, "the name of a variable is empty");
-            return null;
-        }
-
-        return name;
-    }
-
-    private CelType? ReadVariableType(ref Utf8JsonReader reader)
-    {
-        int index = TokenIndex(ref reader);
-        string? text = ReadString(ref reader, "'type'");
-        return text is null ? null : ResolveType(text, index, allowTypeParameters: false, "a variable");
     }
 
     private string? ReadTypeName(ref Utf8JsonReader reader)

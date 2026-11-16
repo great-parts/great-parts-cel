@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 
 namespace Great.Parts.Cel.Library.Extensions.Strings;
 
@@ -8,32 +7,8 @@ namespace Great.Parts.Cel.Library.Extensions.Strings;
 // pass over what it is given; the cost of a call pays for that pass in the term ⌈Lₐ/10⌉.
 internal static class CodePoints
 {
-    private const ushort HighSurrogateStart = 0xD800;
-    private const ushort HighSurrogateEnd = 0xDBFF;
-
-    // The number of code points: the code units less one for each high surrogate followed by a low one. The search runs over the code
-    // units as ushort: the char overload of IndexOfAnyInRange allocates 96 bytes a call on .NET 10 and 11, the ushort overload nothing.
-    internal static int Count(ReadOnlySpan<char> text)
-    {
-        ReadOnlySpan<ushort> units = MemoryMarshal.Cast<char, ushort>(text);
-        int count = text.Length;
-        int position = 0;
-        while (true)
-        {
-            int high = units[position..].IndexOfAnyInRange(HighSurrogateStart, HighSurrogateEnd);
-            if (high < 0)
-            {
-                return count;
-            }
-
-            position += high + 1;
-            if (position < text.Length && char.IsLowSurrogate(text[position]))
-            {
-                count--;
-                position++;
-            }
-        }
-    }
+    // The number of code points: the code units less one for each high surrogate followed by a low one; the count of the function size.
+    internal static int Count(ReadOnlySpan<char> text) => Library.Strings.CountCodePoints(text);
 
     // The number of code units of the code point that starts at the offset, which is below the length: 2 for a pair, 1 otherwise.
     internal static int UnitsAt(ReadOnlySpan<char> text, int offset) =>

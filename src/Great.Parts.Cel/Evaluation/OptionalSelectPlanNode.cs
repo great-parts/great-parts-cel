@@ -71,6 +71,20 @@ internal sealed class OptionalSelectPlanNode : PlanNode
             return EvaluationErrors.FieldSelectionNotSupported(held, field, frame.Lines, offset);
         }
 
+        bool found = LookUp(frame, map, field, keyCost, isPresenceTest, offset, out CelValue result);
+        if (isPresenceTest)
+        {
+            return result;
+        }
+
+        return found ? OptionalOf(result) : CelValue.FromOptional(default);
+    }
+
+    // The lookup of a string key in a map, which both selections make: the probe is charged, then the key is read. A presence test gives
+    // its result, a Boolean or the error of a key that a JSON object repeats, and the method returns whether the key is there. Otherwise
+    // the result is the value of the key placed at the offset when the key is there, and the default value when it is not.
+    internal static bool LookUp(Frame frame, CelMap map, string field, ulong keyCost, bool isPresenceTest, int offset, out CelValue result)
+    {
         if (frame.Metered)
         {
             frame.Charge(map.ProbeUnits(keyCost));
@@ -80,12 +94,14 @@ internal sealed class OptionalSelectPlanNode : PlanNode
         if (isPresenceTest)
         {
             // The lookup of a key that a JSON object repeats is an error; any other value is not read by the test.
-            return found && value.TryGetError(out CelError? repeated) && repeated.Code == CelErrorCode.DuplicateMapKey
+            result = found && value.TryGetError(out CelError? repeated) && repeated.Code == CelErrorCode.DuplicateMapKey
                 ? EvaluationErrors.Placed(value, frame.Lines, offset)
                 : CelValue.FromBoolean(found);
+            return found;
         }
 
-        return found ? OptionalOf(EvaluationErrors.Placed(value, frame.Lines, offset)) : CelValue.FromOptional(default);
+        result = found ? EvaluationErrors.Placed(value, frame.Lines, offset) : default;
+        return found;
     }
 
     // The field of an object value by its name in the description of the value. Not set is the empty optional; a presence test is

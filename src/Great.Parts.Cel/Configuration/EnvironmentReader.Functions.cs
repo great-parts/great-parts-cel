@@ -11,28 +11,10 @@ namespace Great.Parts.Cel.Configuration;
 // A function is declared without implementations; the application registers them in code by the identifier of the overload.
 internal sealed partial class EnvironmentReader
 {
-    private void ReadFunctions(ref Utf8JsonReader reader)
-    {
-        if (reader.TokenType != JsonTokenType.StartArray)
-        {
-            WrongKind(ref reader, "'functions'", "an array");
-            return;
-        }
-
-        while (Advance(ref reader) != JsonTokenType.EndArray)
-        {
-            ReadFunction(ref reader);
-        }
-    }
+    private void ReadFunctions(ref Utf8JsonReader reader) => ReadObjects(ref reader, "functions", ReadFunction);
 
     private void ReadFunction(ref Utf8JsonReader reader)
     {
-        if (reader.TokenType != JsonTokenType.StartObject)
-        {
-            WrongKind(ref reader, "an element of 'functions'", "an object");
-            return;
-        }
-
         int objectIndex = TokenIndex(ref reader);
         string? name = null;
         PendingOverloads? overloads = null;
@@ -42,7 +24,7 @@ internal sealed partial class EnvironmentReader
             switch (key)
             {
                 case "name":
-                    name = ReadFunctionName(ref reader);
+                    name = ReadNonEmptyString(ref reader, "'name'", "the name of a function is empty");
                     break;
                 case "description":
                     ReadString(ref reader, "'description'");
@@ -75,19 +57,6 @@ internal sealed partial class EnvironmentReader
             CelFunctionDecl function = new(name, [.. overloads.Declarations]);
             _functions.Add(new PendingFunction(function, objectIndex, overloads.Indexes.ToImmutable()));
         }
-    }
-
-    private string? ReadFunctionName(ref Utf8JsonReader reader)
-    {
-        int index = TokenIndex(ref reader);
-        string? name = ReadString(ref reader, "'name'");
-        if (name?.Length == 0)
-        {
-            AddError(index, "the name of a function is empty");
-            return null;
-        }
-
-        return name;
     }
 
     // The overloads of "overloads", or null when the value is not an array.
@@ -157,16 +126,16 @@ internal sealed partial class EnvironmentReader
         switch (key)
         {
             case "id":
-                parts.Id = ReadOverloadId(ref reader);
+                parts.Id = ReadNonEmptyString(ref reader, "'id'", "the id of an overload is empty");
                 break;
             case "target":
-                parts.Target = ReadOverloadType(ref reader, "'target'");
+                parts.Target = ReadType(ref reader, "'target'", allowTypeParameters: true, "an overload");
                 break;
             case "args":
                 parts.Arguments = ReadArguments(ref reader);
                 break;
             case "return":
-                parts.Result = ReadOverloadType(ref reader, "'return'");
+                parts.Result = ReadType(ref reader, "'return'", allowTypeParameters: true, "an overload");
                 break;
             case "examples":
                 ReadExamples(ref reader);
@@ -175,27 +144,6 @@ internal sealed partial class EnvironmentReader
                 KeyError(ref reader, key, keyIndex, isKnown: false);
                 break;
         }
-    }
-
-    private string? ReadOverloadId(ref Utf8JsonReader reader)
-    {
-        int index = TokenIndex(ref reader);
-        string? id = ReadString(ref reader, "'id'");
-        if (id?.Length == 0)
-        {
-            AddError(index, "the id of an overload is empty");
-            return null;
-        }
-
-        return id;
-    }
-
-    // A type of an overload: a record that may use type parameters.
-    private CelType? ReadOverloadType(ref Utf8JsonReader reader, string subject)
-    {
-        int index = TokenIndex(ref reader);
-        string? text = ReadString(ref reader, subject);
-        return text is null ? null : ResolveType(text, index, allowTypeParameters: true, "an overload");
     }
 
     // The types of "args", or null when the value or one of its elements has an error.

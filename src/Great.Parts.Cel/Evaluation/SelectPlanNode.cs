@@ -1,4 +1,3 @@
-using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Evaluation;
@@ -66,21 +65,8 @@ internal sealed class SelectPlanNode : PlanNode
             return EvaluationErrors.FieldSelectionNotSupported(operand, _field, frame.Lines, Offset);
         }
 
-        if (frame.Metered)
-        {
-            frame.Charge(map.ProbeUnits(_keyCost));
-        }
-
-        bool found = map.TryRead(CelValue.FromString(_field), frame.Meter, readValue: !_isPresenceTest, out CelValue value);
-        if (_isPresenceTest)
-        {
-            // The lookup of a key that a JSON object repeats is an error; any other value is not read by the test.
-            return found && value.TryGetError(out CelError? repeated) && repeated.Code == CelErrorCode.DuplicateMapKey
-                ? EvaluationErrors.Placed(value, frame.Lines, Offset)
-                : CelValue.FromBoolean(found);
-        }
-
-        return found ? EvaluationErrors.Placed(value, frame.Lines, Offset) : EvaluationErrors.NoSuchField(_field, operand.Kind, frame.Lines, Offset);
+        bool found = OptionalSelectPlanNode.LookUp(frame, map, _field, _keyCost, _isPresenceTest, Offset, out CelValue result);
+        return _isPresenceTest || found ? result : EvaluationErrors.NoSuchField(_field, operand.Kind, frame.Lines, Offset);
     }
 
     // The field of an object value by its name in the description of the value.

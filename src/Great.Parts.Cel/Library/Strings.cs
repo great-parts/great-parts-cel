@@ -15,7 +15,7 @@ internal static class Strings
     // size_string and string_size, (string) -> int: the number of code points, a surrogate pair counted once
     // and a lone surrogate once.
     internal static CelValue StringSize(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
-        arguments[0].TryGetString(out string? text) ? CelValue.FromInt64(CodePoints(text)) : site.NoMatchingOverload(arguments);
+        arguments[0].TryGetString(out string? text) ? CelValue.FromInt64(CountCodePoints(text)) : site.NoMatchingOverload(arguments);
 
     // size_bytes and bytes_size, (bytes) -> int.
     internal static CelValue BytesSize(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
@@ -94,7 +94,7 @@ internal static class Strings
     // The number of code points: the code units less one for each high surrogate followed by a low one. The search
     // runs over the code units as ushort: the char overload of IndexOfAnyInRange allocates 96 bytes a call on .NET 10
     // and 11, the ushort overload nothing.
-    private static int CodePoints(ReadOnlySpan<char> text)
+    internal static int CountCodePoints(ReadOnlySpan<char> text)
     {
         ReadOnlySpan<ushort> units = MemoryMarshal.Cast<char, ushort>(text);
         int count = text.Length;

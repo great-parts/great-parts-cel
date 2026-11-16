@@ -228,7 +228,7 @@ internal static class FormatValues
         if (value.Kind == CelValueKind.List)
         {
             _ = value.TryGetList(out CelList? list);
-            return TryAppendList(ref builder, list!, in site, out error);
+            return ContainerText.TryAppendList<Element>(ref builder, list!, ", ", StackMessage, in site, out error);
         }
 
         if (value.Kind == CelValueKind.Map)
@@ -288,56 +288,15 @@ internal static class FormatValues
                 return true;
             case CelValueKind.Timestamp:
                 _ = value.TryGetTimestamp(out CelTimestamp timestamp);
-                AppendTimestamp(ref builder, timestamp);
+                ContainerText.AppendTimestamp(ref builder, timestamp, quoted: false);
                 return true;
             case CelValueKind.Duration:
                 _ = value.TryGetDuration(out CelDuration duration);
-                AppendDuration(ref builder, duration);
+                ContainerText.AppendDuration(ref builder, duration, quoted: false);
                 return true;
             default:
                 return false;
         }
-    }
-
-    private static void AppendTimestamp(ref ResultBuilder builder, CelTimestamp timestamp)
-    {
-        Span<char> text = stackalloc char[TimeTextRules.MaxTimestampLength];
-        builder.Append(text[..TimeTextRules.WriteTimestamp(timestamp, text)]);
-    }
-
-    private static void AppendDuration(ref ResultBuilder builder, CelDuration duration)
-    {
-        Span<char> text = stackalloc char[TimeTextRules.MaxDurationLength];
-        builder.Append(text[..TimeTextRules.WriteDuration(duration.TotalNanoseconds, text)]);
-    }
-
-    // [ the elements separated by ", " ]
-    private static bool TryAppendList(ref ResultBuilder builder, CelList list, in CallSite site, out CelValue error)
-    {
-        error = default;
-        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())
-        {
-            error = site.Error(CelErrorCode.InsufficientStack, StackMessage);
-            return false;
-        }
-
-        builder.Append("[");
-        int count = list.Count;
-        for (int i = 0; i < count; i++)
-        {
-            if (i > 0)
-            {
-                builder.Append(", ");
-            }
-
-            if (!TryAppendText(ref builder, list.Read(i, site.Meter), in site, out error))
-            {
-                return false;
-            }
-        }
-
-        builder.Append("]");
-        return true;
     }
 
     // { key: value pairs separated by ", " }, ordered by the text of the key. The texts of the keys and values are written, and
@@ -345,29 +304,14 @@ internal static class FormatValues
     // them without a second charge and the first texts are removed, so the units are those of the length of the result.
     private static bool TryAppendMap(ref ResultBuilder builder, CelMap map, in CallSite site, out CelValue error)
     {
-        error = default;
-        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())
+        if (!ContainerText.TryBeginMap(ref builder, map, StackMessage, in site, out int count, out error))
         {
-            error = site.Error(CelErrorCode.InsufficientStack, StackMessage);
             return false;
         }
 
-        if (map.TryGetKeyError(site.Meter, out CelValue keyError))
-        {
-            error = site.Placed(keyError);
-            return false;
-        }
-
-        int count = map.Count;
         if (count == 0)
         {
-            builder.Append("{}");
             return true;
-        }
-
-        if (site.Meter is { } meter)
-        {
-            map.ChargeEnumeration(meter);
         }
 
         // Three numbers for each pair — where its key starts, the length of the key, the length of the value — then the order and a
@@ -418,6 +362,13 @@ internal static class FormatValues
         WritePairs(builder.Written, room, work, order);
         builder.Remove(start, textLength);
         return true;
+    }
+
+    // The writer of the text of an element for the steps that format shares with the encoder.
+    private readonly struct Element : IElementText
+    {
+        public static bool TryAppend(ref ResultBuilder builder, CelValue value, in CallSite site, out CelValue error) =>
+            TryAppendText(ref builder, value, in site, out error);
     }
 
     // The pairs ordered by the text of the key, by code points, stably: insertion in runs, then merges of runs of twice the length.

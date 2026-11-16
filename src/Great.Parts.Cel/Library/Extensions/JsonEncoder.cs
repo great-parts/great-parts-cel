@@ -84,7 +84,7 @@ internal static class JsonEncoder
                 return true;
             case CelValueKind.List:
                 _ = value.TryGetList(out CelList? list);
-                return TryAppendList(ref builder, list!, in site, out error);
+                return ContainerText.TryAppendList<Element>(ref builder, list!, ",", StackMessage, in site, out error);
             case CelValueKind.Map:
                 _ = value.TryGetMap(out CelMap? map);
                 return TryAppendMap(ref builder, map!, in site, out error);
@@ -129,11 +129,11 @@ internal static class JsonEncoder
     {
         if (value.TryGetTimestamp(out CelTimestamp timestamp))
         {
-            AppendTimestamp(ref builder, timestamp);
+            ContainerText.AppendTimestamp(ref builder, timestamp, quoted: true);
         }
         else if (value.TryGetDuration(out CelDuration duration))
         {
-            AppendDuration(ref builder, duration);
+            ContainerText.AppendDuration(ref builder, duration, quoted: true);
         }
     }
 
@@ -308,81 +308,19 @@ internal static class JsonEncoder
 
     private static char HexDigit(int value) => "0123456789abcdef"[value & 0xF];
 
-    private static void AppendTimestamp(ref ResultBuilder builder, CelTimestamp timestamp)
-    {
-        Span<char> text = stackalloc char[TimeTextRules.MaxTimestampLength + 2];
-        text[0] = '"';
-        int written = TimeTextRules.WriteTimestamp(timestamp, text[1..]);
-        text[written + 1] = '"';
-        builder.Append(text[..(written + 2)]);
-    }
-
-    private static void AppendDuration(ref ResultBuilder builder, CelDuration duration)
-    {
-        Span<char> text = stackalloc char[TimeTextRules.MaxDurationLength + 2];
-        text[0] = '"';
-        int written = TimeTextRules.WriteDuration(duration.TotalNanoseconds, text[1..]);
-        text[written + 1] = '"';
-        builder.Append(text[..(written + 2)]);
-    }
-
-    // [ the elements separated by commas ]
-    private static bool TryAppendList(ref ResultBuilder builder, CelList list, in CallSite site, out CelValue error)
-    {
-        error = default;
-        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())
-        {
-            error = site.Error(CelErrorCode.InsufficientStack, StackMessage);
-            return false;
-        }
-
-        builder.Append("[");
-        int count = list.Count;
-        for (int i = 0; i < count; i++)
-        {
-            if (i > 0)
-            {
-                builder.Append(",");
-            }
-
-            if (!TryAppend(ref builder, list.Read(i, site.Meter), in site, out error))
-            {
-                return false;
-            }
-        }
-
-        builder.Append("]");
-        return true;
-    }
-
     // { "key":value pairs separated by commas }, ordered by the key by code points. The pairs are written, and charged, in the order of
     // the map; the commas are charged ahead; the pairs are then written in order after them without a second charge and the first
     // texts are removed, so the units are those of the length of the result. A key that is not a string is an error.
     private static bool TryAppendMap(ref ResultBuilder builder, CelMap map, in CallSite site, out CelValue error)
     {
-        error = default;
-        if (!System.Runtime.CompilerServices.RuntimeHelpers.TryEnsureSufficientExecutionStack())
+        if (!ContainerText.TryBeginMap(ref builder, map, StackMessage, in site, out int count, out error))
         {
-            error = site.Error(CelErrorCode.InsufficientStack, StackMessage);
             return false;
         }
 
-        if (map.TryGetKeyError(site.Meter, out CelValue keyError))
-        {
-            error = site.Placed(keyError);
-            return false;
-        }
-
-        int count = map.Count;
         if (count == 0)
         {
-            builder.Append("{}");
             return true;
-        }
-
-        if (site.Meter is { } meter)
-        {
-            map.ChargeEnumeration(meter);
         }
 
         string[] keys = ArrayPool<string>.Shared.Rent(count);
@@ -462,6 +400,13 @@ internal static class JsonEncoder
             written.Slice(work[2 * pair], work[(2 * pair) + 1]).CopyTo(room[place..]);
             place += work[(2 * pair) + 1];
         }
+    }
+
+    // The writer of the text of an element for the steps that the encoder shares with format.
+    private readonly struct Element : IElementText
+    {
+        public static bool TryAppend(ref ResultBuilder builder, CelValue value, in CallSite site, out CelValue error) =>
+            JsonEncoder.TryAppend(ref builder, value, in site, out error);
     }
 
     // The order of the keys of a map by code points.
