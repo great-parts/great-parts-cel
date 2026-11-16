@@ -14,7 +14,8 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 //   duration_to_string         string(duration('9223372036.854775807s')) keeps all the digits; cel-go
 //                              formats the seconds through a float and gives 9223372036.854776s.
 //   timestamp_to_string        string(timestamp('2023-01-01T00:00:00-07:00')) is the moment in UTC with Z,
-//                              2023-01-01T07:00:00Z; cel-go keeps the offset of the string.
+//                              2023-01-01T07:00:00Z; cel-go keeps the offset of the string, which RFC 3339
+//                              allows, so the entry is of the class by-design.
 //   the ten receivers with a zone: the zone "" and the zone Local are TimeZoneNotFound (the library never
 //     reads the zone of the process, and "" is not a name), the offset +1:5 is InvalidTimeZone (an offset
 //     is [+-]HH:MM); cel-go gives a value for each (UTC, the zone of the process, +01:05). The cases are

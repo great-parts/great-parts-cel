@@ -14,7 +14,7 @@ namespace Great.Parts.Cel.Tests.Examples.Configuration;
 // time that data can describe. All the types of the array form one provider, AddTypes(CelTypeProvider.Create)
 // with the label of the description as its source name, and each type is CelObjectTypeBuilder.ForDictionary
 // with its fields in the order of the array, which gives the field numbers. The environment from such a
-// description, a variable of such a type and a dictionary bound to it are the use of the type (F-7); the errors
+// description, a variable of such a type and a dictionary bound to it are the use of the type; the errors
 // of the building are DuplicateType (4001) with the sources named. In the marked documents each '|' is the
 // place of one expected error (see JsonExample).
 [Trait("Requirement", "F-7")]
@@ -97,7 +97,7 @@ public sealed class EnvironmentJsonObjectTypeTests
         Assert.True(builder.Build().IsSuccess);
     }
 
-    // F-7: the application describes a type by data, declares a variable of it and binds a dictionary. It holds
+    // The application describes a type by data, declares a variable of it and binds a dictionary. It holds
     // no description of the type: the dictionary is bound by its .NET type and the place rule takes it as the
     // carrier of the declared type. An entry has no static type, so a field of a list or map type holds a CelList
     // or a CelMap — here views of .NET collections; a .NET collection there is FieldTypeMismatch (ObjectFieldTests).

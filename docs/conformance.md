@@ -22,7 +22,7 @@ A case that fails is allowed only if it is on the [skip list](../tests/Great.Par
 
 | Case | Reason | Issue |
 | :- | :- | :- |
-| `network_ext/ip_type/is_ip_cidr_compile_error` | Defect in the cel-spec test data. The case expects an evaluation error for `isIP(cidr('192.168.0.0/24'))`, but the expression is ill-typed: `isIP` takes a string, so type checking rejects it under any implementation, and the conformance rule counts a type-check error as a failure. | [#5](https://github.com/great-parts/great-parts-cel/issues/5) |
+| `network_ext/ip_type/is_ip_cidr_compile_error` | Defect in the cel-spec test data. The case expects an evaluation error for `isIP(cidr('192.168.0.0/24'))`, but the expression is ill-typed: `isIP` takes a string, so type checking rejects it under any implementation, and the conformance rule counts a type-check error as a failure. | [#5](https://github.com/great-parts/great-parts-cel/issues/5); the defect is also reported to cel-spec as [cel-expr/cel-spec#539](https://github.com/cel-expr/cel-spec/issues/539) |
 
 Type checking reports `found no matching overload for 'isIP' applied to '(net.CIDR)'`, because `isIP` is declared only for `string`. The case sets `disable_check: false`, so the check runs and the expected evaluation error is never reached.
 
@@ -54,4 +54,4 @@ Three commits of master are newer than the pinned commit; they are dated 2026-10
 
 ## Differences from cel-go
 
-The suite checks the library against the specification. Differences from cel-go that have been analysed with a differential run and are not counted as bugs of this library are listed in [known-differences.md](../tests/Great.Parts.Cel.Conformance/Regression/known-differences.md). Each has a class, `cel-go-bug` or `by-design`, and a reference: a link to the language definition or a minimal case.
+The suite checks the library against the specification. Differences from cel-go that have been analysed with a differential run and are not counted as bugs of this library are listed in [known-differences.md](../tests/Great.Parts.Cel.Conformance/Regression/known-differences.md). Each has a class, `cel-go-bug` or `by-design`, and a reference: a link to the language definition or a minimal case. An entry of the class `cel-go-bug` that has been reported to cel-go also links its upstream issue.

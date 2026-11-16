@@ -702,8 +702,8 @@ internal sealed class Planner
         return new ConstantPlanNode(offset, value, cost);
     }
 
-    // Whether the operand of an index has the static type dyn, which is all that _[_] needed for the extra candidates, or, for the
-    // optional indexes of the set optional, also an optional of dyn: both hold a list or a map that type checking cannot tell.
+    // Whether the operand of an index has the static type dyn or, for the optional indexes of the set optional, an optional of dyn:
+    // both hold a list or a map that type checking cannot tell.
     private static bool HasDynamicOperand(CelType operand) =>
         operand.Kind is CelTypeKind.Dyn or CelTypeKind.Any
         || operand is { Kind: CelTypeKind.Optional, Parameters: [{ Kind: CelTypeKind.Dyn or CelTypeKind.Any }] };
