@@ -1,6 +1,6 @@
 # The release of the two packages (docs/design/eng-release.md): a push of a tag v* is the release, steps 1 to 8 of the order below.
 # workflow_dispatch has two more uses. On main with the input tag it is the dry run: the gates and the build with the version of the
-# planned tag, nothing public. On a tag v* it is the repeat of steps 7 and 8 after a failure of step 7: only verify and release run, and
+# planned tag, nothing public; findings of the gates go to the summary and do not stop the build. On a tag v* it is the repeat of steps 7 and 8 after a failure of step 7: only verify and release run, and
 # nothing is published to nuget.org again. A dispatch on any other ref does nothing.
 #
 # Steps of the release (docs/design/eng-release.md): 1 gates; 2 build, tests, packages; 3 attestation of origin and of the SBOM; 4 check of origin of
@@ -76,7 +76,30 @@ jobs:
           if [ "$EVENT" = "workflow_dispatch" ]; then
             arguments+=(--commit "$COMMIT")
           fi
-          dotnet run --project eng/checks -c Release --no-build -- release-gates "${arguments[@]}"
+          mkdir -p artifacts
+          status=0
+          dotnet run --project eng/checks -c Release --no-build -- release-gates "${arguments[@]}" > artifacts/gates.txt || status=$?
+          cat artifacts/gates.txt
+          # A dry run reports the findings in the summary and goes on to the build, so that one run shows the faults of the gates and of the
+          # build together; an input that cannot be used (exit code 2) still stops it. On a tag a finding stops the release.
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            {
+              echo "### Gates of the dry run"
+              echo
+              if [ -s artifacts/gates.txt ]; then
+                echo '```text'
+                cat artifacts/gates.txt
+                echo '```'
+              else
+                echo "No findings."
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [ "$status" -eq 1 ]; then
+              echo "::warning::The gates have findings (see the summary); the dry run goes on to the build."
+              exit 0
+            fi
+          fi
+          exit "$status"
 
   # Step 2. Build with the version of the tag, the tests of both targets under JIT, the packages. A dry run ends here.
   build:
@@ -125,6 +148,10 @@ jobs:
             for project in tests/*/*.csproj; do
               directory=$(dirname "$project")
               name=$(basename "$project" .csproj)
+              # A project without a test framework is a library (Generator.Samples): there is nothing to run.
+              grep -q 'xunit\.v3' "$project" || { echo "== $name is not a test project"; continue; }
+              # A project of one target (Generator.Tests, net10.0) runs for that target only.
+              [ -f "$directory/bin/Release/$TARGET/$name.dll" ] || { echo "== $name has no $TARGET"; continue; }
               echo "== $name $TARGET"
               dotnet "$directory/bin/Release/$TARGET/$name.dll" -noColor -showLiveOutput \
                 -result-xml "artifacts/test-results/jit/$name/$TARGET/report.xml" || status=1

@@ -1,4 +1,4 @@
-# The cel-spec suite on the data of the last commit of the master branch of google/cel-spec (docs/design/conformance.md, "Run on master").
+# The cel-spec suite on the data of the last commit of the master branch of cel-expr/cel-spec (docs/design/conformance.md, "Run on master").
 # Every night and by hand. The pinned data of tests/cel-spec/ is replaced in the workspace of the run, and nothing is committed. The skip
 # list of the pinned commit does not apply to master: the list of the workspace is empty, so every case that fails is reported
 # (ENG801), and no entry gives ENG802 or ENG804. The result is the line "cel-spec master <SHA>: N/M passed, <date>" of the step summary.
@@ -44,7 +44,7 @@ jobs:
         run: |
           set -eu
           master="$RUNNER_TEMP/cel-spec-master"
-          git clone --depth 1 --branch master https://github.com/google/cel-spec.git "$master"
+          git clone --depth 1 --branch master https://github.com/cel-expr/cel-spec.git "$master"
           spec=tests/cel-spec
           rm -rf "$spec/tests" "$spec/proto" "$spec/doc" "$spec/LICENSE" "$spec/COMMIT"
           mkdir -p "$spec/tests/simple" "$spec/doc"

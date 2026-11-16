@@ -57,7 +57,7 @@ internal static class LongRunGate
     }
 
     // The elements of the array of an answer; an answer that is not JSON or has no such array is an input that cannot be read.
-    private static List<JsonElement> Items(string answer, string name)
+    internal static List<JsonElement> Items(string answer, string name)
     {
         try
         {
@@ -83,7 +83,7 @@ internal static class LongRunGate
         }
     }
 
-    private static string Text(JsonElement element, string name) =>
+    internal static string Text(JsonElement element, string name) =>
         element.ValueKind == JsonValueKind.Object && element.TryGetProperty(name, out JsonElement value) && value.ValueKind == JsonValueKind.String
             ? value.GetString() ?? string.Empty
             : string.Empty;

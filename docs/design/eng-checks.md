@@ -54,7 +54,7 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `links` | lychee report | `ENG401`–`ENG404`, `ENG409` | the same; external links only in CI | [eng-docs.md](eng-docs.md) |
 | `error-codes` | built library and its XML documentation, error codes page | `ENG303` | the same | [eng-docs.md](eng-docs.md) |
 | `quick-start` | the block of steps of `README.md`, the package built from the commit, a container of the .NET SDK 10 | `ENG304`, `ENG305` | CI, the job `Quick start`; `release.yml`, the job `build` | [eng-release.md](eng-release.md) |
-| `release-gates <tag>` | the tag, `CHANGELOG.md`, the lists of the two suites, `tests/cel-spec/COMMIT`, the history of cel-spec, the API of GitHub Actions; with `--provenance` the packages and `gh`; with `--nuget` nuget.org | `ENG803`, `ENG901`–`ENG907` | `release.yml`, the jobs `gates`, `draft` and `verify` | [eng-release.md](eng-release.md) |
+| `release-gates <tag>` | the tag, `CHANGELOG.md`, the lists of the two suites, `tests/cel-spec/COMMIT`, the history of cel-spec, the API of GitHub Actions; with `--provenance` the packages and `gh`; with `--nuget` nuget.org | `ENG803`, `ENG901`–`ENG908` | `release.yml`, the jobs `gates`, `draft` and `verify` | [eng-release.md](eng-release.md) |
 
 ## Layout
 

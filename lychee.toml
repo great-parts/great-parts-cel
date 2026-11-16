@@ -20,6 +20,9 @@ remap = [
 # eng/ratchet.json, and it only goes down. A page that is not written yet is excluded here, with its reason, until it is. The
 # pattern of such a page, /docs/<page>.md with any anchor, matches both a relative link and a remapped address.
 exclude = [
+  "^https://github\\.com/[^/]+/[^/]+/actions/runs/", # GitHub keeps the runs of Actions for 90 days, so a link to a run stops working
+  "^https://github\\.com/[^/]+/[^/]+/releases/tag/v1\\.0\\.0$", # exist after the tag: the link of the CHANGELOG entry 1.0.0
+  "^https://github\\.com/[^/]+/[^/]+/compare/v1\\.0\\.0\\.\\.\\.HEAD$", # exist after the tag: the link of the CHANGELOG entry Unreleased
 ]
 
 exclude_path = [

@@ -155,4 +155,7 @@ public static class EngCodes
 
     /// <summary>The check of origin of a package of the release failed, or the package could not be downloaded from nuget.org.</summary>
     public const string Eng907 = "ENG907";
+
+    /// <summary>There is no successful run of <c>ci.yml</c> or of <c>difftest-main.yml</c> on the commit of the release tag.</summary>
+    public const string Eng908 = "ENG908";
 }

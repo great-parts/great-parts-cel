@@ -7,7 +7,7 @@ A release of the two packages is made by `.github/workflows/release.yml` when th
 The long run against cel-go runs on `main` ([Nightly run](eng-difftest.md#nightly-run)), and the gates take a run on the commit of the tag. The order below keeps the three — the run, the dry run and the tag — on one commit, X:
 
 1. X is the last commit of the content of the release, on `main`. The `CHANGELOG.md` entry of the version is in it. The pinned commit of cel-spec is moved last, shortly before X: a commit of cel-spec master that becomes older than 6 weeks between the move and the day of the tag fails the gate `ENG905`, and moving the pin again makes a new X.
-2. The run `ci.yml` and the run `difftest-main.yml` on X are green.
+2. The run `ci.yml` and the run `difftest-main.yml` on X are green; the gate `ENG908` asks for both on the commit of the tag.
 3. The long run: `difftest-nightly.yml` is started by hand (`workflow_dispatch`) on `main` while the head of `main` is X, with the budget `2h`. The workflow runs only on `main`, so the run belongs to the head of `main` at the time of the start.
 4. The dry run of `release.yml` on X ([Dry run](#dry-run)), at the same time as the long run or after it.
 5. The tag `v1.0.0` is set on X and pushed by the maintainer. The tag stands on X, not on the head of `main`: the gate `ENG902` asks that the commit of the tag is reachable from `main`, and the gate `ENG904` asks for a long run whose `head_sha` is the commit of the tag. A commit that reaches `main` after the long run does not cancel the run while the tag stays on X; a tag on another commit needs another long run.
@@ -32,8 +32,8 @@ The tag is `v` and a semantic version. Both packages have one version, the versi
 
 | Job | Runs when | Permissions | Steps of the release | What it does |
 | :- | :- | :- | :- | :- |
-| `gates` | tag push; dispatch on `main` | `contents: read`, `actions: read` | 1 | checks out with the history and `origin/main`, builds `eng/checks`, runs `release-gates <tag>`; in a dry run with `--commit` the commit of the run |
-| `build` | after `gates` | `contents: read` | 2 | restore in locked mode, build with `ContinuousIntegrationBuild`, the tests of both targets under JIT, `eng/checks packages`, `dotnet pack`, the quick-start check (the last section of this page) when the version has no pre-release suffix, the packages as an artifact |
+| `gates` | tag push; dispatch on `main` | `contents: read`, `actions: read` | 1 | checks out with the history and `origin/main`, builds `eng/checks`, runs `release-gates <tag>`; in a dry run with `--commit` the commit of the run, and findings go to the step summary and do not fail the job ([Dry run](#dry-run)) |
+| `build` | after `gates` | `contents: read` | 2 | restore in locked mode, build with `ContinuousIntegrationBuild`, the tests of both targets under JIT (a project without `xunit.v3`, `Generator.Samples`, and a project with no build for the target, `Generator.Tests` on `net11.0`, are skipped, as in `ci.yml`), `eng/checks packages`, `dotnet pack`, the quick-start check (the last section of this page) when the version has no pre-release suffix, the packages as an artifact |
 | `attest` | tag push, after `build` | `contents: read`, `id-token: write`, `attestations: write`, `artifact-metadata: write` | 3 | the SBOM, the attestation of origin and the attestation of the SBOM for each `.nupkg` |
 | `draft` | after `attest` | `contents: write`, `attestations: read` | 4 | the check of origin of the built packages, then the draft Release with the `.nupkg`, `.snupkg` and the bundles `.intoto.jsonl` |
 | `publish` | after `draft` | `contents: read`, `id-token: write` | 5 and 6 | environment `release`; publishes the packages on nuget.org |
@@ -55,7 +55,9 @@ The tag is `v` and a semantic version. Both packages have one version, the versi
 
 ### Dry run
 
-`workflow_dispatch` on `main` with the input `tag` runs `gates` and `build` only, on the head of `main` with the version of the planned tag. The gates are the real gates: `ENG901` for the entry of that version, `ENG903` and `ENG906` for the lists, `ENG905` for today's date, and `ENG904` for the long run on the head of `main`; `ENG902` is true of the head of `main`. The build is the real build with the real version, the tests and the quick-start check included.
+`workflow_dispatch` on `main` with the input `tag` runs `gates` and `build` only, on the head of `main` with the version of the planned tag. The gates are the real gates: `ENG901` for the entry of that version, `ENG903` and `ENG906` for the lists, `ENG905` for today's date, `ENG904` for the long run on the head of `main`, and `ENG908` for `ci.yml` and `difftest-main.yml` on it; `ENG902` is true of the head of `main`. The build is the real build with the real version, the tests and the quick-start check included.
+
+In a dry run the findings of the gates do not stop the build: the job `gates` writes them to the step summary of the run (the section "Gates of the dry run"), ends with a warning and succeeds when `release-gates` exits with 1, so one run shows the faults of the gates and of the build together. An input that cannot be used (exit code 2: the API does not answer, a file is missing) still fails the job. On a tag nothing changes: any finding fails `gates` and the release stops before the build.
 
 Steps 3 to 8 do not run in a dry run: the attestations go to a public log that is never edited, the publication on nuget.org cannot be taken back, and a published Release cannot be changed. So a dry run finds the faults of the gates and of the build and creates nothing public. What a dry run does not exercise are the actions of steps 3 to 8 and the check of origin of the packages: the second is covered by the tests of `release-gates` with a replaced `gh` and, on the real tag, by step 4 before the publication.
 
@@ -80,7 +82,7 @@ The metadata of both packages comes from MSBuild properties; the values shared b
 | `PackageProjectUrl`, `RepositoryUrl` | `https://github.com/great-parts/great-parts-cel` | `Directory.Build.props` |
 | `RepositoryType` | `git` | `Directory.Build.props` |
 | `PublishRepositoryUrl` | `true`: the URL is written to the `.nuspec` and to the source link of the symbols | `Directory.Build.props` |
-| `PackageTags` | `cel;common-expression-language;expression;expressions;rules;validation;dotnet;nativeaot;source-generator`; `Great.Parts.Cel.Protobuf` adds `protobuf` | `Directory.Build.props`, the Protobuf project |
+| `PackageTags` | `cel;common-expression-language;expression;expressions;rules;validation;dotnet;nativeaot;source-generator;expression-evaluator;rules-engine;cel-spec;csharp` (the list of `Directory.Build.props`; no check compares it); `Great.Parts.Cel.Protobuf` adds `protobuf` | `Directory.Build.props`, the Protobuf project |
 | `IncludeSymbols`, `SymbolPackageFormat` | `true`, `snupkg` | `Directory.Build.props` |
 | `PackageLicenseExpression`, `Copyright`, `Version` | see `Directory.Build.props` | `Directory.Build.props` |
 
@@ -101,7 +103,7 @@ eng/checks release-gates <tag> --nuget <directory> [--same-content-as <directory
 | :- | :- |
 | `--commit <sha>` | the commit to check instead of the commit of the tag; the dry run gives the commit of the run, because the tag does not exist |
 | `--date <yyyy-MM-dd>` | the date of the release for `ENG905`; without it today, UTC |
-| `--cel-spec <repository>` | the address or the path of the repository of cel-spec for `ENG905`; without it `https://github.com/google/cel-spec.git`; the tests give a temporary repository |
+| `--cel-spec <repository>` | the address or the path of the repository of cel-spec for `ENG905`; without it `https://github.com/cel-expr/cel-spec.git`; the tests give a temporary repository |
 | `--repository <owner/name>` | the repository of the workflow runs and of the origin; without it the environment variable `GITHUB_REPOSITORY`, and without that `great-parts/great-parts-cel` |
 | `--api <url>` | the address of the API of GitHub; without it `https://api.github.com`; the tests give a stub |
 | `--provenance <directory>` | the mode of the check of origin of every `.nupkg` of the directory ([Provenance](#provenance)); the gates below do not run in it |
@@ -120,11 +122,12 @@ All gates run in one invocation and every finding is printed; the exit code is 1
 | `ENG803` | every record of the list of the cel-spec suite has a reason and a link `https://github.com/great-parts/great-parts-cel/issues/<N>` | `tests/Great.Parts.Cel.Conformance/CelSpec/skips.md`, the columns `Reason` and `Issue` | the line of the record |
 | `ENG906` | in the version `1.0.0` every record of the list of the cel-spec suite has a `Reference`; the gate does not apply to another version, and an empty list passes | the same file, the column `Reference` | the line of the record |
 | `ENG907` | the packages of the release have the attestation of origin: see [Provenance](#provenance) | the packages, `gh` | `tag/<name>(1,1)` |
+| `ENG908` | `ci.yml` and `difftest-main.yml` are green on the commit of the tag: for each, a run of the event `push` with the `head_sha` of the commit and the status `success` exists | the API of GitHub Actions: the runs of the workflow with `event=push&head_sha=<commit>` | `tag/<name>(1,1)`, one finding per workflow |
 
 - **`ENG904`.** The input `budget` of a manual run is not in the answer of the API, so the length of the job is the only evidence that the run was long. The job is longer than the budget by the time of the build of the image. A run of the event `schedule`, the nightly one of 20 minutes, never counts. The token is `GITHUB_TOKEN` of the job (permission `actions: read`); without a token the requests are anonymous. An API that does not answer is exit code 2: a transient failure is a run again, not a missing long run.
 - **`ENG905`.** The clone and the API-free comparison need no token and no limit of requests. The date of the release is the date of the run of the gate, so the pin has to hold on the day of the tag ([Order of a release](#order-of-a-release)).
 - **Lists.** The reader of the two lists is part of the command: a Markdown table whose columns are found by the names of the header row, as the format of the lists defines them ([conformance.md](conformance.md)). It does not share code with the runner of the suites, which is a different assembly; a test reads both lists of the repository with it.
-- **Code and tests.** The code of the gates is in the directory `ReleaseGates/` of `eng/checks`, one class per gate; the codes `ENG803` and `ENG901`–`ENG907` are constants of `EngCodes` ([eng-checks.md](eng-checks.md#one-source-of-the-eng-codes)). The API of GitHub and `gh` are behind interfaces so that the tests give their own answers.
+- **Code and tests.** The code of the gates is in the directory `ReleaseGates/` of `eng/checks`, one class per gate; the codes `ENG803` and `ENG901`–`ENG908` are constants of `EngCodes` ([eng-checks.md](eng-checks.md#one-source-of-the-eng-codes)). The API of GitHub and `gh` are behind interfaces so that the tests give their own answers.
 
 ### Provenance
 
@@ -158,6 +161,7 @@ Two attestations of the origin exist for a published package, both issued by `re
 | `ENG902` | a tag on a commit of a branch that is not `main` | a tag on an older commit of `main` |
 | `ENG903` | a record with `pending`; a record with `our-bug` and `S1` | a record with `our-bug` and `S2`; a record with `by-design` and `S1` |
 | `ENG904` | a run of 1 h 50 min; a run that did not succeed; a run of the event `schedule` of 2 h 10 min; a run on another commit | a successful `workflow_dispatch` run of 2 h 5 min on the commit |
+| `ENG908` | the run of `ci.yml` or of `difftest-main.yml` that did not succeed; both runs on another commit | successful `push` runs of both workflows on the commit |
 | `ENG905` | a temporary cel-spec repository with a commit older than 6 weeks after the pinned one | the pinned commit is the newest commit older than 6 weeks; commits newer than that are not required |
 | `ENG803` | a record without a reason; a link to another repository; an empty link | a record with a reason and a link to the repository |
 | `ENG906` | the tag `v1.0.0` and a record with an empty `Reference` | the tag `v1.0.0` and an empty list; the tag `v1.0.1` and a record with an empty `Reference` |

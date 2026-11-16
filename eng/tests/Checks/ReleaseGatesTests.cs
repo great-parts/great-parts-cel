@@ -154,6 +154,42 @@ public sealed class ReleaseGatesTests
         Assert.Contains(fixture.Stubs.Api.Paths, path => path.StartsWith("repos/" + Repository + "/actions/runs/101/jobs", StringComparison.Ordinal));
     }
 
+    // ENG908
+
+    [Theory]
+    [InlineData("ci.yml")]
+    [InlineData("difftest-main.yml")]
+    public static void Eng908_WorkflowThatDidNotSucceedOnTheCommit_IsReported(string workflow)
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        fixture.Stubs.Api.RedWorkflows.Add(workflow);
+
+        Result.Expect(fixture.Gates(), 1, $"tag/v1.2.0(1,1): error {EngCodes.Eng908}: no successful run of {workflow} on commit {fixture.Head[..8]}");
+    }
+
+    [Fact]
+    public void Eng908_RunsOfBothWorkflowsOnAnotherCommit_AreReportedInOrder()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        fixture.Stubs.Api.WorkflowHeadSha = "0123456789abcdef0123456789abcdef01234567";
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng908}: no successful run of ci.yml on commit {fixture.Head[..8]}",
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng908}: no successful run of difftest-main.yml on commit {fixture.Head[..8]}");
+    }
+
+    [Fact]
+    public void Eng908_SuccessfulPushRunsOfBothWorkflowsOnTheCommit_PassAndAskThePushRuns()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+
+        Result.Expect(fixture.Gates(), 0);
+        Assert.Contains(fixture.Stubs.Api.Paths, path => path.StartsWith("repos/" + Repository + "/actions/workflows/ci.yml/runs?event=push&head_sha=" + fixture.Head, StringComparison.Ordinal));
+        Assert.Contains(fixture.Stubs.Api.Paths, path => path.StartsWith("repos/" + Repository + "/actions/workflows/difftest-main.yml/runs?event=push&head_sha=" + fixture.Head, StringComparison.Ordinal));
+    }
+
     // ENG905
 
     [Fact]
@@ -709,6 +745,11 @@ public sealed class ReleaseGatesTests
 
         internal bool Down { get; set; }
 
+        // The workflows of the gate ENG908 whose run did not succeed, and the commit of their run when it is not the asked one.
+        internal HashSet<string> RedWorkflows { get; } = [];
+
+        internal string? WorkflowHeadSha { get; set; }
+
         internal List<string> Paths { get; } = [];
 
         public string Get(string path)
@@ -730,6 +771,13 @@ public sealed class ReleaseGatesTests
             // The run is on the commit that the gate asks for, unless a test gives another one.
             int at = path.IndexOf("head_sha=", StringComparison.Ordinal) + "head_sha=".Length;
             string asked = path[at..].Split('&')[0];
+            if (path.Contains("/workflows/ci.yml/", StringComparison.Ordinal) || path.Contains("/workflows/difftest-main.yml/", StringComparison.Ordinal))
+            {
+                string workflow = path.Contains("/workflows/ci.yml/", StringComparison.Ordinal) ? "ci.yml" : "difftest-main.yml";
+                string conclusion = RedWorkflows.Contains(workflow) ? "failure" : "success";
+                return $$"""{"workflow_runs":[{"id":201,"event":"push","head_sha":"{{WorkflowHeadSha ?? asked}}","conclusion":"{{conclusion}}"}]}""";
+            }
+
             return $$"""{"workflow_runs":[{"id":101,"event":"{{Event}}","head_sha":"{{HeadSha ?? asked}}","conclusion":"{{Conclusion}}"}]}""";
         }
     }

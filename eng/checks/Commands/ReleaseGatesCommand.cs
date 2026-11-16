@@ -9,7 +9,7 @@ namespace Great.Parts.Cel.Eng.Checks;
 
 /// <summary>
 /// The gates of a release and the check of origin of its packages (<c>docs/design/eng-release.md</c>, "eng/checks release-gates"). Without
-/// a mode option all gates run on the tag: <c>ENG901</c>–<c>ENG906</c> and <c>ENG803</c>. <c>--provenance</c> runs the check of origin
+/// a mode option all gates run on the tag: <c>ENG901</c>–<c>ENG906</c>, <c>ENG908</c> and <c>ENG803</c>. <c>--provenance</c> runs the check of origin
 /// (<c>ENG907</c>) on the packages of a directory, <c>--nuget</c> downloads the packages of the version from nuget.org into a directory
 /// and, with <c>--same-content-as</c>, compares their content with the packages of the build.
 /// </summary>
@@ -41,7 +41,7 @@ internal sealed class ReleaseGatesCommand : ICheckCommand
 
     private const string DefaultRepository = "great-parts/great-parts-cel";
     private const string DefaultApi = "https://api.github.com";
-    private const string DefaultCelSpec = "https://github.com/google/cel-spec.git";
+    private const string DefaultCelSpec = "https://github.com/cel-expr/cel-spec.git";
 
     private static readonly Regex RepositoryName = new("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+\\z", RegexOptions.CultureInvariant);
     private static readonly Regex CommitHash = new("^[0-9A-Fa-f]{7,40}\\z", RegexOptions.CultureInvariant);
@@ -133,6 +133,7 @@ internal sealed class ReleaseGatesCommand : ICheckCommand
         findings.AddRange(MainAncestryGate.Check(root, tag, commit));
         findings.AddRange(RegressionListGate.Check(root, tag));
         findings.AddRange(LongRunGate.Check(tag, commit, repository, api));
+        findings.AddRange(WorkflowsGreenGate.Check(tag, commit, repository, api));
         findings.AddRange(CelSpecPinGate.Check(root, Date(context), CelSpec(context)));
         findings.AddRange(SkipReasonGate.Check(root));
         findings.AddRange(SkipReferenceGate.Check(root, tag));
