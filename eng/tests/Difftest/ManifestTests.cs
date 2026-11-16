@@ -96,11 +96,16 @@ public sealed class ManifestTests
         ];
         CelExtension[] catalog =
         [
-            CelExtensions.Strings(5), CelExtensions.Math(3), CelExtensions.Lists(4), CelExtensions.Sets(0), CelExtensions.Encoders(1),
-            CelExtensions.Bindings(1), CelExtensions.TwoVarComprehensions(0), CelExtensions.Network(1), CelExtensions.Optional(2),
+            CelExtensions.Bindings(1), CelExtensions.Encoders(1), CelExtensions.Lists(4), CelExtensions.Math(3), CelExtensions.Network(1),
+            CelExtensions.Optional(2), CelExtensions.Sets(0), CelExtensions.Strings(5), CelExtensions.TwoVarComprehensions(0),
         ];
 
         Assert.Equal(ProfileTables.Extensions.Select(set => set.Name + "@" + set.Version), declared);
+
+        // The order is that of the names, in which the library orders the overloads of the sets: cel-go orders them as the manifest does,
+        // and with strings before lists the case 1285106 of seed 20261116, optional.none().optMap(v, v.reverse()).orValue([]), is a
+        // check error of cel-go (v is a string) and a value of the library (v is a list).
+        Assert.Equal(declared.Order(StringComparer.Ordinal), declared);
         Assert.Equal(catalog.Select(set => set.Name + "@" + set.Version.ToString(CultureInfo.InvariantCulture)), declared);
         Assert.DoesNotContain(declared, set => set.StartsWith("decimal@", StringComparison.Ordinal) || set.StartsWith("block@", StringComparison.Ordinal));
     }

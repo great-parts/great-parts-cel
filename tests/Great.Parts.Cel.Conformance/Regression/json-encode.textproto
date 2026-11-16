@@ -26,3 +26,15 @@ section {
     }
   }
 }
+section {
+  name: "type"
+  description: "cel-go refuses a type value in json.encode, except in a list that is the sum of two lists, where it writes the name of the type"
+  test {
+    name: "list_sum"
+    description: "json_encode_dyn(list) we-error"
+    expr: "json.encode([double] + dyn([4096]))"
+    value: {
+      string_value: "[\"double\",4096]"
+    }
+  }
+}

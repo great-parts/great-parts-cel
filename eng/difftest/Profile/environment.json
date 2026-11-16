@@ -3,15 +3,15 @@
   "description": "Run manifest of eng/difftest: the extension sets and the variables of the profile",
   "container": "gp.test",
   "extensions": [
-    { "name": "strings", "version": "5" },
-    { "name": "math", "version": "3" },
-    { "name": "lists", "version": "4" },
-    { "name": "sets", "version": "0" },
-    { "name": "encoders", "version": "1" },
     { "name": "bindings", "version": "1" },
-    { "name": "two-var-comprehensions", "version": "0" },
+    { "name": "encoders", "version": "1" },
+    { "name": "lists", "version": "4" },
+    { "name": "math", "version": "3" },
     { "name": "network", "version": "1" },
-    { "name": "optional", "version": "2" }
+    { "name": "optional", "version": "2" },
+    { "name": "sets", "version": "0" },
+    { "name": "strings", "version": "5" },
+    { "name": "two-var-comprehensions", "version": "0" }
   ],
   "variables": [
     { "name": "i1", "type_name": "int" },

@@ -282,6 +282,26 @@ public sealed class ExtensionGeneratorTests
         Assert.Contains(binds, bind => bind.Range is Call { Function: ProfileTables.Dyn, Args: [{ } value] } && IsTypeValue(value));
     }
 
+    // The case 1352720 of seed 1604974574 that the run on ff2e0f2 reported: x1.distinct().all(v, list == v). A dyn argument binds no type
+    // parameter, so the element of x1.distinct() is a free type variable at check time, the body binds it to the type type, and cel-go
+    // plans v as a type name ('reference to undefined type: v') where the library gives the value. A range that is a call on a dyn
+    // variable stands in dyn(), so that the iteration variable is dyn.
+    [Fact]
+    public void RangeOfAMacroThatIsACallOnADynVariable_StandsInDyn()
+    {
+        List<GeneratedCase> cases = [.. Sample(ManyCases), CaseGenerator.ExtensionCase(1604974574, 1352720)];
+        List<Comprehension> macros =
+        [
+            .. cases.SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>()
+                .Where(macro => macro.Macro is ProfileTables.All or ProfileTables.Exists or ProfileTables.ExistsOne or ProfileTables.MapMacro or ProfileTables.Filter),
+        ];
+
+        Assert.NotEmpty(macros);
+        Assert.DoesNotContain(
+            macros,
+            macro => macro.Range is Call { Function: not ProfileTables.Dyn, Args: [Ident { Name: "x1" or "x2" }, ..] });
+    }
+
     // The minimization takes the body of cel.bind with the value in place of the name, once for each read. A value that holds a macro,
     // copied by two reads, is no smaller case than the macro, so the instance is dropped and a divergence of the body stays the
     // signature comprehension(...) (the run of seed 2211168051, case 520214): the name is read once at most then.
@@ -297,6 +317,47 @@ public sealed class ExtensionGeneratorTests
         Assert.All(binds, bind => Assert.True(!ExprBuilder.HoldsMacro(bind.Range) || ExprBuilder.ReadsOf(bind.Arguments[0], bind.Variable) <= 1, ExprPrinter.Print(bind)));
         Assert.Contains(binds, bind => ExprBuilder.HoldsMacro(bind.Range) && ExprBuilder.ReadsOf(bind.Arguments[0], bind.Variable) == 1);
         Assert.Contains(binds, bind => !ExprBuilder.HoldsMacro(bind.Range) && ExprBuilder.ReadsOf(bind.Arguments[0], bind.Variable) > 1);
+    }
+
+    // The same for optMap and optFlatMap: the instance of the body takes receiver.value() in place of the variable, once for each read.
+    // The case 2886782 of seed 20261116 read the variable twice over a receiver that holds optMap, so the known divergence of
+    // mx[?v] with a null key stayed the signature comprehension(optional_type) we-value.
+    [Fact]
+    public void OptMapAndOptFlatMap_ReadTheirVariableOnceAtMostWhenTheReceiverHoldsAMacro()
+    {
+        List<GeneratedCase> cases = [.. Sample(ManyCases), CaseGenerator.ExtensionCase(20261116, 2886782)];
+        List<Comprehension> macros =
+        [
+            .. cases.SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>()
+                .Where(macro => macro.Macro is ProfileTables.OptMapMacro or ProfileTables.OptFlatMapMacro),
+        ];
+
+        Assert.NotEmpty(macros);
+        Assert.All(macros, macro => Assert.True(!ExprBuilder.HoldsMacro(macro.Range) || ExprBuilder.ReadsOf(macro.Arguments[0], macro.Variable) <= 1, ExprPrinter.Print(macro)));
+    }
+
+    // The same for the range of all, exists and exists_one that is no literal: the instance takes range[i] in place of the variable, once
+    // for each read. The case 13595474 of seed 20261116 read the variable four times over cel.bind(...), so the known divergence of
+    // matches(v, p) with an invalid constant pattern stayed the signature comprehension(list) stage-mismatch.
+    [Fact]
+    public void Quantifier_ReadsItsVariableOnceAtMostWhenItsRangeIsNoLiteralAndHoldsAMacro()
+    {
+        List<GeneratedCase> cases = [.. Sample(ManyCases), CaseGenerator.ExtensionCase(20261116, 13595474)];
+        List<Comprehension> macros =
+        [
+            .. cases.SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>()
+                .Where(macro => macro.Macro is ProfileTables.All or ProfileTables.Exists or ProfileTables.ExistsOne),
+        ];
+
+        static bool IsLiteralRange(Expr range) =>
+            (range is Call { Function: ProfileTables.Dyn, Args: [{ } inner] } ? inner : range) is ListLiteral or MapLiteral;
+
+        Assert.NotEmpty(macros);
+        Assert.All(
+            macros,
+            macro => Assert.True(
+                IsLiteralRange(macro.Range) || !ExprBuilder.HoldsMacro(macro.Range) || ExprBuilder.ReadsOf(macro.Arguments[0], macro.Variable) <= 1,
+                ExprPrinter.Print(macro)));
     }
 
     [Fact]

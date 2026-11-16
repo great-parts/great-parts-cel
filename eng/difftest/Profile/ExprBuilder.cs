@@ -781,6 +781,17 @@ internal sealed partial class ExprBuilder
         Built predicate = Predicate(variable, variableType, depth + 1, limit - 1 - range.Nodes);
         scope.RemoveAt(scope.Count - 1);
         macros--;
+
+        // The minimization takes the predicate with range[i] in place of the variable, once for each read, when the range is no
+        // literal. A range that holds a macro, copied by two reads, is no smaller case than the macro (Minimizer.IsSmaller counts the
+        // macros of the copies), so the instance would be dropped and a known divergence of the predicate would stay the signature
+        // comprehension(...) (the case 13595474 of seed 20261116): such a predicate reads the variable once at most.
+        Expr literal = range.Expr is Call { Function: ProfileTables.Dyn, Args: [{ } inner] } ? inner : range.Expr;
+        if (literal is not (ListLiteral or MapLiteral) && HoldsMacro(range.Expr) && ReadsOf(predicate.Expr, variable) > 1)
+        {
+            return null;
+        }
+
         return new Built(new Comprehension(macro, range.Expr, variable, [predicate.Expr]), 1 + range.Nodes + predicate.Nodes, StaticType.Of(ProfileType.BoolType));
     }
 
@@ -871,7 +882,12 @@ internal sealed partial class ExprBuilder
             { Kind: ProfileType.MapType } map => map.Key,
             _ => null,
         };
-        return variable is null or { Kind: ProfileType.TypeType } ? (Wrap(range), StaticType.Dyn) : (range, variable);
+        // A call or a macro of the model dyn, or with an element of it, as x1.distinct() is, may have a free type variable as its element at
+        // check time, since the type parameter of its declaration is bound only by a dyn argument, which binds nothing: the body then
+        // binds the variable of the macro, and in x1.distinct().all(v, list == v) it is of the type type, which cel-go plans as a type
+        // name (reference to undefined type: v). Such a range is wrapped in dyn(), so that the variable is dyn.
+        bool freeElement = range.Expr is Call { Function: not ProfileTables.Dyn } or Comprehension && variable is { IsDyn: true };
+        return variable is null or { Kind: ProfileType.TypeType } || freeElement ? (Wrap(range), StaticType.Dyn) : (range, variable);
     }
 
     // A list literal of 0–3 elements of any types.

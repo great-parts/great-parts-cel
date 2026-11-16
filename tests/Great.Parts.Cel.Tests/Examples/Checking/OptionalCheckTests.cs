@@ -1,3 +1,5 @@
+using System;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Tests.Examples.Library;
 using Great.Parts.Cel.Tests.Examples.Values;
 using Great.Parts.Cel.Types;
@@ -84,6 +86,7 @@ public sealed class OptionalCheckTests
         {?'a': n} => map(string, int)
         {?'a': optional.none()} => map(string, dyn)
         TestAllTypes{?single_int32: o} => cel.expr.conformance.proto3.TestAllTypes
+        d.optMap(x, m[?x].or(x.?f)) => optional_type(optional_type(dyn))
         o.optMap(x, x + 1) => optional_type(int)
         o.optMap(x, 'a') => optional_type(string)
         o.optMap(x, optional.of(x)) => optional_type(optional_type(int))
@@ -147,5 +150,36 @@ public sealed class OptionalCheckTests
         Assert.NotEqual(CelType.OptionalOf(CelType.UInt), type);
         Assert.Equal(CelType.OptionalOf(CelType.OptionalOf(CelType.Int)), environment.Compile<CelValue>("optional.of(o)").GetProgramOrThrow().ResultType);
         Assert.Equal(CelType.TypeOf(CelType.OptionalOf(CelType.Int)), environment.Compile<CelValue>("type(o)").GetProgramOrThrow().ResultType);
+    }
+
+    // The arguments of a call are checked before its receiver, as cel-go v0.32.0 checks them (a probe of the oracle with the flags of
+    // the conformance runner, 2026-11-16): the variable of optMap over a dyn is a free type variable, the key of m[?x] binds it to
+    // string, and x.?f then selects from a string, as no overload of _?._ generalizes it to dyn; the case that has the selection as the
+    // argument is the row of the types above.
+    [Fact]
+    public void ArgumentThatBindsTheVariable_IsCheckedBeforeTheReceiverThatReadsIt()
+    {
+        const string expression = "d.optMap(x, x.?f.or(m[?x]))";
+
+        CelError error = Assert.Single(environment.Compile<CelValue>(expression).Errors);
+
+        Assert.Equal(
+            (CelErrorCode.NoSuchField, expression.IndexOf(".?f", StringComparison.Ordinal), "undefined field 'f' in type 'string'"),
+            (error.Code, error.Location.Offset, error.Message));
+    }
+
+    // The condition binds the variable of optFlatMap over a dyn to uint, the first overload of > that fits, and v.?a selects from a uint:
+    // a check error. cel-go v0.32.0 gives the same error, naming int, since its checker does not filter the ordering across numeric
+    // types inside the body of a macro (the case 16745231 of seed 20261116: the type of the variable is not part of the comparison).
+    [Fact]
+    public void SelectionFromTheVariableThatAnOrderingBoundToUInt_IsNoSuchField()
+    {
+        const string expression = "d.optFlatMap(v, v > 1u ? v.?a : optional.of(null))";
+
+        CelError error = Assert.Single(environment.Compile<CelValue>(expression).Errors);
+
+        Assert.Equal(
+            (CelErrorCode.NoSuchField, expression.IndexOf(".?a", StringComparison.Ordinal), "undefined field 'a' in type 'uint'"),
+            (error.Code, error.Location.Offset, error.Message));
     }
 }

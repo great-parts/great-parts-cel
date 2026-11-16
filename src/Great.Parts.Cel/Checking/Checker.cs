@@ -562,8 +562,10 @@ internal sealed class Checker
             }
         }
 
-        CelType? targetType = Visit(target);
+        // The arguments come before the receiver, as cel-go checks a call: a type variable that an argument binds, such as the variable
+        // of optMap over a dyn in o.optMap(x, x.?f.or(m[?x])), is bound when the receiver reads it.
         bool argumentsChecked = VisitArguments(call.Arguments, 1, out CelType[] argumentTypes);
+        CelType? targetType = Visit(target);
         if (targetType is null || !argumentsChecked)
         {
             return null;
@@ -606,11 +608,16 @@ internal sealed class Checker
             return null;
         }
 
+        int mark = _substitution.Mark;
         CelType? type = Resolve(call, OptionalSelectFunction, false, argumentTypes);
         if (type is null || call.Arguments[1] is not ConstantNode { Value: var name } || !name.TryGetString(out string? field))
         {
             return type;
         }
+
+        // cel-go resolves no overload for the type of the selection: the signature takes dyn, which would generalize the type that the
+        // operand has, such as the string that the variable of optMap was bound to, to dyn and hide the selection from a string.
+        _substitution.Rollback(mark);
 
         CelType head = Head(argumentTypes[0]);
         if (head.Kind == CelTypeKind.Optional)

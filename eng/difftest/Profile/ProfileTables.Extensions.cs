@@ -66,12 +66,15 @@ internal static partial class ProfileTables
 
     /// <summary>
     /// The sets of the run manifest, in its order, with their versions as the manifest writes them: <c>decimal</c> and the
-    /// internal set <c>block</c> are not in it.
+    /// internal set <c>block</c> are not in it. The order is that of the names (ordinal), in which the library orders the overloads
+    /// of the sets whatever the order of its builder calls; cel-go orders them as the manifest does, and the first overload that a
+    /// free type variable fits binds it, so a manifest in another order, with <c>strings</c> before <c>lists</c>, types
+    /// <c>reverse</c> of an unknown value as <c>string</c> on the side of the oracle and as <c>list</c> on the side of the library.
     /// </summary>
     internal static IReadOnlyList<(string Name, string Version)> Extensions { get; } =
     [
-        (StringsSet, "5"), (MathSet, "3"), (ListsSet, "4"), (SetsSet, "0"), (EncodersSet, "1"), (BindingsSet, "1"),
-        (TwoVariableSet, "0"), (NetworkSet, "1"), (OptionalSet, "2"),
+        (BindingsSet, "1"), (EncodersSet, "1"), (ListsSet, "4"), (MathSet, "3"), (NetworkSet, "1"), (OptionalSet, "2"),
+        (SetsSet, "0"), (StringsSet, "5"), (TwoVariableSet, "0"),
     ];
 
     /// <summary>The names of the two variables of a two-variable macro, the outer macro first, so that a macro inside another has other names.</summary>

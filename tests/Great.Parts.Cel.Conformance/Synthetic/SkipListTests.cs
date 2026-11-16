@@ -64,9 +64,10 @@ public sealed class SkipListTests
         "string_to_ip(string) stage-mismatch",
     ];
 
-    // The 151 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time, matches, the subtraction of the smallest duration,
+    // The 163 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time, matches, the subtraction of the smallest duration,
     // messages of protobuf and the extension sets (the offset of indexOf and lastIndexOf, the constant of ip and cidr, the order of sort and sortBy, %s of bytes,
-    // json.encode of a duration and of a timestamp, the negation of a duration, has() and or of optional, the key of an index of an optional) — and
+    // json.encode of a duration, of a timestamp and of a type in a sum of lists, the negation of a duration, has() and or of optional, the key of an index of an optional,
+    // the ordering across numeric types inside a macro) — and
     // the cases of the corpus that minimize them: one entry of the list for each signature but three, the entries in ordinal order.
     [Fact]
     public void PinnedCorpusListAndRegistry_HaveNoFindingAndAnEntryForEachSignatureOfTheRegistry()
@@ -78,8 +79,8 @@ public sealed class SkipListTests
 
         Assert.Empty(registry.Findings);
         Assert.Empty(list.Findings);
-        Assert.Equal(151, registry.Signatures.Count);
-        Assert.Equal(148, list.Entries.Count);
+        Assert.Equal(163, registry.Signatures.Count);
+        Assert.Equal(160, list.Entries.Count);
         Assert.Equal(
             registry.Signatures.Except(SignaturesWithoutEntry).Order(StringComparer.Ordinal),
             EntrySignatures(text).Order(StringComparer.Ordinal));

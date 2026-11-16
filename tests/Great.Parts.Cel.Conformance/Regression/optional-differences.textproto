@@ -170,6 +170,16 @@ section {
     }
   }
   test {
+    name: "duration"
+    description: "optional_map_index_value(optional_type, duration) we-value"
+    expr: "optional.of(dyn({'a': 1}))[dyn(duration('1s'))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Duration"
+      }
+    }
+  }
+  test {
     name: "list"
     description: "optional_map_index_value(optional_type, list) we-value"
     expr: "optional.of(dyn({'a': 1}))[dyn([1])].hasValue()"
@@ -200,6 +210,16 @@ section {
     }
   }
   test {
+    name: "timestamp"
+    description: "optional_map_index_value(optional_type, timestamp) we-value"
+    expr: "optional.of(dyn({'a': 1}))[dyn(timestamp(0))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Timestamp"
+      }
+    }
+  }
+  test {
     name: "type"
     description: "optional_map_index_value(optional_type, type) we-value"
     expr: "optional.of(dyn({'a': 1}))[dyn(int)].hasValue()"
@@ -220,6 +240,16 @@ section {
     eval_error: {
       errors: {
         message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "duration"
+    description: "optional_map_index_value(optional_type(map), duration) we-value"
+    expr: "optional.of({'a': 1})[dyn(duration('1s'))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Duration"
       }
     }
   }
@@ -254,6 +284,16 @@ section {
     }
   }
   test {
+    name: "timestamp"
+    description: "optional_map_index_value(optional_type(map), timestamp) we-value"
+    expr: "optional.of({'a': 1})[dyn(timestamp(0))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Timestamp"
+      }
+    }
+  }
+  test {
     name: "type"
     description: "optional_map_index_value(optional_type(map), type) we-value"
     expr: "optional.of({'a': 1})[dyn(int)].hasValue()"
@@ -274,6 +314,16 @@ section {
     eval_error: {
       errors: {
         message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "duration"
+    description: "map_optindex_optional_value(map, duration) we-value"
+    expr: "{'a': 1}[?dyn(duration('1s'))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Duration"
       }
     }
   }
@@ -308,6 +358,16 @@ section {
     }
   }
   test {
+    name: "timestamp"
+    description: "map_optindex_optional_value(map, timestamp) we-value"
+    expr: "{'a': 1}[?dyn(timestamp(0))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Timestamp"
+      }
+    }
+  }
+  test {
     name: "type"
     description: "map_optindex_optional_value(map, type) we-value"
     expr: "{'a': 1}[?dyn(int)].hasValue()"
@@ -328,6 +388,16 @@ section {
     eval_error: {
       errors: {
         message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "duration"
+    description: "optional_map_optindex_optional_value(optional_type, duration) we-value"
+    expr: "optional.of(dyn({'a': 1}))[?dyn(duration('1s'))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Duration"
       }
     }
   }
@@ -362,6 +432,16 @@ section {
     }
   }
   test {
+    name: "timestamp"
+    description: "optional_map_optindex_optional_value(optional_type, timestamp) we-value"
+    expr: "optional.of(dyn({'a': 1}))[?dyn(timestamp(0))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Timestamp"
+      }
+    }
+  }
+  test {
     name: "type"
     description: "optional_map_optindex_optional_value(optional_type, type) we-value"
     expr: "optional.of(dyn({'a': 1}))[?dyn(int)].hasValue()"
@@ -382,6 +462,16 @@ section {
     eval_error: {
       errors: {
         message: "invalid qualifier type: types.Bytes"
+      }
+    }
+  }
+  test {
+    name: "duration"
+    description: "optional_map_optindex_optional_value(optional_type(map), duration) we-value"
+    expr: "optional.of({'a': 1})[?dyn(duration('1s'))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Duration"
       }
     }
   }
@@ -412,6 +502,16 @@ section {
     eval_error: {
       errors: {
         message: "invalid qualifier type: types.Null"
+      }
+    }
+  }
+  test {
+    name: "timestamp"
+    description: "optional_map_optindex_optional_value(optional_type(map), timestamp) we-value"
+    expr: "optional.of({'a': 1})[?dyn(timestamp(0))].hasValue()"
+    eval_error: {
+      errors: {
+        message: "invalid qualifier type: types.Timestamp"
       }
     }
   }

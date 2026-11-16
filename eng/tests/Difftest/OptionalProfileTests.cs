@@ -53,9 +53,9 @@ public sealed class OptionalProfileTests
                 .Select(extension => (extension.GetProperty("name").GetString()!, extension.GetProperty("version").GetString()!)),
         ];
 
-        Assert.Equal(("optional", "2"), declared[^1]);
+        Assert.Contains(("optional", "2"), declared);
         Assert.Equal(9, declared.Count);
-        Assert.Equal(("optional", "2"), ProfileTables.Extensions[^1]);
+        Assert.Contains(("optional", "2"), ProfileTables.Extensions);
         Assert.DoesNotContain(declared, set => set.Name == "block");
         Assert.DoesNotContain(ProfileTables.Extensions, set => set.Name == "block");
     }

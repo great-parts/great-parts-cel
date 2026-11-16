@@ -431,6 +431,16 @@ internal sealed partial class ExprBuilder
             : constrained ? CompatibleOperand(kind, with, depth + 1, budget) : Make(kind, depth + 1, budget);
         scope.RemoveAt(scope.Count - 1);
         macros--;
+
+        // The minimization takes the body with receiver.value() in place of the variable, once for each read. A receiver that holds a
+        // macro, copied by two reads, is no smaller case than the macro (Minimizer.IsSmaller counts the macros of the copies), so the
+        // instance would be dropped and a known divergence of the body would stay the signature comprehension(...) (the case 2886782
+        // of seed 20261116): such a body reads the variable once at most, as the body of cel.bind does.
+        if (HoldsMacro(receiver.Expr) && ReadsOf(body.Expr, variable) > 1)
+        {
+            return null;
+        }
+
         return new Built(
             new Comprehension(flat ? ProfileTables.OptFlatMapMacro : ProfileTables.OptMapMacro, receiver.Expr, variable, [body.Expr]),
             1 + receiver.Nodes + body.Nodes,
