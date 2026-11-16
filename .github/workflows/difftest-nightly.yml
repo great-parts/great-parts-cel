@@ -1,10 +1,11 @@
 # The differential run against cel-go (docs/design/eng-difftest.md, "Nightly run"): every night with a budget of 20 minutes, and by hand
 # with the budget of the long run before a release, 2 hours or more. It runs the command of the container check, eng/difftest, through
 # eng/compose.yaml: the oracle is cel-go in the golang image of the service oracle, so the workflow has no Go setup.
-# The log of this workflow is public: the run has --numbers-only, so no output names a case, and the step summary holds the journal
-# line alone: the seed, the commit, the version of the oracle, the counts and the numbers of the cases of new signatures. The one
-# exception is an oracle that ends on a case: the message of exit code 2 then has the expression and its lines, and the log of the
-# oracle container follows it, because without them no cause can be found.
+# The log of this workflow has the text of the new signatures and of the findings (the minimized case, its bindings) before the journal
+# line, so a run with a new signature is analysed from its own log, without a second run: this is the decision of the maintainer, who
+# accepts the cost of a public log. The run has --numbers-only --findings: no file is written in the working copy, and the step
+# summary holds the journal line alone: the seed, the commit, the version of the oracle, the counts and the numbers of the cases of
+# new signatures. After a run with exit code 2 the log of the oracle container follows, because without it no cause can be found.
 name: difftest-nightly
 
 on:
@@ -21,10 +22,6 @@ on:
         description: "Seed of the run, a whole number. Without it: the date in UTC as yyyyMMdd."
         type: string
         required: false
-      findings:
-        description: "Print the text of the new signatures and the findings in the log, which is public: for the analysis of a run with new signatures, with the seed and the budget of that run."
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -57,23 +54,19 @@ jobs:
           # environment, never through the text of the script.
           BUDGET: ${{ inputs.budget || '20m' }}
           SEED: ${{ inputs.seed }}
-          FINDINGS: ${{ inputs.findings }}
         run: |
           set -u
           if ! [[ "$BUDGET" =~ ^[0-9]+[smh]$ ]]; then
             echo "The budget is a whole number and s, m or h."
             exit 2
           fi
-          arguments=(--numbers-only --budget "$BUDGET")
+          arguments=(--numbers-only --findings --budget "$BUDGET")
           if [ -n "$SEED" ]; then
             if ! [[ "$SEED" =~ ^[0-9]+$ ]]; then
               echo "The seed is a whole number."
               exit 2
             fi
             arguments+=(--seed "$SEED")
-          fi
-          if [ "$FINDINGS" = "true" ]; then
-            arguments+=(--findings)
           fi
 
           output="$RUNNER_TEMP/difftest.txt"
