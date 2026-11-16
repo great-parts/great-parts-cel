@@ -116,6 +116,14 @@ Stryker.NET 5.0.0 takes a changed file for a test file when its path starts with
 
 So `since` mutates exactly the changed C# files of the project under test, and `since.ignore-changes-in` is not needed. A new version of the tool is checked for this rule again.
 
+## Memory rows under the tool
+
+Stryker.NET builds the solution in the configuration `Debug` (`Using solution configuration/platform 'Debug|Any CPU'` in its output) and compiles the project under test again with the code it injects into every branch; the tests of the first run, the initial test run, execute that build. The rows of memory ([tests.md](tests.md#cost-and-memory-of-the-extension-sets)) are calibrated on the optimized build, so a row with a small margin can allocate more than B per unit there.
+
+With the test runner `mtp` one failed test of the initial run stops the run, whatever the number of tests: the tool divides the number of failed tests by the number of tests it counts as executed, which is 0 when the run executed every test, and ends with `Initial testrun has more than 50% failing tests.` and the names of the failed tests, before a single mutant. The run on `main` of 2026-11-16 (the run on the whole library, 12 027 tests) named one test, `ProtobufCostTests.Row_AllocatesWithinCost` of the row `protobuf, map field, traversal`, which is calibrated at 62.7 bytes per unit of B = 64; `eng/checks mutation` then gave `ENG504` for every changed file, as there was no report.
+
+A row that fails in the initial run is added with `optimizedOnly: true`: it is skipped on a library that is not optimized or holds the injected `MutantControl`, and measured as before everywhere else ([tests.md](tests.md#cost-and-memory-of-the-extension-sets), "The build of the calibration"). The mutants that only that row would detect are not detected in a run of the tool; every other row of memory runs in it and detects the mutants of the charges.
+
 ## Linked worktrees
 
 `since` works only in a working copy whose `.git` is a directory; a run without it reads no git through the tool (Stryker.NET 5.0.0 opens the repository only for `since` and the baseline), so the control set runs from a linked worktree with the second Compose file, as `eng/test` does ([eng-test.md](eng-test.md#linked-worktrees)):

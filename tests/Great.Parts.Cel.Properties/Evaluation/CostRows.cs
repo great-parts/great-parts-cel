@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Reflection;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Evaluation;
 using Great.Parts.Cel.Syntax;
@@ -15,7 +17,8 @@ namespace Great.Parts.Cel.Properties.Evaluation;
 /// <param name="Build">The text and the bindings of the row on a size.</param>
 /// <param name="IsError">Whether the row gives an error value on every size.</param>
 /// <param name="Sizes">The sizes of the data.</param>
-internal sealed record CostRow(Func<int, (string Text, CelBindings Bindings)> Build, bool IsError, int[] Sizes);
+/// <param name="OptimizedOnly">Whether the row is measured only on the optimized build of the library that its calibration is made on.</param>
+internal sealed record CostRow(Func<int, (string Text, CelBindings Bindings)> Build, bool IsError, int[] Sizes, bool OptimizedOnly);
 
 /// <summary>The rows of one table, in the order they are added, and the environment they are measured in.</summary>
 /// <param name="environment">The environment of the rows.</param>
@@ -28,10 +31,14 @@ internal sealed class CostTable(CelEnvironment environment)
     /// <param name="build">The text and the bindings of the row on a size.</param>
     /// <param name="isError">Whether the row gives an error on every size.</param>
     /// <param name="sizes">The sizes, or <see langword="null"/> for <see cref="CostRows.Sizes"/>.</param>
+    /// <param name="optimizedOnly">
+    /// Whether the row is skipped on a build of the library that is not optimized or is instrumented by Stryker.NET
+    /// (<see cref="CostRows.IsCalibratedBuild"/>): for a row whose calibration is within a few bytes of B.
+    /// </param>
     /// <returns>The table, so that the rows are added in one chain.</returns>
-    internal CostTable Add(string name, Func<int, (string, CelBindings)> build, bool isError = false, int[]? sizes = null)
+    internal CostTable Add(string name, Func<int, (string, CelBindings)> build, bool isError = false, int[]? sizes = null, bool optimizedOnly = false)
     {
-        _rows.Add(name, new CostRow(build, isError, sizes ?? CostRows.Sizes));
+        _rows.Add(name, new CostRow(build, isError, sizes ?? CostRows.Sizes, optimizedOnly));
         return this;
     }
 
@@ -74,6 +81,14 @@ internal static class CostRows
 
     private static readonly object CalibrationLock = new();
 
+    /// <summary>
+    /// Whether the library under test is the build that the bytes per unit are calibrated on: optimized (the JIT optimizer is not
+    /// disabled by the compiler) and without the code that Stryker.NET injects, <c>MutantControl</c>. Stryker.NET builds the solution
+    /// in Debug and compiles the mutated project again with its own code in every branch, so a row of a few bytes of margin
+    /// (<c>docs/cost.md</c>) can fail in its initial run, and one failed test of the initial run stops the whole run.
+    /// </summary>
+    internal static bool IsCalibratedBuild { get; } = IsOptimizedAndNotInstrumented(typeof(Plan).Assembly);
+
     /// <summary>Builds the environment of a table whose variables <c>x</c> and <c>p</c> are of type <c>dyn</c>, so that the check of a binding charges nothing.</summary>
     /// <param name="builder">The builder with the library, the sets and the types of the table.</param>
     /// <returns>The environment.</returns>
@@ -92,6 +107,10 @@ internal static class CostRows
     /// <param name="definition">The row.</param>
     internal static void Check(CelEnvironment environment, string row, CostRow definition)
     {
+        Assert.SkipWhen(
+            definition.OptimizedOnly && !IsCalibratedBuild,
+            $"{row}: the bytes per unit of this row are calibrated on the optimized build of the library; this build is not optimized or is instrumented by Stryker.NET.");
+
         double largest = 0;
         var failures = new List<string>();
         foreach (bool compiled in new[] { true, false })
@@ -153,6 +172,10 @@ internal static class CostRows
     }
 
     internal static CelValue Text(int size) => CelValue.FromString(new string('a', size));
+
+    private static bool IsOptimizedAndNotInstrumented(Assembly library) =>
+        library.GetCustomAttribute<DebuggableAttribute>() is not { IsJITOptimizerDisabled: true }
+        && !Array.Exists(library.GetTypes(), static type => type.Name == "MutantControl");
 
     private static Plan PlanOf(CelEnvironment environment, string text, bool compiled)
     {

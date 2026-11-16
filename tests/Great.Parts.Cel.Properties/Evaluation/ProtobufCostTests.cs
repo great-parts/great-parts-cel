@@ -48,7 +48,9 @@ public sealed class ProtobufCostTests
         .Add("protobuf, repeated field, traversal", size => Message("x.repeated_int64.all(v, v >= 0)", WithRepeated(size)))
         .Add("protobuf, repeated message field, traversal", size => Message("x.repeated_nested_message.exists(m, m.bb < 0)", WithNestedMessages(size)))
         .Add("protobuf, map field", size => Message("x.map_string_int64", WithRepeated(size)))
-        .Add("protobuf, map field, traversal", size => Message("x.map_string_int64.all(k, k != 'zz')", WithRepeated(size)))
+        // The traversal of a map field is calibrated at 62.7 bytes per unit of B = 64 (docs/cost.md), and it was the one row to fail in
+        // the initial run of Stryker.NET, on its Debug build with the injected code: the row is measured on the optimized build only.
+        .Add("protobuf, map field, traversal", size => Message("x.map_string_int64.all(k, k != 'zz')", WithRepeated(size)), optimizedOnly: true)
         .Add("protobuf, map field, in", size => Message("'0' in x.map_string_int64", WithRepeated(size)))
 
         // The unpacking of an Any with content of 0, 10, 1 000 and 10 000 bytes, and a repeated field of Any.
