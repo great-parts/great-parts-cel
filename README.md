@@ -68,7 +68,7 @@ The library runs the conformance suite of [cel-spec](https://github.com/cel-expr
 
 ## Where the packages come from
 
-Every package of a release on nuget.org has an attestation of its origin: GitHub Actions built the package from the commit of the release, and the attestation is recorded in the public log of Sigstore. To check a package that you downloaded, use the [GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). For version 1.0.0, download the package `great.parts.cel.1.0.0.nupkg` from nuget.org, then run the check in the folder of the file:
+Every `.nupkg` package of a release on nuget.org has an attestation of its origin: GitHub Actions built the package from the commit of the release, and the attestation is recorded in the public log of Sigstore. The symbol packages (`.snupkg`) have no attestation. To check a package that you downloaded, use the [GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). For version 1.0.0, download the package `great.parts.cel.1.0.0.nupkg` from nuget.org, then run the check in the folder of the file:
 
 ```shell
 gh attestation verify great.parts.cel.1.0.0.nupkg --repo great-parts/great-parts-cel --signer-workflow great-parts/great-parts-cel/.github/workflows/release.yml --source-ref refs/tags/v1.0.0 --deny-self-hosted-runners

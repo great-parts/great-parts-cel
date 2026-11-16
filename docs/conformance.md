@@ -9,10 +9,10 @@ This page says how much of the CEL specification the library passes. The measure
 | Pinned commit of cel-spec | `8bef98f1caadc2036fe63d5516cf1df65dc4b741` |
 | Cases in the suite | 2,592 |
 | Cases that pass | 2,591 of 2,592 |
-| Date of the run | 2026-11-13 |
-| Run | [CI run 43437997236](https://github.com/great-parts/great-parts-cel/actions/runs/43437997236), commit `d69c27d` |
+| Date of the run | 2026-11-16 |
+| Run | [CI run 43959043833](https://github.com/great-parts/great-parts-cel/actions/runs/43959043833), commit `8fca352` |
 
-The run is the workflow `ci.yml` on the `main` branch. It runs the suite in every cell of its matrix: `net10.0` and `net11.0`, under JIT on Ubuntu and on macOS and under Native AOT on linux-x64. The share is the same in every cell. The runner prints it as one line, for example `cel-spec 8bef98f: 2591/2592 passed, 2026-11-13 (jit, linux-x64, net11.0)`.
+The run is the workflow `ci.yml` on the `main` branch. It runs the suite in every cell of its matrix: `net10.0` and `net11.0`, under JIT on Ubuntu and on macOS and under Native AOT on linux-x64. The share is the same in every cell. The runner prints it as one line, for example `cel-spec 8bef98f: 2591/2592 passed, 2026-11-16 (jit, linux-x64, net11.0)`.
 
 The share is counted from all cases of the suite: a case on the skip list that does not pass is a case that did not pass, not a case left out of the count. The pinned commit includes every commit of the master branch of cel-spec that is older than 6 weeks on the day of a release.
 
@@ -41,13 +41,13 @@ The workflow [`conformance-master.yml`](https://github.com/great-parts/great-par
 
 | Item | Value |
 | :- | :- |
-| Commit of cel-spec master | `21ec6f4` |
+| Commit of cel-spec master | `3dd8162` |
 | Cases in the suite | 2,771 |
 | Cases that pass | 2,745 of 2,771 |
-| Date of the run | 2026-11-13 |
-| Run | [run 43406222110](https://github.com/great-parts/great-parts-cel/actions/runs/43406222110) |
+| Date of the run | 2026-11-16 |
+| Run | [run 43869365994](https://github.com/great-parts/great-parts-cel/actions/runs/43869365994) |
 
-Three commits of master are newer than the pinned commit; they are dated 2026-10-27, less than 6 weeks before the date of the run, so the pinned commit does not include them. 26 cases of master do not pass: the case of the skip list above and 25 more. The 25 come from one of those commits, which changes the limits of durations and adds cases for literals of `google.protobuf.Duration` and `google.protobuf.Timestamp`:
+Four commits of master are newer than the pinned commit; three are dated 2026-10-27 and one 2026-11-13, all less than 6 weeks before the date of the run, so the pinned commit does not include them. The commit of 2026-11-13 adds a generator and a report of the coverage of the suite, not cases. 26 cases of master do not pass: the case of the skip list above and 25 more. The 25 come from one of the commits of 2026-10-27, which changes the limits of durations and adds cases for literals of `google.protobuf.Duration` and `google.protobuf.Timestamp`:
 
 - 10 cases of `timestamps.textproto`: `toString_duration_max`, `toString_duration_min`, `from_string_max`, `from_string_min`, `add_max_duration_to_min_time`, `subtract_max_duration_from_max_time`, `add_duration_to_duration_max`, `subtract_duration_from_duration_min`, `sub_time_duration_over` and `sub_time_duration_under`. They use durations in the range of `google.protobuf.Duration`, about ±10,000 years. A `duration` of this library is a 64-bit count of nanoseconds, about ±292 years, see [Limits](limits.md#values).
 - 15 cases of `wrappers.textproto`: `wrappers/duration/*` (8) and `wrappers/timestamp/*` (7). They write the literals `google.protobuf.Duration{…}` and `google.protobuf.Timestamp{…}`, which this library does not support: they are `NotAType`, and `timestamp(…)` and `duration(…)` stand for them, see [Protobuf messages](protobuf.md#differences-from-cel-go).

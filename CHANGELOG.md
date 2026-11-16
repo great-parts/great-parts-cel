@@ -10,7 +10,7 @@ A change of the result or of the error of an expression that was valid in an ear
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-11-13
+## [1.0.0] - 2026-11-17
 
 The first stable release of the packages `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf`, for `net10.0` and `net11.0`, under JIT and under Native AOT.
 
@@ -28,7 +28,7 @@ The first stable release of the packages `Great.Parts.Cel` and `Great.Parts.Cel.
 - Time zones for the receivers of `timestamp` and `duration`: `CelTimeZoneDatabase.Create` reads the TZif files of the application, and `CelEnvironmentBuilder.UseTimeZones` gives them to an environment. The library reads no files and no data of the operating system. See [Time zone database](docs/recipes/time-zone-database.md).
 - Protection from untrusted expressions: limits of the length and of the nesting of an expression, a cost limit for an evaluation (`CelEvalOptions.CostLimit`) with a published unit for every operation, and cancellation with a `CancellationToken`. See [Limits](docs/limits.md) and [Cost](docs/cost.md).
 - The result of the cel-spec conformance suite on every platform of the matrix, with the skip list and the result on the master branch of cel-spec. See [Conformance](docs/conformance.md).
-- An attestation of origin for each package on nuget.org, and the command that checks it. See the [README](README.md#where-the-packages-come-from).
+- An attestation of origin for each `.nupkg` package on nuget.org, and the command that checks it. See the [README](README.md#where-the-packages-come-from).
 
 ### Behavior changes
 
