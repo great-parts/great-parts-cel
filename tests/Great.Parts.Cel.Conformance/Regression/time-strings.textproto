@@ -4,13 +4,37 @@ name: "time_strings"
 description: "Milliseconds of a duration and the text of a duration and of a timestamp"
 section {
   name: "duration"
-  description: "cel-go returns the total milliseconds of a duration and prints its seconds through a 64-bit float"
+  description: "cel-go returns the total milliseconds of a duration, converts it to hours, minutes and seconds and prints its seconds through a 64-bit float"
+  test {
+    name: "hours"
+    description: "duration_to_hours(duration) value-mismatch"
+    expr: "(duration('2562047h') - duration('1ns')).getHours()"
+    value: {
+      int64_value: 2562047
+    }
+  }
   test {
     name: "milliseconds"
     description: "duration_to_milliseconds(duration) value-mismatch"
     expr: "duration('1.5s').getMilliseconds()"
     value: {
       int64_value: 1500
+    }
+  }
+  test {
+    name: "minutes"
+    description: "duration_to_minutes(duration) value-mismatch"
+    expr: "(duration('2562047m') - duration('1ns')).getMinutes()"
+    value: {
+      int64_value: 2562047
+    }
+  }
+  test {
+    name: "seconds"
+    description: "duration_to_seconds(duration) value-mismatch"
+    expr: "(duration('9223372036s') - duration('1ns')).getSeconds()"
+    value: {
+      int64_value: 9223372036
     }
   }
   test {

@@ -493,7 +493,12 @@ internal sealed partial class ExprBuilder
         Built index = list
             ? OptionalIndexValue(null, depth + 1, limit - 1 - inner.Nodes)
             : Key(null, container, depth + 1, limit - 1 - inner.Nodes);
-        StaticType? held = container is { IsDyn: true } ? StaticType.Dyn : list ? container?.Element : container?.Value;
+
+        // The held type is not known when the container is dyn: a dyn argument binds no type parameter, so the result of
+        // optional_list_index_int and its kin is optional_type(V) with a free variable V, which the body of an optMap over it may bind to
+        // type: cel-go then plans the variable as a type name (reference to undefined type, the case 5094557 of seed 20261116, and the
+        // case 26414207, where the body binds it in the order of the join of a list literal).
+        StaticType? held = container is { IsDyn: true } ? null : list ? container?.Element : container?.Value;
         string id = list
             ? (optionalIndex ? "optional_list_optindex_optional_int" : "optional_list_index_int")
             : (optionalIndex ? "optional_map_optindex_optional_value" : "optional_map_index_value");

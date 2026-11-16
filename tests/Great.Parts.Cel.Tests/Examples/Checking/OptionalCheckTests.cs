@@ -93,6 +93,15 @@ public sealed class OptionalCheckTests
         o.optFlatMap(x, optional.none()) => optional_type(dyn)
         [1].first().optMap(x, [x]) => optional_type(list(int))
         optional.none().optMap(x, x + 1) => optional_type(int)
+        optional.none().optMap(x, ['a', x, d][x]) => optional_type(dyn)
+        optional.none().optMap(x, [x, 'a', d][x]) => optional_type(dyn)
+        optional.none().optMap(x, [d, x, 'a'][x]) => optional_type(dyn)
+        optional.none().optMap(x, ['a', 1, x][x]) => optional_type(dyn)
+        optional.none().optMap(x, {'a': x, 'b': d}['a'] + 1) => optional_type(int)
+        optional.none().optMap(x, ['a', x, d][0] + 1) => optional_type(int)
+        optional.none().optMap(x, [x, 1, d][0] + 'a') => optional_type(string)
+        optional.none().optMap(x, [x, 'a']) => optional_type(list(string))
+        optional.none().optMap(x, ['a', x, d]) => optional_type(list(dyn))
         type(o) => type(optional_type(int))
         type(optional.none()) => type(optional_type(dyn))
         optional_type => type(optional_type(dyn))
@@ -168,6 +177,22 @@ public sealed class OptionalCheckTests
     public void SelectionFromTheVariableThatAnOrderingBoundToUInt_IsNoSuchField()
     {
         AssertNoSuchField("d.optFlatMap(v, v > 1u ? v.?a : optional.of(null))", ".?a", "undefined field 'a' in type 'uint'");
+    }
+
+    // The free variable of optMap over optional.none() is bound by the join of a list literal to the type of the first element that is not
+    // dyn, and bound again by a later element of the type dyn (['a', x, d][x] compiles: x is dyn). Without such an element, or when an
+    // element of another type follows, it stays bound, and the index or the sum refuses it. cel-go v0.32.0 gives the same
+    // (a probe of the oracle with the flags of the conformance runner, 2026-11-17): its join keeps the type parameter as the type of the
+    // elements, so the next element binds it again.
+    [Theory]
+    [InlineData("optional.none().optMap(x, ['a', x][0] + 1)")]
+    [InlineData("optional.none().optMap(x, ['a', x][x])")]
+    [InlineData("optional.none().optMap(x, ['a', x, 1][x])")]
+    public void VariableBoundByAJoin_StaysBoundWhenNoDynElementFollows(string expression)
+    {
+        var error = Assert.Single(environment.Compile<CelValue>(expression).Errors);
+
+        Assert.Equal(Great.Parts.Cel.Diagnostics.CelErrorCode.NoMatchingOverload, error.Code);
     }
 
     // The one error of the expression is NoSuchField at the selection that starts with the text.

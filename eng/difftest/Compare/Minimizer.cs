@@ -293,7 +293,7 @@ internal static class Minimizer
         Expr literal = macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } argument] } ? argument : macro.Range;
         IReadOnlyList<Expr>? elements = literal switch
         {
-            ListLiteral list => list.Elements,
+            ListLiteral list => ListElements(list),
             MapLiteral map => [.. map.Entries.Select(entry => entry.Key)],
             _ => null,
         };
@@ -330,7 +330,7 @@ internal static class Minimizer
         Expr literal = macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } argument] } ? argument : macro.Range;
         IReadOnlyList<(Expr First, Expr Second)>? entries = literal switch
         {
-            ListLiteral list => [.. list.Elements.Select((element, index) => (Position(index), element))],
+            ListLiteral list => [.. ListElements(list).Select((element, index) => (Position(index), element))],
             MapLiteral map => [.. map.Entries.Select(entry => (entry.Key, entry.Value))],
             _ => null,
         };
@@ -354,6 +354,17 @@ internal static class Minimizer
     }
 
     private static IntLiteral Position(int index) => new(index, IntegerForm.DecimalDigits);
+
+    // The nodes that stand for the elements of a list literal: the element itself, and for an optional element [?e] the value of the
+    // optional, e.value(), since e is an optional and the variable of the macro is not (the case 18998813 of seed 20261116:
+    // [?optional.of('…')].all(v, matches(v, '(a{32}){32}.')) hid the known divergence of matches). The value of an optional that has none
+    // is an error on both sides, so such an instance agrees and is dropped, as a guess of any kind is.
+    private static IReadOnlyList<Expr> ListElements(ListLiteral list) =>
+    [
+        .. list.Elements.Select((element, position) => list.OptionalPositions.Contains(position)
+            ? new Call("value", [element]) { Receiver = true, Overload = "optional_value" }
+            : element),
+    ];
 
     // The pairs for the elements of a literal range with elements: in dyn() each node in dyn(); otherwise each node in parentheses,
     // then, for each pair that has a string literal, the pair with each string literal in dyn() and the other node in parentheses

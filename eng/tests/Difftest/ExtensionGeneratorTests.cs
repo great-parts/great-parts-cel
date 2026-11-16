@@ -336,28 +336,55 @@ public sealed class ExtensionGeneratorTests
         Assert.All(macros, macro => Assert.True(!ExprBuilder.HoldsMacro(macro.Range) || ExprBuilder.ReadsOf(macro.Arguments[0], macro.Variable) <= 1, ExprPrinter.Print(macro)));
     }
 
-    // The same for the range of all, exists and exists_one that is no literal: the instance takes range[i] in place of the variable, once
-    // for each read. The case 13595474 of seed 20261116 read the variable four times over cel.bind(...), so the known divergence of
-    // matches(v, p) with an invalid constant pattern stayed the signature comprehension(list) stage-mismatch.
+    // The same for the other macros that have a range: all, exists, exists_one, map, filter, sortBy and the macros of two variables. The
+    // instance takes the element of the range, or range[i] when the range is no literal, in place of the variable, once for each read;
+    // a copy that holds a macro, made by two reads, is no smaller case than the macro, unless some element of a literal has fewer
+    // macros. The case 13595474 of seed 20261116 read the variable four times over cel.bind(...) in all, so the known divergence of
+    // matches(v, p) with an invalid constant pattern stayed the signature comprehension(list) stage-mismatch; the case 22799712 read it
+    // twice in map over dyn([dyn({,}).map(...)]), and in_map(bytes, map) stayed comprehension(list) we-value.
     [Fact]
-    public void Quantifier_ReadsItsVariableOnceAtMostWhenItsRangeIsNoLiteralAndHoldsAMacro()
+    public void MacroWhoseRangeHoldsAMacro_HasASmallerInstanceOfEachArgumentThatTheMinimizationMakes()
     {
-        List<GeneratedCase> cases = [.. Sample(ManyCases), CaseGenerator.ExtensionCase(20261116, 13595474)];
+        List<GeneratedCase> cases = [.. Sample(ManyCases), CaseGenerator.ExtensionCase(20261116, 13595474), CaseGenerator.StandardCase(20261116, 22799712)];
         List<Comprehension> macros =
         [
             .. cases.SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>()
-                .Where(macro => macro.Macro is ProfileTables.All or ProfileTables.Exists or ProfileTables.ExistsOne),
+                .Where(macro => macro.Macro is not (ProfileTables.BindMacro or ProfileTables.OptMapMacro or ProfileTables.OptFlatMapMacro)),
         ];
-
-        static bool IsLiteralRange(Expr range) =>
-            (range is Call { Function: ProfileTables.Dyn, Args: [{ } inner] } ? inner : range) is ListLiteral or MapLiteral;
 
         Assert.NotEmpty(macros);
         Assert.All(
             macros,
-            macro => Assert.True(
-                IsLiteralRange(macro.Range) || !ExprBuilder.HoldsMacro(macro.Range) || ExprBuilder.ReadsOf(macro.Arguments[0], macro.Variable) <= 1,
-                ExprPrinter.Print(macro)));
+            macro => Assert.All(
+                macro.Arguments,
+                argument => Assert.True(ExprBuilder.HasSmallerInstance(macro.Range, argument, macro.Variable, macro.SecondVariable), ExprPrinter.Print(macro))));
+        Assert.Contains(macros, macro => ExprBuilder.HoldsMacro(macro.Range) && macro.Arguments.Any(argument => ExprBuilder.ReadsOf(argument, macro.Variable) == 1));
+        Assert.Contains(macros, macro => !ExprBuilder.HoldsMacro(macro.Range) && macro.Arguments.Any(argument => ExprBuilder.ReadsOf(argument, macro.Variable) > 1));
+    }
+
+    // The cases of the helper: an argument that reads the variable once, or a range with no macro, always has the instance; two reads
+    // over a range that holds a macro have none, unless the literal has an element with fewer macros than the range has.
+    [Fact]
+    public void HasSmallerInstance_CountsTheMacrosThatTheCopiesOfTheElementHold()
+    {
+        Expr v = new Ident("v");
+        Expr one = Literal(1);
+        Expr macro = new Comprehension(ProfileTables.All, new ListLiteral([one], TrailingComma: false), "w", [new BoolLiteral(true)]);
+        Expr twice = new Call(ProfileTables.Add, [v, v]);
+        Expr once = new Call(ProfileTables.Add, [v, one]);
+
+        Assert.True(ExprBuilder.HasSmallerInstance(new ListLiteral([macro], TrailingComma: false), once, "v"));
+        Assert.False(ExprBuilder.HasSmallerInstance(new ListLiteral([macro], TrailingComma: false), twice, "v"));
+        Assert.False(ExprBuilder.HasSmallerInstance(new Call(ProfileTables.Dyn, [new ListLiteral([macro], TrailingComma: false)]), twice, "v"));
+        Assert.True(ExprBuilder.HasSmallerInstance(new ListLiteral([macro, one], TrailingComma: false), twice, "v"));
+        Assert.False(ExprBuilder.HasSmallerInstance(macro, twice, "v"));
+        Assert.True(ExprBuilder.HasSmallerInstance(new ListLiteral([one, one], TrailingComma: false), twice, "v"));
+        Assert.True(ExprBuilder.HasSmallerInstance(new Ident("lx"), twice, "v"));
+
+        // Two variables: the first is replaced by the index, a literal, so only the reads of the second copy the element.
+        Expr bothTwice = new Call(ProfileTables.Add, [new Call(ProfileTables.Add, [v, v]), new Ident("e")]);
+        Assert.True(ExprBuilder.HasSmallerInstance(new ListLiteral([macro], TrailingComma: false), bothTwice, "v", "e"));
+        Assert.False(ExprBuilder.HasSmallerInstance(new ListLiteral([macro], TrailingComma: false), new Call(ProfileTables.Add, [new Ident("e"), new Ident("e")]), "v", "e"));
     }
 
     [Fact]

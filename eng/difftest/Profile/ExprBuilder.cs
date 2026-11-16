@@ -782,12 +782,11 @@ internal sealed partial class ExprBuilder
         scope.RemoveAt(scope.Count - 1);
         macros--;
 
-        // The minimization takes the predicate with range[i] in place of the variable, once for each read, when the range is no
-        // literal. A range that holds a macro, copied by two reads, is no smaller case than the macro (Minimizer.IsSmaller counts the
-        // macros of the copies), so the instance would be dropped and a known divergence of the predicate would stay the signature
-        // comprehension(...) (the case 13595474 of seed 20261116): such a predicate reads the variable once at most.
-        Expr literal = range.Expr is Call { Function: ProfileTables.Dyn, Args: [{ } inner] } ? inner : range.Expr;
-        if (literal is not (ListLiteral or MapLiteral) && HoldsMacro(range.Expr) && ReadsOf(predicate.Expr, variable) > 1)
+        // The minimization takes the predicate with the element or range[i] in place of the variable, once for each read. A copy that
+        // holds a macro, made by two reads, is no smaller case than the macro (Minimizer.IsSmaller counts the macros of the copies), so
+        // the instance would be dropped and a known divergence of the predicate would stay the signature comprehension(...) (the case
+        // 13595474 of seed 20261116): such a predicate reads the variable once at most.
+        if (!HasSmallerInstance(range.Expr, predicate.Expr, variable))
         {
             return null;
         }
@@ -829,6 +828,15 @@ internal sealed partial class ExprBuilder
 
         scope.RemoveAt(scope.Count - 1);
         macros--;
+
+        // As for the quantifiers: the minimization takes each argument with the element in place of the variable, once for each read,
+        // and a copy that holds a macro is no smaller case (the case 22799712 of seed 20261116: dyn([dyn({,}).map(...)]).map(v, ... v ...
+        // v ...) hid in_map(bytes, map)).
+        if (!arguments.TrueForAll(argument => HasSmallerInstance(range.Expr, argument, variable)))
+        {
+            return null;
+        }
+
         return new Built(new Comprehension(macro, range.Expr, variable, arguments), nodes, StaticType.ListOf(element));
     }
 

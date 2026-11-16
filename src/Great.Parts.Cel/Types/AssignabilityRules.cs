@@ -59,7 +59,10 @@ internal static class AssignabilityRules
     /// <summary>
     /// The join of the type of the elements so far and the type of the next element of a list literal, or of the
     /// keys or the values of a map literal: the most general of the two when the next is assignable to the joined
-    /// type, otherwise <c>dyn</c>. The check is a trial with nothing deducible: a failure binds nothing.
+    /// type, otherwise <c>dyn</c>. The check is a trial with nothing deducible: a failure binds nothing. A type parameter, bound or
+    /// free, that is one of the two stays the joined type, so that the next element binds it again, as cel-go keeps one of the two
+    /// types (<c>mostGeneral</c>): in <c>['a', x, d]</c> with <c>x</c> free and <c>d</c> of the type <c>dyn</c> the variable of
+    /// <c>x</c> is bound to <c>string</c> and then to <c>dyn</c>.
     /// </summary>
     /// <param name="joined">The type of the elements so far.</param>
     /// <param name="next">The type of the next element; <see langword="null"/> for <c>error</c>.</param>
@@ -70,11 +73,23 @@ internal static class AssignabilityRules
         int mark = substitution.Mark;
         if (Assign(next, joined, substitution, [], restricted: false))
         {
-            return MostGeneral(joined, next, substitution)!;
+            return KeptParameter(joined, next) ?? MostGeneral(joined, next, substitution)!;
         }
 
         substitution.Rollback(mark);
         return CelType.Dyn;
+    }
+
+    // The type parameter that the join keeps: the joined type when it is one, else the next type when it is one and the joined type is
+    // not dyn or Any, which take the join. Null when neither is a type parameter, or dyn takes it.
+    private static CelType? KeptParameter(CelType joined, CelType? next)
+    {
+        if (joined.Kind == CelTypeKind.TypeParameter)
+        {
+            return joined;
+        }
+
+        return next is { Kind: CelTypeKind.TypeParameter } && joined.Kind is not (CelTypeKind.Dyn or CelTypeKind.Any) ? next : null;
     }
 
     /// <summary>

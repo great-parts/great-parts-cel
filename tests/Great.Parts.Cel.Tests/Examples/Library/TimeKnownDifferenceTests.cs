@@ -4,10 +4,14 @@ using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Library;
 
-// The 13 entries of the register of known differences with cel-go that belong to time, each with the
+// The 16 entries of the register of known differences with cel-go that belong to time, each with the
 // minimal case of the entry and the outcome of Great.Parts.Cel that the entry states (the outcome of
 // cel-go is in the entry, and the differential run takes it from the oracle). A row is
 // "signature | expression | outcome" in the form of TimeRows; the signature is that of the register.
+//   duration_to_hours,         the whole hours, minutes and seconds, truncated toward zero, of a duration a
+//   duration_to_minutes,       nanosecond short of a large number of them: 2562046, 2562046 and 9223372035;
+//   duration_to_seconds        cel-go converts through a 64-bit float, which rounds up to 2562047, 2562047
+//                              and 9223372036.
 //   duration_to_milliseconds   duration('1.5s').getMilliseconds() is 500, the milliseconds of the second,
 //                              as the language definition and the cel-spec case get_milliseconds require;
 //                              cel-go gives 1500.
@@ -27,7 +31,10 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 public sealed class TimeKnownDifferenceTests
 {
     private const string Rows = """
+        duration_to_hours(duration) value-mismatch | (duration('2562047h') - duration('1ns')).getHours() | int 2562046
         duration_to_milliseconds(duration) value-mismatch | duration('1.5s').getMilliseconds() | int 500
+        duration_to_minutes(duration) value-mismatch | (duration('2562047m') - duration('1ns')).getMinutes() | int 2562046
+        duration_to_seconds(duration) value-mismatch | (duration('9223372036s') - duration('1ns')).getSeconds() | int 9223372035
         duration_to_string(duration) value-mismatch | string(duration('9223372036.854775807s')) | str 9223372036.854775807s
         timestamp_to_string(timestamp) value-mismatch | string(timestamp('2023-01-01T00:00:00-07:00')) | str 2023-01-01T07:00:00Z
         timestamp_to_year_with_tz(timestamp, string) we-error | timestamp('2023-01-01T00:00:00Z').getFullYear('') | error TimeZoneNotFound 45: time zone '' is not found in the time zone database of the environment (version 2026a)
@@ -64,7 +71,10 @@ public sealed class TimeKnownDifferenceTests
 
     private static readonly string[] Signatures =
     [
+        "duration_to_hours(duration) value-mismatch",
         "duration_to_milliseconds(duration) value-mismatch",
+        "duration_to_minutes(duration) value-mismatch",
+        "duration_to_seconds(duration) value-mismatch",
         "duration_to_string(duration) value-mismatch",
         "timestamp_to_day_of_month_1_based_with_tz(timestamp, string) we-error",
         "timestamp_to_day_of_month_with_tz(timestamp, string) we-error",
@@ -95,7 +105,7 @@ public sealed class TimeKnownDifferenceTests
     {
         var expected = new SortedSet<string>(Signatures, System.StringComparer.Ordinal);
 
-        Assert.Equal(13, expected.Count);
+        Assert.Equal(16, expected.Count);
         Assert.Equal(expected, TimeRows.Labels(Rows));
     }
 }

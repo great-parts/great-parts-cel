@@ -72,12 +72,23 @@ internal static class Signature
             ? container.Kind.Name()
             : null;
         string prefix = "optional_" + held + "_";
-        ProfileOverload? overload = ProfileTables.Overloads.FirstOrDefault(candidate =>
+        ProfileOverload? Find(bool byHeld) => ProfileTables.Overloads.FirstOrDefault(candidate =>
             candidate.Function == call.Function
             && candidate.Receiver == call.Receiver
             && candidate.Parameters.Count == types.Count
-            && (held is null || candidate.Id.StartsWith(prefix, StringComparison.Ordinal))
+            && (!byHeld || candidate.Id.StartsWith(prefix, StringComparison.Ordinal))
             && candidate.Parameters.Zip(types).All(pair => Fits(pair.First, pair.Second)));
+
+        // A key that no overload of the held type takes, a map as the key of an index into a held list, is no key of that list: the held
+        // value is what the key can index, a map, as it is for an unknown held type (the case 24007217 of seed 20261116: the operand
+        // is a node of the kind list that holds x1, a map, and the key is x1), so the overload is the first that fits the types.
+        ProfileOverload? overload = Find(byHeld: held is not null);
+        if (overload is null && held is not null)
+        {
+            held = null;
+            overload = Find(byHeld: false);
+        }
+
         IReadOnlyList<string> shown = overload is not null && held is not null
             ? [ProfileType.OptionalType.Name() + "(" + held + ")", types[1]]
             : types;

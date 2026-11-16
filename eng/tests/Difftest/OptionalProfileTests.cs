@@ -392,6 +392,32 @@ public sealed class OptionalProfileTests
             Name(map, ProfileTables.Index, null));
     }
 
+    // A key that no overload of the held type takes names the overload that the types of the arguments fit, as for a held type that is not
+    // known. The operand of the case 24007217 of seed 20261116 is a node of the kind list that holds x1, a map, and the key is x1: it is a
+    // map indexed by a key that is no key, the signature optional_map_index_value(optional_type, map) of the registry, and not an
+    // unnamed _[_](optional_type, map).
+    [Fact]
+    public void IndexWhoseKeyNoOverloadOfTheHeldTypeTakes_IsNamedByTheTypesOfItsArguments()
+    {
+        Value map = new() { MapValue = new MapValue() };
+        ScriptedSide side = new(text => text == "x1" ? SideOutcome.Of(map) : Agreed);
+        StaticType list = StaticType.ListOf(StaticType.Of(ProfileType.IntType));
+
+        string Name(string function, StaticType held) => Signature.Of(
+            new GeneratedCase(new Call(function, [Of(Lit(1)), new Ident("x1")]) { Container = held }, new Dictionary<string, Value>()),
+            SideOutcome.Of(IntValue(1)),
+            SideOutcome.Of(IntValue(2)),
+            DivergenceKind.ValueMismatch,
+            side,
+            side);
+
+        Assert.Equal("optional_map_index_value(optional_type, map) value-mismatch", Name(ProfileTables.Index, list));
+        Assert.Equal("optional_map_optindex_optional_value(optional_type, map) value-mismatch", Name(ProfileTables.OptionalIndex, list));
+        Assert.Equal(
+            "optional_map_index_value(optional_type(map), map) value-mismatch",
+            Name(ProfileTables.Index, StaticType.MapOf(StaticType.Of(ProfileType.IntType), StaticType.Of(ProfileType.IntType))));
+    }
+
     // The name of the macro variable stands for the held value, which the optional gives as value(); the instance of the body is asked for
     // as a case like any other.
     [Fact]
@@ -414,6 +440,26 @@ public sealed class OptionalProfileTests
         Expr macro = new Comprehension("exists", new ListLiteral([Lit(1)], TrailingComma: false), "v", [body]);
 
         Assert.Equal(["size({?'k': optional.of((1))}) > 0", "'k'", "0"], Printed(macro));
+    }
+
+    // An optional element [?e] of a range stands for the value of the optional, e.value(), where the minimizer puts a node in place of the
+    // variable: e is an optional and the variable is not, so e itself gives an instance that does not compile on either side, and a
+    // known divergence of the body stays the signature comprehension(list) (the case 18998813 of seed 20261116:
+    // [?optional.of('…')].all(v, matches(v, '(a{32}){32}.')) hid matches(string, string)).
+    [Fact]
+    public void BodiesOverAnOptionalElement_TakeTheValueOfTheOptionalInPlaceOfTheVariable()
+    {
+        Expr range = new ListLiteral([Of(Quoted("a")), Lit(1)], TrailingComma: false) { OptionalPositions = [0] };
+        Expr body = new Call(ProfileTables.Greater, [new Ident("v"), Lit(0)]);
+        Expr sum = new Call(ProfileTables.Add, [new Ident("i"), new Ident("e")]);
+
+        Assert.Equal(["(optional.of('a').value()) > 0", "(1) > 0", "0"], Printed(new Comprehension("all", range, "v", [body])));
+        Assert.Equal(
+            ["dyn(optional.of('a').value()) > 0", "dyn(1) > 0", "0"],
+            Printed(new Comprehension("all", new Call(ProfileTables.Dyn, [range]), "v", [body])));
+        Assert.Equal(
+            ["(0) + (optional.of('a').value())", "(1) + (1)"],
+            Printed(new Comprehension("all", range, "i", [sum]) { SecondVariable = "e" }));
     }
 
     // ---- The generator ----
@@ -479,6 +525,24 @@ public sealed class OptionalProfileTests
         Assert.NotEmpty(chains);
         Assert.Contains(chains, call => GeneratorTests.Nodes(call.Args[0]).Any(
             node => (node is Ident ident && unsure.Contains(ident.Name)) || node is Call { Function: ProfileTables.Dyn }));
+    }
+
+    // The held type of an index over an optional of dyn is not known: a dyn argument binds no type parameter, so cel-go gives
+    // optional_type(V) with a free V, and the body of an optMap over it may bind V to the type type, which cel-go plans as a type name
+    // (the case 5094557 of seed 20261116: reference to undefined type: v), or in the order of the join of a list literal (the case
+    // 26414207). The receiver of optMap and optFlatMap is never an index over an optional of dyn.
+    [Fact]
+    public void ReceiverOfOptMap_IsNeverAnIndexOverAnOptionalOfDyn()
+    {
+        List<GeneratedCase> cases = [.. Sample(ManyCases), CaseGenerator.ExtensionCase(20261116, 5094557), CaseGenerator.ExtensionCase(20261116, 26414207)];
+        List<Comprehension> macros =
+        [
+            .. cases.SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>()
+                .Where(macro => macro.Macro is ProfileTables.OptMapMacro or ProfileTables.OptFlatMapMacro),
+        ];
+
+        Assert.NotEmpty(macros);
+        Assert.DoesNotContain(macros, macro => macro.Range is Call { Container: { IsDyn: true } });
     }
 
     // Every form of the set occurs: the search ends when all have occurred.

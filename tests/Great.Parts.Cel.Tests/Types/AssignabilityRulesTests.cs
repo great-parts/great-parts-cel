@@ -257,6 +257,37 @@ public sealed class AssignabilityRulesTests
         Assert.False(substitution.TryGet(Fresh.Name, out _));
     }
 
+    // cel-go keeps one of the two types in the join (mostGeneral) and a type parameter is the less specific, so the parameter is the
+    // joined type, bound or free, and the next element binds it again: ['a', x, d] with x free and d dyn binds the variable of x to
+    // string, then to dyn.
+    [Fact]
+    public void Join_KeepsATypeParameterSoThatALaterElementBindsItAgain()
+    {
+        var substitution = new TypeSubstitution();
+
+        CelType afterString = AssignabilityRules.Join(CelType.String, Fresh, substitution);
+        Assert.Equal(Fresh, afterString);
+        Assert.Equal(CelType.String, Bound(substitution, Fresh));
+
+        Assert.Equal(Fresh, AssignabilityRules.Join(afterString, CelType.Dyn, substitution));
+        Assert.Equal(CelType.Dyn, Bound(substitution, Fresh));
+    }
+
+    // dyn takes the join before a parameter does, and a parameter that is bound to another type than the next one stays as it is.
+    [Fact]
+    public void Join_OfDynFirstIsDyn_AndOfABoundParameterAndAnotherTypeIsDynWithTheBindingKept()
+    {
+        var substitution = new TypeSubstitution();
+
+        Assert.Equal(CelType.Dyn, AssignabilityRules.Join(CelType.Dyn, Fresh, substitution));
+        Assert.Equal(CelType.Dyn, Bound(substitution, Fresh));
+
+        var other = new TypeSubstitution();
+        Assert.Equal(Fresh, AssignabilityRules.Join(CelType.String, Fresh, other));
+        Assert.Equal(CelType.Dyn, AssignabilityRules.Join(Fresh, CelType.Int, other));
+        Assert.Equal(CelType.String, Bound(other, Fresh));
+    }
+
     public static TheoryData<string, CelType, CelType, bool> OverlapCases => new()
     {
         { "parameter and concrete element", CelType.ListOf(A), CelType.ListOf(CelType.Int), true },

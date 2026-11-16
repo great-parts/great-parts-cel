@@ -814,6 +814,13 @@ internal sealed partial class ExprBuilder
         Built key = Make(pcg.OneIn(2) ? elementKind : pcg.Pick(AllKinds), depth + 1, limit - 1 - range.Nodes);
         scope.RemoveAt(scope.Count - 1);
         macros--;
+
+        // The key is read once at most when the range holds a macro that the minimization would copy for each read.
+        if (!HasSmallerInstance(range.Expr, key.Expr, variable))
+        {
+            return null;
+        }
+
         return new Built(new Comprehension(ProfileTables.SortByMacro, range.Expr, variable, [key.Expr]), 1 + range.Nodes + key.Nodes, range.Type);
     }
 
@@ -1076,6 +1083,14 @@ internal sealed partial class ExprBuilder
 
         scope.RemoveRange(scope.Count - 2, 2);
         macros--;
+
+        // As for the macros of one variable: each argument, with the index or the key and the element or the value in place of the
+        // variables, once for each read, makes a case that is smaller than the macro for some element.
+        if (!arguments.TrueForAll(argument => HasSmallerInstance(range.Expr, argument, firstName, secondName)))
+        {
+            return null;
+        }
+
         return new Built(new Comprehension(macro, range.Expr, firstName, arguments) { SecondVariable = secondName }, nodes, result);
     }
 
@@ -1243,4 +1258,47 @@ internal sealed partial class ExprBuilder
             + (macro.Variable == name || macro.SecondVariable == name ? 0 : macro.Arguments.Sum(argument => ReadsOf(argument, name))),
         _ => 0,
     };
+
+    /// <summary>The number of macros in a node, the macro itself and those in its range and arguments: the first measure of how small a case is.</summary>
+    /// <param name="node">The node.</param>
+    internal static int MacrosIn(Expr node) => node switch
+    {
+        Comprehension macro => 1 + MacrosIn(macro.Range) + macro.Arguments.Sum(MacrosIn),
+        Call call => call.Args.Sum(MacrosIn),
+        ListLiteral list => list.Elements.Sum(MacrosIn),
+        MapLiteral map => map.Entries.Sum(entry => MacrosIn(entry.Key) + MacrosIn(entry.Value)),
+        Select selection => MacrosIn(selection.Operand),
+        PresenceTest test => MacrosIn(test.Operand),
+        _ => 0,
+    };
+
+    /// <summary>
+    /// Whether the minimization has an instance of an argument of a macro that is smaller than the macro, the way to a known divergence of
+    /// the argument (<c>Minimizer.BodyInstances</c>). The instance puts the element of the range in place of the variable, once for each
+    /// read: a node of a literal range, or <c>range[i]</c> for any other, which copies the whole range, with the macros it holds. A copy
+    /// that holds a macro makes no smaller case than the macro unless the argument reads the variable once at most, so a divergence of
+    /// the argument that is known stays the signature <c>comprehension(...)</c>. A two-variable macro puts the index or the key and the
+    /// element or the value, the first read in place of the first variable and the second in place of the second.
+    /// </summary>
+    /// <param name="range">The range of the macro.</param>
+    /// <param name="argument">The argument.</param>
+    /// <param name="variable">The iteration variable, the first of a two-variable macro.</param>
+    /// <param name="second">The second variable of a two-variable macro, <see langword="null"/> for any other.</param>
+    internal static bool HasSmallerInstance(Expr range, Expr argument, string variable, string? second = null)
+    {
+        int first = ReadsOf(argument, variable);
+        int other = second is null ? 0 : ReadsOf(argument, second);
+        int whole = MacrosIn(range);
+        Expr literal = range is Call { Function: ProfileTables.Dyn, Args: [{ } inner] } ? inner : range;
+
+        // The instance has the macros of the argument and of the copies; the macro has these and itself and its range.
+        bool Smaller(int copies) => copies <= whole;
+        return literal switch
+        {
+            ListLiteral list => list.Elements.Count == 0 || list.Elements.Any(element => Smaller((second is null ? first : other) * MacrosIn(element))),
+            MapLiteral map => map.Entries.Count == 0
+                || map.Entries.Any(entry => Smaller(first * MacrosIn(entry.Key) + (second is null ? 0 : other * MacrosIn(entry.Value)))),
+            _ => Smaller((second is null ? first : other) * whole),
+        };
+    }
 }
