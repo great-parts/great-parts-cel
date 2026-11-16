@@ -26,8 +26,9 @@ internal enum NodeVerdict
 /// Shrinks a divergent case (docs/design/eng-difftest.md, "Outcomes and signatures", "Minimization") by a deterministic
 /// descent: while a child of the root still diverges with the same bindings, the first such child in the order of
 /// <see cref="Children"/> becomes the case. When no child of the root diverges, the descent looks under each child on which
-/// both sides give an error, in the order of the source, since two errors agree whatever their causes and such a child can
-/// hide the node that diverges: under it the first child that diverges becomes the case, and when none does, the descent looks
+/// both sides give an error, and under each child that is a list or map literal holding an optional node, which is asked for
+/// as its size, in the order of the source, since two errors agree whatever their causes and the size agrees whatever the
+/// elements are, so such a child can hide the node that diverges: under it the first child that diverges becomes the case, and when none does, the descent looks
 /// in the same way under those of its children on which both sides give an error, depth first, before the next child of the
 /// root. A node found so becomes the case without any condition. Under a macro only its range is searched, as the children
 /// are those of <see cref="Children"/>. When nothing diverges by these rules and the root is a macro, the first instance of a
@@ -232,26 +233,30 @@ internal static class Minimizer
     }
 
     // The first node below a node that diverges: the first child that does, else the first node that does found by the same
-    // search under the children on which both sides give an error, in the order of the source, depth first. The children are
-    // classified in order and the search stops at the first that diverges; a node is classified once, and the children that
-    // agree in an error keep their verdict for the search under them.
+    // search under the children on which both sides give an error, and under those that are a list or map literal holding an
+    // optional node (HoldsOptional) — its case is its size, which agrees whatever its elements are, so a divergence of an element
+    // is hidden by it as by an error — in the order of the source, depth first. The children are classified in order and the
+    // search stops at the first that diverges; a node is classified once, and the children that agree in an error, or hold an
+    // optional, keep their verdict for the search under them.
     private static GeneratedCase? FirstDivergent(GeneratedCase node, Func<GeneratedCase, NodeVerdict> classify)
     {
-        List<GeneratedCase> inError = [];
+        List<GeneratedCase> hiding = [];
         foreach (Expr child in Children(node.Expression))
         {
             GeneratedCase candidate = node with { Expression = child };
-            switch (classify(candidate))
+            NodeVerdict verdict = classify(candidate);
+            if (verdict == NodeVerdict.Diverges)
             {
-                case NodeVerdict.Diverges:
-                    return candidate;
-                case NodeVerdict.AgreesInError:
-                    inError.Add(candidate);
-                    break;
+                return candidate;
+            }
+
+            if (verdict == NodeVerdict.AgreesInError || ProfileTables.HoldsOptional(child))
+            {
+                hiding.Add(candidate);
             }
         }
 
-        foreach (GeneratedCase candidate in inError)
+        foreach (GeneratedCase candidate in hiding)
         {
             if (FirstDivergent(candidate, classify) is { } found)
             {

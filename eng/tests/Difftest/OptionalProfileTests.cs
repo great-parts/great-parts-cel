@@ -286,6 +286,36 @@ public sealed class OptionalProfileTests
         Assert.Empty(search.NewSignatures);
     }
 
+    // Case 438374 of seed 3708384748: the literal that unwrapOpt takes holds an optional, so it is asked for as its size, which
+    // agrees; the divergence is in the element, whose value is the known signature of the registry. Without the search under such
+    // a literal the case stayed the root, optional_unwrapOpt(list) value-mismatch.
+    [Fact]
+    public void LiteralThatHoldsAnOptionalAndAgreesAsItsSize_IsSearchedForTheDivergenceOfAnElement()
+    {
+        Expr sum = new Call(ProfileTables.Add, [Lit(1), Lit(2)]);
+        Expr element = Of(sum);
+        Expr literal = new ListLiteral([element, None()], TrailingComma: false);
+        Expr root = new Call("unwrapOpt", [literal]) { Receiver = true, Overload = "optional_unwrapOpt" };
+        Dictionary<string, SideOutcome> library = new()
+        {
+            [ExprPrinter.PrintCase(root)] = SideOutcome.Of(ListOf(IntValue(4))),
+            [ExprPrinter.PrintCase(element)] = SideOutcome.Of(ListOf(Bool(true), IntValue(4))),
+            [ExprPrinter.PrintCase(sum)] = SideOutcome.Of(IntValue(4)),
+        };
+        Dictionary<string, SideOutcome> oracle = new()
+        {
+            [ExprPrinter.PrintCase(root)] = SideOutcome.Of(ListOf(IntValue(3))),
+            [ExprPrinter.PrintCase(element)] = SideOutcome.Of(ListOf(Bool(true), IntValue(3))),
+            [ExprPrinter.PrintCase(sum)] = SideOutcome.Of(IntValue(3)),
+        };
+
+        (Divergence? divergence, DivergenceSearch search) = Search(library, oracle, root, "add_int64(int, int) value-mismatch");
+
+        Assert.Equal("1 + 2", divergence?.Case.Text);
+        Assert.Equal("add_int64(int, int) value-mismatch", divergence?.Signature);
+        Assert.Empty(search.NewSignatures);
+    }
+
     [Fact]
     public void OrWhoseArgumentIsNoOptional_IsNamedByTheOverloadAndTheKindOfTheArgument()
     {
