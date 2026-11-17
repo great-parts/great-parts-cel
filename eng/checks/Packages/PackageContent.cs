@@ -28,6 +28,7 @@ internal sealed class PackageContent
         License = license;
         Authors = TextOf(metadata, "authors");
         Description = TextOf(metadata, "description");
+        Readme = TextOf(metadata, "readme").Replace('\\', '/');
         RepositoryUrl = metadata.Elements().FirstOrDefault(element => element.Name.LocalName == "repository")?.Attribute("url")?.Value.Trim() ?? string.Empty;
     }
 
@@ -36,6 +37,9 @@ internal sealed class PackageContent
 
     /// <summary>The text of <c>&lt;description&gt;</c>; empty when the <c>.nuspec</c> has none.</summary>
     internal string Description { get; }
+
+    /// <summary>The text of <c>&lt;readme&gt;</c>, the path of the README in the package, with <c>/</c>; empty when the <c>.nuspec</c> has none.</summary>
+    internal string Readme { get; }
 
     /// <summary>The <c>url</c> of <c>&lt;repository&gt;</c>; empty when the <c>.nuspec</c> has none.</summary>
     internal string RepositoryUrl { get; }

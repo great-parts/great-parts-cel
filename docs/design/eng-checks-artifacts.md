@@ -22,7 +22,7 @@ Checks the packages of the solution against the lists `eng/packages/<package id>
 | a list without a package | `ENG206` | the first line of the list |
 | no license expression in the `.nuspec`, or another expression | `ENG207` | the `license` line |
 | a list without a `license` line | `ENG207` | the first line of the list |
-| the `.nuspec` has no `description` or the SDK default `Package Description`; no `authors` or the package ID as the authors (the SDK default); no `repository` `url`; no `.snupkg` next to the `.nupkg` | `ENG208` | the path of the `.nupkg`, `(1,1)`; one finding per problem |
+| the `.nuspec` has no `description` or the SDK default `Package Description`; no `authors` or the package ID as the authors (the SDK default); no `repository` `url`; no `readme`, or the file that the `readme` names is not in the package (the entry name is compared with `/`, `\` read as `/`); no `.snupkg` next to the `.nupkg` | `ENG208` | the path of the `.nupkg`, `(1,1)`; one finding per problem |
 
 - Entries of the package format — `[Content_Types].xml`, `_rels/`, `package/` and `<id>.nuspec` — are not compared as files.
 - From the `.nuspec` only the dependency groups and the license expression (`<license type="expression">`) are compared. Groups are matched by the target framework as the `.nuspec` writes it. Dependencies of the `.nuspec` outside any `<group>` form one group without a target; a group line of a list always names a target, so such dependencies are always an `ENG201`, and the message calls the group `without a target`.

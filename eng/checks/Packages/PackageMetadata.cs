@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Great.Parts.Cel.Eng.Findings;
 
 namespace Great.Parts.Cel.Eng.Checks;
 
 /// <summary>
 /// Checks the metadata of a package and its symbol package (<c>docs/design/eng-checks-artifacts.md</c>, "packages"): the description is
-/// not the default of the SDK, the authors are set, the repository URL is there, and a <c>.snupkg</c> lies next to the <c>.nupkg</c>.
+/// not the default of the SDK, the authors are set, the repository URL is there, the <c>.nuspec</c> names a README that the package holds,
+/// and a <c>.snupkg</c> lies next to the <c>.nupkg</c>.
 /// Every problem is one <c>ENG208</c> at the path of the <c>.nupkg</c>.
 /// </summary>
 internal static class PackageMetadata
@@ -34,6 +36,15 @@ internal static class PackageMetadata
         if (package.RepositoryUrl.Length == 0)
         {
             yield return Problem(package, "the package has no repository url");
+        }
+
+        if (package.Readme.Length == 0)
+        {
+            yield return Problem(package, "the .nuspec has no readme");
+        }
+        else if (!package.Entries.Contains(package.Readme, StringComparer.Ordinal))
+        {
+            yield return Problem(package, $"the readme '{package.Readme}' that the .nuspec names is not in the package");
         }
 
         if (!File.Exists(Path.ChangeExtension(fullPath, ".snupkg")))

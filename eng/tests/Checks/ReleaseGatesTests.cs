@@ -27,6 +27,10 @@ public sealed class ReleaseGatesTests
     private const string PackageName = "Great.Parts.Cel.1.2.0.nupkg";
     private const string ProtobufName = "Great.Parts.Cel.Protobuf.1.2.0.nupkg";
 
+    // The text of Directory.Build.props and of a project under src/ at the commit of the long run, for the cases of the package metadata.
+    private const string PropsBefore = "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags></PropertyGroup></Project>";
+    private const string ProjectBefore = "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description></PropertyGroup></Project>";
+
     // The entries of a package that the build made, without the signature of nuget.org.
     private static readonly (string Name, string Content)[] Entries = [("Great.Parts.Cel.nuspec", "nuspec"), ("lib/net10.0/Great.Parts.Cel.dll", "dll")];
 
@@ -192,6 +196,59 @@ public sealed class ReleaseGatesTests
             fixture.Gates(),
             1,
             $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: {changed}");
+    }
+
+    // A file of the package metadata (Directory.Build.props, a project under src/) whose change is only a change of the metadata of the
+    // package does not cancel the run: the assembly and the program of the run stay the same.
+    [Theory]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags><PackageReadmeFile>README.md</PackageReadmeFile></PropertyGroup></Project>")]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project>\n  <!-- A new comment. -->\n  <PropertyGroup>\n    <Nullable>enable</Nullable>\n    <PackageTags>cel;rules</PackageTags>\n  </PropertyGroup>\n</Project>")]
+    [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description><PackageReadmeFile>README.md</PackageReadmeFile></PropertyGroup><ItemGroup><None Include=\"../../eng/packages/Lib.README.md\" Pack=\"true\" PackagePath=\"README.md\" Visible=\"false\" /></ItemGroup></Project>")]
+    [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description></PropertyGroup><PropertyGroup><PackageProjectUrl>https://example.test</PackageProjectUrl></PropertyGroup></Project>")]
+    public static void Eng904_RunOnAnAncestorAndOnlyThePackageMetadataChangedSince_Passes(string path, string before, string after)
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeFileAfterTheRun(path, before, after);
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(fixture.Gates(), 0);
+    }
+
+    [Theory]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>disable</Nullable><PackageTags>cel</PackageTags></PropertyGroup></Project>")]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><PackageTags>cel</PackageTags><PackageReadmeFile>README.md</PackageReadmeFile></PropertyGroup></Project>")]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags><Version>1.0.1</Version></PropertyGroup></Project>")]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags></PropertyGroup>")]
+    [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>other</Description></PropertyGroup></Project>")]
+    [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0;net11.0</TargetFrameworks><Description>d</Description></PropertyGroup></Project>")]
+    [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description></PropertyGroup><ItemGroup><None Include=\"x.txt\" /></ItemGroup></Project>")]
+    [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description></PropertyGroup><Target Name=\"T\"><ItemGroup><None Include=\"x.txt\" Pack=\"true\" /></ItemGroup></Target></Project>")]
+    [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description></PropertyGroup><ItemGroup><Compile Include=\"x.cs\" Pack=\"true\" /></ItemGroup></Project>")]
+    [InlineData("src/Lib/Lib.csproj", ProjectBefore, "this is not a project file")]
+    [InlineData("src/Lib/Sub/Other.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description><PackageReadmeFile>README.md</PackageReadmeFile></PropertyGroup></Project>")]
+    public static void Eng904_RunOnAnAncestorAndAMetadataFileChangedBeyondThePackageMetadataSince_IsReportedWithThePath(string path, string before, string after)
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeFileAfterTheRun(path, before, after);
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: {path}");
+    }
+
+    [Fact]
+    public void Eng904_RunOnAnAncestorAndTheMetadataFileIsNewSince_IsReported()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeAfterTheRun("src/Lib/Lib.csproj");
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: src/Lib/Lib.csproj");
     }
 
     [Fact]
@@ -821,6 +878,21 @@ public sealed class ReleaseGatesTests
         {
             string run = Head;
             Root.Write(path, "changed\n");
+            Git("add", "-A");
+            Commit("change " + path);
+            Git("tag", "-f", Tag);
+            Git("update-ref", "refs/remotes/origin/main", "HEAD");
+            return run;
+        }
+
+        // As ChangeAfterTheRun, for a file that has the text `before` on the commit of the long run and the text `after` on the tag.
+        internal string ChangeFileAfterTheRun(string path, string before, string after)
+        {
+            Root.Write(path, before);
+            Git("add", "-A");
+            Commit("add " + path);
+            string run = Head;
+            Root.Write(path, after);
             Git("add", "-A");
             Commit("change " + path);
             Git("tag", "-f", Tag);

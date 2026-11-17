@@ -1,0 +1,58 @@
+# Great.Parts.Cel
+
+CEL (Common Expression Language) for .NET / C#.
+
+[CEL](https://cel.dev/) is an expression language that is not Turing complete: an expression reads only the data that the application passes to it. An application compiles an expression once and evaluates it on different data many times. Great.Parts.Cel does both in a .NET application, under JIT and under Native AOT.
+
+## Install
+
+The library targets `net10.0` and `net11.0`. Add the package to a project:
+
+```shell
+dotnet add package Great.Parts.Cel
+```
+
+Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/protobuf.md). The type `decimal` is available on `net11.0` only; see [Decimal](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/decimal.md).
+
+## Quick start
+
+```csharp
+using Great.Parts.Cel;
+
+CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+    .AddVariable<long>("x")
+    .Build()
+    .GetEnvironmentOrThrow();
+
+CelProgram<long> program = environment.Compile<long>("(x + 2) / 3").GetProgramOrThrow();
+
+Console.WriteLine(program.Evaluate(new CelBindings().Add("x", 40L)).GetValueOrThrow()); // Output: 14
+Console.WriteLine(program.Evaluate(new CelBindings().Add("x", -5L)).GetValueOrThrow()); // Output: -1
+```
+
+The environment declares what an expression may use: here the standard library and one variable `x` of the CEL type `int`. `Compile<long>` parses the expression, checks its types and returns a program. The program is immutable: it is evaluated any number of times, from any number of threads. Errors are returned as results, each with its place in the expression; `Get…OrThrow()` turns an error into an exception and keeps the example short.
+
+## What it covers
+
+- **The language.** The complete CEL syntax, the type checking of the CEL language definition and the standard library, [version 1](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/standard-library.md): arithmetic, comparisons, strings, lists, maps, `timestamp` and `duration` with time zones from a database that the application supplies, the standard macros, and `matches` with the syntax of RE2, found in time linear in the length of the string.
+- **Extension sets.** The sets of cel-go, each added with an explicit version, and `decimal`, a set of this library, on `net11.0`. See [Extension sets](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/extensions.md).
+- **Data of the application.** Variables and results of .NET types, and objects of the application, described by a source generator at build time, with no reflection, so they work under Native AOT and trimming ([Type mapping](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/type-mapping.md)); messages of protobuf, in the package `Great.Parts.Cel.Protobuf`.
+- **Untrusted expressions.** The length and the nesting of the text are limited, an evaluation can have a cost limit and can be cancelled ([Limits](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/limits.md), [Cost](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/cost.md)).
+- **Errors.** A parse, type or evaluation error is a result with a code of `CelErrorCode`, a stage and a place in the expression, never an exception for a wrong expression ([Error codes](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/error-codes.md)).
+
+## Documentation
+
+The documentation of a release is the content of the repository at the tag of the release; the links on this page point to the tag `v1.0.1`.
+
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/README.md)
+- [Standard library](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/standard-library.md)
+- [Extension sets](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/extensions.md)
+- [API concepts](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/api-concepts.md)
+- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/type-mapping.md)
+- [Conformance](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/conformance.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/CHANGELOG.md)
+
+## License
+
+[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/LICENSE).

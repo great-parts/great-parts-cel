@@ -28,6 +28,7 @@ public sealed class PackagesTests
         file lib/net10.0/Great.Parts.Cel.dll
         file lib/net11.0/Great.Parts.Cel.dll
         file analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll
+        file README.md
         """;
     private const string ProtobufList = """
         # Expected content of the Great.Parts.Cel.Protobuf package.
@@ -41,6 +42,7 @@ public sealed class PackagesTests
         file NOTICE
         file lib/net10.0/Great.Parts.Cel.Protobuf.dll
         file lib/net11.0/Great.Parts.Cel.Protobuf.dll
+        file README.md
         """;
     private const string CelListPath = "eng/packages/Great.Parts.Cel.txt";
     private const string ProtobufListPath = "eng/packages/Great.Parts.Cel.Protobuf.txt";
@@ -280,7 +282,7 @@ public sealed class PackagesTests
     [Fact]
     public void Eng207_ListWithoutALicenseLine_IsReportedAtTheFirstLine()
     {
-        using TempDirectory root = Repository("dependencies net10.0:\nfile NOTICE\n");
+        using TempDirectory root = Repository("dependencies net10.0:\nfile NOTICE\nfile README.md\n");
         Pack(root, "Great.Parts.Cel", ["NOTICE"], Groups(("net10.0", [])));
 
         FindingAssert.Exactly(Check(root), Error(EngCodes.Eng207, CelListPath, 1, "the list has no 'license' line"));
@@ -318,6 +320,29 @@ public sealed class PackagesTests
             Check(root),
             Error(EngCodes.Eng208, PackagePath, 1, "the description is missing or is the default of the SDK (Great.Parts.Cel)"),
             Error(EngCodes.Eng208, PackagePath, 1, "the authors are missing or are the default of the SDK (Great.Parts.Cel)"));
+    }
+
+    [Fact]
+    public void Eng208_NuspecWithoutAReadme_IsReportedAtThePathOfThePackage()
+    {
+        const string PackagePath = "artifacts/packages/Great.Parts.Cel.0.0.0-dev.nupkg";
+        using TempDirectory root = Repository(CelList);
+        Pack(root, "Great.Parts.Cel", CelFiles, Groups(("net10.0", []), ("net11.0", [])), metadata: new Metadata(Readme: null));
+
+        FindingAssert.Exactly(Check(root), Error(EngCodes.Eng208, PackagePath, 1, "the .nuspec has no readme (Great.Parts.Cel)"));
+    }
+
+    [Fact]
+    public void Eng208_ReadmeThatTheNuspecNamesAndThePackageLacks_IsReportedAtThePathOfThePackage()
+    {
+        const string PackagePath = "artifacts/packages/Great.Parts.Cel.0.0.0-dev.nupkg";
+        using TempDirectory root = Repository(CelList);
+        Pack(root, "Great.Parts.Cel", CelFiles, Groups(("net10.0", []), ("net11.0", [])), readmeEntry: false);
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng208, PackagePath, 1, "the readme 'README.md' that the .nuspec names is not in the package (Great.Parts.Cel)"),
+            Error(EngCodes.Eng204, CelListPath, 11, "the file 'README.md' of the list is not in the package"));
     }
 
     [Fact]
@@ -433,8 +458,8 @@ public sealed class PackagesTests
 
     private sealed record Result(int ExitCode, string Output, string Error);
 
-    // Writes artifacts/packages/<id>.<version>.nupkg: the entries of the package format, the files and a .nuspec. An entry that
-    // ends with "/" is an entry of a directory.
+    // Writes artifacts/packages/<id>.<version>.nupkg: the entries of the package format, the files, the entry README.md (unless
+    // readmeEntry is false) and a .nuspec. An entry that ends with "/" is an entry of a directory.
     private static void Pack(
         TempDirectory root,
         string id,
@@ -444,7 +469,8 @@ public sealed class PackagesTests
         string licenseType = "expression",
         string version = "0.0.0-dev",
         Metadata? metadata = null,
-        bool symbols = true)
+        bool symbols = true,
+        bool readmeEntry = true)
     {
         string path = Path.Combine(root.Path, "artifacts", "packages", $"{id}.{version}.nupkg");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -458,6 +484,11 @@ public sealed class PackagesTests
             {
                 AddEntry(archive, file, file.EndsWith('/') ? string.Empty : "content");
             }
+
+            if (readmeEntry)
+            {
+                AddEntry(archive, "README.md", "# A readme");
+            }
         }
 
         if (symbols)
@@ -467,7 +498,11 @@ public sealed class PackagesTests
     }
 
     // The metadata of a .nuspec; the defaults are the values of a package that passes the check.
-    private sealed record Metadata(string? Authors = "The Great.Parts Authors", string? Description = "A description.", string? RepositoryUrl = "https://example.test/repo");
+    private sealed record Metadata(
+        string? Authors = "The Great.Parts Authors",
+        string? Description = "A description.",
+        string? RepositoryUrl = "https://example.test/repo",
+        string? Readme = "README.md");
 
     private static void AddEntry(ZipArchive archive, string name, string content)
     {
@@ -499,6 +534,11 @@ public sealed class PackagesTests
         if (license is not null)
         {
             text.Append(CultureInfo.InvariantCulture, $"<license type=\"{licenseType}\">{license}</license>\n");
+        }
+
+        if (metadata.Readme is not null)
+        {
+            text.Append(CultureInfo.InvariantCulture, $"<readme>{metadata.Readme}</readme>\n");
         }
 
         text.Append("<dependencies>\n");

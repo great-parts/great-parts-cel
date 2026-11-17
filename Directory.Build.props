@@ -33,6 +33,8 @@
     <!-- The repository URL goes to the package metadata and to the source link of the symbols. -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
     <PackageTags>cel;common-expression-language;expression;expressions;expression-evaluator;rules;rules-engine;cel-spec;csharp;validation;dotnet;nativeaot;source-generator</PackageTags>
+    <!-- The README of a package is the file README.md in its root; each package project adds the file eng/packages/<package id>.README.md under this name. -->
+    <PackageReadmeFile>README.md</PackageReadmeFile>
     <!-- A symbol package .snupkg is written next to every .nupkg. -->
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>

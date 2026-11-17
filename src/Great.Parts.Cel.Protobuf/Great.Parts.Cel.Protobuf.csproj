@@ -37,9 +37,10 @@
     <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
-  <!-- The notice file is in the root of the package. -->
+  <!-- The notice file and the README of the package (PackageReadmeFile) are in the root of the package. -->
   <ItemGroup>
     <None Include="../../NOTICE" Pack="true" PackagePath="" Visible="false" />
+    <None Include="../../eng/packages/Great.Parts.Cel.Protobuf.README.md" Pack="true" PackagePath="README.md" Visible="false" />
   </ItemGroup>
 
 </Project>

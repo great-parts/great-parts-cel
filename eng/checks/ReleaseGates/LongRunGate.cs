@@ -12,6 +12,8 @@ namespace Great.Parts.Cel.Eng.Checks;
 /// with the event <c>workflow_dispatch</c> whose job <c>Differential run</c> succeeded and took at least 7 200 seconds: the input
 /// <c>budget</c> of a manual run is not in the answer of the API, so the length of the job is the evidence. A run on an ancestor counts when
 /// no path that the differential run depends on (<see cref="CodePaths"/>) changed between the run and the tag; the closest such run is taken.
+/// A change of <c>Directory.Build.props</c> or of a project under <c>src/</c> that only touches the metadata of the packages is not a change
+/// of such a path (<see cref="PackageMetadataChange"/>).
 /// </summary>
 internal static class LongRunGate
 {
@@ -107,9 +109,15 @@ internal static class LongRunGate
     {
         GitResult diff = Git.Run(root, "diff", "--name-only", "--no-renames", "-z", sha, commit);
         return diff.Succeeded
-            ? [.. diff.Output.Split('\0', StringSplitOptions.RemoveEmptyEntries).Where(path => CodePaths.Any(prefix => path.StartsWith(prefix, StringComparison.Ordinal)))]
+            ? [.. diff.Output.Split('\0', StringSplitOptions.RemoveEmptyEntries).Where(path => IsCodeChange(root, sha, commit, path))]
             : throw new CheckInputException($"git diff could not compare {sha[..8]} with {commit[..8]}: {diff.Error.Trim()}");
     }
+
+    // A changed path is a change of the code when it is in the list, except a file that holds the metadata of the packages, when nothing
+    // but that metadata changed in it.
+    private static bool IsCodeChange(string root, string sha, string commit, string path) =>
+        CodePaths.Any(prefix => path.StartsWith(prefix, StringComparison.Ordinal))
+        && !(PackageMetadataChange.Holds(path) && PackageMetadataChange.IsOnlyMetadata(root, sha, commit, path));
 
     private static bool HasLongJob(string jobs)
     {

@@ -10,6 +10,18 @@ A change of the result or of the error of an expression that was valid in an ear
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-17
+
+Only the properties of the packages `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf` change; the code of the libraries is the code of 1.0.0.
+
+### Added
+
+- A README in each package, shown on nuget.org: what the package is, how to install it, a short example and links to the documentation of the release.
+
+### Behavior changes
+
+None: the assemblies of 1.0.1 are built from the same code as those of 1.0.0.
+
 ## [1.0.0] - 2026-11-17
 
 The first stable release of the packages `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf`, for `net10.0` and `net11.0`, under JIT and under Native AOT.
@@ -34,5 +46,6 @@ The first stable release of the packages `Great.Parts.Cel` and `Great.Parts.Cel.
 
 None: 1.0.0 is the first release, so there is no earlier version whose results or errors change. From this version on, a change of the result or of the error of an expression that was valid before is listed here, in the entry of its version.
 
-[Unreleased]: https://github.com/great-parts/great-parts-cel/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/great-parts/great-parts-cel/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/great-parts/great-parts-cel/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/great-parts/great-parts-cel/releases/tag/v1.0.0
