@@ -207,9 +207,7 @@ public sealed class ReleaseGatesTests
     [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description></PropertyGroup><PropertyGroup><PackageProjectUrl>https://example.test</PackageProjectUrl></PropertyGroup></Project>")]
     public static void Eng904_RunOnAnAncestorAndOnlyThePackageMetadataChangedSince_Passes(string path, string before, string after)
     {
-        using Fixture fixture = Fixture.Create("v1.2.0");
-        string run = fixture.ChangeFileAfterTheRun(path, before, after);
-        fixture.Stubs.Api.RunCommits = [run];
+        using Fixture fixture = FixtureWithFileChangedAfterTheRun(path, before, after, out _);
 
         Result.Expect(fixture.Gates(), 0);
     }
@@ -228,14 +226,20 @@ public sealed class ReleaseGatesTests
     [InlineData("src/Lib/Sub/Other.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description><PackageReadmeFile>README.md</PackageReadmeFile></PropertyGroup></Project>")]
     public static void Eng904_RunOnAnAncestorAndAMetadataFileChangedBeyondThePackageMetadataSince_IsReportedWithThePath(string path, string before, string after)
     {
-        using Fixture fixture = Fixture.Create("v1.2.0");
-        string run = fixture.ChangeFileAfterTheRun(path, before, after);
-        fixture.Stubs.Api.RunCommits = [run];
+        using Fixture fixture = FixtureWithFileChangedAfterTheRun(path, before, after, out string run);
 
         Result.Expect(
             fixture.Gates(),
             1,
             $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: {path}");
+    }
+
+    private static Fixture FixtureWithFileChangedAfterTheRun(string path, string before, string after, out string run)
+    {
+        Fixture fixture = Fixture.Create("v1.2.0");
+        run = fixture.ChangeFileAfterTheRun(path, before, after);
+        fixture.Stubs.Api.RunCommits = [run];
+        return fixture;
     }
 
     [Fact]
