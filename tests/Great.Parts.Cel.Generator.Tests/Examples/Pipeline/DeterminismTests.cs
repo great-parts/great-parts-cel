@@ -35,7 +35,7 @@ public sealed class DeterminismTests
         """;
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "R-5")]
     public void TwoRunsAndTwoCompilationsOfOneSource_GiveTheSameText()
     {
@@ -49,7 +49,7 @@ public sealed class DeterminismTests
     }
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "R-5")]
     public void OrderOfAttributesAndMembers_DoesNotChangeTheText()
     {
@@ -61,7 +61,7 @@ public sealed class DeterminismTests
 
     // The parts of a partial type are in two files, in either order: the members come in a different order from the compiler.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "R-5")]
     public void OrderOfThePartsOfAPartialType_DoesNotChangeTheText()
     {
@@ -80,7 +80,7 @@ public sealed class DeterminismTests
     // Two roots with one CEL name: the second is the one with the greater display name of the type (ordinal), whichever attribute comes
     // first in the text, so the message and the place are the same for both orders of the attributes.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void GPCEL004_PlaceDoesNotDependOnTheOrderOfTheAttributes()
     {
@@ -109,7 +109,7 @@ public sealed class DeterminismTests
 
     // The order of the diagnostics of a run does not depend on the order of the sources either: the same set of reports.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     public void DiagnosticsOfTwoRuns_AreTheSameSet()
     {
         const string Source = "using Great.Parts.Cel.Values;\nnamespace Acme;\n[CelObject(typeof(System.IO.Stream))]\n[CelObject(typeof(char))]\npublic partial class Ctx : CelTypeContext { }\n";

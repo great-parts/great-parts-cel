@@ -8,6 +8,8 @@ From 1.0.0 the public API follows Semantic Versioning; see [Versioning and compa
 
 A change of the result or of the error of an expression that was valid in an earlier version is listed under `Behavior changes` of its version.
 
+A fix of a vulnerability is listed under `Security` of its version, with the GHSA identifier of its advisory and the CVE identifier when one is assigned; see [SECURITY.md](SECURITY.md#where-a-fixed-vulnerability-is-announced).
+
 ## [Unreleased]
 
 ## [1.0.1] - 2026-11-17

@@ -197,7 +197,7 @@ public sealed class SnapshotContextTests
     public static TheoryData<string> Names => SnapshotContexts.Names;
 
     [Theory]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     [MemberData(nameof(Names))]
     public void Context_GivesOneFileAndNoError(string name)

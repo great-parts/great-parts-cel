@@ -27,7 +27,7 @@ public sealed class IncrementalStepTests
     private const string Unrelated = "namespace Acme; public class Unrelated { public long V { get; set; } }\n";
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void NothingChanged_EveryTrackedStepIsCachedOrUnchanged()
     {
@@ -45,7 +45,7 @@ public sealed class IncrementalStepTests
     }
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void ChangeOfAFileNoContextReads_LeavesTheStepsAfterTheReadCached()
     {
@@ -63,7 +63,7 @@ public sealed class IncrementalStepTests
     }
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void ChangeOfATypeTheContextReaches_MakesTheModelModified()
     {
@@ -81,7 +81,7 @@ public sealed class IncrementalStepTests
     // Lines inserted above the context move the places of the diagnostics, which are an output of their own, and not the model:
     // the file of the context is not written again for a change of a line number.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void LinesInsertedAboveTheContext_ModifyTheDiagnosticsAndNotTheModel()
     {

@@ -91,7 +91,7 @@ public sealed class ExtensionBuildErrorTests
     // error is that of Build, which lists the versions that exist.
     [Theory]
     [Trait("Requirement", "F-3")]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-8")]
     [MemberData(nameof(UnknownVersions))]
     public static void VersionThatTheSetDoesNotHave_IsUnknownExtensionVersion(string name, uint known, uint asked)

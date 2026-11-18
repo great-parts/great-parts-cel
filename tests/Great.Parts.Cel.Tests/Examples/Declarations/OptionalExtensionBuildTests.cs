@@ -19,7 +19,7 @@ namespace Great.Parts.Cel.Tests.Examples.Declarations;
 // ExtensionVersionConflict, another set of the application with the same version DuplicateExtension. A build error has the stage Build
 // and no place in an expression.
 [Trait("Requirement", "F-3")]
-[Trait("Requirement", "S-2")]
+[Trait("Requirement", "S-6")]
 [Trait("Requirement", "F-8")]
 public sealed class OptionalExtensionBuildTests
 {

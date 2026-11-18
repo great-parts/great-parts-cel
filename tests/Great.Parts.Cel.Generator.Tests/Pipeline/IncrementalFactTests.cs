@@ -19,7 +19,7 @@ public sealed class IncrementalFactTests
         """;
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void ChangeOfTheLanguageVersion_ChangesTheOutputOfTheRead()
     {

@@ -16,7 +16,7 @@ public sealed class UnsupportedRootTests
 
     [Theory]
     [Trait("Requirement", "F-2")]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [InlineData("Acme.Ref", "public ref struct Ref { public int A; }", "Acme.Ref", "ref structs cannot be stored in a CEL value")]
     [InlineData("Acme.Box<>", "public class Box<T> { public T? Value { get; set; } }", "Acme.Box<T>", "open generic types and type parameters cannot be described without reflection; list a closed type")]
     [InlineData("int*", "", "int*", "pointers are not data")]

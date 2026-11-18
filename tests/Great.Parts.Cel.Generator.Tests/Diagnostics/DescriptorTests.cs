@@ -42,11 +42,11 @@ public sealed class DescriptorTests
     }
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     public void Descriptors_AreTheNineCodesAndNoOther() => Assert.Equal(Codes, Descriptors.Select(descriptor => descriptor.Id));
 
     [Theory]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [MemberData(nameof(CodeNames))]
     public static void Descriptor_HasTheCategoryAndTheHelpLinkOfItsCode(string code)
     {
@@ -62,7 +62,7 @@ public sealed class DescriptorTests
     // The anchor of GitHub is the heading in lower case: the page has a section whose heading is the code, and the section names the
     // severity and the title of the descriptor and gives the message of it.
     [Theory]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [MemberData(nameof(CodeNames))]
     public static void PageOfTheDiagnostics_HasTheSectionOfTheCode(string code)
     {
@@ -80,7 +80,7 @@ public sealed class DescriptorTests
     }
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     public void PageOfTheDiagnostics_HasNoHeadingOfAnotherCode()
     {
         string page = File.ReadAllText(RepositoryFile("docs/generator-diagnostics.md"));
@@ -92,7 +92,7 @@ public sealed class DescriptorTests
 
     // The release notes list each code with its category, severity and title (rule RS2008), once.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     public void UnshippedReleases_ListEachCodeWithItsCategorySeverityAndTitle()
     {
         string[] lines = [.. File.ReadAllLines(RepositoryFile("src/Great.Parts.Cel.Generator/AnalyzerReleases.Unshipped.md"))];

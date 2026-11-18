@@ -1,8 +1,11 @@
 # Great.Parts.Cel
 
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/great-parts/great-parts-cel?label=openssf%20scorecard&style=flat)](https://scorecard.dev/viewer/?uri=github.com/great-parts/great-parts-cel)
+[![OpenSSF Best Practices](https://img.shields.io/cii/level/16897)](https://www.bestpractices.dev/projects/16897)
+
 CEL (Common Expression Language) for .NET / C#.
 
-**Status:** the source in this repository is version 1.0.0. From this version the public API follows [Semantic Versioning](docs/versioning.md): a breaking change comes only in a major version.
+**Status:** the next release is 2.0, and it is the only release planned; see the [Roadmap](ROADMAP.md). Versions 1.x are not supported. The public API follows [Semantic Versioning](docs/versioning.md): a breaking change comes only in a major version.
 
 [CEL](https://cel.dev/) is an expression language that is not Turing complete: an expression reads only the data that the application passes to it. An application compiles an expression once and evaluates it on different data many times. Great.Parts.Cel does both in a .NET application, under JIT and under Native AOT.
 
@@ -64,7 +67,7 @@ The environment declares what an expression may use: here the standard library a
 
 ## Conformance
 
-The library runs the conformance suite of [cel-spec](https://github.com/cel-expr/cel-spec) on every platform and every target it supports. The page [Conformance](docs/conformance.md) has the share of the cases that pass with its date, the commit of cel-spec and the CI run, the skip list with the reasons, and the result of the last run on the master branch of cel-spec.
+The library runs the conformance suite of [cel-spec](https://github.com/cel-expr/cel-spec) on every platform and every target it supports. The page [Conformance](docs/conformance.md) has the share of the cases that pass with its date, the commit of cel-spec and a link to the report of the run, the skip list with the reasons, and the result of the last run on the master branch of cel-spec with the same data.
 
 ## Where the packages come from
 
@@ -88,7 +91,7 @@ Every pull request and every push to `main` runs [CI](.github/workflows/ci.yml):
 - In every cell the tests include the conformance tests of [cel-spec](https://github.com/cel-expr/cel-spec) at a pinned commit ([tests/cel-spec/COMMIT](tests/cel-spec/COMMIT)). A case that does not pass is in the [skip list](tests/Great.Parts.Cel.Conformance/CelSpec/skips.md) with its reason; the page [Conformance](docs/conformance.md) shows the result.
 - The Native AOT cells publish the test projects, run them and compare the test count with the JIT run.
 - The examples of this README and of `docs/` are compiled and run, and their output is compared with the output they show. The links are checked.
-- A differential run compares the library with cel-go on generated expressions on every push to `main`. Differences that have been analysed are listed in [known-differences.md](tests/Great.Parts.Cel.Conformance/Regression/known-differences.md).
+- A differential run compares the library with cel-go on generated expressions on every push to `main` and every night, and a run of at least two hours on the commit of a release must pass before the release is published. A release also waits for every difference that is not analysed yet. Differences that have been analysed are listed in [known-differences.md](tests/Great.Parts.Cel.Conformance/Regression/known-differences.md); see [Conformance](docs/conformance.md#differential-run-against-cel-go).
 
 ## Documentation
 
@@ -110,7 +113,7 @@ The documentation of a release is the content of this repository at the tag of t
 - [Time zone database](docs/recipes/time-zone-database.md): how to give an environment the time zones that `getHours('Europe/Moscow')` needs.
 - [Conformance](docs/conformance.md): the result of the cel-spec suite.
 - [Versioning and compatibility](docs/versioning.md): what is a breaking change and what a minor version may change.
-- [Roadmap](ROADMAP.md): what comes after 1.0.
+- [Roadmap](ROADMAP.md): what comes in 2.0, the next release.
 - [Design](docs/design/): how the library and its checks are built, for contributors.
 
 ## How it is built
@@ -124,7 +127,7 @@ Vladislav Nekrasov ([va-nekrasov](https://github.com/va-nekrasov)).
 ## Contributing and policies
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to build, test and propose a change.
-- [SECURITY.md](SECURITY.md): how to report a vulnerability, and which versions get fixes.
+- [SECURITY.md](SECURITY.md): how to report a vulnerability, how a fix is announced, and which versions get fixes.
 - [SUPPORT.md](SUPPORT.md): where to ask questions and report bugs.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): the code of conduct of the project.
 - [CHANGELOG.md](CHANGELOG.md): the changes of each version.

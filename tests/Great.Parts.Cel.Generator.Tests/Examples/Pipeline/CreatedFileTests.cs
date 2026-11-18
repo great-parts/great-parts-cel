@@ -14,7 +14,7 @@ public sealed class CreatedFileTests
     private const string Smallest = SnapshotContexts.Smallest;
 
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void CreatedFile_HasTheHeaderTheNamespaceAndTheContext()
     {
@@ -39,7 +39,7 @@ public sealed class CreatedFileTests
     // What the file does not have: a using directive (every name is written with global::), a pragma, a suppression, and the text
     // of the application's names in a place where it could collide with the generator's.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     public void CreatedFile_HasNoUsingNoPragmaAndNoSuppression()
     {
         string text = GeneratorExample.CreatedText(GeneratorExample.Run(GeneratorExample.Compile(Smallest)));
@@ -55,7 +55,7 @@ public sealed class CreatedFileTests
     // creates the context: the order of the declarations in the file is the order of the initialization ("Initialization order" of
     // the page of the created code). The names of the fields are not part of the contract, so the example looks for the declaration.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void EnumerationFields_AreDeclaredBeforeDefault()
     {
@@ -71,7 +71,7 @@ public sealed class CreatedFileTests
     // The fields of a description in the order of their CEL names, ordinal, numbered by position; the types by the rows of the
     // type mapping: a string that is not null is string, a list of objects names the object type, an enumeration is int.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void Fields_AreInTheOrderOfTheirNamesWithTheirCelTypes()
     {
@@ -112,7 +112,7 @@ public sealed class CreatedFileTests
     // global namespace named Default, Create, SourceName, ObjectTypes or EnumTypes, or named as the context itself — does not collide
     // with a member of the context or of CelTypeProvider: the context and the file compile, with no error and no warning at the file.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     public void TypesNamedLikeMembersOfTheContext_DoNotCollide()
     {
@@ -147,7 +147,7 @@ public sealed class CreatedFileTests
     // The hint name is the full metadata name of the context, nested types joined by `+`; a context of the global namespace has
     // no namespace block.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     public void HintName_IsTheMetadataNameOfTheContext()
     {
         const string Source = """
@@ -179,7 +179,7 @@ public sealed class CreatedFileTests
     // of the application and the file reports nothing at the created file, for the C# versions from 12 on and for a project with
     // or without the nullable context (a warning that the created file gets is a defect of the generator).
     [Theory]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     [InlineData(LanguageVersion.CSharp12, NullableContextOptions.Enable)]
     [InlineData(LanguageVersion.CSharp12, NullableContextOptions.Disable)]

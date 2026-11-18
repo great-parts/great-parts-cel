@@ -1,6 +1,6 @@
 # Versioning and compatibility
 
-The packages `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf` follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) and always have the same version. From 1.0.0 on, a breaking change comes only in a major version. This page says what is breaking, what a minor version may change, and what an application can rely on. How long a version gets fixes is in [SECURITY.md](../SECURITY.md).
+The packages `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf` follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) and always have the same version. A breaking change comes only in a major version. This page says what is breaking, what a minor version may change, and what an application can rely on. Which versions get fixes is in [SECURITY.md](../SECURITY.md): versions 1.x get none, and from release 2.0 only the latest release does.
 
 ## What is breaking
 
@@ -17,19 +17,19 @@ The public API of each package is recorded in the `PublicAPI` directory of its p
 A minor or a patch version may:
 
 - add types and members, functions of the extension sets as new versions of the sets, and error codes;
-- make the text of the message of an error more precise: the contract of an error is the number, the name, the meaning and the stage of its code, not its text, see [Error codes](error-codes.md#rules-of-the-codes);
+- make the text of the message of an error more precise: the contract of an error is the number, the name, the meaning and the stage of its code, not its text, see [Error codes](error-codes.md#rules-of-the-codes); a change of the text is described in the notes of the release;
 - change the code that the source generator writes, as long as the values, the errors and the allocations of a read stay the same, see [What is contract](design/generator-output.md#what-is-contract);
 - make an evaluation faster, or use less memory, without changing a result, an error or a cost.
 
 One exception makes a result different in a minor version: a fix that makes the library agree with the CEL specification (cel-spec). Such a fix is described under `Behavior changes` in [CHANGELOG.md](../CHANGELOG.md), in the entry of its version.
 
-## Obsolete members
+## Removed and obsolete members
 
-A member is removed no sooner than one minor version after it is marked `[Obsolete]`, and the mark names its replacement.
+A member of the public API can be removed or replaced in a major version without an earlier `[Obsolete]` mark: Semantic Versioning allows it, and the change is described in [CHANGELOG.md](../CHANGELOG.md) in the entry of that version. A minor version can mark a member `[Obsolete]`, with the name of its replacement in the mark, and the mark breaks nothing.
 
 ## Classes that an application derives from
 
-An application derives from `CelObjectType` and `CelTypeProvider` to describe types of its own. A member that is added to either class after 1.0 is `virtual` and has an implementation, so a class compiled against 1.0 keeps working with a later minor version. `CelList` and `CelMap` cannot be derived from outside the assembly: values of these types come from the factories of the library.
+An application derives from `CelObjectType` and `CelTypeProvider` to describe types of its own. A member that is added to either class in a minor version is `virtual` and has an implementation, so a class compiled against an earlier minor version keeps working with a later one. `CelList` and `CelMap` cannot be derived from outside the assembly: values of these types come from the factories of the library.
 
 ## What does not change
 

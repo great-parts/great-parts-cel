@@ -18,7 +18,7 @@ public sealed class SnapshotTests
     public static TheoryData<string> Names => SnapshotContexts.Names;
 
     [Theory]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-2")]
     [MemberData(nameof(Names))]
     public static void CreatedText_IsTheSnapshot(string name)
@@ -57,7 +57,7 @@ public sealed class SnapshotTests
     // The set of the files is the set of the contexts of the catalog: a snapshot without a context of the examples is added only with a
     // reason, and a context without a file is a context that nobody compares.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     public void SnapshotFiles_AreTheContextsOfTheCatalog()
     {
         string directory = Path.Combine(AppContext.BaseDirectory, "Snapshots");
@@ -73,7 +73,7 @@ public sealed class SnapshotTests
     // The created text that the snapshots hold has no trace of the machine and of the run: it is the same for another version of the
     // generator (the version is the marker) and has the line ends of the repository whatever they are on the file system.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     public void Snapshot_HoldsTheMarkerOfTheVersionAndNoCarriageReturn()
     {
         foreach (SnapshotContext context in SnapshotContexts.All)

@@ -22,7 +22,7 @@ namespace Great.Parts.Cel.Tests.Examples.Syntax;
 // decimal in cel-go and no oracle for it); the rows that fix a place follow the places of the literals of int and double. Rows are
 // those of ExtensionRows; the digit strings are written by constants, Max34 is 34 nines.
 [Trait("Requirement", "F-5")]
-[Trait("Requirement", "S-2")]
+[Trait("Requirement", "S-6")]
 public sealed class DecimalLiteralTests
 {
     private const string Max34 = DecimalExample.Max34;

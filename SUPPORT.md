@@ -6,6 +6,10 @@ Start with the [README](README.md) and the [documentation](docs/). Ask questions
 
 A vulnerability goes through [SECURITY.md](SECURITY.md), not through an issue.
 
+## Supported versions
+
+Versions 1.x are not supported: they get no fixes. From release 2.0 only the latest release is supported: a bug is fixed in a new release, and earlier releases get no fixes. Please check a bug against the latest release before you report it, and give its version in the issue.
+
 ## Reporting a bug
 
 Please include:

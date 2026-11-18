@@ -25,11 +25,18 @@ Please include:
 | The report is assessed: whether it is a vulnerability and how severe it is | up to 14 days |
 | A vulnerability of medium or high severity is fixed | up to 60 days |
 
-The details stay private until a fix is available. Then the vulnerability is published as a GitHub security advisory of this repository, with a CVE identifier when one is assigned.
+The times apply to a vulnerability in a supported version ([Supported versions](#supported-versions)).
+
+The details stay private until a fix is available. Then the vulnerability is published as a GitHub security advisory of this repository, with a CVE identifier when one is assigned. The advisory has a GHSA identifier.
+
+## Where a fixed vulnerability is announced
+
+The release that holds the fix is the first one that names the vulnerability. Its entry in [CHANGELOG.md](CHANGELOG.md) has a section `### Security` that names the advisory by its GHSA identifier, and by its CVE identifier when one is assigned, and says what is affected and what the fix changes. A release that fixes no vulnerability has no such section.
 
 ## Supported versions
 
-- Fixes are released for the latest minor version.
-- Security fixes are also released for the previous major version, for 6 months after the next major version comes out.
+Versions 1.x are not supported: there are no fixes for them, security fixes included, and there is no maintenance branch. When 2.0 comes out, the packages 1.x are unlisted and marked as deprecated on nuget.org.
 
-For example, when 2.0.0 comes out, a security fix still comes for the latest 1.x minor version for 6 months; other fixes come only for 2.0. The versions follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html).
+From release 2.0 only the latest release is supported. Fixes, security fixes among them, come in a new release; earlier releases get none.
+
+The versions follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html); see [Versioning and compatibility](docs/versioning.md).

@@ -16,7 +16,7 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // map key type 'decimal'", at the key; the check does not refuse it. The type of a decimal is decimal: type(1.5m) == decimal. Rows
 // are those of ExtensionRows.
 [Trait("Requirement", "F-5")]
-[Trait("Requirement", "S-2")]
+[Trait("Requirement", "S-6")]
 [Trait("Requirement", "R-5")]
 public sealed class DecimalEqualityOrderingTests
 {

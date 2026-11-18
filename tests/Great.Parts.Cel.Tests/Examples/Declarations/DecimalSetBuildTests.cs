@@ -29,7 +29,7 @@ namespace Great.Parts.Cel.Tests.Examples.Declarations;
 // has the stage Build and no place in an expression.
 [Trait("Requirement", "F-3")]
 [Trait("Requirement", "F-5")]
-[Trait("Requirement", "S-2")]
+[Trait("Requirement", "S-6")]
 public sealed class DecimalSetBuildTests
 {
     private const string Undeclared = "which no type source or extension of the environment declares; add the extension set 'decimal'";

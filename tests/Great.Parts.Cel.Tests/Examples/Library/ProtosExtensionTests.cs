@@ -138,7 +138,7 @@ public sealed class ProtosExtensionTests
     // The member of the catalog has the name and the version it is given and does not check the version; Build lists the
     // versions that exist, and the same set twice is one declaration.
     [Fact]
-    [Trait("Requirement", "S-2")]
+    [Trait("Requirement", "S-6")]
     [Trait("Requirement", "F-8")]
     public void Protos_HasOneVersion()
     {
