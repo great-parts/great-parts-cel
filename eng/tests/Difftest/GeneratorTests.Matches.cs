@@ -56,9 +56,11 @@ public sealed class MatchesGeneratorTests
     {
         List<Comprehension> macros = [.. GeneratorTests.Sample(MatchesCases).SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>()];
 
+        // A macro of each kind with such a predicate: the rarest are searched for in the larger sample until one is found.
+        IEnumerable<Comprehension> more = GeneratorTests.Sample(MatchesCases * 4).SelectMany(generated => GeneratorTests.Nodes(generated.Expression)).OfType<Comprehension>();
         foreach (string macro in new[] { ProfileTables.All, ProfileTables.Exists, ProfileTables.ExistsOne, ProfileTables.Filter })
         {
-            Assert.Contains(macros, comprehension => comprehension.Macro == macro && comprehension.Arguments.Any(IsMatchesOnVariable));
+            Assert.Contains(more, comprehension => comprehension.Macro == macro && comprehension.Arguments.Any(IsMatchesOnVariable));
         }
 
         Assert.Contains(macros, comprehension => comprehension.Macro == ProfileTables.MapMacro && comprehension.Arguments.Any(IsMatchesOnVariable));
@@ -80,7 +82,11 @@ public sealed class MatchesGeneratorTests
             Assert.Equal(call.Pattern!.Text, generated.Bindings["s1"].StringValue);
         }
 
-        Assert.Contains(takers, taker => !taker.Case.Bindings.ContainsKey("s1"));
+        // An unbound s1 is one case in ten of these: the search reads the larger sample until it finds one.
+        Assert.Contains(
+            GeneratorTests.Sample(MatchesCases * 4),
+            generated => !generated.Bindings.ContainsKey("s1")
+                && GeneratorTests.Nodes(generated.Expression).Any(node => node is Call { Function: ProfileTables.Matches, Args: [_, Ident { Name: "s1" }] }));
         Assert.Contains(MatchesCalls(), call => call.Args[0] is Ident { Name: "s1" });
     }
 

@@ -1,0 +1,24 @@
+# Minimized cases of known divergences from cel-go in the range of a macro. The expectation of each case is the answer of cel-go.
+
+name: "comprehension_range"
+description: "A macro over a range that is neither a list nor a map"
+section {
+  name: "empty_text"
+  description: "cel-go returns the initial result of the fold for a range whose size is zero before it asks whether the range can be iterated, so a macro over an empty string or empty bytes gives a value; the range of a macro is a list or a map by the language definition, and the library refuses any other value"
+  test {
+    name: "bytes"
+    description: "comprehension(bytes) we-error"
+    expr: "dyn(b'').all(v, false)"
+    value: {
+      bool_value: true
+    }
+  }
+  test {
+    name: "string"
+    description: "comprehension(string) we-error"
+    expr: "dyn('').all(v, false)"
+    value: {
+      bool_value: true
+    }
+  }
+}

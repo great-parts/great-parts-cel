@@ -674,7 +674,56 @@ public sealed class OptionalProfileTests
         }
     }
 
+    // cel-go v0.33.4 refuses type(e) beside another type when the static type of e holds a free type parameter, as optional.none(), []
+    // and {} have, and compares any two types otherwise (checker/types.go, internalIsAssignable): the signatures equals(type, type)
+    // we-value, _?_:_(bool, type, error) stage-mismatch and their kin of the run on 0e3042f, seed 238043902 (TASK-799). Every type()
+    // of the profile is type(dyn(e)), dyn(type(o)), type(o) beside optional_type, or type() of an ip or a cidr.
+    [Fact]
+    public void TypeOfAValueOfAFreeType_NeverStandsBesideAnotherType()
+    {
+        ulong[] reported =
+        [
+            4214, 18962, 19576, 22127, 23417, 24263, 24485, 26665, 56168, 66623, 85382, 127944, 193576, 243393, 255182, 290552, 338240,
+            371963, 438374, 459308, 514365, 654463, 684938, 787201, 814746, 823574, 929789, 1012694, 1388045, 1483941, 1514664, 1643115,
+            1749877, 1888517, 1902521, 1961259,
+        ];
+        List<GeneratedCase> cases = [.. Sample(ManyCases), .. GeneratorTests.Sample(), .. reported.Select(n => CaseGenerator.Case(238043902, n))];
+        List<(Call TypeOf, Expr? Parent)> calls = [.. cases.SelectMany(generated => TypeCalls(generated.Expression, null))];
+
+        Assert.NotEmpty(calls);
+        Assert.All(calls, pair => Assert.True(IsComparable(pair.TypeOf, pair.Parent), ExprPrinter.Print(pair.Parent ?? pair.TypeOf)));
+        Assert.Contains(calls, pair => pair.TypeOf.Args[0] is Call { Function: ProfileTables.Dyn });
+        Assert.Contains(calls, pair => pair.Parent is Call { Function: ProfileTables.Dyn } && ProfileTables.IsOptional(pair.TypeOf.Args[0]));
+        Assert.Contains(calls, pair => pair.Parent is Call { Function: ProfileTables.Equal or ProfileTables.NotEqual } && ProfileTables.IsOptional(pair.TypeOf.Args[0]));
+    }
+
     // ---- Helpers ----
+
+    // Whether type() stands where cel-go compares it with any other type: its operand or itself in dyn(), beside optional_type, or of an
+    // ip or a cidr, whose static types are concrete.
+    private static bool IsComparable(Call typeOf, Expr? parent) =>
+        typeOf.Args[0] is Call { Function: ProfileTables.Dyn }
+        || parent is Call { Function: ProfileTables.Dyn }
+        || ProfileTables.AbstractResult(typeOf.Args[0]) is not null
+        || (parent is Call { Function: ProfileTables.Equal or ProfileTables.NotEqual } comparison
+            && comparison.Args.Any(argument => argument is Ident { Name: ProfileTables.OptionalTypeIdentifier }));
+
+    // The calls of type() under a node, each with the node above it.
+    private static IEnumerable<(Call TypeOf, Expr? Parent)> TypeCalls(Expr node, Expr? parent)
+    {
+        if (node is Call { Function: ProfileTables.TypeOf } call)
+        {
+            yield return (call, parent);
+        }
+
+        foreach (Expr child in ExtensionGeneratorTests.Children(node))
+        {
+            foreach ((Call TypeOf, Expr? Parent) pair in TypeCalls(child, node))
+            {
+                yield return pair;
+            }
+        }
+    }
 
     // The cases of the extension profile of the fixed seeds, as the tests of the other sets read them.
     private static IEnumerable<GeneratedCase> Sample(int cases = Cases) => ExtensionGeneratorTests.Sample(cases);

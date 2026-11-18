@@ -640,7 +640,11 @@ internal sealed partial class ExprBuilder
             (d, b) => OptionalOperand(d, b, null, !free, held));
     }
 
-    // type(o) == optional_type, and now and then another type identifier, in either order.
+    // type(o) == optional_type, and now and then dyn(type(o)) == another type identifier, in either order. cel-go v0.33.4 types type(o)
+    // as type(optional_type(V)), with V free when o is optional.none() or holds [] or {}, and its checker then refuses type(o) beside a
+    // type other than optional_type (TypeOf in ExprBuilder.cs); dyn() makes the comparison type-check and keeps the value. Beside
+    // optional_type, which is type(optional_type(dyn)), type(o) type-checks as it is. The optional stays the operand of type(), the only
+    // place where it may stand here.
     private Built? OptTypeEquality(int depth, int limit)
     {
         if (limit < 4 || depth + 2 > ProfileTables.MaxDepth)
@@ -648,21 +652,40 @@ internal sealed partial class ExprBuilder
             return null;
         }
 
-        Built? typeOf = ExtCall(ProfileTables.TypeOf, false, null, Of(ProfileType.TypeType), depth + 1, limit - 2, (d, b) => OptionalOperand(d, b, null, false, null));
+        string identifier = pcg.OneIn(4) ? pcg.Pick(ProfileTables.TypeIdentifiers) : ProfileTables.OptionalTypeIdentifier;
+        bool erased = identifier != ProfileTables.OptionalTypeIdentifier;
+        if (erased && (limit < 5 || depth + 3 > ProfileTables.MaxDepth))
+        {
+            identifier = ProfileTables.OptionalTypeIdentifier;
+            erased = false;
+        }
+
+        int shift = erased ? 1 : 0;
+        Built? typeOf = ExtCall(
+            ProfileTables.TypeOf, false, null, Of(ProfileType.TypeType), depth + 1 + shift, limit - 2 - shift, (d, b) => OptionalOperand(d, b, null, false, null));
         if (typeOf is not { } type)
         {
             return null;
         }
 
-        string identifier = pcg.OneIn(4) ? pcg.Pick(ProfileTables.TypeIdentifiers) : ProfileTables.OptionalTypeIdentifier;
+        Built side = erased ? Wrap(type) : type;
         Built name = new(new Ident(identifier), 1, Of(ProfileType.TypeType));
-        List<Expr> operands = pcg.OneIn(2) ? [type.Expr, name.Expr] : [name.Expr, type.Expr];
-        return new Built(new Call(pcg.OneIn(4) ? ProfileTables.NotEqual : ProfileTables.Equal, operands), 2 + type.Nodes, Of(ProfileType.BoolType));
+        List<Expr> operands = pcg.OneIn(2) ? [side.Expr, name.Expr] : [name.Expr, side.Expr];
+        return new Built(new Call(pcg.OneIn(4) ? ProfileTables.NotEqual : ProfileTables.Equal, operands), 2 + side.Nodes, Of(ProfileType.BoolType));
     }
 
-    // type(o)
-    private Built? OptTypeOf(int depth, int limit) =>
-        ExtCall(ProfileTables.TypeOf, false, null, Of(ProfileType.TypeType), depth, limit, (d, b) => OptionalOperand(d, b, null, false, null));
+    // dyn(type(o)): a node of the type type that may stand beside any other type, which type(o) may not (OptTypeEquality). Its static
+    // type is given as type, as the form stands for one.
+    private Built? OptTypeOf(int depth, int limit)
+    {
+        if (limit < 3 || depth + 2 > ProfileTables.MaxDepth)
+        {
+            return null;
+        }
+
+        Built? typeOf = ExtCall(ProfileTables.TypeOf, false, null, Of(ProfileType.TypeType), depth + 1, limit - 1, (d, b) => OptionalOperand(d, b, null, false, null));
+        return typeOf is { } type ? Wrap(type) with { Type = Of(ProfileType.TypeType) } : null;
+    }
 
     // has({'k': o}.k.f): the operand of the presence test is the optional that is the value of an entry of a map literal, the form of the
     // known signature of the registry. has(e.?a.f) is not built, on a variable or on any other optional node: cel-go gives an optional

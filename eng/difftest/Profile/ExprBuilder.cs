@@ -929,9 +929,19 @@ internal sealed partial class ExprBuilder
         return MapLiteralOf(count, -1, null, limit, (_, _, budget) => Make(Target(), depth + 1, budget));
     }
 
+    // type(dyn(e)). cel-go v0.33.4 types type(e) as type(T), T the static type of e, and when T holds a free type parameter, as the
+    // element type of [] and of {} does, its checker refuses type(e) beside another type in ==, !=, in and ?: (checker/types.go,
+    // internalIsAssignable), where any two types compare: type([]) == int fails to compile, type([1]) == int is false. dyn() gives
+    // type(dyn), which compares with every type, and keeps the value (TASK-799: the signatures equals(type, type) we-value and
+    // _?_:_(bool, type, error) stage-mismatch, seed 238043902).
     private Built? TypeOf(int depth, int limit)
     {
-        Built operand = Make(Target(), depth + 1, limit - 1);
+        if (limit < 3 || depth + 2 > ProfileTables.MaxDepth)
+        {
+            return null;
+        }
+
+        Built operand = Wrap(Make(Target(), depth + 2, limit - 2));
         return new Built(new Call(ProfileTables.TypeOf, [operand.Expr]), 1 + operand.Nodes, StaticType.Of(ProfileType.TypeType));
     }
 

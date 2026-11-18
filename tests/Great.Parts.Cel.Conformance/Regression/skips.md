@@ -4,6 +4,8 @@ Cases of the regression corpus that may fail in the given scope. Every entry nam
 
 | Case | Scope | Signature | Verdict | Severity | Reason | Issue |
 |---|---|---|---|---|---|---|
+| comprehension_range/empty_text/bytes | * * * | comprehension(bytes) we-error | cel-go-bug | S2 | The library refuses bytes as the range of a macro, empty or not, since the range is a list or a map; cel-go returns the initial result of the fold for an empty range before it checks that the range can be iterated. | |
+| comprehension_range/empty_text/string | * * * | comprehension(string) we-error | cel-go-bug | S2 | The library refuses a string as the range of a macro, empty or not, since the range is a list or a map; cel-go returns the initial result of the fold for an empty range before it checks that the range can be iterated. | |
 | json_encode/duration/string_digits | * * * | json_encode_dyn(duration) value-mismatch | cel-go-bug | S1 | The library encodes the seconds of a duration with every digit; cel-go encodes the text of string(duration), which formats the seconds through a 64-bit float and loses digits. | |
 | json_encode/list/del_element | * * * | json_encode_dyn(list) value-mismatch | cel-go-bug | S1 | The library writes U+007F in a string element as it is, as the JSON encoder of Go does; cel-go writes it as \x7f, which is no JSON text. | |
 | json_encode/list/map_int_key | * * * | json_encode_dyn(list) we-error | cel-go-bug | S2 | The library refuses a map with a key that is not a string anywhere in json.encode, since a key of a JSON object is a string; cel-go writes the key as its JSON text. | |

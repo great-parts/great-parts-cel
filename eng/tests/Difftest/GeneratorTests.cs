@@ -441,8 +441,10 @@ public sealed class GeneratorTests
                 or Call { Function: ProfileTables.Dyn, Args: [ListLiteral or MapLiteral { Entries.Count: <= 1 }] },
             ExprPrinter.Print(macro)));
         Assert.Contains(transforms, macro => macro.Range is Call { Function: ProfileTables.Dyn });
-        Assert.Contains(transforms, macro => macro.Range is MapLiteral { Entries.Count: 1 });
-        Assert.Contains(AllNodes(), node => node is Comprehension { Range: MapLiteral { Entries.Count: > 1 } } macro && macro.Macro is not (ProfileTables.MapMacro or ProfileTables.Filter));
+        // A map literal as the range is rare, of one entry for map and filter and of more for the other macros: each search reads the
+        // larger sample until it finds one.
+        Assert.Contains(AllNodes(ConversionCases), node => node is Comprehension { Range: MapLiteral { Entries.Count: 1 } } macro && macro.Macro is ProfileTables.MapMacro or ProfileTables.Filter);
+        Assert.Contains(AllNodes(ConversionCases), node => node is Comprehension { Range: MapLiteral { Entries.Count: > 1 } } macro && macro.Macro is not (ProfileTables.MapMacro or ProfileTables.Filter));
     }
 
     // A list of types is the range of a macro only inside dyn(): the iteration variable is then dyn, never of the static type type.
