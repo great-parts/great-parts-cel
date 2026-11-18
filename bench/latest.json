@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "kind": "bench",
+  "generatedAtUtc": "2026-11-18T17:21:59Z",
+  "greatPartsCelCommit": "515566235b023389b3437b4a2e6b7e56bd769406",
+  "inputs": {
+    "runs": 3,
+    "job": "Default",
+    "cases": null
+  },
+  "runs": [
+    {
+      "run": 1,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-18T14:37:21.363Z",
+      "finished": "2026-11-18T15:32:44.393Z"
+    },
+    {
+      "run": 2,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-18T15:32:44.395Z",
+      "finished": "2026-11-18T16:27:19.725Z"
+    },
+    {
+      "run": 3,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-18T16:27:19.725Z",
+      "finished": "2026-11-18T17:21:59.222Z"
+    }
+  ],
+  "files": {
+    "summary": "report.md",
+    "verification": "verify.json",
+    "runs": "runs/<k>/run.json and runs/<k>/summary.md"
+  },
+  "run": {
+    "id": 44326172200,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/44326172200"
+  }
+}
