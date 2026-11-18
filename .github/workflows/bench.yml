@@ -4,8 +4,11 @@
 # The result is the artifact bench-results (the summary, the verification, the table and the BenchmarkDotNet reports of every run)
 # and the step summary. The workflow has no secrets and reads the repository only. It sets no timeout-minutes: the protection
 # against a hung job is the default limit of GitHub Actions, 6 hours.
-# The place for the publication of a result: a later job `publish`, with `needs: bench` and `permissions: contents: write`, downloads the
-# artifact bench-results and commits it to the branch `reports` (that job is not part of this workflow yet).
+# The publication of a result (U-6): the job `bench` makes the report (report.json, report.md, the verification and the table of each run:
+# the date and the time in UTC, the commit of this repository, the run) and keeps it as the artifact bench-report; the job `publish`,
+# the only one with `permissions: contents: write`, commits it to the branch `reports` (publish-report.yml, docs/design/eng-release.md,
+# "Reports of the runs"). It runs for a measurement (job Default) of at least 3 runs on the main branch; a Dry run is a check of the
+# rig, not a result.
 name: bench
 
 on:
@@ -84,6 +87,14 @@ jobs:
           fi
           node bench/run.mjs "${arguments[@]}"
 
+      # The report is made after a result only; the inputs reach the script through the environment.
+      - name: Report
+        env:
+          RUNS: ${{ inputs.runs }}
+          BENCH_JOB: ${{ inputs.job }}
+          BENCH_CASES_INPUT: ${{ inputs.cases }}
+        run: node .github/scripts/bench-report.mjs --results bench/results --output report --runs "$RUNS" --job "$BENCH_JOB" --cases "$BENCH_CASES_INPUT"
+
       - name: Summary
         if: ${{ always() }}
         run: |
@@ -107,3 +118,23 @@ jobs:
             bench/results/runs/*/bdn/results
             bench/results/runs/*/bdn/*.log
           if-no-files-found: warn
+
+      - name: Report (artifact)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-report
+          path: report
+          if-no-files-found: error
+
+  # The branch `reports` is written by this job only. A Dry run, a measurement of fewer than 3 runs and a run from another branch
+  # are not published. `runs` is checked by the job above, so fromJSON gets a number here.
+  publish:
+    name: Publish the report
+    needs: bench
+    if: ${{ needs.bench.result == 'success' && github.ref == 'refs/heads/main' && inputs.job == 'Default' && fromJSON(inputs.runs) >= 3 }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-report.yml
+    with:
+      artifact: bench-report
+      directory: bench

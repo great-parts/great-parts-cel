@@ -1,8 +1,12 @@
 # The cel-spec suite on the data of the last commit of the master branch of cel-expr/cel-spec (docs/design/conformance.md, "Run on master").
-# Every night and by hand. The pinned data of tests/cel-spec/ is replaced in the workspace of the run, and nothing is committed. The skip
-# list of the pinned commit does not apply to master: the list of the workspace is empty, so every case that fails is reported
-# (ENG801), and no entry gives ENG802 or ENG804. The result is the line "cel-spec master <SHA>: N/M passed, <date>" of the step summary.
+# Every night and by hand. The pinned data of tests/cel-spec/ is replaced in the workspace of the run, and nothing is committed to the
+# main branch. The skip list of the pinned commit does not apply to master: the list of the workspace is empty, so every case that
+# fails is reported (ENG801), and no entry gives ENG802 or ENG804. The result is the line "cel-spec master <SHA>: N/M passed, <date>"
+# of the step summary.
 # A failed case does not fail the workflow: it is red when the build fails, the process of the run falls or the summary line is missing.
+# The report of the run (report.json and report.md: the date and the time in UTC, the commit of cel-spec, the commit of this repository,
+# the result) is the artifact conformance-master-report; the job `publish` commits it to the branch `reports`
+# (publish-report.yml, docs/design/eng-release.md, "Reports of the runs"). Only that job has the permission `contents: write`.
 name: conformance-master
 
 on:
@@ -114,3 +118,27 @@ jobs:
             grep -oE '[^ ]+\([0-9]+,[0-9]+\): error ENG801: .*' "$output" | head -n 200 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The log of the suite and the data of the run give the report. tests/cel-spec/COMMIT names the full commit of master.
+      - name: Report
+        run: node .github/scripts/conformance-report.mjs --log "$RUNNER_TEMP/conformance-master.txt" --commit-file tests/cel-spec/COMMIT --output report
+
+      - name: Report (artifact)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conformance-master-report
+          path: report
+          if-no-files-found: error
+
+  # The branch `reports` is written by this job only; it runs when the suite gave its result, on the main branch (the job above is
+  # skipped on another branch, and so is this one).
+  publish:
+    name: Publish the report
+    needs: conformance-master
+    if: ${{ needs.conformance-master.result == 'success' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-report.yml
+    with:
+      artifact: conformance-master-report
+      directory: conformance-master

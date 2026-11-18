@@ -1,0 +1,125 @@
+# The publication of a report of a run to the branch `reports` (docs/design/eng-release.md, "Reports of the runs"). A reusable workflow:
+# conformance-master.yml and bench.yml call it in a job of their own, after the job that made the report. It is the only place of the
+# repository that writes the branch.
+# The report is an artifact of the calling run: a directory <yyyy-MM-ddTHHmmssZ>/ with report.json and report.md. The workflow commits
+# it to <directory>/<stamp>/ of the branch with GITHUB_TOKEN and copies report.json to <directory>/latest.json, so the README and the
+# site read the latest figure from one address. The link of a figure is the permanent link of a file at the commit that wrote it.
+# The branch has only reports; the rules of `main` do not apply to it, and nothing is written to `main`. The branch does not exist
+# before the first report: the workflow creates it as an orphan branch with a README.
+name: publish-report
+
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        description: "The name of the artifact with the report, made by the calling workflow."
+        type: string
+        required: true
+      directory:
+        description: "The directory of the branch for this kind of report, for example conformance-master."
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Write the report to the branch reports
+    runs-on: ubuntu-latest
+    # The only place with a write permission: the job writes the branch, and nothing else.
+    permissions:
+      contents: write
+    steps:
+      - name: Report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.artifact }}
+          path: report
+
+      # The inputs reach the script only through the environment, never through the text of the script. Every attempt starts from the
+      # head of the branch as it is now, so a report written by another run in the meantime is not lost: the push is never forced.
+      - name: Commit to the branch reports
+        env:
+          DIRECTORY: ${{ inputs.directory }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+          RUN_ID: ${{ github.run_id }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -eu
+          if ! [[ "$DIRECTORY" =~ ^[a-z][a-z-]*$ ]]; then
+            echo "The directory is lowercase words separated by hyphens."
+            exit 2
+          fi
+          reports="$GITHUB_WORKSPACE/report"
+          stamp=$(ls "$reports")
+          if [ "$(printf '%s\n' "$stamp" | wc -l)" != 1 ] || ! [[ "$stamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{6}Z$ ]]; then
+            echo "The artifact has to hold one directory named yyyy-MM-ddTHHmmssZ."
+            exit 2
+          fi
+          for file in report.json report.md; do
+            if [ ! -f "$reports/$stamp/$file" ]; then
+              echo "The report has no $file."
+              exit 2
+            fi
+          done
+
+          remote="$SERVER_URL/$REPOSITORY.git"
+          basic=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$basic"
+          git_remote() { git -c "http.extraheader=AUTHORIZATION: basic $basic" "$@"; }
+
+          for attempt in 1 2 3 4 5; do
+            work="$RUNNER_TEMP/reports-$attempt"
+            rm -rf "$work"
+            git init -q "$work"
+            cd "$work"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+            status=0
+            git_remote ls-remote --exit-code --heads "$remote" reports > /dev/null || status=$?
+            if [ "$status" = 0 ]; then
+              git_remote fetch -q --depth 1 "$remote" reports
+              git checkout -q -B reports FETCH_HEAD
+            elif [ "$status" = 2 ]; then
+              echo "The branch reports does not exist: the first report creates it."
+              git checkout -q --orphan reports
+              {
+                echo "# Reports of the runs"
+                echo
+                echo "This branch holds the reports of the scheduled and manual runs of the workflows of the repository, and nothing else."
+                echo "A workflow writes it with the token of its run; the rules of \`main\` do not apply to it. Nothing here is written by hand."
+                echo
+                echo "- \`conformance-master/<date>T<time>Z/\`: the result of the cel-spec suite on the master branch of cel-spec."
+                echo "- \`bench/<date>T<time>Z/\`: the result of the speed comparison with other CEL libraries."
+                echo "- \`<directory>/latest.json\`: the \`report.json\` of the last report of the directory."
+                echo
+                echo "A figure links a file at a commit of this branch, never the branch itself, so the link works as long as the figure is published."
+              } > README.md
+            else
+              echo "ls-remote failed with code $status."
+              exit "$status"
+            fi
+
+            mkdir -p "$DIRECTORY"
+            cp -R "$reports/$stamp" "$DIRECTORY/$stamp"
+            cp "$DIRECTORY/$stamp/report.json" "$DIRECTORY/latest.json"
+            git add -A
+            git commit -q -m "Report $DIRECTORY $stamp" -m "Run $SERVER_URL/$REPOSITORY/actions/runs/$RUN_ID of the commit $COMMIT."
+            if git_remote push -q "$remote" HEAD:refs/heads/reports; then
+              echo "Published: $SERVER_URL/$REPOSITORY/blob/$(git rev-parse HEAD)/$DIRECTORY/$stamp/report.md"
+              {
+                echo "### Report of the run"
+                echo
+                echo "$SERVER_URL/$REPOSITORY/blob/$(git rev-parse HEAD)/$DIRECTORY/$stamp/report.md"
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "The push was rejected (attempt $attempt): the branch moved. Trying again from its head."
+            sleep $((attempt * 5))
+          done
+          echo "The report is not published: five pushes were rejected."
+          exit 1

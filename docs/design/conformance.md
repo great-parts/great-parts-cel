@@ -175,7 +175,7 @@ A failure lists every failed case with its name, the place of its `test` token a
 1. The workflow clones the last commit of master without its history and replaces the data of `tests/cel-spec/` in its workspace, file for file as [Data and build](#data-and-build) lists it: `tests/simple/testdata`, the `.proto` files, `doc/langdef.md`, `LICENSE`, and `COMMIT`, which then holds the full SHA of the master commit.
 2. It replaces `CelSpec/skips.md` with its table without entries. The skip list belongs to the pinned commit; so a case of master that fails is `ENG801`, and no entry gives `ENG802` or `ENG804`. The regression corpus and its list are not run.
 3. It restores in the locked mode, builds `tests/Great.Parts.Cel.Conformance` for `net11.0` and runs only `CelSpecSuiteTests.AllCases_PassOrAreSkipped` of the built test assembly.
-4. Nothing is committed or pushed: the replaced files exist only in the workspace of the run.
+4. Nothing of the replaced files is committed or pushed: they exist only in the workspace of the run. `.github/scripts/conformance-report.mjs` turns the log of the suite and `tests/cel-spec/COMMIT` into the report of the run, and the job `publish`, the only one with `contents: write`, commits it to the branch `reports` ([eng-release.md](eng-release.md#reports-of-the-runs)). The job runs when the suite gave its summary line; a case that fails does not stop it.
 
 The result is the summary line of the suite with `master` after `cel-spec`, in the step summary and the log, with the lines of the failed cases (the first 200 in the summary, all in the log):
 
