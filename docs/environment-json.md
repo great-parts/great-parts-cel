@@ -8,7 +8,7 @@ public static ImmutableArray<CelError> CelEnvironmentJson.Apply(CelEnvironmentBu
 
 The format is a subset of the JSON form of the environment configuration of cel-go, the CEL implementation in Go, so that the library and the oracle of the differential run against cel-go read one file with one meaning. `Apply` maps the description one to one onto calls of the builder and makes no decisions of its own: an environment from JSON is the environment that the same calls in code build, and its build errors are those of the same calls.
 
-Not in this version of the page: the extension sets. The catalog of sets is empty until the sets are added, so every `name` in `extensions` is an error, and each set adds its name with its version.
+The extension sets are named in the key `extensions` by the short names of the catalog of the library, see [extensions](#extensions) and the page [Extension sets](extensions.md).
 ## Reading
 
 | Rule |
@@ -41,8 +41,25 @@ An empty array, an empty object and a missing key are the same: no call of the b
 
 | Key | Value | Required | Meaning | Errors |
 | :- | :- | :- | :- | :- |
-| `name` | string | yes | the short name of a set of the catalog of the library | a name outside the catalog is `InvalidConfiguration` with the name and the place: this includes the names of cel-go that the catalog has no set for, such as `regex`, the full names `cel.lib.ext.*`, and `block`, the internal set of the conformance runner. In this version the catalog is empty, so every name is that error |
+| `name` | string | yes | the short name of a set of the catalog of the library | a name outside the catalog is `InvalidConfiguration` with the name and the place: this includes the names of cel-go that the catalog has no set for, such as `regex`, the full names `cel.lib.ext.*`, `block`, the internal set of the conformance runner, and `decimal` |
 | `version` | a string of decimal digits whose value fits `uint` | yes | the version of the set; the set is `AddExtension(CelExtensions.<Set>(version))` | a missing key, an empty string, `latest`, a number of JSON and a text that is not a number are `InvalidConfiguration` with the place |
+
+The catalog of this release has ten sets; the table gives each name with the version that the release has (a version that is not in the table is the build error `UnknownExtensionVersion`), and the page [Extension sets](extensions.md) gives the functions of each:
+
+| `name` | `version` | Member of `CelExtensions` |
+| :- | :- | :- |
+| `strings` | `"5"` | `Strings(5)` |
+| `math` | `"3"` | `Math(3)` |
+| `lists` | `"4"` | `Lists(4)` |
+| `sets` | `"0"` | `Sets(0)` |
+| `encoders` | `"1"` | `Encoders(1)` |
+| `bindings` | `"1"` | `Bindings(1)` |
+| `two-var-comprehensions` | `"0"` | `TwoVarComprehensions(0)` |
+| `network` | `"1"` | `Network(1)` |
+| `protos` | `"0"` | `Protos(0)` |
+| `optional` | `"2"` | `Optional(2)` |
+
+For example, `{"extensions": [{"name": "strings", "version": "5"}, {"name": "math", "version": "3"}]}` is `AddExtension(CelExtensions.Strings(5))` and `AddExtension(CelExtensions.Math(3))`.
 
 The name and the version are checked independently, so both can be errors. Build errors that `Build` reports for the calls of `AddExtension`, as for an environment built in code:
 
@@ -56,7 +73,7 @@ The name and the version are checked independently, so both can be errors. Build
 
 The syntax flags of a set, such as `.?`, `[?` and `{?` of `optional`, are enabled by the set; there is no key for them.
 
-The set `decimal`, on .NET 11 only, is added in code with `CelExtensions.Decimal(1)`, and so is the option of the `decimal` literals, `EnableDecimalLiterals()`: a description cannot name the set, which is the same error as any name outside the catalog, and has no key for the option. A variable, a parameter or a result can have the type `decimal` when the code added the set; without it the type is `TypeNotDeclared`, and on .NET 10 the message says that `decimal` exists only on .NET 11.
+The set `decimal`, on .NET 11 only, is added in code with `CelExtensions.Decimal(1)`, and so is the option of the `decimal` literals, `EnableDecimalLiterals()`: a description cannot name the set, which is `InvalidConfiguration` as for any name outside the catalog, and has no key for the option. A variable, a parameter or a result can have the type `decimal` when the code added the set; without it the type is `TypeNotDeclared`, and on .NET 10 the message says that `decimal` exists only on .NET 11.
 
 ## variables
 

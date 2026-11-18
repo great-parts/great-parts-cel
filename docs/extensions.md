@@ -75,7 +75,7 @@ A macro that cannot expand a call because of its arguments is the parse error `I
 
 ## In an environment description
 
-The key `extensions` of an [environment description in JSON](environment-json.md) adds a set by its name and version, as `AddExtension(CelExtensions.<Set>(version))`. The names are those of the catalog above, once the set is part of the library, except that `decimal` has no name in a description and is added in code; the full names of cel-go such as `cel.lib.ext.strings` are not names. A version is a string of decimal digits, and `Build` reports a version that the set does not have, with the place of its element.
+The key `extensions` of an [environment description in JSON](environment-json.md) adds a set by its name and version, as `AddExtension(CelExtensions.<Set>(version))`. The names are those of the catalog above, except that `decimal` has no name in a description and is added in code; the full names of cel-go such as `cel.lib.ext.strings` are not names. A version is a string of decimal digits, and `Build` reports a version that the set does not have, with the place of its element.
 
 ## Optional syntax
 
