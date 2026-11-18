@@ -89,7 +89,7 @@ public sealed class SyntheticSuiteTests
             ListPath,
             6,
             1,
-            "entry 'synthetic/passing/int': the scope has the unknown value 'linux'; a part is linux-x64, macos, a list of them or *");
+            "entry 'synthetic/passing/int': the scope has the unknown value 'linux'; a part is linux-x64, macos, browser-wasm, a list of them or *");
     }
 
     [Fact]

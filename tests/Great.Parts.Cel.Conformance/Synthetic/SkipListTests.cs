@@ -51,7 +51,7 @@ public sealed class SkipListTests
 
         Assert.Empty(list.Findings);
         Assert.NotEmpty(list.Entries);
-        Assert.All(list.Entries, entry => Assert.Equal(6, entry.Scope.Count));
+        Assert.All(list.Entries, entry => Assert.Equal(8, entry.Scope.Count));
     }
 
     // A signature of the registry that has a case in the corpus but no entry in the list. The expectation of a case is an evaluation
@@ -213,8 +213,8 @@ public sealed class SkipListTests
         | zeta/b/c | | Reason. | | | => entry 'zeta/b/c': the scope '' is not three parts separated by a space: the mode, the operating system and the target
         | zeta/b/c | aot * * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value 'aot'; a part is jit, native-aot, a list of them or *
         | zeta/b/c | jit,* * * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value '*'; a part is jit, native-aot, a list of them or *
-        | zeta/b/c | * linux-x64,linux * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value 'linux'; a part is linux-x64, macos, a list of them or *
-        | zeta/b/c | * macos, * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value ''; a part is linux-x64, macos, a list of them or *
+        | zeta/b/c | * linux-x64,linux * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value 'linux'; a part is linux-x64, macos, browser-wasm, a list of them or *
+        | zeta/b/c | * macos, * | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value ''; a part is linux-x64, macos, browser-wasm, a list of them or *
         | zeta/b/c | * * net9.0 | Reason. | | | => entry 'zeta/b/c': the scope has the unknown value 'net9.0'; a part is net10.0, net11.0, a list of them or *
         | zeta/b/c | native-aot macos * | Reason. | | | => entry 'zeta/b/c': the scope 'native-aot macos *' has no cell of the matrix
         | zeta/b/c | * * * | | | | => entry 'zeta/b/c': the reason is empty

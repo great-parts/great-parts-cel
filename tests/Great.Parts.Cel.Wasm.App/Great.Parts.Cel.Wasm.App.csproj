@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <!--
+    The test application of S-9: a Blazor WebAssembly application that uses Great.Parts.Cel and Great.Parts.Cel.Protobuf. It is published
+    in the default mode (IL trimming, no AOT compilation to WebAssembly) by the job wasm of ci.yml, and the publish must report 0 warnings
+    IL2xxx and IL3xxx from the assemblies of the two packages. It is not run: the runner of the suite is
+    tests/Great.Parts.Cel.Conformance.Wasm.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel.Wasm.App</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
+  </ItemGroup>
+
+  <!--
+    The two assemblies are roots of the trimmer, so it analyzes all their code and not only the code the application calls: the publish
+    reports an IL warning for every public capability that is not safe under trimming, which is what S-9 asks for.
+  -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Great.Parts.Cel" />
+    <TrimmerRootAssembly Include="Great.Parts.Cel.Protobuf" />
+  </ItemGroup>
+
+</Project>

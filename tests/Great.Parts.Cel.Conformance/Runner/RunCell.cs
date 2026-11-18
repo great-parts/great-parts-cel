@@ -11,16 +11,20 @@ namespace Great.Parts.Cel.Conformance.Runner;
 /// scope contains the cell of the run.
 /// </summary>
 /// <param name="Mode"><c>jit</c> or <c>native-aot</c>.</param>
-/// <param name="OperatingSystem"><c>linux-x64</c> or <c>macos</c>.</param>
+/// <param name="OperatingSystem"><c>linux-x64</c>, <c>macos</c> or <c>browser-wasm</c>.</param>
 /// <param name="Target"><c>net10.0</c> or <c>net11.0</c>.</param>
 internal readonly record struct RunCell(string Mode, string OperatingSystem, string Target)
 {
     private static readonly string[] Modes = ["jit", "native-aot"];
-    private static readonly string[] OperatingSystems = ["linux-x64", "macos"];
+    private static readonly string[] OperatingSystems = ["linux-x64", "macos", "browser-wasm"];
     private static readonly string[] Targets = ["net10.0", "net11.0"];
+    private static readonly OSPlatform Browser = OSPlatform.Create("BROWSER");
 
-    /// <summary>The cells of the matrix: JIT on <c>linux-x64</c> and <c>macos</c>, Native AOT on <c>linux-x64</c>; both targets.</summary>
-    internal static IReadOnlyList<RunCell> Matrix { get; } = [.. Combine(Modes, OperatingSystems, Targets).Where(cell => cell.Mode == "jit" || cell.OperatingSystem != "macos")];
+    /// <summary>
+    /// The cells of the matrix: JIT on <c>linux-x64</c>, <c>macos</c> and <c>browser-wasm</c> (the runtime for WebAssembly in its default
+    /// publish mode, which reports dynamic code as supported), Native AOT on <c>linux-x64</c>; both targets.
+    /// </summary>
+    internal static IReadOnlyList<RunCell> Matrix { get; } = [.. Combine(Modes, OperatingSystems, Targets).Where(cell => cell.Mode == "jit" || cell.OperatingSystem == "linux-x64")];
 
     /// <summary>The cell of this run: the mode from <see cref="RuntimeFeature.IsDynamicCodeSupported"/>, the operating system of the process and the target of the build.</summary>
     internal static RunCell Current { get; } = Of(RuntimeFeature.IsDynamicCodeSupported, CurrentPlatform(), RuntimeInformation.ProcessArchitecture, BuildTarget);
@@ -43,7 +47,8 @@ internal readonly record struct RunCell(string Mode, string OperatingSystem, str
         string operatingSystem =
             platform == OSPlatform.Linux && architecture == Architecture.X64 ? "linux-x64"
             : platform == OSPlatform.OSX ? "macos"
-            : throw new PlatformNotSupportedException($"The suites run on linux-x64 and macos, not on {platform} {architecture}.");
+            : platform == Browser && architecture == Architecture.Wasm ? "browser-wasm"
+            : throw new PlatformNotSupportedException($"The suites run on linux-x64, macos and browser-wasm, not on {platform} {architecture}.");
         return new RunCell(isDynamicCodeSupported ? "jit" : "native-aot", operatingSystem, target);
     }
 
@@ -90,6 +95,7 @@ internal readonly record struct RunCell(string Mode, string OperatingSystem, str
     private static OSPlatform CurrentPlatform() =>
         System.OperatingSystem.IsLinux() ? OSPlatform.Linux
         : System.OperatingSystem.IsMacOS() ? OSPlatform.OSX
+        : System.OperatingSystem.IsBrowser() ? Browser
         : OSPlatform.Create(RuntimeInformation.OSDescription);
 
     private static string? UnknownValue(string part, string[] known)

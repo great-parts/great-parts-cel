@@ -122,7 +122,7 @@ Values are compared as `cel.expr.Value` messages, as `diffValue` does with `cmp.
 
 ## Skip lists and findings
 
-The cell of a run is the mode (`jit` when `RuntimeFeature.IsDynamicCodeSupported`, else `native-aot`), the operating system (`linux-x64`, `macos`) and the target, fixed at compile time. The cells of the matrix are JIT on `linux-x64` and `macos` and Native AOT on `linux-x64`, for both targets. A skip entry applies when its scope contains the cell.
+The cell of a run is the mode (`jit` when `RuntimeFeature.IsDynamicCodeSupported`, else `native-aot`), the operating system (`linux-x64`, `macos`, `browser-wasm`) and the target, fixed at compile time. The cells of the matrix are JIT on `linux-x64`, `macos` and `browser-wasm` and Native AOT on `linux-x64`, for both targets. The runtime for WebAssembly reports dynamic code as supported, so the cell of its interpreter has the mode `jit`; a case that fails only there has the scope `* browser-wasm *`. A skip entry applies when its scope contains the cell.
 
 | Code | When | Place |
 | :- | :- | :- |
@@ -221,3 +221,9 @@ The enumeration `WellKnownType` of `cel.expr.Type` has `ANY`, `TIMESTAMP` and `D
 ## Native AOT
 
 The project is published under Native AOT and runs as an executable ([tests.md](tests.md#same-tests-under-jit-and-native-aot), [eng-test.md](eng-test.md#test)). The runner uses no reflection: generated messages, embedded resources and the API of the library.
+
+## browser-wasm
+
+The project `tests/Great.Parts.Cel.Conformance.Wasm` runs the cases of the cel-spec suite on `browser-wasm` (S-9, R-1). It is a console application of the runtime for WebAssembly, published in the default mode — the interpreter of the runtime, IL trimming, no AOT compilation to WebAssembly, no workload — and the assembly is named `Great.Parts.Cel.Conformance`, because the library shows its internal entry points to that name. It compiles the sources of `Runner/` (all but `SuiteAssert.cs`, which needs xUnit) and `CelSpec/CelSpecSuite.cs` as linked files, embeds the same data as the suite project (the cases of `tests/simple/testdata`, `CelSpec/skips.md`, the pinned commit and the time zone archive) and reads no file. `Program.cs` runs `CelSpecSuite.Run` in the cell `jit, browser-wasm` and prints the summary line, the skipped cases of the cell with their reasons and the findings; the exit code is 0 without a finding with the severity error, 1 with one, and 2 when the cell is not `browser-wasm` or the suite has no cases.
+
+The job `wasm` of `ci.yml` publishes the runner for each target, copies `main.mjs` next to the published files and runs it under Node.js in a container (`node main.mjs`): the script starts the runtime and ends the process with the exit code of `Main`. The test application `tests/Great.Parts.Cel.Wasm.App` is a Blazor WebAssembly application that builds the two expressions of the README and `docs/protobuf.md` and takes `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf` as roots of the trimmer, so the trimmer analyzes all their code; the job publishes it, every warning is an error, and the step counts the lines `IL2xxx` and `IL3xxx` of the log, which must be 0. Neither project is in the solution.

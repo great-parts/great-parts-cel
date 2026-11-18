@@ -1,4 +1,4 @@
-# Build and tests on GitHub: JIT on Linux and macOS, Native AOT on linux-x64, both for net10.0 and net11.0, the documentation checks (examples,
+# Build and tests on GitHub: JIT on Linux and macOS, Native AOT on linux-x64, browser-wasm under Node.js, all for net10.0 and net11.0, the documentation checks (examples,
 # error codes page, links) on Linux, the quick start of the README on the package of the commit, plus the Signed-off-by check.
 # The cells run the same commands as the container checks of eng/ (docs/design/eng-test.md), without containers: the runners have no
 # SDK 11, so actions/setup-dotnet installs the SDK of global.json and the SDK 10.0.x whose runtime the net10.0 tests need.
@@ -147,6 +147,65 @@ jobs:
               --aot "artifacts/test-results/aot/$name/$TARGET/report.xml" \
               --where "linux-x64, $TARGET" || status=1
           done
+          exit $status
+
+  # browser-wasm cells (S-9, R-1; docs/design/conformance.md, "browser-wasm"), both targets. The cel-spec runner
+  # tests/Great.Parts.Cel.Conformance.Wasm is published as a console application of the runtime for WebAssembly in the default mode (the
+  # interpreter of the runtime, IL trimming, no AOT compilation to WebAssembly) with the data of the suite embedded, and runs under Node.js
+  # in a container; its exit code is the result, and the summary line and the skipped cases are in the log. The test application
+  # tests/Great.Parts.Cel.Wasm.App, a Blazor WebAssembly application that takes the assemblies of both packages as roots of the trimmer, is
+  # published too: a publish with a trimming warning fails (every warning is an error), and the step counts the lines IL2xxx and IL3xxx
+  # of the log, so 0 of them is part of the cell. The projects are not in the solution: a build of the solution on a runner that
+  # does not run this job downloads no runtime pack for WebAssembly. The SDK needs no workload: the default mode needs no wasm-tools.
+  wasm:
+    name: browser-wasm ${{ matrix.tfm }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tfm: [net10.0, net11.0]
+    env:
+      # The tag and the digest change together; Node.js runs the application in the container, as the test cells run on the host.
+      NODE_IMAGE: node:24.21.0-trixie-slim@sha256:173f125896c3b47ddf056734c7ea789d04595a6a08769a8f78e0df642781fb66
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: |
+          dotnet restore tests/Great.Parts.Cel.Conformance.Wasm --locked-mode
+          dotnet restore tests/Great.Parts.Cel.Wasm.App --locked-mode
+
+      - name: Publish the runner (default mode)
+        env:
+          TARGET: ${{ matrix.tfm }}
+        run: dotnet publish tests/Great.Parts.Cel.Conformance.Wasm -f "$TARGET" -c Release --no-restore -o "artifacts/wasm/runner/$TARGET"
+
+      # The script that starts the runtime under Node.js is next to the published files, so the container mounts one directory.
+      - name: cel-spec under Node.js (container)
+        env:
+          TARGET: ${{ matrix.tfm }}
+        run: |
+          set -euo pipefail
+          cp tests/Great.Parts.Cel.Conformance.Wasm/main.mjs "artifacts/wasm/runner/$TARGET/main.mjs"
+          docker run --rm --volume "$PWD/artifacts/wasm/runner/$TARGET:/app:ro" --workdir /app "$NODE_IMAGE" node main.mjs | tee "artifacts/wasm/runner-$TARGET.log"
+
+      - name: Publish the Blazor WebAssembly application (0 warnings IL2xxx and IL3xxx)
+        env:
+          TARGET: ${{ matrix.tfm }}
+        run: |
+          set -euo pipefail
+          status=0
+          dotnet publish tests/Great.Parts.Cel.Wasm.App -f "$TARGET" -c Release --no-restore -o "artifacts/wasm/app/$TARGET" 2>&1 | tee "artifacts/wasm/app-$TARGET.log" || status=1
+          count=$(grep -cE 'IL[23][0-9]{3}' "artifacts/wasm/app-$TARGET.log" || true)
+          echo "warnings IL2xxx and IL3xxx in the publish: $count"
+          [ "$count" = "0" ] || status=1
           exit $status
 
   # The documentation (docs/design/eng-docs.md): the steps of eng/docs, and the external links, which only this cell checks. The steps run
