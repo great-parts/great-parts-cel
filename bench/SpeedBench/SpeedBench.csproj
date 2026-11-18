@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Packages restore from packages.lock.json; the workflow restores in locked mode. The property is set here, not in Directory.Build.props, so the projects that BenchmarkDotNet generates write no lock file. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" />
+    <PackageReference Include="Celly" />
+    <PackageReference Include="DotnetCel" />
+    <PackageReference Include="Cel.NET" />
+    <!-- TELUS Cel: its namespace Cel is also the namespace of Cel.NET. -->
+    <PackageReference Include="Cel" Aliases="TelusCel" />
+    <PackageReference Include="Great.Parts.Cel" />
+    <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Protobuf Include="Proto/order.proto" GrpcServices="None" />
+  </ItemGroup>
+
+</Project>

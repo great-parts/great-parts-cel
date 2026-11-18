@@ -1,0 +1,109 @@
+# The benchmark rig (docs/design/eng-bench.md): the speed comparison with other CEL libraries for .NET, on request. It runs on a
+# GitHub-hosted runner only, by hand: no trigger but the manual one, and no measurement on a developer machine. The runs of one
+# measurement go one after another in one job, so on one virtual machine.
+# The result is the artifact bench-results (the summary, the verification, the table and the BenchmarkDotNet reports of every run)
+# and the step summary. The workflow has no secrets and reads the repository only. It sets no timeout-minutes: the protection
+# against a hung job is the default limit of GitHub Actions, 6 hours.
+# The place for the publication of a result: a later job `publish`, with `needs: bench` and `permissions: contents: write`, downloads the
+# artifact bench-results and commits it to the branch `reports` (that job is not part of this workflow yet).
+name: bench
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "The number of measurement runs, one after another in this job (at least 3 for a result)."
+        type: string
+        default: "3"
+      job:
+        description: "Default: the measurement. Dry: one call per case, a check of the rig without a measurement."
+        type: choice
+        options:
+          - Default
+          - Dry
+        default: Default
+      cases:
+        description: "The cases to run, ids separated by commas, for example E1,E5 or E2/10. Without it: every case."
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  bench:
+    name: Benchmark rig
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The SDK of global.json builds the rig; the SDK 10.0.x brings the runtime of net10.0, on which the rig runs under JIT.
+      - name: Set up .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: dotnet restore bench/SpeedBench/SpeedBench.csproj --locked-mode
+
+      # run.mjs builds the rig, verifies every library on every case, then measures; the summary is written even after a failed run.
+      - name: Measurement (bench/run.mjs)
+        env:
+          # The values reach the script only through the environment, never through the text of the script.
+          RUNS: ${{ inputs.runs }}
+          BENCH_JOB: ${{ inputs.job }}
+          BENCH_CASES_INPUT: ${{ inputs.cases }}
+        run: |
+          set -u
+          if ! [[ "$RUNS" =~ ^[1-9][0-9]?$ ]]; then
+            echo "The runs are a number from 1 to 99."
+            exit 2
+          fi
+          if ! [[ "$BENCH_JOB" =~ ^(Default|Dry)$ ]]; then
+            echo "The job is Default or Dry."
+            exit 2
+          fi
+          arguments=(--runs "$RUNS")
+          if [ "$BENCH_JOB" != "Default" ]; then
+            arguments+=(--job "$BENCH_JOB")
+          fi
+          if [ -n "$BENCH_CASES_INPUT" ]; then
+            if ! [[ "$BENCH_CASES_INPUT" =~ ^E[1-9](/(10|100))?(,E[1-9](/(10|100))?)*$ ]]; then
+              echo "The cases are ids such as E1 or E2/10, separated by commas."
+              exit 2
+            fi
+            arguments+=(--cases "$BENCH_CASES_INPUT")
+          fi
+          node bench/run.mjs "${arguments[@]}"
+
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          if [ -f bench/results/summary.md ]; then
+            # The step summary of GitHub is limited to 1 MiB.
+            head -c 900000 bench/results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # The artifact is uploaded even after a failed run. The directories of the projects that BenchmarkDotNet builds are left out:
+      # the reports and the logs are the result.
+      - name: Results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-results
+          path: |
+            bench/results/summary.md
+            bench/results/verify.json
+            bench/results/runs/*/run.json
+            bench/results/runs/*/summary.md
+            bench/results/runs/*/bdn/results
+            bench/results/runs/*/bdn/*.log
+          if-no-files-found: warn

@@ -1,0 +1,11 @@
+<Project>
+  <!--
+    The benchmark rig is not part of the library or of its packages and is not in Great.Parts.Cel.slnx. This file stands between the rig
+    and the Directory.Build.props of the repository root, whose strict checks (analyzers as errors, XML documentation, the architecture
+    analyzer) are written for the code of the library. The rig has its own versions of packages in Directory.Packages.props.
+  -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>

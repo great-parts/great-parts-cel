@@ -1,0 +1,32 @@
+// Protocol buffer form of the data of Model.cs for the libraries that read protobuf messages
+// instead of .NET objects: Cel.NET and TELUS Cel. Field names are the CEL names of the expressions.
+syntax = "proto3";
+
+package speedbench;
+
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "SpeedBench.Proto";
+
+message Order {
+  string id = 1;
+  string status = 2;
+  double total = 3;
+  string currency = 4;
+  // double? in Model.cs: proto3 optional keeps field presence, so has(order.discount) sees it.
+  optional double discount = 5;
+  Customer customer = 6;
+  google.protobuf.Timestamp created = 7;
+  repeated Line lines = 8;
+}
+
+message Customer {
+  string name = 1;
+  string email = 2;
+}
+
+message Line {
+  string sku = 1;
+  int64 qty = 2;
+  double price = 3;
+}

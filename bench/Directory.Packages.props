@@ -1,0 +1,23 @@
+<Project>
+  <!--
+    Versions of the packages of the benchmark rig, pinned: a result of the rig names these versions, and a new version of a compared
+    library is taken by a change of this file. The file replaces Directory.Packages.props of the repository root for the rig.
+  -->
+  <!-- The condition keeps the projects that BenchmarkDotNet generates for the runs of the cases outside the central management. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally Condition="'$(MSBuildProjectName)' == 'SpeedBench'">true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The benchmark runner. -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+    <!-- The libraries that are compared. -->
+    <PackageVersion Include="Celly" Version="1.2.0" />
+    <PackageVersion Include="DotnetCel" Version="1.0.7" />
+    <PackageVersion Include="Cel.NET" Version="2.3.1" />
+    <PackageVersion Include="Cel" Version="0.3.3" />
+    <!-- The published package of this repository from nuget.org: the first comparison runs on the version 1.0. -->
+    <PackageVersion Include="Great.Parts.Cel" Version="1.0.1" />
+    <!-- protoc for Proto/order.proto, a build tool only. -->
+    <PackageVersion Include="Grpc.Tools" Version="2.85.0" />
+  </ItemGroup>
+</Project>

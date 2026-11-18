@@ -7,9 +7,11 @@ updates:
   - package-ecosystem: nuget
     directory: /
     # eng/min-sdk is the sample application of the check min-sdk: it builds on the oldest SDK with the package of this build,
-    # so it has nothing to update.
+    # so it has nothing to update. bench/ is the benchmark rig: the versions of the libraries that it compares are pinned for a
+    # comparison and change only with it (docs/design/eng-bench.md, "Packages").
     exclude-paths:
       - "eng/min-sdk/**"
+      - "bench/**"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
