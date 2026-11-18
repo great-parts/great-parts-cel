@@ -102,7 +102,8 @@ internal sealed class MutationCommand : ICheckCommand
 
     private static bool IsNotDetected(string status) => status is "Survived" or "NoCoverage";
 
-    // The changed C# files of the project under test that the run did not mutate.
+    // The changed C# files of the project under test that the run did not mutate. A file that the patterns of mutate leave out is not
+    // one of them: the run was not to mutate it, as in a part of the library that has its own configuration.
     private static IEnumerable<Finding> NotMutated(string root, MutationConfig config, List<ReportedFile> files, MutationPaths paths, string since)
     {
         if (config.Project is not { } project)
@@ -111,11 +112,12 @@ internal sealed class MutationCommand : ICheckCommand
         }
 
         string directory = MutationPaths.DirectoryOf(project);
+        MutateScope scope = new(config.Mutate, directory);
         Dictionary<string, ReportedFile> byPath = files.ToDictionary(file => paths.Relative(file.Path), StringComparer.Ordinal);
         foreach (string changed in ChangedFiles(root, since))
         {
             bool inProject = directory.Length == 0 || changed.StartsWith(directory + "/", StringComparison.Ordinal);
-            if (!inProject || !changed.EndsWith(".cs", StringComparison.Ordinal) || !File.Exists(Path.Combine(root, changed)))
+            if (!inProject || !changed.EndsWith(".cs", StringComparison.Ordinal) || !scope.Contains(changed) || !File.Exists(Path.Combine(root, changed)))
             {
                 continue;
             }

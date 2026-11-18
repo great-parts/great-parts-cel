@@ -3,9 +3,14 @@
 # (eng/stryker-control.json) and the run on the whole library whose score is read. Stryker.NET is a local tool of the repository, so
 # the workflow has no tool setup. The workflow runs no trigger but the manual one: the control set left ci.yml, and the run of the
 # whole library is made once, before the release.
-# The result is the artifact of the run, the reports and the finding lines of each run, and the step summary: the last line of
-# eng/run, the counts of the mutants by status and of the finding codes ENG501 to ENG504. The workflow sets no timeout-minutes: the
-# protection against a hung job is the default limit of GitHub Actions, 6 hours.
+# One run of the whole library does not end within the limit of a job, 6 hours (the run of 2026-11-16 was stopped by it), so the
+# library is mutated in parts: each file of eng/stryker-parts/ is the configuration of one part, and each part, like the control set,
+# is a job of its own on its own runner (docs/design/eng-mutate.md, "Parts of the library"). The jobs run side by side, and one
+# that fails or is stopped does not stop the others.
+# The result is the artifact of each job, the reports and the finding lines of its run, and the step summary: the last line of
+# eng/run, the counts of the mutants by status and of the finding codes ENG501 to ENG504. The last job adds up the reports of all
+# parts into the score of the library. The workflow sets no timeout-minutes: the protection against a hung job is the default limit
+# of GitHub Actions, 6 hours.
 name: mutate
 
 on:
@@ -19,6 +24,10 @@ on:
           - control
           - library
         default: both
+      parts:
+        description: "The parts of the library to run, names of the files of eng/stryker-parts/ without .json, separated by commas. Without it: every part."
+        type: string
+        required: false
       since:
         description: "Commit from which the changes are counted in the run on the library (a SHA or a branch name). Without it: the first commit of the history, so every file of the library is mutated."
         type: string
@@ -27,7 +36,7 @@ on:
 permissions:
   contents: read
 
-# One run at a time: the run uses the whole runner for hours.
+# One run at a time: a run uses many runners for hours.
 concurrency:
   group: mutate
   cancel-in-progress: false
@@ -37,11 +46,86 @@ env:
   DOTNET_CLI_TELEMETRY_OPTOUT: "true"
 
 jobs:
-  mutate:
-    name: Mutation testing
+  # The jobs to run: the control set and the parts of the library, as the names of the matrix of the next job.
+  plan:
+    name: Plan
     # Only the main branch: a manual run from another branch is skipped.
     if: ${{ github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
+    outputs:
+      jobs: ${{ steps.plan.outputs.jobs }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Names of the jobs
+        id: plan
+        env:
+          # The values reach the script only through the environment, never through the text of the script.
+          RUNS: ${{ inputs.runs }}
+          PARTS: ${{ inputs.parts }}
+        run: |
+          set -u
+          if ! [[ "$RUNS" =~ ^(both|control|library)$ ]]; then
+            echo "The runs are both, control or library."
+            exit 2
+          fi
+
+          available=()
+          for file in eng/stryker-parts/*.json; do
+            available+=("$(basename "$file" .json)")
+          done
+
+          selected=("${available[@]}")
+          if [ -n "$PARTS" ]; then
+            if ! [[ "$PARTS" =~ ^[a-z0-9]+(-[a-z0-9]+)*(,[a-z0-9]+(-[a-z0-9]+)*)*$ ]]; then
+              echo "The parts are names of the files of eng/stryker-parts/ without .json, separated by commas."
+              exit 2
+            fi
+            selected=()
+            IFS=',' read -r -a wanted <<< "$PARTS"
+            for name in "${wanted[@]}"; do
+              known=0
+              for candidate in "${available[@]}"; do
+                if [ "$candidate" = "$name" ]; then
+                  known=1
+                fi
+              done
+              if [ "$known" -eq 0 ]; then
+                echo "There is no part named $name. The parts: ${available[*]}"
+                exit 2
+              fi
+              selected+=("$name")
+            done
+          fi
+
+          names=()
+          if [ "$RUNS" != "library" ]; then
+            names+=("control")
+          fi
+          if [ "$RUNS" != "control" ]; then
+            names+=("${selected[@]}")
+          fi
+
+          jobs=$(printf '%s\n' "${names[@]}" | jq -R . | jq -sc .)
+          echo "jobs=$jobs" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Jobs"
+            echo
+            echo '```text'
+            printf '%s\n' "${names[@]}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  mutate:
+    name: Mutation testing ${{ matrix.job }}
+    needs: plan
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        job: ${{ fromJson(needs.plan.outputs.jobs) }}
     steps:
       # since compares the working copy with a commit, and eng/run reads git, so the whole history and the branch main are there.
       - name: Check out
@@ -52,12 +136,12 @@ jobs:
       - name: Mutation testing (eng/mutate)
         env:
           # The values reach the script only through the environment, never through the text of the script.
-          RUNS: ${{ inputs.runs }}
+          JOB: ${{ matrix.job }}
           SINCE: ${{ inputs.since }}
         run: |
           set -u
-          if ! [[ "$RUNS" =~ ^(both|control|library)$ ]]; then
-            echo "The runs are both, control or library."
+          if ! [[ "$JOB" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+            echo "The job is control or a part."
             exit 2
           fi
           if [ -n "$SINCE" ] && ! [[ "$SINCE" =~ ^[0-9A-Za-z._/-]+$ ]]; then
@@ -70,62 +154,123 @@ jobs:
 
           results="$RUNNER_TEMP/mutate-results"
           mkdir -p "$results"
-          failed=0
 
-          # One run: the log, the reports and the lines of the summary of the run named by the first argument; the rest are the
-          # arguments of the service. eng/run deletes artifacts/mutate before a run, so the reports of a run are copied away at once.
-          run_one() {
-            local name="$1"
-            shift
-            local output="$results/$name.txt"
-            local status=0
-            docker compose -f eng/compose.yaml run --rm -T mutate "$@" > "$output" || status=$?
-            cat "$output"
-            if [ -d artifacts/mutate ]; then
-              cp -r artifacts/mutate "$results/$name"
+          # The log, the reports and the lines of the summary of the run named by the first argument; the rest are the arguments of
+          # the service. The output goes to the log of the job as it is written, so a job that is stopped has shown how far it got.
+          # eng/run deletes artifacts/mutate before a run, so the reports of a run are copied away at once.
+          name="$JOB"
+          output="$results/$name.txt"
+          set +e
+          if [ "$JOB" = "control" ]; then
+            # The control set checks the tool and the test runner; it counts no changes, so it takes no since.
+            docker compose -f eng/compose.yaml run --rm -T mutate eng/stryker-control.json 2>&1 | tee "$output"
+            status=${PIPESTATUS[0]}
+          else
+            if [ ! -f "eng/stryker-parts/$JOB.json" ]; then
+              echo "There is no part named $JOB."
+              exit 2
             fi
+            docker compose -f eng/compose.yaml run --rm -T mutate "eng/stryker-parts/$JOB.json" --since "$SINCE" 2>&1 | tee "$output"
+            status=${PIPESTATUS[0]}
+          fi
+          set -e
 
-            local last
-            last=$(grep -E '^mutate: ' "$output" | tail -n 1 || true)
-            {
-              echo "### mutate $name"
+          if [ -d artifacts/mutate ]; then
+            cp -r artifacts/mutate "$results/$name"
+          fi
+
+          last=$(grep -E '^mutate: ' "$output" | tail -n 1 || true)
+          {
+            echo "### mutate $name"
+            echo
+            echo '```text'
+            echo "${last:-No summary line (exit code $status).}"
+            echo '```'
+            echo
+            echo "Finding lines: $(grep -cE 'ENG50[1-4]' "$output" || true)"
+            if [ -f "$results/$name/reports/mutation-report.json" ]; then
+              echo
+              echo "Mutants by status:"
               echo
               echo '```text'
-              echo "${last:-No summary line (exit code $status).}"
+              jq -r '[.files[].mutants[].status] | group_by(.) | map("\(.[0]) \(length)") | .[]' "$results/$name/reports/mutation-report.json" || true
               echo '```'
-              echo
-              echo "Finding lines: $(grep -cE 'ENG50[1-4]' "$output" || true)"
-              if [ -f "$results/$name/reports/mutation-report.json" ]; then
-                echo
-                echo "Mutants by status:"
-                echo
-                echo '```text'
-                jq -r '[.files[].mutants[].status] | group_by(.) | map("\(.[0]) \(length)") | .[]' "$results/$name/reports/mutation-report.json" || true
-                echo '```'
-              fi
-              echo
-            } >> "$GITHUB_STEP_SUMMARY"
-
-            if [ "$status" -ne 0 ]; then
-              failed=1
             fi
-          }
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          # The control set checks the tool and the test runner; its failure does not skip the run on the library, whose result is
-          # still of use, but fails the job.
-          if [ "$RUNS" != "library" ]; then
-            run_one control eng/stryker-control.json
-          fi
-          if [ "$RUNS" != "control" ]; then
-            run_one library --since "$SINCE"
-          fi
-          exit "$failed"
+          exit "$status"
 
       # The artifact is uploaded even after a failed run: the report and the findings are what the failure is read from.
       - name: Reports and findings
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: mutate-results
+          name: mutate-results-${{ matrix.job }}
           path: ${{ runner.temp }}/mutate-results
           if-no-files-found: warn
+
+  # The score of the whole library: the reports of all parts added up. It is a summary only; the jobs of the parts have their own
+  # result, and a part that has no report is named.
+  library:
+    name: Library, all parts
+    needs: [plan, mutate]
+    if: ${{ always() && needs.plan.result == 'success' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reports of the parts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: mutate-results-*
+          path: ${{ runner.temp }}/all
+
+      - name: Score of the library
+        env:
+          JOBS: ${{ needs.plan.outputs.jobs }}
+        run: |
+          set -u
+          all="$RUNNER_TEMP/all"
+          parts=()
+          reports=()
+          missing=()
+          while read -r job; do
+            if [ "$job" = "control" ]; then
+              continue
+            fi
+            parts+=("$job")
+            report="$all/mutate-results-$job/$job/reports/mutation-report.json"
+            if [ -f "$report" ]; then
+              reports+=("$report")
+            else
+              missing+=("$job")
+            fi
+          done < <(jq -r '.[]' <<< "$JOBS")
+
+          if [ "${#parts[@]}" -eq 0 ]; then
+            echo "The run has no part of the library."
+            exit 0
+          fi
+
+          {
+            echo "### Library, all parts"
+            echo
+            echo "Reports: ${#reports[@]} of ${#parts[@]} parts."
+            if [ "${#missing[@]}" -gt 0 ]; then
+              echo
+              echo "No report: ${missing[*]}"
+            fi
+            if [ "${#reports[@]}" -gt 0 ]; then
+              echo
+              echo "Mutants by status:"
+              echo
+              echo '```text'
+              jq -s -r '[.[].files[].mutants[].status] | group_by(.) | map("\(.[0]) \(length)") | .[]' "${reports[@]}"
+              echo '```'
+              echo
+              echo "Score of the parts that have a report (Killed and Timeout of those and the not detected, Survived and NoCoverage):"
+              echo
+              echo '```text'
+              jq -s -r '[.[].files[].mutants[].status] as $s | ([$s[] | select(. == "Killed" or . == "Timeout")] | length) as $d | ([$s[] | select(. == "Survived" or . == "NoCoverage")] | length) as $n | if $d + $n == 0 then "No mutant counted." else "\($d * 10000 / ($d + $n) | floor / 100) % (\($d) of \($d + $n))" end' "${reports[@]}"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

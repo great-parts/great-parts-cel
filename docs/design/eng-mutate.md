@@ -70,7 +70,7 @@ The set has no `since`, so it runs from a linked worktree too ([Linked worktrees
 
 ### Triggers
 
-`ci.yml` does not run the set. It runs before release 1.0, with the workflow `mutate.yml` ([Run on GitHub](#run-on-github)), together with `eng/mutate` on the whole library: first `eng/mutate eng/stryker-control.json`, which checks the tool and the test runner, then the run whose score is read. A run before the release needs no filter by paths. By hand, for example after a change of the Stryker.NET version, the set is needed when a change touches a path of the list below; the check is `git diff --name-only main...HEAD -- <paths>`. They are the paths on which the result of the set depends: the set itself — its configuration, the code that it mutates and the code that code uses, the tests that detect its mutants; the steps of `eng/mutate`; the container; the settings of the compiler; the versions of the tool, of the test platform, of the SDK and of the image.
+`ci.yml` does not run the set. It runs before release 1.0, with the workflow `mutate.yml` ([Run on GitHub](#run-on-github)), together with `eng/mutate` on the whole library in parts ([Parts of the library](#parts-of-the-library)): `eng/mutate eng/stryker-control.json`, which checks the tool and the test runner, and the runs of the parts, whose scores are read. A run before the release needs no filter by paths. By hand, for example after a change of the Stryker.NET version, the set is needed when a change touches a path of the list below; the check is `git diff --name-only main...HEAD -- <paths>`. They are the paths on which the result of the set depends: the set itself — its configuration, the code that it mutates and the code that code uses, the tests that detect its mutants; the steps of `eng/mutate`; the container; the settings of the compiler; the versions of the tool, of the test platform, of the SDK and of the image.
 
 | Path | Why |
 | :- | :- |
@@ -91,21 +91,55 @@ Not triggers: `src/`, `tests/`; in `eng/tests/` — `Difftest/`, `Analyzers/`, `
 
 ## Run on GitHub
 
-`.github/workflows/mutate.yml` runs `eng/mutate` before release 1.0, by hand (`workflow_dispatch`), on `main` only: a run from another branch is skipped. It is the only place where the control set and the run on the whole library are made in CI; `ci.yml` has neither. The workflow runs the Compose service `mutate` on a hosted runner, as `difftest-nightly.yml` runs `difftest`, so the run on GitHub is the run on a developer machine, and it needs no tool setup: Stryker.NET is a local tool of the repository. It has the permission `contents: read` only, its actions are pinned by SHA, and it sets no `timeout-minutes`: a job that hangs is stopped by the default limit of GitHub Actions, 6 hours ([eng-test.md](eng-test.md#ci)).
+`.github/workflows/mutate.yml` runs `eng/mutate` by hand (`workflow_dispatch`), on `main` only: a run from another branch is skipped. It is the only place where the control set and the run on the whole library are made in CI; `ci.yml` has neither. The workflow runs the Compose service `mutate` on hosted runners, as `difftest-nightly.yml` runs `difftest`, so a run on GitHub is a run on a developer machine, and it needs no tool setup: Stryker.NET is a local tool of the repository. It has the permission `contents: read` only, its actions are pinned by SHA, and it sets no `timeout-minutes`: a job that hangs is stopped by the default limit of GitHub Actions, 6 hours ([eng-test.md](eng-test.md#ci)).
+
+The run of the whole library in one job does not end within that limit (the run of 2026-11-16 was stopped by it with no report), so the library is mutated in [parts](#parts-of-the-library), and each part is a job of its own. The workflow has three jobs:
+
+| Job | What it does |
+| :- | :- |
+| `plan` | lists the jobs to run: `control` when the run has the control set, and the parts of the library when it has the library; the list is the matrix of the next job |
+| `mutate` | a matrix job, one job for the control set and one for each part, each on its own runner; `fail-fast` is off, so a job that fails or is stopped by the limit does not stop the others. The control set runs `eng/mutate eng/stryker-control.json`, a part runs `eng/mutate eng/stryker-parts/<part>.json --since <commit>` |
+| `library` | adds up the reports of the parts: the number of mutants by status and the score of the library; it names a part that has no report |
 
 | Input | Value | Meaning |
 | :- | :- | :- |
-| `runs` | `both` (default), `control`, `library` | `control` is `eng/mutate eng/stryker-control.json`; `library` is `eng/mutate --since <commit>`, the score whose result is read; `both` runs the first, then the second |
-| `since` | a SHA or a branch name; without it, the first commit of the history | the commit from which the run on the library counts the changes ([Steps](#steps)); the first commit makes every file of the library a changed file, so the run mutates the whole library |
+| `runs` | `both` (default), `control`, `library` | `control` is the control set only; `library` is the parts of the library only, the scores whose result is read; `both` is the two |
+| `parts` | names of the files of `eng/stryker-parts/` without `.json`, separated by commas; without it, every part | which parts of the library to run, for example to repeat a part that was stopped; a name that is not a part stops the run in `plan` |
+| `since` | a SHA or a branch name; without it, the first commit of the history | the commit from which a part counts the changes ([Steps](#steps)); the first commit makes every file of the library a changed file, so the parts together mutate the whole library |
 
-The workflow checks out the whole history, as `since` and `eng/run` read git. The control set runs first; its failure does not skip the run on the library, but the job fails at the end. `eng/run` deletes `artifacts/mutate` before a run, so the workflow copies the output of each run away at once.
+Every job checks out the whole history, as `since` and `eng/run` read git. The output of `eng/mutate` goes to the log of the job as it is written, not at the end of the run, so a job that is stopped has shown in its log how far it got; the same output is in the artifact. `eng/run` deletes `artifacts/mutate` before a run, so the job copies the output of the run away at once.
 
 ### Reading the result
 
-- The artifact `mutate-results` of the run has, for each run (`control`, `library`): the file `<run>.txt`, the whole output with the finding lines (`ENG501` to `ENG504`, [mutation](#mutation)), and the directory `<run>/` with the report `reports/mutation-report.json` and the other files of Stryker.NET. The log of the job holds the same output.
-- The summary of the run has, for each run: the last line of `eng/run` (`mutate: passed` or `mutate: failed`, the commit, the duration, the exit code), the number of finding lines and the number of mutants by status of the report. The score is detected mutants (`Killed`, `Timeout`) divided by those and the not detected (`Survived`, `NoCoverage`); the statuses that are not counted are in [mutation](#mutation).
-- The job is red when a run ends with a non-zero exit code: a score below the threshold (`ENG503`), a changed file without a score (`ENG504`), a failed step or, in the control set, a mutant that the tests of `eng/tests` did not detect. A surviving mutant alone (`ENG501`, `ENG502`) is a warning while the score is at or above the threshold, as everywhere in `eng/mutate`.
-- The surviving mutants are read from the finding lines or from the report; the next step is the same as for a local run: kill the mutant with a test, or mark it equivalent in the code with a Stryker.NET comment that gives the reason ([Steps](#steps)).
+- The artifact `mutate-results-<job>` of each job (`control` or a part) has the file `<job>.txt`, the whole output with the finding lines (`ENG501` to `ENG504`, [mutation](#mutation)), and the directory `<job>/` with the report `reports/mutation-report.json` and the other files of Stryker.NET.
+- The summary of each job has the last line of `eng/run` (`mutate: passed` or `mutate: failed`, the commit, the duration, the exit code), the number of finding lines and the number of mutants by status of the report. The summary of the job `library` has the number of mutants by status and the score over the reports of all parts. The score is detected mutants (`Killed`, `Timeout`) divided by those and the not detected (`Survived`, `NoCoverage`); the statuses that are not counted are in [mutation](#mutation).
+- A job is red when a run ends with a non-zero exit code: a score of the part below the threshold (`ENG503`), a changed file without a score (`ENG504`), a failed step or, in the control set, a mutant that the tests of `eng/tests` did not detect. A surviving mutant alone (`ENG501`, `ENG502`) is a warning while the score is at or above the threshold, as everywhere in `eng/mutate`. The threshold is that of the part: a weak part is not hidden by the others.
+- The surviving mutants are read from the finding lines or from the reports; the next step is the same as for a local run: kill the mutant with a test, or mark it equivalent in the code with a Stryker.NET comment that gives the reason ([Steps](#steps)).
+
+## Parts of the library
+
+The configuration of a part is `eng/stryker-parts/<part>.json`: the settings of `stryker-config.json` and the key `mutate` with the patterns of the files of the part. A part is run as any configuration, `eng/mutate eng/stryker-parts/<part>.json [--since <commit>]`, and the check of step 4 reads the same file ([mutation](#mutation)). The parts cut the sources of `src/Great.Parts.Cel/` by directory, and the directory `Values/` by the first letters of the names, by about the same size of the sources (100 to 250 KB):
+
+| Part | Patterns of `mutate`, relative to the project |
+| :- | :- |
+| `values-cel` | `Values/Cel*.cs` |
+| `values-conversion` | `Values/Co*.cs` |
+| `values-a-m` | `Values/A*.cs`, `Ca*.cs`, `D*.cs`, `E*.cs`, `F*.cs`, `I*.cs`, `J*.cs`, `K*.cs`, `M*.cs` |
+| `values-o-z` | `Values/O*.cs`, `T*.cs`, `V*.cs`, `Z*.cs` |
+| `library-extensions` | `Library/Extensions/*.cs`, `Library/Extensions/Network/**/*.cs` |
+| `library-regex` | `Library/Regex/**/*.cs` |
+| `library-strings` | `Library/Extensions/Strings/`, `Library/Time/`, `Library/Decimals/`, `Library/Unicode/` |
+| `library-core` | `Library/*.cs`, `Types/**/*.cs` |
+| `syntax` | `Syntax/**/*.cs` |
+| `evaluation` | `Evaluation/**/*.cs` |
+| `declarations` | `Declarations/**/*.cs` |
+| `root-diagnostics` | `*.cs` (the files of the project directory), `Diagnostics/**/*.cs` |
+| `checking-configuration` | `Checking/**/*.cs`, `Configuration/**/*.cs` |
+
+- Two tests of `eng/tests` keep the cut of the parts: every `.cs` file of the project is in exactly one part, so a new directory or file that no part names fails `eng/test`, and a part file differs from `stryker-config.json` only in `mutate`, so a change of a common setting is made in every file, as for the control set ([Control set](#control-set)).
+- `since` and `mutate` work together in the tool: a part mutates the changed files that its patterns name. Stryker.NET marks the other files' mutants `Removed by mutate filter`; `eng/checks mutation` knows the patterns, so a changed file outside them is no `ENG504` in this part, and one inside them that the report lacks is ([mutation](#mutation)).
+- A part that is stopped by the limit of 6 hours is cut again: its patterns are divided between two files. The time of a part was not known when the parts were cut, as the one-job run showed no progress; the log of the first run of the parts gives the time of each part.
+- The patterns use `*`, `**` and `?` only, as the check understands only them; the documentation of Stryker.NET names no other syntax for a name, and a span after a file (`File.cs{10..100}`) is left out by the check.
 
 ## Test projects and since
 
@@ -152,9 +186,9 @@ A command of [eng/checks](eng-checks.md). It reads the JSON report in the mutati
 A mutant that a filter of the tool leaves out is `Ignored`, and its `statusReason` is `Removed by <filter>`: `Removed by since filter` in a file that `since` did not select, `Removed by mutate filter` at a place outside the `mutate` patterns. Other reasons come from other filters or from a Stryker.NET comment in the code. A mutant whose code does not compile is `CompileError` with `Mutant caused compile errors`.
 
 - Score: detected mutants divided by detected and not detected mutants. A report without counted mutants has no score and no `ENG503`.
-- Changed files are checked only when `since` is enabled: by the configuration — an object `since`, unless its `enabled` is `false`, as Stryker.NET reads the file — or by the option `--since`, which enables it in the tool too ([Steps](#steps)). They are the `.cs` files under the directory of the project under test that `git diff --name-only --no-renames <commit>` lists, deleted files excluded; `<commit>` is the value of the option `--since`, or `main` without it. A changed file is `ENG504` at `(1,1)` of the file when it is missing from the report, or when it has mutants, none of them counted, and at least one of them has the reason `Removed by since filter` or `Removed by mutate filter`: a wrong `since` target or a narrow `mutate` pattern would otherwise pass without a score. A changed file without any mutant, such as a file of declarations only, is no finding; nor is a file whose mutants are not counted for other reasons, such as a comment that marks them equivalent or code that does not compile.
+- Changed files are checked only when `since` is enabled: by the configuration — an object `since`, unless its `enabled` is `false`, as Stryker.NET reads the file — or by the option `--since`, which enables it in the tool too ([Steps](#steps)). They are the `.cs` files under the directory of the project under test that `git diff --name-only --no-renames <commit>` lists, deleted files excluded; `<commit>` is the value of the option `--since`, or `main` without it. A changed file is `ENG504` at `(1,1)` of the file when it is missing from the report, or when it has mutants, none of them counted, and at least one of them has the reason `Removed by since filter` or `Removed by mutate filter`: a wrong `since` target or a narrow `mutate` pattern would otherwise pass without a score. A changed file that the patterns of `mutate` of the configuration leave out is not looked at: the run was not to mutate it, as in a part of the library ([Parts of the library](#parts-of-the-library)); the patterns are read from the configuration file by the check, and without `mutate` every file is in. A changed file without any mutant, such as a file of declarations only, is no finding; nor is a file whose mutants are not counted for other reasons, such as a comment that marks them equivalent or code that does not compile.
 - Without `since` and without `--since` — the control set — there are no changed files and no `ENG504`: such a run mutates what its configuration names, whatever the change.
-- Stryker.NET 5.0.0 mostly writes a file that the `mutate` patterns leave out wholly without any mutant, so `ENG504` sees such a file only when the tool keeps some of its mutants with the reason above. This is why the main configuration sets no `mutate`.
+- Stryker.NET 5.0.0 mostly writes a file that the `mutate` patterns leave out wholly without any mutant, so `ENG504` sees such a file only when the tool keeps some of its mutants with the reason above. This is why the main configuration sets no `mutate`; the parts of the library set it, and the check then does not ask for a score of a file outside the part.
 - A change without a changed `.cs` file of the project under test has no score and no finding, exit code 0. Stryker.NET 5.0.0 still writes a report then: the mutants of the unchanged files are `Removed by since filter` or `CompileError`.
 - A missing report, when `since` is enabled, counts as a report without mutants: no score, and every changed file is `ENG504`. Without `since` it is an input that does not exist, exit code 2 ([eng-checks.md](eng-checks.md#finding-and-output)). A failed step 2 fails `eng/mutate` either way.
 - Threshold: `break` from the thresholds of the configuration file; the report has only `high` and `low`. A score below `break` is `ENG503` at the line of `break`.

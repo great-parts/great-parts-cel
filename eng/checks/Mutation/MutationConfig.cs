@@ -8,17 +8,18 @@ using System.Text.Json;
 namespace Great.Parts.Cel.Eng.Checks;
 
 /// <summary>
-/// The settings of a Stryker.NET configuration file that <c>mutation</c> needs: the project under test, whether <c>since</c> is enabled
-/// and the <c>break</c> threshold with its place in the file (<c>docs/design/eng-mutate.md</c>, "mutation"). The settings stand
+/// The settings of a Stryker.NET configuration file that <c>mutation</c> needs: the project under test, the patterns of <c>mutate</c>,
+/// whether <c>since</c> is enabled and the <c>break</c> threshold with its place in the file (<c>docs/design/eng-mutate.md</c>, "mutation"). The settings stand
 /// under the key <c>stryker-config</c>, or at the top of the file.
 /// </summary>
 internal sealed class MutationConfig
 {
     private const string Section = "stryker-config";
 
-    private MutationConfig(string? project, bool sinceEnabled, double? breakThreshold, Position breakPlace)
+    private MutationConfig(string? project, IReadOnlyList<string> mutate, bool sinceEnabled, double? breakThreshold, Position breakPlace)
     {
         Project = project;
+        Mutate = mutate;
         SinceEnabled = sinceEnabled;
         Break = breakThreshold;
         BreakPlace = breakPlace;
@@ -26,6 +27,9 @@ internal sealed class MutationConfig
 
     /// <summary>The project file under test, relative to the repository root, or <see langword="null"/> when the file names none.</summary>
     internal string? Project { get; }
+
+    /// <summary>The patterns of <c>mutate</c>, the files of the project that the run mutates; empty when the file sets none, so the run mutates every file.</summary>
+    internal IReadOnlyList<string> Mutate { get; }
 
     /// <summary>
     /// Whether <c>since</c> is enabled: only the files changed against <c>main</c> are mutated. As Stryker.NET reads the file, an object
@@ -80,6 +84,7 @@ internal sealed class MutationConfig
         string? name = null;
         int nameStart = 0;
         string? project = null;
+        List<string> mutate = [];
         bool sinceEnabled = false;
         double? breakThreshold = null;
         Position breakPlace = new(1, 1);
@@ -101,6 +106,12 @@ internal sealed class MutationConfig
                     containers.RemoveAt(containers.Count - 1);
                     break;
                 default:
+                    // An element of the array "mutate" is a string without a property name.
+                    if (AddMutateElement(reader, name, containers, mutate))
+                    {
+                        break;
+                    }
+
                     switch (Setting(containers, name))
                     {
                         case "project":
@@ -120,8 +131,24 @@ internal sealed class MutationConfig
             }
         }
 
-        return new MutationConfig(project, sinceEnabled, breakThreshold, breakPlace);
+        return new MutationConfig(project, mutate, sinceEnabled, breakThreshold, breakPlace);
     }
+
+    // Adds the token to the patterns when it is a string element of the array "mutate" of the settings; false for any other token.
+    private static bool AddMutateElement(Utf8JsonReader reader, string? name, List<string?> containers, List<string> mutate)
+    {
+        if (name is not null || reader.TokenType != JsonTokenType.String || !IsMutateArray(containers))
+        {
+            return false;
+        }
+
+        mutate.Add(reader.GetString() ?? string.Empty);
+        return true;
+    }
+
+    // Whether the innermost container is the array "mutate" of the settings.
+    private static bool IsMutateArray(List<string?> containers) =>
+        containers.Count > 1 && Setting(containers.GetRange(0, containers.Count - 1), containers[^1]) == "mutate";
 
     // Whether the token opens the object "since", which enables since as Stryker.NET reads the file.
     private static bool OpensSince(JsonTokenType token, List<string?> containers, string? name) =>

@@ -407,6 +407,32 @@ public sealed class MutationTests
         AssertErrors(result, Error(EngCodes.Eng504, Other, 1, 1, "changed file was not mutated: it is not in the mutation report"));
     }
 
+    // A part of the library has its own configuration with the patterns of mutate: a changed file outside them is not its to mutate.
+    [Fact]
+    public void Eng504_ChangedFileOutsideThePatternsOfMutate_IsNoFinding()
+    {
+        using TempDirectory root = new();
+        Repository(root, Arithmetic, Other);
+        Change(root, Arithmetic, Other);
+
+        Result result = Check(root, Report((Arithmetic, Source(), [Killed])), WithMutate("\"Library/IntArithmetic.cs\""), ConfigFile);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.Lines);
+    }
+
+    [Fact]
+    public void Eng504_ChangedFileInsideThePatternsOfMutateThatTheReportDoesNotHave_IsAFindingAndAnExcludedOneIsNot()
+    {
+        using TempDirectory root = new();
+        Repository(root, Arithmetic, Other);
+        Change(root, Arithmetic, Other);
+
+        Result result = Check(root, Report((Arithmetic, Source(), [Killed])), WithMutate("\"Library/*.cs\", \"!Library/IntArithmetic.cs\""), ConfigFile);
+
+        AssertErrors(result, Error(EngCodes.Eng504, Other, 1, 1, "changed file was not mutated: it is not in the mutation report"));
+    }
+
     [Fact]
     public void Eng504_WithoutSince_ThereAreNoChangedFilesAndGitIsNotUsed()
     {
@@ -695,6 +721,10 @@ public sealed class MutationTests
     }
 
     // ---- helpers ----
+
+    // The configuration of the main run with the patterns of mutate, the text of the elements of the array.
+    private static string WithMutate(string patterns) =>
+        MainConfig.Replace("\"since\": {", $"\"mutate\": [{patterns}],\n    \"since\": {{", StringComparison.Ordinal);
 
     private static MutantSpec Killed => new("Killed");
 

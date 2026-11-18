@@ -18,7 +18,7 @@ It runs in `eng/test` and in the JIT cells of CI, never under Native AOT.
 | Path | Contents |
 | :- | :- |
 | `Analyzers/` | one class per rule or group of rules: `Arch001Tests`, `Arch002To004Tests`, `Arch005Tests`, `Arch006Tests`, `Arch007Tests`, `Arch008Tests` |
-| `Checks/` | one class per command: `SuppressionsTests`, `DuplicatesTests`, `RatchetTests`, `PackagesTests`, `SignoffTests`, `TestCountTests`, `MutationTests`, `ExamplesTests`, `LinksTests`, `ErrorCodesPageTests` |
+| `Checks/` | one class per command: `SuppressionsTests`, `DuplicatesTests`, `RatchetTests`, `PackagesTests`, `SignoffTests`, `TestCountTests`, `MutationTests`, `MutationPartsTests` (the patterns of `mutate` and the parts of the library, [eng-mutate.md](eng-mutate.md#parts-of-the-library)), `ExamplesTests`, `LinksTests`, `ErrorCodesPageTests` |
 | `Difftest/` | tests of `eng/difftest`, described with it |
 | `EngRun/` | tests of `eng/run`: `StepsTests` — a step with `IgnoresExitCode` does not fail on its exit code but fails when its program does not start, and the steps of `docs` (one step with `IgnoresExitCode`, the lychee step; the build of the library stops its lane but not the command); there is no test of a time limit, because `eng/run` has none; `MutateOptionsTests` — the arguments of `mutate`, the full SHA of `--since`, whether a run uses `since`, and the stop of such a run in a linked worktree |
 | `CodeRegistryTests.cs` | the code registry test |
