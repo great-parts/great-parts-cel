@@ -25,7 +25,7 @@
     <Copyright>Copyright 2026 The Great.Parts Authors</Copyright>
     <!-- Version of a local build; release.yml passes the version of the tag with -p:Version. Both packages have one version. -->
     <Version>0.0.0-dev</Version>
-    <!-- Package metadata shared by both packages; Description is set in each project (docs/design/eng-release.md, "Package metadata"). -->
+    <!-- Package metadata shared by both packages; Title and Description are set in each project (docs/design/eng-release.md, "Package metadata"). -->
     <Authors>The Great.Parts Authors</Authors>
     <PackageProjectUrl>https://github.com/great-parts/great-parts-cel</PackageProjectUrl>
     <RepositoryUrl>https://github.com/great-parts/great-parts-cel</RepositoryUrl>
@@ -35,10 +35,24 @@
     <PackageTags>cel;common-expression-language;expression;expressions;expression-evaluator;rules;rules-engine;cel-spec;csharp;validation;dotnet;nativeaot;source-generator</PackageTags>
     <!-- The README of a package is the file README.md in its root; each package project adds the file eng/packages/<package id>.README.md under this name. -->
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <!-- Release notes of a package: the entry of its version in CHANGELOG.md at the tag of the release (the tag is v and the version). -->
+    <PackageReleaseNotes>The changes of this release are listed in $(RepositoryUrl)/blob/v$(Version)/CHANGELOG.md</PackageReleaseNotes>
     <!-- A symbol package .snupkg is written next to every .nupkg. -->
     <IncludeSymbols>true</IncludeSymbols>
     <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+
+  <!--
+    The icon of the package: the file eng/packages/icon.png, in the root of the package under the name icon.png. The two
+    groups apply only when the file exists, so the build stays valid before the file is added; the file is added together with
+    the line `file icon.png` in both lists of eng/packages (docs/design/eng-release.md, "Package icon").
+  -->
+  <PropertyGroup Condition="Exists('$(MSBuildThisFileDirectory)eng/packages/icon.png')">
+    <PackageIcon>icon.png</PackageIcon>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(MSBuildThisFileDirectory)eng/packages/icon.png')">
+    <None Include="$(MSBuildThisFileDirectory)eng/packages/icon.png" Pack="true" PackagePath="" Visible="false" />
+  </ItemGroup>
 
   <!-- Thresholds of the code metrics rules (CA1502 and others). -->
   <ItemGroup>

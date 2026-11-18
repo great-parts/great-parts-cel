@@ -78,7 +78,10 @@ The metadata of both packages comes from MSBuild properties; the values shared b
 | Property | Value | Where |
 | :- | :- | :- |
 | `Authors` | `The Great.Parts Authors` | `Directory.Build.props` |
+| `Title` | `Great.Parts.Cel`: "Great.Parts.Cel: Common Expression Language for .NET". `Great.Parts.Cel.Protobuf`: "Great.Parts.Cel.Protobuf: Protocol Buffers support for Great.Parts.Cel". nuget.org does not show the title; it is in the `.nuspec` for the clients that do | the project of the package |
 | `Description` | `Great.Parts.Cel`: "Common Expression Language (CEL) for .NET 10 and .NET 11: compile and evaluate CEL expressions, with a source generator for typed objects and Native AOT support." `Great.Parts.Cel.Protobuf`: "Protocol Buffers support for Great.Parts.Cel: use protobuf messages and well-known types as values in CEL expressions." | the project of the package |
+| `PackageReleaseNotes` | "The changes of this release are listed in `<RepositoryUrl>/blob/v<Version>/CHANGELOG.md`": a link to the file at the tag of the release, which holds the entry of the version (`ENG901`); nuget.org takes up to 35,000 characters | `Directory.Build.props` |
+| `PackageIcon` | `icon.png`, the file `eng/packages/icon.png` in the root of the package; set only when the file exists ([Package icon](#package-icon)) | `Directory.Build.props` |
 | `PackageProjectUrl`, `RepositoryUrl` | `https://github.com/great-parts/great-parts-cel` | `Directory.Build.props` |
 | `RepositoryType` | `git` | `Directory.Build.props` |
 | `PublishRepositoryUrl` | `true`: the URL is written to the `.nuspec` and to the source link of the symbols | `Directory.Build.props` |
@@ -89,7 +92,20 @@ The metadata of both packages comes from MSBuild properties; the values shared b
 
 - `dotnet pack` writes a `.snupkg` next to every `.nupkg`: the portable PDBs of both target frameworks, with the source link to the repository. The `.nupkg` has no PDB. `release.yml` publishes the `.snupkg` with the same `dotnet nuget push`.
 - **The README of a package** (from 1.0.1; the packages of 1.0.0 have none). The file of each package is `eng/packages/<package id>.README.md`, next to the list of the files of the package, and the project puts it into the root of the package under the name `README.md`: `<None Include="../../eng/packages/<package id>.README.md" Pack="true" PackagePath="README.md" Visible="false" />`. It is not the README of the repository: nuget.org shows no relative links and no images from other domains, so the text is short — what the package is, the installation, the example of the quick start (for `Great.Parts.Cel.Protobuf`, the example of [Protobuf messages](../protobuf.md)) and absolute links to the documentation at the tag of the release, `https://github.com/great-parts/great-parts-cel/blob/v<version>/…`. The version in the links is the version of the release and changes with it. `eng/checks packages` checks that the `.nuspec` names a README and that the package has the file ([eng-checks-artifacts.md](eng-checks-artifacts.md#packages), `ENG208`), and the list of the package names it, `file README.md`.
-- The icon of the package is not part of the metadata.
+- **Source link and reproducible builds.** The .NET SDK reads the repository (Source Link for GitHub is part of the SDK), so with `PublishRepositoryUrl` the `.nuspec` names the repository URL and the commit, and the portable PDBs of the `.snupkg` map the code to the files of that commit. The SDK embeds the sources that git does not track (`EmbedUntrackedSources`) and builds deterministically (`Deterministic`) by default; `ContinuousIntegrationBuild` is set in the workflows (`GITHUB_ACTIONS`), so the paths of the machine do not reach the PDBs. No property is added for these.
+- **Trimming and Native AOT.** `IsAotCompatible` in the project of each package turns on the trimming and AOT analyzers, makes the assembly trimmable and writes the metadata of the assembly that the tools of trimming read; nothing else is set.
+
+### Package icon
+
+The icon is one file for both packages, `eng/packages/icon.png`, drawn and approved apart from the build. `Directory.Build.props` sets `PackageIcon` to `icon.png` and packs the file into the root of the package when the file exists; a build without the file has no icon and no warning. The file comes with the line `file icon.png` in both lists of `eng/packages`, so `ENG203` and `ENG204` hold on both sides.
+
+| Requirement | Value | Source |
+| :- | :- | :- |
+| format | PNG (JPEG is accepted, PNG has the transparency) | [nuspec reference, icon](https://learn.microsoft.com/en-us/nuget/reference/nuspec#icon) |
+| size of the file | at most 1 MB | the same |
+| image | square, 128 × 128 pixels, a transparent background; nuget.org scales it for every client | [package authoring best practices](https://learn.microsoft.com/en-us/nuget/create-packages/package-authoring-best-practices#icon) |
+| property | `PackageIcon`, a path relative to the root of the package; the file is an item `None` with `Pack="true"` | [pack target, icon](https://learn.microsoft.com/en-us/nuget/reference/msbuild-targets#packing-an-icon-image-file) |
+| not used | `PackageIconUrl` is deprecated; the SDK warns when it is the only icon property (NU5048) | the same |
 
 ## `eng/checks release-gates`
 
