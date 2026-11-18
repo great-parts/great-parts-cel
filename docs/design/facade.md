@@ -66,7 +66,7 @@ internal CelError(CelErrorCode code, CelErrorStage stage, string message,
 - `sourceLocation` is the position in a source document: the JSON text of an environment description ([configuration](configuration.md)), or the document that holds the expression, see [Source location](#source-location-of-an-expression).
 - Compilation returns every error of the stage that failed, in the order of that stage: by offset, errors at one offset in the order found — for parsing with the error that stopped it last ([syntax](syntax.md)), for checking as [checking](checking.md), "The type `error` and the list of errors", says; evaluation returns one error, the error value that reached the root. Build errors are ordered by code and then by message ([declarations](declarations.md)).
 
-**Compilation boundary.** `CelEnvironment` runs parsing and checking each inside one handler: an unexpected exception other than `OutOfMemoryException` becomes `InternalError` with the stage of that step and the original exception, after the errors found before it. For parsing the handler is in `CelEnvironment.Parse` ([syntax](syntax.md)), for checking in `CelEnvironment.Check` ([checking](checking.md), "The stack and the compilation boundary"); `Compile<T>`, the one-step call and the internal entry points share them. Planning has no handler of its own: a plan is built only from a checked expression, and planning has no error.
+**Compilation boundary.** `CelEnvironment` runs parsing, checking and planning each inside one handler: an unexpected exception other than `OutOfMemoryException` becomes `InternalError` with the stage of that step and the original exception, after the errors found before it. For parsing the handler is in `CelEnvironment.Parse` ([syntax](syntax.md)), for checking in `CelEnvironment.Check` ([checking](checking.md), "The stack and the compilation boundary"); `Compile<T>`, the one-step call and the internal entry points share them. Planning, the step after checking, has its handler in `Compile<T>`: `CelEnvironment.TryPlanWithinBoundary` runs `Planner.Run` and, for an exception, returns the one error `InternalError` of the stage `Check` (planning belongs to it, as `CelErrorStage` says) at the node being planned, or at the root before the first node, with the message `internal error during planning; the original exception is in CelError.Exception`; the compilation result holds it as the only error. Planning has no other error.
 
 ### Source location of an expression
 
@@ -151,7 +151,7 @@ A type context that the source generator completes is added like any source, `bu
 
 ## Internal entry points
 
-The assembly gives `InternalsVisibleTo` to `Great.Parts.Cel.Tests`, `Great.Parts.Cel.Conformance` and `Great.Parts.Cel.Properties` only. Three internal members of `CelEnvironment` give the stages one by one; a fourth, static one is the handler of the compilation boundary of parsing:
+The assembly gives `InternalsVisibleTo` to `Great.Parts.Cel.Tests`, `Great.Parts.Cel.Conformance` and `Great.Parts.Cel.Properties` only. Three internal members of `CelEnvironment` give the stages one by one; two more, static ones are the handlers of the compilation boundary of parsing and of planning:
 
 ```text
 CelEnvironment, internal members:
@@ -159,6 +159,7 @@ CelEnvironment, internal members:
     CheckResult Check(ParsedExpression parsed, CelType? expectedType = null)
     CelEvalResult<CelValue> EvaluateWithoutTypeCheck(ParsedExpression parsed, CelBindings bindings)
     static ParseResult ParseWithinBoundary(Parser parser, Func<Parser, ParseResult> parse)
+    static bool TryPlanWithinBoundary(Planner planner, Func<Planner, Plan> plan, out Plan? result, out CelError? error)
 
 internal sealed record SyntaxOptions(bool OptionalSyntax, MacroTable Macros)   // Great.Parts.Cel.Syntax
 internal sealed class ParseResult   { bool IsSuccess; ParsedExpression? Expression; ImmutableArray<CelError> Errors }
@@ -167,6 +168,7 @@ internal sealed class CheckResult   { bool IsSuccess; CheckedExpression? Express
 
 - **Parse only** is the parse step of `Compile<T>`, the boundary included; `syntax` replaces the syntax options of the environment for one call, for the tests and the conformance runner ([syntax](syntax.md#syntax-options)).
 - **Boundary of parsing.** `ParseWithinBoundary` is the handler of the "Compilation boundary" above, and `Parse` is its only caller in the library: it passes `new Parser(expression, syntax ?? SyntaxOptions.Standard)` and the step `parser => parser.Run()`, so `Compile<T>` and `Parse` share it. The step is a parameter so that a test can make it throw. The method returns the result of the step. When the step throws an exception other than `OutOfMemoryException`, it returns the errors that `Parser.Interrupted` gives: the errors the parser found before the exception, the error that stopped parsing if there is one, and `InternalError` last, with the exception in `CelError.Exception`, at the offset of the token the parser was at. Its line and column come from the line table of the text; before the line table exists, as before the first token, the position is offset 0, line 1, column 1. `OutOfMemoryException`, `InsufficientMemoryException` included, is not caught. The method checks no arguments.
+- **Boundary of planning.** `TryPlanWithinBoundary` is the handler of the "Compilation boundary" above, and `Compile<T>` is its only caller in the library: it passes `Planner.For(checkedExpression, Declarations, TimeZones)` and the step `planner => planner.Run()`. The step is a parameter so that a test can make it throw. It returns `true` with the plan; when the step throws an exception other than `OutOfMemoryException`, it returns `false` with the error that `Planner.Interrupted` gives: `InternalError` with the exception in `CelError.Exception`, at the offset of the node the planner was at (the root before the first node). `OutOfMemoryException`, `InsufficientMemoryException` included, is not caught.
 - **Check only** is the check step of `Compile<T>` with the expected type that `Compile<T>` derives, `dyn` without one; `CheckedExpression.ResultType` is what `CelProgram<T>.ResultType` reports for the same text.
 - **Evaluation without type checking** plans the parsed tree without a checked expression ([evaluation](evaluation.md)) and evaluates it without a cost limit or a token; the value is returned as it is, or one error of the stage `Evaluate`.
 

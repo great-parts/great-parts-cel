@@ -556,8 +556,9 @@ public enum CelErrorCode
     /// An unexpected exception inside the library, other than <see cref="System.OutOfMemoryException"/>.
     /// It is reported as an error of the stage at which it happened, so a defect of the library does not
     /// escape as an exception; the original exception is in <see cref="CelError.Exception"/>.
-    /// Location: during parsing, type checking and evaluation, the node that was being processed when the
-    /// exception was thrown; errors of the environment build have no position in an expression.
+    /// Location: during parsing, type checking, planning of the program (the stage <c>Check</c>) and evaluation,
+    /// the node that was being processed when the exception was thrown; errors of the environment build have
+    /// no position in an expression.
     /// </summary>
     InternalError = 9001,
 }

@@ -194,6 +194,7 @@ A node with an error gets the type `error`, assignable to every type, and produc
 | `InvalidRegex` (2009) | `invalid regular expression at offset {offset}: {reason}`, from the preparation of a constant argument, below | the string literal of the pattern |
 | `InsufficientStack` (9000) | `insufficient execution stack to continue type checking` | the node not checked |
 | `InternalError` (9001) | `internal error during type checking; the original exception is in CelError.Exception` | the node being checked |
+| `InternalError` (9001) | `internal error during planning; the original exception is in CelError.Exception`, from the boundary of planning ([facade](facade.md)) | the node being planned |
 
 Types in messages use the text form of [types](types.md). The container in 2000 is empty without a container.
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
@@ -109,7 +110,42 @@ public sealed class CelEnvironment
         }
 
         CheckedExpression checkedExpression = checkedResult.Expression;
-        return new CelCompileResult<T>(new CelProgram<T>(Planner.Plan(checkedExpression, Declarations, TimeZones), checkedExpression.ResultType, start));
+        if (!TryPlanWithinBoundary(Planner.For(checkedExpression, Declarations, TimeZones), static planner => planner.Run(), out Plan? plan, out CelError? planningError))
+        {
+            return new CelCompileResult<T>(InDocument([planningError], start));
+        }
+
+        return new CelCompileResult<T>(new CelProgram<T>(plan, checkedExpression.ResultType, start));
+    }
+
+    /// <summary>
+    /// The compilation boundary of planning: runs a planning step of the planner, and turns an unexpected exception other than
+    /// <see cref="OutOfMemoryException"/> into <see cref="CelErrorCode.InternalError"/> of the stage
+    /// <see cref="CelErrorStage.Check"/> at the node being planned.
+    /// </summary>
+    /// <param name="planner">The planner of the checked expression.</param>
+    /// <param name="plan">The planning step: <see cref="Compile{T}"/> runs the planner; a test can make the step throw.</param>
+    /// <param name="result">The plan, when the step did not throw.</param>
+    /// <param name="error">The error, when the step threw.</param>
+    /// <returns><see langword="true"/> when the step gave the plan.</returns>
+    internal static bool TryPlanWithinBoundary(
+        Planner planner,
+        Func<Planner, Plan> plan,
+        [NotNullWhen(true)] out Plan? result,
+        [NotNullWhen(false)] out CelError? error)
+    {
+        try
+        {
+            result = plan(planner);
+            error = null;
+            return true;
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            result = null;
+            error = planner.Interrupted(exception);
+            return false;
+        }
     }
 
     /// <summary>

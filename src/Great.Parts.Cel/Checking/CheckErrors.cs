@@ -101,6 +101,17 @@ internal static class CheckErrors
             null,
             exception);
 
+    // InternalError (9001) while the program is planned, after type checking: an unexpected exception at the node being planned,
+    // kept in CelError.Exception. Planning belongs to the stage Check.
+    internal static CelError InternalErrorWhilePlanning(Exception exception, CelSourceLocation location) =>
+        new(
+            CelErrorCode.InternalError,
+            CelErrorStage.Check,
+            "internal error during planning; the original exception is in CelError.Exception",
+            location,
+            null,
+            exception);
+
     private static CelError Create(CelErrorCode code, string message, CelSourceLocation location) =>
         new(code, CelErrorStage.Check, message, location, null, null);
 }

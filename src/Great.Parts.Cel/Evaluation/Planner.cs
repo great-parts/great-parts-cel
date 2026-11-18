@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Declarations;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -98,6 +99,9 @@ internal sealed class Planner
     // The accumulator slot of the transformMap or transformMapEntry whose step is being planned; -1 outside one.
     private int _insertSlot = -1;
 
+    // The offset of the node being planned, for InternalError; -1 before the root and after it.
+    private int _current = -1;
+
     private Planner(ParsedExpression parsed, CheckedExpression? checkedExpression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones)
     {
         _timeZones = timeZones;
@@ -106,28 +110,48 @@ internal sealed class Planner
         _declarations = declarations;
     }
 
+    // The planner of a checked expression, for the compilation boundary of planning, which runs it and handles its exception.
+    internal static Planner For(CheckedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null) =>
+        new(expression.Parsed, expression, declarations, timeZones);
+
     // Plans a checked expression against the declarations it was checked with: a call with one candidate of the
     // reference map calls it, a call with several chooses among them by Matches.
     internal static Plan Plan(CheckedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null) =>
-        new Planner(expression.Parsed, expression, declarations, timeZones).Build();
+        For(expression, declarations, timeZones).Run();
 
     // Plans a parsed expression without type checking: names resolve in the bindings at evaluation, and
     // every call other than the special forms chooses among all overloads of its name, call style and
     // argument count.
     internal static Plan PlanWithoutTypeCheck(ParsedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null) =>
-        new Planner(expression, null, declarations, timeZones).Build();
+        new Planner(expression, null, declarations, timeZones).Run();
 
-    private Plan Build()
+    // Plans the expression from its root: the plan is the root node with the sizes of the stack, the locals and the slots
+    // that the evaluator needs.
+    internal Plan Run()
     {
         PlanNode root = Visit(_parsed.Root, out int stackSize);
         return new Plan(root, _variables.Count, _localCount, stackSize, _parsed.Lines, _declarations.Types, _slotCount, _blockCount, _timeZones);
     }
+
+    // The error of a plan that an unexpected exception interrupted: InternalError at the node being planned, or at the root
+    // before the first node.
+    internal CelError Interrupted(Exception exception) =>
+        CheckErrors.InternalErrorWhilePlanning(exception, _parsed.Lines.GetLocation(_current >= 0 ? _current : _parsed.GetOffset(_parsed.Root.Id)));
 
     // The node of a syntax node, and the most argument values on the stack at one time while it is
     // evaluated.
     private PlanNode Visit(ExprNode node, out int stackSize)
     {
         int offset = _parsed.GetOffset(node.Id);
+        int enclosing = _current;
+        _current = offset;
+        PlanNode planned = VisitOrStop(node, offset, out stackSize);
+        _current = enclosing;
+        return planned;
+    }
+
+    private PlanNode VisitOrStop(ExprNode node, int offset, out int stackSize)
+    {
         stackSize = 0;
 
         // Planning recurses as deep as type checking did; a stack too short for it is the error of the node.
