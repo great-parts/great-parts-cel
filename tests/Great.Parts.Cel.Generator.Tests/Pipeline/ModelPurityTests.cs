@@ -18,7 +18,7 @@ public sealed class ModelPurityTests
     private static readonly string[] Roots = ["ContextModel", "CelTypeModel", "CompilationFacts", "DiagnosticModel", "LocationInfo", "Shape"];
 
     [Fact]
-    [Trait("Requirement", "P-2")]
+    [Trait("Requirement", "P-3")]
     public void Models_HoldNoSymbolNoSyntaxNodeNoCompilationAndNoLocation()
     {
         var seen = new HashSet<Type>();
@@ -34,7 +34,7 @@ public sealed class ModelPurityTests
 
     // The walk reaches the closed types of the model: the record types of the shapes are read from the subclasses of Shape too.
     [Fact]
-    [Trait("Requirement", "P-2")]
+    [Trait("Requirement", "P-3")]
     public void Shapes_AreRecordsOfTheModelWithTheirSubclassesWalked()
     {
         Type shape = Assert.Single(GeneratorAssembly.GetTypes(), type => type.Name == "Shape" && type.Namespace == "Great.Parts.Cel.Generator");

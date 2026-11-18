@@ -23,7 +23,7 @@ public sealed class GeneratedCollectionTests
 
     [Fact]
     [Trait("Requirement", "F-2")]
-    [Trait("Requirement", "P-2")]
+    [Trait("Requirement", "P-3")]
     public void Lists_AreReadInTheOrderOfTheSource()
     {
         var collections = new Collections
@@ -45,7 +45,7 @@ public sealed class GeneratedCollectionTests
     // A list is a view over the source, not a copy: what the application changes between two evaluations is read by the second.
     [Fact]
     [Trait("Requirement", "F-2")]
-    [Trait("Requirement", "P-2")]
+    [Trait("Requirement", "P-3")]
     public void List_IsAViewOverTheSource()
     {
         var collections = new Collections { Mutable = [1] };

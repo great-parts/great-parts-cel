@@ -57,7 +57,7 @@ public sealed class MatchesFacadeTests
     }
 
     [Fact]
-    [Trait("Requirement", "P-2")]
+    [Trait("Requirement", "P-3")]
     [Trait("Requirement", "R-4")]
     public void CompilationCache_KeepsTheFailedCompilationOfAConstantPattern()
     {
@@ -103,7 +103,7 @@ public sealed class MatchesFacadeTests
 
     [Fact]
     [Trait("Requirement", "R-4")]
-    [Trait("Requirement", "P-2")]
+    [Trait("Requirement", "P-3")]
     public void PatternCache_DoesNotChangeResults_WhateverIsEvicted()
     {
         CelProgram<CelValue> program = environment.Compile<CelValue>("matches(s, p)").GetProgramOrThrow();

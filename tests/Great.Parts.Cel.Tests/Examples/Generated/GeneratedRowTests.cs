@@ -26,7 +26,7 @@ public sealed class GeneratedRowTests
 
     [Fact]
     [Trait("Requirement", "F-2")]
-    [Trait("Requirement", "P-2")]
+    [Trait("Requirement", "P-3")]
     public void Numbers_AreReadAsTheirCelTypes()
     {
         CelBindings bindings = new CelBindings().Add("s", Full());

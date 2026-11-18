@@ -61,7 +61,7 @@ public sealed class GeneratedOrderAllocationTests
     }
 
     [Theory]
-    [Trait("Requirement", "P-2")]
+    [Trait("Requirement", "P-3")]
     [MemberData(nameof(Names))]
     public static void WithinBudget(string scenario)
     {
