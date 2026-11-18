@@ -846,10 +846,119 @@ internal sealed partial class ExprBuilder
     private Built Base64Argument(int depth, int budget) =>
         pcg.OneIn(4) ? Make(ProfileType.StringType, depth, budget) : PoolString(ExtensionStrings.Base64Text(pcg));
 
+    // The attempts at the argument of json.encode before an int literal stands in its place.
+    private const int JsonAttempts = 8;
+
+    // The names of the variables of the manifest.
+    private static readonly HashSet<string> ManifestNames = new(ProfileTables.Variables.Select(variable => variable.Name), StringComparer.Ordinal);
+
+    // The variables of the manifest that the arguments of the calls of json.encode read.
+    private readonly HashSet<string> jsonVariables = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The variables of the manifest that the argument of a call of <c>json.encode</c> of the expression reads: the binding of each of
+    /// them is made to hold maps of at most one entry (<see cref="ProfileValues.WithSmallMaps"/>), since the argument holds no map of
+    /// two entries or more (<see cref="JsonArgumentVariables"/>).
+    /// </summary>
+    internal IReadOnlySet<string> JsonVariables => jsonVariables;
+
     // The value of json.encode: a string that it escapes one time in four, otherwise a value of any type of the profile, among them
-    // the values it refuses: NaN, an infinity, a map with a key that is not a string, a type.
-    private Built JsonArgument(int depth, int budget) =>
-        pcg.OneIn(4) ? PoolString(ExtensionStrings.JsonText(pcg)) : Make(Target(), depth, budget);
+    // the values it refuses: NaN, an infinity, a type. A map of two entries or more is never in it, at any depth: cel-go v0.33.4
+    // writes the entries of a map in the order of a Go map, which is random, so the answer to such a map is not the same from one
+    // run to the next, and the minimization, which evaluates a child more than once, would stop at an ancestor with a signature
+    // that no seed reproduces (the known differences json_encode_dyn(map) value-mismatch and we-error). An argument that has one
+    // is built again, and after a few attempts an int literal stands there.
+    private Built JsonArgument(int depth, int budget)
+    {
+        if (pcg.OneIn(4))
+        {
+            return PoolString(ExtensionStrings.JsonText(pcg));
+        }
+
+        Dictionary<string, StaticType?> outer = [];
+        foreach ((string name, StaticType? type) in scope)
+        {
+            outer[name] = type;
+        }
+
+        for (int attempt = 0; attempt < JsonAttempts; attempt++)
+        {
+            Built built = Make(Target(), depth, budget);
+            if (JsonArgumentVariables(built.Expr, outer) is { } read)
+            {
+                jsonVariables.UnionWith(read);
+                return built;
+            }
+        }
+
+        return new Built(Literal(ProfileType.IntType), 1, Of(ProfileType.IntType));
+    }
+
+    /// <summary>
+    /// The variables of the manifest that an argument of <c>json.encode</c> reads, or <see langword="null"/> when the argument may hold
+    /// a map of two entries or more: a map literal of two entries or more; <c>transformMap</c> or <c>transformMapEntry</c> over a range
+    /// that is no literal of at most one element; a name of an enclosing macro or <c>cel.bind</c>, outside the argument, whose static
+    /// type is not a known type without elements, since the value it holds was built outside the argument. A variable of the manifest
+    /// may be bound to such a map; its binding is made not to be.
+    /// </summary>
+    /// <param name="argument">The argument.</param>
+    /// <param name="outer">The names in scope around the argument, with their static types.</param>
+    internal static HashSet<string>? JsonArgumentVariables(Expr argument, IReadOnlyDictionary<string, StaticType?> outer)
+    {
+        HashSet<string> read = new(StringComparer.Ordinal);
+        return JsonWalk(argument, outer, [], read) ? read : null;
+    }
+
+    private static bool JsonWalk(Expr node, IReadOnlyDictionary<string, StaticType?> outer, string[] bound, HashSet<string> read) => node switch
+    {
+        Ident ident => JsonReads(ident.Name, outer, bound, read),
+        MapLiteral map => map.Entries.Count <= 1 && map.Entries.All(entry => JsonWalk(entry.Key, outer, bound, read) && JsonWalk(entry.Value, outer, bound, read)),
+        Comprehension macro => JsonMacro(macro, outer, bound, read),
+        _ => JsonChildren(node).All(child => JsonWalk(child, outer, bound, read)),
+    };
+
+    // A read of a name: a name that a macro inside the argument binds is no variable; a name of a macro outside it holds a value that was
+    // built outside, so only a known type without elements is read; any other name that the manifest declares is a variable that is read.
+    private static bool JsonReads(string name, IReadOnlyDictionary<string, StaticType?> outer, string[] bound, HashSet<string> read)
+    {
+        if (bound.Contains(name))
+        {
+            return true;
+        }
+
+        if (outer.TryGetValue(name, out StaticType? type))
+        {
+            return type is { IsDyn: false, Kind: not (ProfileType.ListType or ProfileType.MapType or ProfileType.OptionalType) };
+        }
+
+        if (ManifestNames.Contains(name))
+        {
+            _ = read.Add(name);
+        }
+
+        return true;
+    }
+
+    // transformMap and transformMapEntry make a map that has an entry for each element of the range, so the range holds at most one.
+    private static bool JsonMacro(Comprehension macro, IReadOnlyDictionary<string, StaticType?> outer, string[] bound, HashSet<string> read)
+    {
+        Expr range = macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } inner] } ? inner : macro.Range;
+        bool narrow = macro.Macro is not ("transformMap" or "transformMapEntry")
+            || range is ListLiteral { Elements.Count: <= 1 } or MapLiteral { Entries.Count: <= 1 };
+        string[] inside = macro.SecondVariable is { } second ? [.. bound, macro.Variable, second] : [.. bound, macro.Variable];
+        return narrow
+            && JsonWalk(macro.Range, outer, bound, read)
+            && macro.Arguments.All(argument => JsonWalk(argument, outer, inside, read));
+    }
+
+    private static IEnumerable<Expr> JsonChildren(Expr node) => node switch
+    {
+        ListLiteral list => list.Elements,
+        Call call => call.Args,
+        Select selection => [selection.Operand],
+        PresenceTest test => [test.Operand],
+        _ => [],
+    };
 
     // ---- network ----
 

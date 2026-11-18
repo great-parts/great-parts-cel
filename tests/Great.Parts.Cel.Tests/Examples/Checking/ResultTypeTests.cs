@@ -12,9 +12,10 @@ namespace Great.Parts.Cel.Tests.Examples.Checking;
 // overloads and their substitution, receiver and global calls, indexes, selections on maps and dyn, the
 // join of literal parts, type values, and the standard macros. A type parameter still free at the end is dyn.
 //
-// The type rules follow the language definition and the cases of type_deduction.textproto. cel-go v0.32.0
-// keeps one of two type values where they meet ("true ? type(1) : type(1u)" is type(uint) there), gives
-// list(int) for "[1, w]" and dyn for the results of cast, first_elem_type and unwrap_type; static types are
+// The type rules follow the language definition and the cases of type_deduction.textproto. cel-go v0.33.4
+// keeps one of two type values where they meet ("true ? type(1) : type(1u)" is type(int) there, type(uint) in
+// v0.32.0), gives list(int) for "[1, w]" and, since it deduces type parameters through type values, the types of the
+// language definition for the results of cast, first_elem_type and unwrap_type (v0.32.0 gave dyn); static types are
 // not part of the comparison with cel-go. The other rows are the types cel-go gives (a probe with the
 // environment flags of the oracle).
 //

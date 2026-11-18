@@ -12,7 +12,7 @@ namespace Great.Parts.Cel.Tests.Examples.Evaluation;
 // A static type is no guarantee of the value: gradual type checking lets a dyn value into a position whose
 // type a type parameter, bound by another argument, gives. x + y, with x of type list(int) bound to [1] and
 // y of type dyn bound to ['a'], has the type list(int) and the value [1, 'a'], and ([1] + y)[1] the type int
-// and the value 'a', as in cel-go v0.32.0. So:
+// and the value 'a', as in cel-go v0.33.4. So:
 // - every argument of an application function is checked against the declared parameter type at any
 //   depth, whatever its static type; a mismatch is EvalNoMatchingOverload, and the code is not called;
 // - an implementation of the library checks the kind it reads, and a kind it does not take is
@@ -54,7 +54,7 @@ public sealed class DeepArgumentAndResultTests
 
     // f has a typed delegate on IReadOnlyList<long>, h a CelFunctionImplementation; both take list(int)
     // and return int. A list with a string fits neither: ld of the static type list(dyn), and x + y of
-    // the static type list(int). cel-go v0.32.0 calls the function here: it checks an argument against a
+    // the static type list(int). cel-go v0.33.4 calls the function here: it checks an argument against a
     // list parameter by the first element only. These examples do not rely on it.
     [Theory]
     [Trait("Requirement", "+R-9")]
@@ -76,7 +76,7 @@ public sealed class DeepArgumentAndResultTests
         Assert.Equal(2L, Evaluate<long>("h(x + [2])"));
     }
 
-    // ([1] + y)[1] holds 'a' under the static type int. cel-go v0.32.0 gives an error for both.
+    // ([1] + y)[1] holds 'a' under the static type int. cel-go v0.33.4 gives an error for both.
     [Theory]
     [Trait("Requirement", "+R-6")]
     [Trait("Requirement", "F-4")]
@@ -100,7 +100,7 @@ public sealed class DeepArgumentAndResultTests
     }
 
     // first(list(A)) -> A: the result is checked against A as dyn. The call first(dyn(['a']) + [1]) has the
-    // type int and rightly returns 'a', as in cel-go v0.32.0.
+    // type int and rightly returns 'a', as in cel-go v0.33.4.
     [Fact]
     [Trait("Requirement", "F-3")]
     public void ResultOfATypeParameter_IsCheckedAsDyn()

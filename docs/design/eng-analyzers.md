@@ -8,7 +8,7 @@ The architecture analyzer: Roslyn rules that check namespaces, the public API li
 | :- | :- |
 | Project | `eng/analyzers/Great.Parts.Cel.Eng.Analyzers.csproj`, part of the solution |
 | Target | `netstandard2.0`, `LangVersion` 14 written as a number |
-| Packages | `Microsoft.CodeAnalysis.CSharp` 5.0.0 and `Microsoft.CodeAnalysis.Analyzers` 3.11.0, both with `PrivateAssets="all"` |
+| Packages | `Microsoft.CodeAnalysis.CSharp` 5.0.0 and `Microsoft.CodeAnalysis.Analyzers` 5.12.0, both with `PrivateAssets="all"` |
 | Settings | `EnforceExtendedAnalyzerRules=true`, so the rules for analyzer authors forbid file, environment and other banned APIs; `IsPackable=false` |
 
 The analyzer reads only the compilation and its additional files and keeps no state between compilations, so the result depends only on the input.

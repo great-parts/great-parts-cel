@@ -8,7 +8,7 @@ namespace Great.Parts.Cel.Tests.Examples.Values;
 
 // Map keys are int, uint, bool and string. An int and a uint of the same value are one key; a double finds
 // the key of its value only when it converts without loss — to int inside the open range of int, else to uint
-// below 2^64; any other kind finds nothing. Every value is the one cel-go v0.32.0 gives.
+// below 2^64; any other kind finds nothing. Every value is the one cel-go v0.33.4 gives.
 public sealed class MapKeyTests
 {
     private readonly CelEnvironment environment =

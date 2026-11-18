@@ -32,24 +32,24 @@ internal static class RegexCases
     ];
 
     private static readonly Gen<RegexNode> Leaf = Gen.Frequency(
-        (6, Gen.OneOfConst(PatternLetters).Select(letter => (RegexNode)new LiteralNode(letter))),
+        (6, Gen.OneOf(PatternLetters).Select(letter => (RegexNode)new LiteralNode(letter))),
         (1, Gen.Const((RegexNode)new LiteralNode(0x1F600))),
         (2, Gen.Const((RegexNode)new AnyNode())),
-        (2, Gen.OneOfConst(PatternLetters).Array[1, 3].Select(members => (RegexNode)new SetNode(members, false))),
-        (1, Gen.OneOfConst(PatternLetters).Array[1, 2].Select(members => (RegexNode)new SetNode(members, true))),
+        (2, Gen.OneOf(PatternLetters).Array[1, 3].Select(members => (RegexNode)new SetNode(members, false))),
+        (1, Gen.OneOf(PatternLetters).Array[1, 2].Select(members => (RegexNode)new SetNode(members, true))),
         (1, Gen.Bool.Select(negated => (RegexNode)new WordNode(negated))),
         (1, Gen.Bool.Select(negated => (RegexNode)new LetterNode(negated))),
-        (2, Gen.OneOfConst(Enum.GetValues<AnchorKind>()).Select(kind => (RegexNode)new AnchorNode(kind))));
+        (2, Gen.OneOf(Enum.GetValues<AnchorKind>()).Select(kind => (RegexNode)new AnchorNode(kind))));
 
     private static readonly Gen<RegexNode> Tree = Levels();
 
-    private static readonly Gen<string> FlagsPrefix = Gen.OneOfConst(
+    private static readonly Gen<string> FlagsPrefix = Gen.OneOf(
         string.Empty, string.Empty, "(?i)", "(?s)", "(?m)", "(?is)", "(?im)", "(?ims)");
 
     internal static readonly Gen<RegexCase> Case =
         from root in Tree
         from flags in FlagsPrefix
-        from subject in Gen.OneOfConst(SubjectCodePoints).Array[0, 8]
+        from subject in Gen.OneOf(SubjectCodePoints).Array[0, 8]
         select new RegexCase(root, flags, subject);
 
     // The patterns that are about lines: letters, the dot, the anchors of a line and of the text, in the mode of lines or not, over
@@ -57,15 +57,15 @@ internal static class RegexCases
     private static readonly int[] LineSubjectCodePoints = ['a', 'b', Line, CarriageReturn];
 
     private static readonly Gen<RegexNode> LineItem = Gen.Frequency(
-        (3, Gen.OneOfConst('a', 'b').Select(letter => (RegexNode)new LiteralNode(letter))),
+        (3, Gen.OneOf('a', 'b').Select(letter => (RegexNode)new LiteralNode(letter))),
         (2, Gen.Const((RegexNode)new AnyNode())),
-        (3, Gen.OneOfConst(AnchorKind.BeginLine, AnchorKind.EndLine, AnchorKind.BeginText, AnchorKind.EndText).Select(kind => (RegexNode)new AnchorNode(kind))),
-        (1, Gen.OneOfConst(AnchorKind.BeginLine, AnchorKind.EndLine).Select(kind => (RegexNode)new RepeatNode(new AnchorNode(kind), 0, 1))));
+        (3, Gen.OneOf(AnchorKind.BeginLine, AnchorKind.EndLine, AnchorKind.BeginText, AnchorKind.EndText).Select(kind => (RegexNode)new AnchorNode(kind))),
+        (1, Gen.OneOf(AnchorKind.BeginLine, AnchorKind.EndLine).Select(kind => (RegexNode)new RepeatNode(new AnchorNode(kind), 0, 1))));
 
     internal static readonly Gen<RegexCase> LineCase =
         from items in LineItem.Array[1, 4]
-        from flags in Gen.OneOfConst("(?m)", "(?m)", "(?ms)", string.Empty)
-        from subject in Gen.OneOfConst(LineSubjectCodePoints).Array[0, 6]
+        from flags in Gen.OneOf("(?m)", "(?m)", "(?ms)", string.Empty)
+        from subject in Gen.OneOf(LineSubjectCodePoints).Array[0, 6]
         select new RegexCase(new ConcatNode(items), flags, subject);
 
     // The same patterns with the long subjects of the test of linearity.
@@ -73,7 +73,7 @@ internal static class RegexCases
     {
         return from root in Tree
                from flags in FlagsPrefix
-               from subject in Gen.OneOfConst(SubjectCodePoints).Array[0, length]
+               from subject in Gen.OneOf(SubjectCodePoints).Array[0, length]
                select new RegexCase(root, flags, subject);
     }
 

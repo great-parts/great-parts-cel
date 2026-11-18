@@ -4,7 +4,7 @@ This page lists what the standard library `CelStandardLibrary.V1` declares and h
 
 The extension sets are not on this page: they have their own page, [Extension sets](extensions.md). Without the set that declares it, a call to a function of a set is a type checking error.
 
-The sources are the language definition of CEL (`doc/langdef.md` of cel-spec), cited by section title, and the CEL implementation in Go, cel-go v0.32.0, which is the reference where the language definition is silent. The costs of the overloads are on the page [Cost](cost.md), the error codes on the page [Error codes](error-codes.md), and the limits on the page [Limits](limits.md).
+The sources are the language definition of CEL (`doc/langdef.md` of cel-spec), cited by section title, and the CEL implementation in Go, cel-go v0.33.4, which is the reference where the language definition is silent. The costs of the overloads are on the page [Cost](cost.md), the error codes on the page [Error codes](error-codes.md), and the limits on the page [Limits](limits.md).
 
 ## Version 1
 
@@ -222,7 +222,7 @@ The result is the nearest `double`, with ties to even; an exponent that underflo
 
 ### Time
 
-The functions of time are `timestamp` and `duration`, the ten receivers `getFullYear` to `getMilliseconds`, and the operators on the two types, which are in [Arithmetic](#arithmetic) and [Ordering](#ordering). The identifiers are those of cel-go v0.32.0, including `int(duration)` and `timestamp(int)`, so the lists of overloads compare without exceptions. The meaning is the language definition's: where cel-go differs from it, this library follows the language definition, and the differences are listed [at the end of this section](#where-the-library-differs-from-cel-go).
+The functions of time are `timestamp` and `duration`, the ten receivers `getFullYear` to `getMilliseconds`, and the operators on the two types, which are in [Arithmetic](#arithmetic) and [Ordering](#ordering). The identifiers are those of cel-go v0.33.4, including `int(duration)` and `timestamp(int)`, so the lists of overloads compare without exceptions. The meaning is the language definition's: where cel-go differs from it, this library follows the language definition, and the differences are listed [at the end of this section](#where-the-library-differs-from-cel-go).
 
 A call such as `duration('72h')` or `timestamp('2009-02-13T23:31:30Z')` on a string constant is read once when the program is compiled; its value, its cost and its error are those of the call, and a constant that is not valid is an error at evaluation, not at compilation. The costs are on the page [Cost](cost.md#time).
 
@@ -283,7 +283,7 @@ A `timestamp` runs from `0001-01-01T00:00:00Z` to `9999-12-31T23:59:59.999999999
 
 #### Where the library differs from cel-go
 
-The language definition decides; each row is a difference from cel-go v0.32.0.
+The language definition decides; each row is a difference from cel-go v0.33.4.
 
 | Call | cel-go | This library |
 | :- | :- | :- |

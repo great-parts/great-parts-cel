@@ -1,6 +1,6 @@
 # Extension set `strings`: `format`
 
-`string.format(list(dyn))` fills the clauses of a format string with the elements of a list. The rules are those of `string.format` in cel-go v0.32.0 (`ext/formatting_v2.go`), version 2 of the format, which the set `strings` version 5 has, with the limit of 100 on the precision. This page gives the grammar, the table of clauses and kinds, the texts of the errors, the check at compilation and how the call is charged. The rest of the set is on [extension-strings](extension-strings.md).
+`string.format(list(dyn))` fills the clauses of a format string with the elements of a list. The rules are those of `string.format` in cel-go v0.33.4 (`ext/formatting_v2.go`), version 2 of the format, which the set `strings` version 5 has, with the limit of 100 on the precision. This page gives the grammar, the table of clauses and kinds, the texts of the errors, the check at compilation and how the call is charged. The rest of the set is on [extension-strings](extension-strings.md).
 
 | File | Content |
 | :- | :- |

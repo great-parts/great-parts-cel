@@ -29,7 +29,7 @@ namespace Great.Parts.Cel.Eng.Tests.Difftest;
 // unless a test names another.
 public sealed class OracleConnectionTests
 {
-    private const string Handshake = """{"oracle":"cel.dev/cel-go v0.32.0","go":"go1.27.3"}""";
+    private const string Handshake = """{"oracle":"cel.dev/cel-go v0.33.4","go":"go1.27.4"}""";
     private const string Commit = "9f8e7d6c";
     private const string Loopback = "127.0.0.1";
 
@@ -55,8 +55,8 @@ public sealed class OracleConnectionTests
 
         using (OracleConnection connection = OracleConnection.Open(Loopback, fake.Port, Limit, Limit, ProfileTables.ManifestPath, received.Add))
         {
-            Assert.Equal(new OracleHandshake("cel.dev/cel-go v0.32.0", "go1.27.3"), connection.Handshake);
-            Assert.Equal("0.32.0", connection.Handshake.Version);
+            Assert.Equal(new OracleHandshake("cel.dev/cel-go v0.33.4", "go1.27.4"), connection.Handshake);
+            Assert.Equal("0.33.4", connection.Handshake.Version);
         }
 
         fake.Join();
@@ -284,7 +284,7 @@ public sealed class OracleConnectionTests
     [Fact]
     public void AnotherGoInTheHandshake_GivesEng821AtTheGoLineAndStopsBeforeTheFirstCase()
     {
-        using FakeOracle fake = new([Handshake.Replace("go1.27.3", "go1.27.4", StringComparison.Ordinal)], answer: _ => """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
+        using FakeOracle fake = new([Handshake.Replace("go1.27.4", "go1.27.5", StringComparison.Ordinal)], answer: _ => """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
         using TempDirectory root = Repository();
 
         (int exitCode, string output, string error) = Run(root, fake.Port, Limit);
@@ -301,8 +301,8 @@ public sealed class OracleConnectionTests
                 OracleGoVersion.ModulePath,
                 3,
                 1,
-                "the Go of the oracle differs from the go line: the handshake names go1.27.4, eng/oracle/go.mod has go 1.27.3; the image tag of the service oracle and the go line change together"));
-        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.32.0 cases=0 signatures new=0 (S1=0, S2=0) known=0 new-cases=", lines[1]);
+                "the Go of the oracle differs from the go line: the handshake names go1.27.5, eng/oracle/go.mod has go 1.27.4; the image tag of the service oracle and the go line change together"));
+        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.33.4 cases=0 signatures new=0 (S1=0, S2=0) known=0 new-cases=", lines[1]);
         Assert.Equal(2, lines.Length);
         Assert.Empty(fake.Requests);
     }
@@ -318,7 +318,7 @@ public sealed class OracleConnectionTests
 
         Assert.Equal(0, exitCode);
         Assert.Empty(error);
-        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.32.0 cases=1 signatures new=0 (S1=0, S2=0) known=0 new-cases=\n", output);
+        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.33.4 cases=1 signatures new=0 (S1=0, S2=0) known=0 new-cases=\n", output);
         Assert.False(File.Exists(Path.Combine(root.Path, PendingFile.Path)));
         Assert.Single(fake.Requests);
         Assert.Contains($"\"expr\":{JsonSerializer.Serialize(CaseGenerator.Case(7, 3).Text)}", fake.Requests[0], StringComparison.Ordinal);
@@ -442,7 +442,7 @@ public sealed class OracleConnectionTests
     public void NumbersOnly_PrintsTheJournalLineAloneAfterEng821()
     {
         using FakeOracle fake = new(
-            [Log("== go build"), Handshake.Replace("go1.27.3", "go1.27.4", StringComparison.Ordinal)],
+            [Log("== go build"), Handshake.Replace("go1.27.4", "go1.27.5", StringComparison.Ordinal)],
             answer: _ => """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
         using TempDirectory root = Repository();
 
@@ -451,7 +451,7 @@ public sealed class OracleConnectionTests
 
         Assert.Equal(1, exitCode);
         Assert.Empty(error);
-        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.32.0 cases=0 signatures new=0 (S1=0, S2=0) known=0 new-cases=\n", output);
+        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.33.4 cases=0 signatures new=0 (S1=0, S2=0) known=0 new-cases=\n", output);
     }
 
     [Fact]
@@ -465,7 +465,7 @@ public sealed class OracleConnectionTests
 
         Assert.Equal(0, exitCode);
         Assert.Empty(error);
-        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.32.0 cases=1 signatures new=0 (S1=0, S2=0) known=0 new-cases=\n", output);
+        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.33.4 cases=1 signatures new=0 (S1=0, S2=0) known=0 new-cases=\n", output);
         Assert.False(File.Exists(Path.Combine(root.Path, PendingFile.Path)));
     }
 
@@ -602,7 +602,7 @@ public sealed class OracleConnectionTests
             root.Write(path, File.ReadAllText(Path.Combine(repository, path)));
         }
 
-        root.Write(OracleGoVersion.ModulePath, "module example.com/oracle\n\ngo 1.27.3\n\nrequire cel.dev/cel-go v0.32.0\n");
+        root.Write(OracleGoVersion.ModulePath, "module example.com/oracle\n\ngo 1.27.4\n\nrequire cel.dev/cel-go v0.33.4\n");
         return root;
     }
 

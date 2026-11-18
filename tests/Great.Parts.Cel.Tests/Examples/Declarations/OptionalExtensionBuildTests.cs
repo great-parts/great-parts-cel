@@ -9,7 +9,8 @@ using Xunit;
 namespace Great.Parts.Cel.Tests.Examples.Declarations;
 
 // The set optional in the builder (the page of the extension sets, "Versions and conflicts" and "optional"): the set has the name
-// optional and the one version 2 in this release, which is the latest of cel-go v0.32.0, so a version below or above it
+// optional and the one version 2 in this release (cel-go v0.33.4 has the versions 3 and 4 too: hasValue(v), and optMap and
+// optFlatMap that evaluate their target once), so a version below or above it
 // is UnknownExtensionVersion at Build, "extension 'optional' has no version <n>; available versions: 2" (optFlatMap, first,
 // last, optional.unwrap and unwrapOpt are of versions 1 and 2 in cel-go; they are all there in the version of this
 // release). The set declares the abstract type optional_type, so a variable of that type needs the set whichever call comes

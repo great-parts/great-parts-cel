@@ -8,7 +8,7 @@ using Type = Cel.Expr.Type;
 
 namespace Great.Parts.Cel.Conformance.Synthetic;
 
-// The rule of the cel-go v0.32.0 conformance runner, one test per step of the table "The rule" of docs/design/conformance.md.
+// The rule of the cel-go v0.33.4 conformance runner, one test per step of the table "The rule" of docs/design/conformance.md.
 // The outcomes are scripted: each test gives the rule what an evaluator would give.
 public sealed class RuleTests
 {

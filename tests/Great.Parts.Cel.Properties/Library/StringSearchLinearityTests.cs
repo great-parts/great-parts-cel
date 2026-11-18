@@ -35,10 +35,10 @@ public sealed class StringSearchLinearityTests
     ];
 
     private static readonly Gen<SearchCase> RandomCase =
-        from tokens in Gen.OneOfConst(Alphabets)
-        from text in Gen.OneOfConst(tokens).Array[0, 200]
-        from pattern in Gen.OneOfConst(tokens).Array[0, 6]
-        from replacement in Gen.OneOfConst("zz", string.Empty, "é😀", "a")
+        from tokens in Gen.OneOf(Alphabets)
+        from text in Gen.OneOf(tokens).Array[0, 200]
+        from pattern in Gen.OneOf(tokens).Array[0, 6]
+        from replacement in Gen.OneOf("zz", string.Empty, "é😀", "a")
         from number in Gen.Int[-2, 250]
         select new SearchCase(string.Concat(text), string.Concat(pattern), replacement, number);
 

@@ -20,7 +20,7 @@ internal readonly record struct Judgement(bool Passed, string Reason)
 }
 
 /// <summary>
-/// The rule of the cel-go conformance runner, cel-go v0.32.0, <c>conformance/conformance_test.go</c>: the function
+/// The rule of the cel-go conformance runner, cel-go v0.33.4, <c>conformance/conformance_test.go</c>: the function
 /// <c>conformanceTest</c> and the default matcher of <c>TestConformance</c>. The steps follow the order of that function.
 /// </summary>
 internal static class Rule

@@ -6,7 +6,7 @@ namespace Great.Parts.Cel.Types;
 /// <summary>
 /// Assignability of CEL types, the most general of two types, the join of two types and erasure. A type
 /// <see langword="null"/> is <c>error</c>, the type of a node with an error, which type checking treats as
-/// <c>dyn</c>. The order of the checks is that of cel-go v0.32.0 <c>checker/types.go</c>; type values and the
+/// <c>dyn</c>. The order of the checks is that of cel-go v0.33.4 <c>checker/types.go</c>; type values and the
 /// most general type follow the language definition.
 /// </summary>
 internal static class AssignabilityRules

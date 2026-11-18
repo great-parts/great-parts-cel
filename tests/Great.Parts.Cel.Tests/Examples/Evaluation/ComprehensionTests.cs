@@ -9,7 +9,7 @@ namespace Great.Parts.Cel.Tests.Examples.Evaluation;
 // The standard macros at evaluation. A list gives its elements in order, a map its keys. There is no
 // early exit on an error: all and exists absorb an error by the rules of && and ||, when another element
 // decides the result; exists_one, map and filter keep it. The outcome of each expression is that of
-// cel-go v0.32.0.
+// cel-go v0.33.4.
 public sealed class ComprehensionTests
 {
     private readonly CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
@@ -63,7 +63,7 @@ public sealed class ComprehensionTests
     }
 
     // A range of the static type dyn that holds neither a list nor a map: the error is at the range, here
-    // the variable at offset 0. A string is not a range either. cel-go v0.32.0 gives an error, "expected
+    // the variable at offset 0. A string is not a range either. cel-go v0.33.4 gives an error, "expected
     // iterable type".
     [Theory]
     [Trait("Requirement", "F-1")]

@@ -6,7 +6,7 @@ using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Checking;
 
-// The errors of type checking, their texts and their places. cel-go v0.32.0 finds the same errors at the
+// The errors of type checking, their texts and their places. cel-go v0.33.4 finds the same errors at the
 // same offsets (a probe with the environment flags of the oracle); its wording of NoSuchField and
 // InvalidComprehensionRange differs, and texts are not part of the comparison with cel-go.
 public sealed class CheckErrorTests
@@ -93,7 +93,7 @@ public sealed class CheckErrorTests
     // An invalid range does not make the macro a part with an error: its type is still that of the result,
     // so the call around all or exists is looked up and fails too, while the list of map fits size. The
     // errors come in the order of their places, not in the order the checker finds them: "(" of size at 4
-    // before the range at 5. cel-go v0.32.0 gives the same errors at the same places in the same order.
+    // before the range at 5. cel-go v0.33.4 gives the same errors at the same places in the same order.
     [Theory]
     [Trait("Requirement", "F-4")]
     [InlineData("size(1.all(x, true))", CelErrorCode.NoMatchingOverload, 4, CelErrorCode.InvalidComprehensionRange, 5, "size", "bool")]

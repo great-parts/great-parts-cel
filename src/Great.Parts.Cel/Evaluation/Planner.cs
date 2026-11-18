@@ -710,7 +710,7 @@ internal sealed class Planner
 
     // The candidates of _[_] or _[?_] on an operand of the static type dyn: those of the reference map, and for _[_] index_list and
     // index_map of the library and the two index overloads of an optional of the set optional, for _[?_] its four overloads, in the
-    // order of the declarations. cel-go v0.32.0 indexes by the kind of the operand at run time, so x[0u] with x bound to [7] is 7,
+    // order of the declarations. cel-go v0.33.4 indexes by the kind of the operand at run time, so x[0u] with x bound to [7] is 7,
     // though a uint key leaves type checking only index_map; so is x[?1u] of the set optional.
     private ImmutableArray<OverloadBinding> IndexCandidates(ImmutableArray<OverloadBinding> kept, string function)
     {

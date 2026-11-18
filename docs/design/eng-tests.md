@@ -8,7 +8,7 @@
 | :- | :- |
 | Project | `eng/tests/Great.Parts.Cel.Eng.Tests.csproj`, part of the solution |
 | Target, mode | `net10.0`, JIT only |
-| Packages | `xunit.v3.aot` 4.0.2 like every test project, `Microsoft.CodeAnalysis.CSharp` 5.0.0 |
+| Packages | `xunit.v3.aot` 4.0.3 like every test project, `Microsoft.CodeAnalysis.CSharp` 5.0.0 |
 | References | `eng/checks` — the commands run in the test process; `eng/analyzers` as a library — the rules run in memory; `eng/run` — its steps and arguments run in the test process; `eng/findings` comes through `eng/checks` and through `eng/difftest`, one assembly for both |
 
 It runs in `eng/test` and in the JIT cells of CI, never under Native AOT.

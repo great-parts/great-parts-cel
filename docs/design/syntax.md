@@ -1,6 +1,6 @@
 # Syntax: lexer, parser and syntax tree
 
-`Great.Parts.Cel.Syntax` turns the text of an expression into a syntax tree with positions, or into parse errors. The grammar and the lexis are those of the language definition of the pinned cel-spec commit, plus escaped field names and optional selection, index and elements of cel-go, the CEL implementation in Go. Where the language definition is silent, cel-go v0.32.0 is the reference: `parser/parser.go`, `parser/macro.go`, `parser/gen/CEL.g4`.
+`Great.Parts.Cel.Syntax` turns the text of an expression into a syntax tree with positions, or into parse errors. The grammar and the lexis are those of the language definition of the pinned cel-spec commit, plus escaped field names and optional selection, index and elements of cel-go, the CEL implementation in Go. Where the language definition is silent, cel-go v0.33.4 is the reference: `parser/parser.go`, `parser/antlr_parser.go`, `parser/macro.go`, `parser/gen/CEL.g4`. The parser is the ANTLR parser, which v0.33 moved from `parser.go` to `antlr_parser.go`; the Pratt parser of `parser/pratt_parser.go` is an option (`EnablePrattParser`) that the oracle does not turn on.
 
 | File in `src/Great.Parts.Cel/` | Content |
 | :- | :- |

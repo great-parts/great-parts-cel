@@ -57,7 +57,7 @@ public sealed class ObjectCheckTests
     }
 
     // type() of an object value is its object type; the type identifier resolves in the container. cel-go
-    // v0.32.0 gives true for the same comparison of a protobuf message with its type name.
+    // v0.33.4 gives true for the same comparison of a protobuf message with its type name.
     [Fact]
     [Trait("Requirement", "F-2")]
     public void TypeOfAnObject_IsItsObjectType()
@@ -68,7 +68,7 @@ public sealed class ObjectCheckTests
         Assert.True(Evaluate(inContainer, "type(deal) == Deal && Person != Deal", bindings));
     }
 
-    // cel-go v0.32.0 reports "undefined field" at the same places.
+    // cel-go v0.33.4 reports "undefined field" at the same places.
     [Theory]
     [Trait("Requirement", "F-2")]
     [Trait("Requirement", "F-4")]
@@ -82,7 +82,7 @@ public sealed class ObjectCheckTests
         AssertSingleError(environment, expression, CelErrorCode.NoSuchField, offset, "undefined field '" + field + "' in type '" + type + "'");
     }
 
-    // The name is written in full after it resolves in the container acme.crm. cel-go v0.32.0 refuses each
+    // The name is written in full after it resolves in the container acme.crm. cel-go v0.33.4 refuses each
     // of these literals too, with other texts: an undeclared reference for a variable, "not a message type"
     // for int, and an unknown type for list when it creates the program.
     [Theory]
@@ -125,7 +125,7 @@ public sealed class ObjectCheckTests
             result.Errors.Select(error => (error.Code, error.Location.Offset, error.Message)));
     }
 
-    // The same text as cel-go v0.32.0 gives.
+    // The same text as cel-go v0.33.4 gives.
     [Fact]
     [Trait("Requirement", "F-4")]
     public void LiteralOfAnUndeclaredName_IsUndeclaredReferenceAtTheLiteral()
@@ -133,7 +133,7 @@ public sealed class ObjectCheckTests
         AssertSingleError(inContainer, "Nope{}", CelErrorCode.UndeclaredReference, 4, "undeclared reference to 'Nope' (in container 'acme.crm')");
     }
 
-    // A variable may have the name of a type, and the variable wins, as in cel-go v0.32.0 (Env.LookupIdent).
+    // A variable may have the name of a type, and the variable wins, as in cel-go v0.33.4 (Env.LookupIdent).
     [Fact]
     [Trait("Requirement", "F-2")]
     [Trait("Requirement", "+R-8")]

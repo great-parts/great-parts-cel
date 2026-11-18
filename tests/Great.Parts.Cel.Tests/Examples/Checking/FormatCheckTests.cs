@@ -14,7 +14,7 @@ namespace Great.Parts.Cel.Tests.Examples.Checking;
 // there are more elements than specifiers; the error is at the call, the "(" after the name, except the error
 // of the type of an element, which is at that element of the list literal, and every checked call of the text
 // is reported, in the order of the text. At evaluation the elements past the specifiers
-// are not an error. The texts are those of cel-go v0.32.0 behind "invalid format string: ", which are the
+// are not an error. The texts are those of cel-go v0.33.4 behind "invalid format string: ", which are the
 // details of the page of the error codes; each case is an error of cel-go at the same place (a probe of
 // the oracle with the flags of the conformance runner, 2026-11-09).
 [Trait("Requirement", "F-1")]

@@ -21,7 +21,7 @@ Not in this version of the page: the extension sets. The catalog of sets is empt
 | A value that a builder method would reject as an invalid argument, such as an empty variable name, is an error of the description with its place: the input is data, and errors in it come as results, not as exceptions. |
 | The keys of cel-go that this library does not support are an error `InvalidConfiguration` that names the key (see [Keys of cel-go outside the format](#keys-of-cel-go-outside-the-format)). |
 | With an error of the reading or of the schema the builder does not change at all: `Apply` applies the whole document or nothing. It reads the whole document into a list of calls first, and makes the calls only when the first phase found no error. |
-| The meaning of the keys is that of cel-go v0.32.0, because the library and the oracle read one manifest. |
+| The meaning of the keys is that of cel-go v0.33.4, because the library and the oracle read one manifest. |
 
 ## Top-level keys
 
@@ -132,7 +132,7 @@ Any key of the table is `InvalidConfiguration` with the name of the key and its 
 | `is_type_param` | a variable | the type of the variable is a type parameter | in cel-go it is always an error; a type parameter is written `~T` in a type record |
 | `type_name`, `params`, `is_type_param` as an object that is a type record (`"type": {"type_name": …}`) | any type record | the object form of a type record | the library takes a type record as a string; in a variable `type_name` and `params` are allowed directly |
 
-Values that cel-go v0.32.0 reads and this library does not:
+Values that cel-go v0.33.4 reads and this library does not:
 
 | Value | Where | In cel-go | Here |
 | :- | :- | :- | :- |
@@ -143,7 +143,7 @@ Values that cel-go v0.32.0 reads and this library does not:
 
 ## Type records
 
-The grammar is that of `ParseTypeDesc` of cel-go v0.32.0:
+The grammar is that of `ParseTypeDesc` of cel-go v0.33.4:
 
 ```text
 type       = "~" letter | name [ "<" type { "," type } ">" ]
@@ -212,7 +212,7 @@ The differential run of the library against cel-go describes the environment of 
 | The manifest has no `greatPartsCel` and no `validators`: the run refuses such a manifest before it reads it. |
 | `block` and `decimal` are not in the manifest: `block` is the internal set of the runner and has no name in a description, and cel-go has no set `decimal`, so the oracle would not read it. |
 | `network` is in the manifest under the name `network`. `cel.FromConfig` does not know the name, so the oracle passes its own factory, `ext.Network(ext.NetworkVersion(v))`, with the version from the manifest. |
-| The oracle always adds in code, on top of `cel.FromConfig(manifest)`, the validator of regular expression literals (`cel.ValidateRegexLiterals()`) and the flags that the conformance runner of cel-go v0.32.0 sets: `cel.EagerlyValidateDeclarations(true)`, `cel.EnableErrorOnBadPresenceTest(true)` and `cel.EnableIdentifierEscapeSyntax()`. The manifest has no keys for them. |
+| The oracle always adds in code, on top of `cel.FromConfig(manifest)`, the validator of regular expression literals (`cel.ValidateRegexLiterals()`) and the flags that the conformance runner of cel-go v0.33.4 sets: `cel.EagerlyValidateDeclarations(true)`, `cel.EnableErrorOnBadPresenceTest(true)` and `cel.EnableIdentifierEscapeSyntax()`. The manifest has no keys for them. |
 | The manifest carries no version of the standard library: the library takes it from the constructor of the builder, the oracle uses its own current one. |
 
 ## What JSON does not carry
@@ -227,10 +227,10 @@ These are set in code, next to `Apply`. A key for them is an unknown key and an 
 | the types of .NET from type contexts, and the protobuf provider | `AddTypes` |
 | the flag of the `decimal` literal | a method of the builder, on `net11.0` only |
 
-## Differences from cel-go v0.32.0
+## Differences from cel-go v0.33.4
 
-- cel-go reads the JSON form by the YAML reader (`go.yaml.in/yaml/v3`), not by `encoding/json`. The format here is stricter: the documents that this library accepts are a subset of those that cel-go reads, by their keys and values, apart from the exception below.
-- The key names are those of cel-go v0.32.0: `type_name` and `context_variable`.
+- The oracle reads the JSON form by the YAML reader of cel-go (`ConfigFromYAML`, `go.yaml.in/yaml/v3`), not by `encoding/json`; cel-go v0.33 added a reader of JSON, `ConfigFromJSON`, which reads `typeName`, `contextVariable` and `isTypeParam`, and the oracle does not use it. The format here is stricter: the documents that this library accepts are a subset of those that cel-go reads, by their keys and values, apart from the exception below.
+- The key names are those of the YAML reader of cel-go v0.33.4: `type_name` and `context_variable`; v0.33 also takes the key `type` of `context_variable` for `type_name`, which this library does not read.
 - cel-go takes a version as a number of JSON and an empty version as `0`, and takes `type_name` silently when `type` is also written; here they are errors.
 - cel-go accepts parameters for a type name that takes none: `TypeDesc.Validate` checks the number of parameters only for `list`, `map`, `optional_type` and `type`, and any other name becomes an opaque type with the parameters. Here it is `InvalidConfiguration`.
 - go-yaml v3 refuses the whole document when a string has an escaped surrogate, a well-formed pair included, or the characters U+007F, U+0080–U+009F except U+0085, U+FFFE and U+FFFF. Here an escaped lone surrogate is an error, as in cel-go. A well-formed pair and these characters are accepted: in keys, names of variables and type records they are an error anyway, so the difference touches only the metadata `name` and `description`, which do not change the environment.

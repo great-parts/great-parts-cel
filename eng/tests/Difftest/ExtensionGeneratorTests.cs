@@ -230,6 +230,112 @@ public sealed class ExtensionGeneratorTests
         Assert.Contains(formatting, generated => generated.Bindings.TryGetValue("lx", out Value? lx) && BytesIn(lx).Any());
     }
 
+    // cel-go v0.33.4 writes the entries of a map for json.encode in the order of a Go map, which is random, so an argument with a map of
+    // two entries or more would give an answer that changes from run to run, and the minimization, which evaluates a child more than
+    // once, would stop at an ancestor with a signature that no seed reproduces. The argument holds no such map at any depth: a literal
+    // has 0 or 1 entries, a two-variable macro makes a map only over a range of at most one element, and a variable of the manifest that
+    // it reads is bound to maps of at most one entry.
+    [Fact]
+    public void ArgumentOfJsonEncode_HoldsNoMapOfTwoEntriesOrMore_AndItsVariablesAreBoundToSmallMaps()
+    {
+        List<(GeneratedCase Case, Call Call)> encodes =
+        [
+            .. Sample(ManyCases).SelectMany(generated => Calls(generated).Where(call => call.Function == "json.encode").Select(call => (generated, call))),
+        ];
+        HashSet<string> manifest = [.. ProfileTables.Variables.Select(variable => variable.Name)];
+        bool readsVariable = false;
+
+        Assert.NotEmpty(encodes);
+        foreach ((GeneratedCase generated, Call call) in encodes)
+        {
+            List<Expr> nodes = [.. GeneratorTests.Nodes(call.Args[0])];
+
+            Assert.DoesNotContain(nodes.OfType<MapLiteral>(), map => map.Entries.Count > 1);
+            Assert.DoesNotContain(
+                nodes.OfType<Comprehension>(),
+                macro => macro.Macro is "transformMap" or "transformMapEntry"
+                    && (macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } inner] } ? inner : macro.Range) is not (ListLiteral { Elements.Count: <= 1 } or MapLiteral { Entries.Count: <= 1 }));
+
+            // A name that a macro or cel.bind inside the argument declares is not the variable of the manifest.
+            HashSet<string> declared = [.. nodes.OfType<Comprehension>().SelectMany(macro => new[] { macro.Variable, macro.SecondVariable }).OfType<string>()];
+            foreach (string name in nodes.OfType<Ident>().Select(ident => ident.Name).Where(name => manifest.Contains(name) && !declared.Contains(name)))
+            {
+                if (generated.Bindings.TryGetValue(name, out Value? binding))
+                {
+                    readsVariable = true;
+                    Assert.True(LargestMap(binding) <= 1, name + " in " + generated.Text);
+                }
+            }
+        }
+
+        Assert.True(readsVariable);
+        Assert.Contains(encodes, encode => GeneratorTests.Nodes(encode.Call.Args[0]).Any(node => node is MapLiteral { Entries.Count: 1 }));
+    }
+
+    [Fact]
+    public void JsonArgumentVariables_RefusesAMapOfTwoEntriesAtAnyDepthAndNamesTheVariablesOfTheManifestThatItReads()
+    {
+        static Expr Key(string name) => new StringLiteral(name, Plain(name));
+        Expr one = Literal(1);
+        Expr twoEntries = new MapLiteral([new MapEntry(Key("a"), one), new MapEntry(Key("b"), one)], TrailingComma: false);
+        Expr oneEntry = new MapLiteral([new MapEntry(Key("a"), one)], TrailingComma: false);
+        Dictionary<string, StaticType?> none = [];
+
+        Assert.Null(ExprBuilder.JsonArgumentVariables(twoEntries, none));
+        Assert.Null(ExprBuilder.JsonArgumentVariables(new ListLiteral([one, new Call(ProfileTables.Dyn, [twoEntries])], TrailingComma: false), none));
+        Assert.Null(ExprBuilder.JsonArgumentVariables(new MapLiteral([new MapEntry(Key("k"), twoEntries)], TrailingComma: false), none));
+        Assert.Empty(ExprBuilder.JsonArgumentVariables(oneEntry, none)!);
+        Assert.Empty(ExprBuilder.JsonArgumentVariables(new MapLiteral([], TrailingComma: false), none)!);
+
+        // The variables of the manifest, in any node, and the name that a macro of the argument declares, which is no variable.
+        Expr reads = new ListLiteral([new Ident("ms"), new Call(ProfileTables.Dyn, [new Ident("x1")]), new Select(new Ident("mx"), "a")], TrailingComma: false);
+        Assert.Equal(["ms", "mx", "x1"], ExprBuilder.JsonArgumentVariables(reads, none)!.Order(StringComparer.Ordinal));
+        Expr declares = new Comprehension(ProfileTables.MapMacro, new ListLiteral([one], TrailingComma: false), "v", [new Ident("v")]);
+        Assert.Empty(ExprBuilder.JsonArgumentVariables(declares, none)!);
+
+        // A map that a two-variable macro makes has one entry for each element of its range.
+        Expr Transform(Expr range) => new Comprehension("transformMap", range, "i", [one]) { SecondVariable = "e" };
+        Assert.Null(ExprBuilder.JsonArgumentVariables(Transform(new ListLiteral([one, one], TrailingComma: false)), none));
+        Assert.Null(ExprBuilder.JsonArgumentVariables(Transform(new Ident("lx")), none));
+        Assert.Null(ExprBuilder.JsonArgumentVariables(Transform(new Call(ProfileTables.Dyn, [new ListLiteral([one, one], TrailingComma: false)])), none));
+        Assert.NotNull(ExprBuilder.JsonArgumentVariables(Transform(new ListLiteral([one], TrailingComma: false)), none));
+        Assert.NotNull(ExprBuilder.JsonArgumentVariables(Transform(new Call(ProfileTables.Dyn, [new MapLiteral([], TrailingComma: false)])), none));
+
+        // A name of a macro outside the argument holds a value that was built outside it: only a known type without elements is read.
+        Dictionary<string, StaticType?> outer = new()
+        {
+            ["v"] = StaticType.Of(ProfileType.IntType),
+            ["w"] = StaticType.Dyn,
+            ["t"] = StaticType.ListOf(StaticType.Of(ProfileType.IntType)),
+            ["u"] = null,
+        };
+        Assert.NotNull(ExprBuilder.JsonArgumentVariables(new Ident("v"), outer));
+        Assert.Null(ExprBuilder.JsonArgumentVariables(new Ident("w"), outer));
+        Assert.Null(ExprBuilder.JsonArgumentVariables(new Ident("t"), outer));
+        Assert.Null(ExprBuilder.JsonArgumentVariables(new Ident("u"), outer));
+    }
+
+    [Fact]
+    public void WithSmallMaps_KeepsTheFirstEntryOfEachMapAtAnyDepthAndLeavesTheRest()
+    {
+        static MapValue.Types.Entry Pair(string key, Value value) => new() { Key = new Value { StringValue = key }, Value = value };
+        static Value Entry(string key, Value value) => new() { MapValue = new MapValue { Entries = { Pair(key, value) } } };
+        MapValue twoEntries = new();
+        twoEntries.Entries.Add(Pair("a", new Value { Int64Value = 1 }));
+        twoEntries.Entries.Add(Pair("b", new Value { Int64Value = 2 }));
+        Value two = new() { MapValue = twoEntries };
+        Value nested = new() { ListValue = new ListValue { Values = { two, new Value { StringValue = "s" }, Entry("k", two) } } };
+
+        Value small = ProfileValues.WithSmallMaps(nested);
+
+        Assert.Equal(1, LargestMap(small));
+        Assert.Equal(3, small.ListValue.Values.Count);
+        Assert.Equal("a", small.ListValue.Values[0].MapValue.Entries.Single().Key.StringValue);
+        Assert.Equal(2, LargestMap(nested));
+        Assert.Equal(new Value { StringValue = "s" }, small.ListValue.Values[1]);
+        Assert.Equal(new Value { Int64Value = 7 }, ProfileValues.WithSmallMaps(new Value { Int64Value = 7 }));
+    }
+
     // The bytes of a value: an invalid sequence is replaced byte by byte with '?', a valid one stays, in a list and a map too.
     [Fact]
     public void WithValidUtf8Bytes_ReplacesEachByteOfAnInvalidSequenceAndKeepsTheRest()
@@ -578,6 +684,16 @@ public sealed class ExtensionGeneratorTests
         .OfType<string>();
 
     // The bytes values of a value, inside a list or a map too.
+    // The most entries of a map in a value, at any depth; 0 when it holds no map.
+    private static int LargestMap(Value value) => value.KindCase switch
+    {
+        Value.KindOneofCase.ListValue => value.ListValue.Values.Select(LargestMap).DefaultIfEmpty(0).Max(),
+        Value.KindOneofCase.MapValue => Math.Max(
+            value.MapValue.Entries.Count,
+            value.MapValue.Entries.Select(entry => LargestMap(entry.Value)).DefaultIfEmpty(0).Max()),
+        _ => 0,
+    };
+
     private static IEnumerable<byte[]> BytesIn(Value value) => value.KindCase switch
     {
         Value.KindOneofCase.BytesValue => [value.BytesValue.ToByteArray()],

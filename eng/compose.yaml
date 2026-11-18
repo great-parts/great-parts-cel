@@ -87,7 +87,7 @@ services:
   # system zone directory is hidden under an empty tmpfs; ZONEINFO names the copy of zoneinfo.zip that the library tests and
   # eng/difftest read, so a zone is the same bytes in Go and in the library. No version stamp, so the build does not read git.
   oracle:
-    image: golang:1.27.3
+    image: golang:1.27.4
     working_dir: /repo/eng/oracle
     volumes:
       - ..:/repo

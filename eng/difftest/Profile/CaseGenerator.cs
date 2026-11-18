@@ -72,11 +72,13 @@ internal sealed class CaseGenerator : Gen<GeneratedCase>
             if (!pcg.OneIn(UnboundOneIn))
             {
                 // A call of matches that takes s1 as its subject or its pattern has its text bound to it; a call of format that takes
-                // lx as its arguments has bytes of valid UTF-8 in it, drawn as for any binding and then made valid.
+                // lx as its arguments has bytes of valid UTF-8 in it, drawn as for any binding and then made valid; a variable that
+                // the argument of a call of json.encode reads has no map of two entries or more in it, drawn and then cut.
                 Value value = variable.Name == "s1" && builder.S1Binding is { } text
                     ? new Value { StringValue = text }
                     : ProfileValues.Binding(pcg, variable);
-                bindings[variable.Name] = variable.Name == "lx" && builder.FormatsLx ? ProfileValues.WithValidUtf8Bytes(value) : value;
+                value = variable.Name == "lx" && builder.FormatsLx ? ProfileValues.WithValidUtf8Bytes(value) : value;
+                bindings[variable.Name] = builder.JsonVariables.Contains(variable.Name) ? ProfileValues.WithSmallMaps(value) : value;
             }
         }
 

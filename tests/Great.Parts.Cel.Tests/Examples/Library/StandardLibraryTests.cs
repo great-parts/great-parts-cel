@@ -8,7 +8,7 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // The functions of the standard library, version 1, of this part: logic, equality, arithmetic, ordering,
 // index, in, size, strings, type and the conversions. Each row is "expression => expected": both sides
 // are evaluated, and the value of the expression must have the kind of the expected value and be equal
-// to it by CEL equality; NaN stands for itself. The value of every row is that of cel-go v0.32.0.
+// to it by CEL equality; NaN stands for itself. The value of every row is that of cel-go v0.33.4.
 // Operands of the static type dyn reach the overloads that type checking only allows with dyn, such as
 // the ordering across numeric kinds. The rows that Values/EqualityTests, OrderingTests and MapKeyTests
 // already state are not repeated here.

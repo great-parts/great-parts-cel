@@ -19,7 +19,7 @@ namespace Great.Parts.Cel.Tests.Examples.Syntax;
 // has slots for; an inner block that has the number shadows the outer one for it, and the numbers it has not go to the outer
 // block. The errors of expansion are InvalidMacroCall (1006) at the argument that
 // is wrong, with the text "invalid call of macro '<macro>': <text of cel-go>"; the texts are those of the conformance
-// runner of cel-go v0.32.0 (cel.block requires the first arg to be a list literal; cel.index requires a single
+// runner of cel-go v0.33.4 (cel.block requires the first arg to be a list literal; cel.index requires a single
 // non-negative int constant arg; cel.iterVar and cel.accuVar require two non-negative int constant args), which the page of the
 // set gives as the text of the macros. cel.index(N) with N of 30 or more is UndeclaredReference at the "(" of the macro,
 // where the nodes of an expansion stand, "undeclared reference to '@indexN'". The variable @indexN outside a block is

@@ -7,7 +7,7 @@ namespace Great.Parts.Cel.Values;
 
 /// <summary>
 /// CEL ordering: <c>bool</c> with <c>false</c> first; <c>int</c>, <c>uint</c> and <c>double</c> on one number line,
-/// as cel-go v0.32.0 <c>common/types/compare.go</c> compares them; strings by code points; bytes by unsigned byte
+/// as cel-go v0.33.4 <c>common/types/compare.go</c> compares them; strings by code points; bytes by unsigned byte
 /// values with a prefix first.
 /// </summary>
 internal static class OrderingRules

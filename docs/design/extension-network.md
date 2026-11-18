@@ -1,6 +1,6 @@
 # Extension set `network`, version 1
 
-The set adds two abstract types, `net.IP` and `net.CIDR`, and 21 overloads over them. This page is also where the abstract types are defined: how a type and a value of that kind are represented in the type system and in `CelValue`, the public members that need, and the rules that the checker and the value rules apply to them. Identifiers and signatures are on the `docs/extensions.md` page, the costs are the rows of [library](library.md#cost-of-the-extension-sets), the set itself on [extensions](extensions.md). The behavior is that of `ext/network.go` of cel-go v0.32.0, which follows `net/netip` of Go 1.27.3 and Kubernetes.
+The set adds two abstract types, `net.IP` and `net.CIDR`, and 21 overloads over them. This page is also where the abstract types are defined: how a type and a value of that kind are represented in the type system and in `CelValue`, the public members that need, and the rules that the checker and the value rules apply to them. Identifiers and signatures are on the `docs/extensions.md` page, the costs are the rows of [library](library.md#cost-of-the-extension-sets), the set itself on [extensions](extensions.md). The behavior is that of `ext/network.go` of cel-go v0.33.4 (the rules are those of v0.32.0; v0.33 rewrote the cost model only), which follows `net/netip` of Go 1.27.3 and Kubernetes.
 
 | File | Content |
 | :- | :- |

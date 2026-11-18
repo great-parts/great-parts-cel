@@ -16,7 +16,7 @@ namespace Great.Parts.Cel.Tests.Examples.Evaluation;
 // did not set them. A NaN field makes a message unequal to itself, and the generated Equals is not used. An Any is
 // unpacked before it is compared, so two Any whose bytes differ and whose messages are equal are equal; the unknown fields,
 // which the description does not have, are not compared: two messages that differ only in unknown fields are equal, which
-// differs from cel-go v0.32.0, where they are unequal (a by-design difference of the library). Messages of two descriptions
+// differs from cel-go v0.33.4, where they are unequal (a by-design difference of the library). Messages of two descriptions
 // are not equal, and a message is not equal to a value of another kind: a literal of two types that cannot be equal is
 // NoMatchingOverload at type checking, as cel-go has it, and through dyn the answer is false. The values are those of cel-go
 // v0.32.0 (a probe of the oracle, 2026-11-11), except the two rows of the unknown fields. Variables, all of TestAllTypes: e has

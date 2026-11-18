@@ -22,7 +22,7 @@ import (
 )
 
 // conformanceEnvironments are the two environments of the cel-go conformance runner: stdOpts of
-// conformance/conformance_test.go of v0.32.0 without the test-only block macros, and with the sets
+// conformance/conformance_test.go of v0.33.4 (the same as v0.32.0) without the test-only block macros, and with the sets
 // that the files outside the runner need, sets and network (docs/design/eng-oracle.md, "One-time run
 // of test files").
 type conformanceEnvironments struct {

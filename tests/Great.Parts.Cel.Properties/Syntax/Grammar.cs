@@ -63,14 +63,14 @@ internal static class Grammar
     private static readonly string[] UnaryRuns = ["!", "!!", "!!!", "-", "--", "---"];
 
     // Whitespace and comments between tokens; mostly a space.
-    private static readonly Gen<string> Space = Gen.FrequencyConst((8, " "), (1, "\n"), (1, "\t"), (1, " // note\n"), (1, "\r\n  "));
+    private static readonly Gen<string> Space = Gen.Frequency((8, " "), (1, "\n"), (1, "\t"), (1, " // note\n"), (1, "\r\n  "));
 
     /// <summary>A grammatical text.</summary>
     internal static Gen<string> Expression { get; } = Build().Select(piece => piece.Text);
 
     private static Gen<Piece> Build()
     {
-        Gen<Piece> atom = Gen.Frequency((3, Gen.OneOfConst(Literals)), (2, Gen.OneOfConst(Identifiers)));
+        Gen<Piece> atom = Gen.Frequency((3, Gen.OneOf(Literals)), (2, Gen.OneOf(Identifiers)));
         Gen<Piece> current = atom;
         for (int depth = 0; depth < Depth; depth++)
         {
@@ -83,14 +83,14 @@ internal static class Grammar
     private static Gen<Piece>[] Compounds(Gen<Piece> operand)
     {
         Gen<Piece[]> arguments = operand.Array[0, 3];
-        Gen<string> field = Gen.OneOfConst(Fields);
+        Gen<string> field = Gen.OneOf(Fields);
         Gen<string> element = Gen.Select(operand, Gen.Bool, (piece, optional) => (optional ? "?" : "") + piece.Text);
         Gen<string> entry = Gen.Select(operand, operand, Gen.Bool, (key, value, optional) => (optional ? "?" : "") + key.Text + ": " + value.Text);
         Gen<string> messageField = Gen.Select(
-            Gen.OneOfConst(MessageFields), operand, Gen.Bool, (name, value, optional) => (optional ? "?" : "") + name + ": " + value.Text);
+            Gen.OneOf(MessageFields), operand, Gen.Bool, (name, value, optional) => (optional ? "?" : "") + name + ": " + value.Text);
         return
         [
-            Gen.Select(operand, Gen.OneOfConst(BinaryOperators), operand, Space, Space, Binary),
+            Gen.Select(operand, Gen.OneOf(BinaryOperators), operand, Space, Space, Binary),
             Gen.Select(
                 operand,
                 operand,
@@ -99,16 +99,16 @@ internal static class Grammar
                 (condition, then, otherwise, space) => new Piece(
                     $"{AtLeast(condition, ConditionLevel)}{space}? {AtLeast(then, ConditionLevel)} : {AtLeast(otherwise, ConditionalLevel)}",
                     ConditionalLevel)),
-            Gen.Select(operand, Gen.OneOfConst(UnaryRuns), (piece, run) => new Piece(run + UnaryOperand(piece), UnaryLevel)),
+            Gen.Select(operand, Gen.OneOf(UnaryRuns), (piece, run) => new Piece(run + UnaryOperand(piece), UnaryLevel)),
             Gen.Select(operand, field, Gen.Bool, (target, name, optional) => Member(target, (optional ? ".?" : ".") + name)),
             Gen.Select(operand, operand, Gen.Bool, (target, index, optional) => Member(target, (optional ? "[?" : "[") + index.Text + "]")),
             Gen.Select(
-                operand, Gen.OneOfConst(ReceiverFunctions), arguments, (target, name, list) => Member(target, $".{name}({Join(list)})")),
-            Gen.Select(Gen.OneOfConst(GlobalFunctions), arguments, (name, list) => new Piece($"{name}({Join(list)})", PrimaryLevel)),
+                operand, Gen.OneOf(ReceiverFunctions), arguments, (target, name, list) => Member(target, $".{name}({Join(list)})")),
+            Gen.Select(Gen.OneOf(GlobalFunctions), arguments, (name, list) => new Piece($"{name}({Join(list)})", PrimaryLevel)),
             Gen.Select(element.Array[0, 3], Gen.Bool, (items, trailing) => new Piece($"[{Join(items, trailing)}]", PrimaryLevel)),
             Gen.Select(entry.Array[0, 3], Gen.Bool, (items, trailing) => new Piece($"{{{Join(items, trailing)}}}", PrimaryLevel)),
             Gen.Select(
-                Gen.OneOfConst(MessageNames),
+                Gen.OneOf(MessageNames),
                 messageField.Array[0, 3],
                 Gen.Bool,
                 (name, items, trailing) => new Piece($"{name}{{{Join(items, trailing)}}}", PrimaryLevel)),
@@ -116,13 +116,13 @@ internal static class Grammar
             Gen.Select(operand, field, (target, name) => new Piece($"has({MemberTarget(target)}.{name})", PrimaryLevel)),
             Gen.Select(
                 operand,
-                Gen.OneOfConst("all", "exists", "exists_one", "map", "filter"),
-                Gen.OneOfConst(Variables),
+                Gen.OneOf("all", "exists", "exists_one", "map", "filter"),
+                Gen.OneOf(Variables),
                 operand,
                 (target, macro, variable, body) => Member(target, $".{macro}({variable}, {body.Text})")),
             Gen.Select(
                 operand,
-                Gen.OneOfConst(Variables),
+                Gen.OneOf(Variables),
                 operand,
                 operand,
                 (target, variable, condition, result) => Member(target, $".map({variable}, {condition.Text}, {result.Text})")),

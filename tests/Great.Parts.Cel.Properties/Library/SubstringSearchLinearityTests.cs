@@ -17,7 +17,7 @@ public sealed class SubstringSearchLinearityTests
     private const int Cases = 3000;
 
     private static readonly Gen<SearchCase> RandomCase =
-        from alphabet in Gen.OneOfConst("ab", "abc")
+        from alphabet in Gen.OneOf("ab", "abc")
         from text in Gen.Char[alphabet].Array[0, 3000]
         from pattern in Gen.Char[alphabet].Array[0, 16]
         select new SearchCase(new string(text), new string(pattern));

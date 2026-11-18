@@ -5,7 +5,7 @@ using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Library;
 
-// Numbers to text and text to numbers, without the culture of the process: the forms of cel-go v0.32.0,
+// Numbers to text and text to numbers, without the culture of the process: the forms of cel-go v0.33.4,
 // which formats a double as Go %g and parses with strconv of Go 1.27.3.
 internal static class NumberText
 {

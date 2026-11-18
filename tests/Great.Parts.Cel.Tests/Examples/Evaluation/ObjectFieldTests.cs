@@ -267,7 +267,7 @@ public sealed class ObjectFieldTests
     }
 
     // Through dyn a field is found by its name at evaluation; no such field is EvalNoSuchField with the full
-    // name of the type, for has() too, as cel-go v0.32.0 gives for a message ("no such field").
+    // name of the type, for has() too, as cel-go v0.33.4 gives for a message ("no such field").
     [Theory]
     [Trait("Requirement", "F-1")]
     [Trait("Requirement", "F-4")]

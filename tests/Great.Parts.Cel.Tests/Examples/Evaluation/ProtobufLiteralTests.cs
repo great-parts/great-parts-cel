@@ -14,7 +14,7 @@ namespace Great.Parts.Cel.Tests.Examples.Evaluation;
 // table, so an int that is out of the range of its field — a 32-bit integer, a uint32, an enumeration, an element or a
 // key or a value of a collection, the value of a wrapper — is ConversionRange, "<value> is out of the range of <type>",
 // at the "{" of the literal that created the message. A float field takes the nearest float, and a number
-// that is too large for it is infinity, as in cel-go v0.32.0. Value takes a number as a number when its absolute value is at most 2^53 - 1 and as a string otherwise (an int and a uint
+// that is too large for it is infinity, as in cel-go v0.33.4. Value takes a number as a number when its absolute value is at most 2^53 - 1 and as a string otherwise (an int and a uint
 // both), a string, a bool, null, a list and a map; Struct and ListValue a map and a list of such values; a message field
 // null and a wrapper null leave the field not set; an Any field takes a message (packed with the address
 // "type.googleapis.com/<full name>") or a value of the well-known kinds. A oneof takes the last of its members that

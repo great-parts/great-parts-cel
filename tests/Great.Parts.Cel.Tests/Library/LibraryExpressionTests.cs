@@ -321,7 +321,7 @@ public sealed class LibraryExpressionTests
 
     // "<value of x> | <expression> → <expected>" with x: dyn, where expected is an expression whose value the result equals
     // or the code of the error. An index of an operand of the static type dyn is chosen by the kind of the value, as in
-    // cel-go v0.32.0, though a uint or double key leaves type checking only index_map.
+    // cel-go v0.33.4, though a uint or double key leaves type checking only index_map.
     private const string DynOperandIndexes = """
         [7] | x[0u] → 7
         [7] | x[0.0] → 7
@@ -452,7 +452,7 @@ public sealed class LibraryExpressionTests
         });
     }
 
-    // Type checking is unchanged: a uint index of a list is no overload, as in cel-go v0.32.0.
+    // Type checking is unchanged: a uint index of a list is no overload, as in cel-go v0.33.4.
     [Fact]
     public static void UintIndexOfAList_IsACheckError()
     {

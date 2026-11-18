@@ -9,7 +9,7 @@ namespace Great.Parts.Cel.Tests.Examples.Evaluation;
 // EvalNoMatchingOverload (3000) for an operand of the static type dyn: type checking accepts the call,
 // and at evaluation the value fits none of its candidates. The message names the function as the syntax
 // tree does and the types of the values by name; the place is the call. The variables are dyn and hold
-// 1, 's', [1] and null. cel-go v0.32.0 gives an error for each of these expressions.
+// 1, 's', [1] and null. cel-go v0.33.4 gives an error for each of these expressions.
 public sealed class NoMatchingOverloadTests
 {
     private readonly CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)

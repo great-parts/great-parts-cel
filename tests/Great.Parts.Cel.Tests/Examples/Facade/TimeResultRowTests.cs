@@ -86,7 +86,7 @@ public sealed class TimeResultRowTests
     }
 
     // The literal null has the type null_type, which the type checker takes as assignable to timestamp and
-    // duration, the types that the nullable forms expect (cel-go v0.32.0 isLegacyNullable: the kinds of
+    // duration, the types that the nullable forms expect (cel-go v0.33.4 isLegacyNullable: the kinds of
     // timestamp and duration are nullable): the program compiles, and the null value becomes null.
     [Fact]
     [Trait("Requirement", "+R-10")]

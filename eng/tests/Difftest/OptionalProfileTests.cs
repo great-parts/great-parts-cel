@@ -32,7 +32,7 @@ public sealed class OptionalProfileTests
     // The outcome of both fake sides for an expression that a test does not name.
     private static readonly SideOutcome Agreed = SideOutcome.Of(IntValue(0));
 
-    // The overloads of the set in the order of the table of cel-go v0.32.0 (cel/library.go) and of the page of the set.
+    // The overloads of the set in the order of the table of cel-go v0.33.4 (cel/library.go) and of the page of the set.
     private static readonly string[] Overloads =
     [
         "optional_of", "optional_ofNonZeroValue", "optional_none", "optional_value", "optional_hasValue", "optional_or_optional",

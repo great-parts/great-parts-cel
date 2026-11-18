@@ -246,7 +246,7 @@ internal static class Program
 
     /// <summary>
     /// The journal line, the last line of a run: only numbers, so the public log of the nightly workflow shows no case.
-    /// <c>difftest seed=20261104 commit=9f8e7d6c oracle=0.32.0 cases=412345 signatures new=1 (S1=1, S2=0) known=0 new-cases=1207</c>.
+    /// <c>difftest seed=20261104 commit=9f8e7d6c oracle=0.33.4 cases=412345 signatures new=1 (S1=1, S2=0) known=0 new-cases=1207</c>.
     /// </summary>
     /// <param name="options">The options of the run.</param>
     /// <param name="commit">The start of <c>HEAD</c>.</param>

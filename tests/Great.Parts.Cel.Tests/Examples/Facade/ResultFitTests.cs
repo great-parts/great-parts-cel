@@ -12,7 +12,7 @@ namespace Great.Parts.Cel.Tests.Examples.Facade;
 // type of the root, CelProgram<T>.ResultType, not from the expected type: list(dyn) to long can fail, so ld
 // is copied, and its string element is ResultConversion; list(int) to long cannot fail, so x + y is a lazy
 // view. A static type is no guarantee of the value: with x of type list(int) bound to [1] and y of type dyn
-// bound to ['a'], x + y has the type list(int) and the value [1, 'a'], as in cel-go v0.32.0. So the value is
+// bound to ['a'], x + y has the type list(int) and the value [1, 'a'], as in cel-go v0.33.4. So the value is
 // checked against ResultType at any depth before the view; a mismatch is ResultConversion naming the type
 // with the element that does not fit. The check and the copy come after the evaluation and are not charged.
 // The place is the root.

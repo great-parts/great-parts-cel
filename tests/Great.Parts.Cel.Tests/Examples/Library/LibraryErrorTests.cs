@@ -13,7 +13,7 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // "expression | code | offset | message"; the expressions are on one line, so the line is 1 and the
 // column the offset plus 1. The place of a call is the operator or the "(" after the name; for an index
 // it is the "[" of the index. A value in a message is written as string() writes it; a map key as a CEL
-// literal of its kind; a string argument as its text. cel-go v0.32.0 gives an error for every row.
+// literal of its kind; a string argument as its text. cel-go v0.33.4 gives an error for every row.
 // i is 41, u is 7u, max and min are the bounds of int, umax that of uint; dm is dyn and holds {'k': 1}.
 public sealed class LibraryErrorTests
 {

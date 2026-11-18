@@ -8,7 +8,7 @@
 | :- | :- |
 | Project | `tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj`, a test project, see [tests.md](tests.md) |
 | Targets, modes | `net10.0`, `net11.0`; JIT and Native AOT |
-| Packages | `xunit.v3.aot` 4.0.2; `Google.Protobuf` 3.36.2; `Grpc.Tools` 2.84.0 with `GrpcServices="None"` |
+| Packages | `xunit.v3.aot` 4.0.3; `Google.Protobuf` 3.36.2; `Grpc.Tools` 2.85.0 with `GrpcServices="None"` |
 | References | `src/Great.Parts.Cel`, which grants it `InternalsVisibleTo`; `eng/findings` for `EngCodes` and `Finding`, see [eng-checks.md](eng-checks.md#one-source-of-the-eng-codes) |
 | Data | `tests/cel-spec/` and the files of `CelSpec/`, `Regression/` and `Synthetic/` |
 
@@ -102,9 +102,9 @@ See [facade.md](facade.md#internal-entry-points). A binding of the kind `value` 
 
 ## The rule
 
-Source: `conformance/conformance_test.go` of cel-go v0.32.0, https://github.com/cel-expr/cel-go/blob/v0.32.0/conformance/conformance_test.go, function `conformanceTest` and the default matcher in `TestConformance`, read on 2026-10-28.
+Source: `conformance/conformance_test.go` of cel-go v0.33.4, https://github.com/cel-expr/cel-go/blob/v0.33.4/conformance/conformance_test.go, function `conformanceTest` and the default matcher in `TestConformance`, read on 2026-11-18; the file of v0.32.0, read on 2026-10-28, is the same.
 
-| Step | cel-go v0.32.0 | Lines | The runner |
+| Step | cel-go v0.33.4 | Lines | The runner |
 | :- | :- | :- | :- |
 | matcher | a case without a result matcher expects the value `bool` `true` | 313–321 | the same |
 | parse | a parse error fails the case | 203–207 | an error of the stage `Parse` fails |

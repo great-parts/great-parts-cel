@@ -318,7 +318,7 @@ internal static partial class ProfileTables
         AddRow(rows, NetworkSet, "cidr_contains_cidr_string", "containsCIDR", true, Bool, null, Cidr, Str);
     }
 
-    // optional: the 18 overloads of cel-go v0.32.0 with OptionalTypesVersion(2), in the order of cel/library.go, and the macros
+    // optional: the 18 overloads of cel-go v0.33.4 with OptionalTypesVersion(2), in the order of cel/library.go, and the macros
     // optMap and optFlatMap, which expand to calls of them and are no rows. The parameter A stands for V and K of cel-go; the receiver
     // of the optional index and of the index of an optional is an optional or a list or a map.
     private static void AddOptionalRows(List<ProfileOverload> rows)

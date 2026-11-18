@@ -171,7 +171,7 @@ public sealed class OptionalCheckTests
     }
 
     // The condition binds the variable of optFlatMap over a dyn to uint, the first overload of > that fits, and v.?a selects from a uint:
-    // a check error. cel-go v0.32.0 gives the same error, naming int, since its checker does not filter the ordering across numeric
+    // a check error. cel-go v0.33.4 gives the same error, naming int, since its checker does not filter the ordering across numeric
     // types inside the body of a macro (the case 16745231 of seed 20261116: the type of the variable is not part of the comparison).
     [Fact]
     public void SelectionFromTheVariableThatAnOrderingBoundToUInt_IsNoSuchField()
@@ -181,7 +181,7 @@ public sealed class OptionalCheckTests
 
     // The free variable of optMap over optional.none() is bound by the join of a list literal to the type of the first element that is not
     // dyn, and bound again by a later element of the type dyn (['a', x, d][x] compiles: x is dyn). Without such an element, or when an
-    // element of another type follows, it stays bound, and the index or the sum refuses it. cel-go v0.32.0 gives the same
+    // element of another type follows, it stays bound, and the index or the sum refuses it. cel-go v0.33.4 gives the same
     // (a probe of the oracle with the flags of the conformance runner, 2026-11-17): its join keeps the type parameter as the type of the
     // elements, so the next element binds it again.
     [Theory]

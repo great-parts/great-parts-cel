@@ -1,7 +1,7 @@
-# Minimized cases of known divergences from cel-go in json.encode of a value of time. The expectation of each case is the answer of cel-go.
+# Minimized cases of known divergences from cel-go in json.encode. The expectation of each case is the answer of cel-go.
 
 name: "json_encode"
-description: "The JSON text of a duration and of a timestamp"
+description: "The JSON text of a duration, a timestamp, a string, a list and a map"
 section {
   name: "duration"
   description: "cel-go encodes a duration as the text of string(duration), which formats the seconds through a 64-bit float"
@@ -15,6 +15,58 @@ section {
   }
 }
 section {
+  name: "list"
+  description: "cel-go encodes the elements of a list as it encodes a string and a map"
+  test {
+    name: "del_element"
+    description: "json_encode_dyn(list) value-mismatch"
+    expr: "json.encode(['\\u007f'])"
+    value: {
+      string_value: "[\"\\x7f\"]"
+    }
+  }
+  test {
+    name: "map_int_key"
+    description: "json_encode_dyn(list) we-error"
+    expr: "json.encode([{1: 'x'}])"
+    value: {
+      string_value: "[{\"1\":\"x\"}]"
+    }
+  }
+}
+section {
+  name: "map"
+  description: "cel-go writes a key that is not a string as its JSON text, and a value as it encodes a string"
+  test {
+    name: "del_value"
+    description: "json_encode_dyn(map) value-mismatch"
+    expr: "json.encode({'a': '\\u007f'})"
+    value: {
+      string_value: "{\"a\":\"\\x7f\"}"
+    }
+  }
+  test {
+    name: "int_key"
+    description: "json_encode_dyn(map) we-error"
+    expr: "json.encode({1: 'x'})"
+    value: {
+      string_value: "{\"1\":\"x\"}"
+    }
+  }
+}
+section {
+  name: "string"
+  description: "cel-go writes a string shorter than 128 bytes with strconv.Quote of Go, which escapes U+007F as \\x7f"
+  test {
+    name: "del"
+    description: "json_encode_dyn(string) value-mismatch"
+    expr: "json.encode('\\u007f')"
+    value: {
+      string_value: "\"\\x7f\""
+    }
+  }
+}
+section {
   name: "timestamp"
   description: "cel-go encodes a timestamp as the text of string(timestamp), which keeps the offset of the parsed string"
   test {
@@ -23,18 +75,6 @@ section {
     expr: "json.encode(timestamp('2023-01-01T00:00:00-07:00'))"
     value: {
       string_value: "\"2023-01-01T00:00:00-07:00\""
-    }
-  }
-}
-section {
-  name: "type"
-  description: "cel-go refuses a type value in json.encode, except in a list that is the sum of two lists, where it writes the name of the type"
-  test {
-    name: "list_sum"
-    description: "json_encode_dyn(list) we-error"
-    expr: "json.encode([double] + dyn([4096]))"
-    value: {
-      string_value: "[\"double\",4096]"
     }
   }
 }

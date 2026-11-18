@@ -6,10 +6,10 @@ The tests of the library: `tests/Great.Parts.Cel.Tests` and `tests/Great.Parts.C
 
 | Project | Targets | Modes | Packages | Contents |
 | :- | :- | :- | :- | :- |
-| `tests/Great.Parts.Cel.Tests` | `net10.0`, `net11.0` | JIT, Native AOT | `xunit.v3.aot` 4.0.2 | unit tests, one directory per namespace of the library; `Examples/` |
-| `tests/Great.Parts.Cel.Properties` | `net10.0`, `net11.0` | JIT | `xunit.v3.aot` 4.0.2, `CsCheck` 4.9.1 | properties without an oracle |
+| `tests/Great.Parts.Cel.Tests` | `net10.0`, `net11.0` | JIT, Native AOT | `xunit.v3.aot` 4.0.3 | unit tests, one directory per namespace of the library; `Examples/` |
+| `tests/Great.Parts.Cel.Properties` | `net10.0`, `net11.0` | JIT | `xunit.v3.aot` 4.0.3, `CsCheck` 5.0.1 | properties without an oracle |
 | `tests/Great.Parts.Cel.Conformance` | `net10.0`, `net11.0` | JIT, Native AOT | see the description of the suite runner | the cel-spec suite and the regression corpus |
-| `tests/Great.Parts.Cel.Generator.Tests` | `net10.0` | JIT | `xunit.v3.aot` 4.0.2, `Microsoft.CodeAnalysis.CSharp` 5.0.0 | the tests of the source generator ([generator](generator.md)); `Examples/` |
+| `tests/Great.Parts.Cel.Generator.Tests` | `net10.0` | JIT | `xunit.v3.aot` 4.0.3, `Microsoft.CodeAnalysis.CSharp` 5.0.0 | the tests of the source generator ([generator](generator.md)); `Examples/` |
 | `tests/Great.Parts.Cel.Generator.Samples` | `net10.0`, `net11.0` | none: a library | `Google.Protobuf`, `Grpc.Tools` | valid types and their type contexts, read by the other test projects; no tests |
 | `eng/tests` | `net10.0` | JIT | see [eng-tests.md](eng-tests.md) | tests of the own checks |
 
@@ -62,7 +62,7 @@ public void <Situation>_<Expectation>()
 The verdict of a property is deterministic: the same code gives the same verdict on every machine and in every run, so the contribution of the properties to the mutation score repeats.
 
 - A property with a small domain checks the whole domain, without a generator. `CelErrorCodeProperties` checks every member of `CelErrorCode`.
-- A property with a larger domain builds case `i` from the pair of the seed and `i`, with a loop of its own over `Gen<T>.Generate` of CsCheck 4.9.1. The seed and the number of cases are set in the code; the loop reads no environment variable `CsCheck_*` and has no time limit. The loop is written together with the first property that needs it.
+- A property with a larger domain builds case `i` from the pair of the seed and `i`, with a loop of its own over `Gen<T>.Generate` of CsCheck 5.0.1. The seed and the number of cases are set in the code; the loop reads no environment variable `CsCheck_*` and has no time limit. The loop is written together with the first property that needs it.
 - `Gen<T>.Sample` does not give the verdict: a seed passed to `Sample` fixes only its first iteration, and the other iterations are generated from a seed taken from the clock and the thread. A property calls `Sample` only after its loop has found a failing case, to minimize that case. The smallest case goes into the failure message and does not change the verdict.
 - A failing case is reproduced from the seed and its number and becomes a unit test with fixed input.
 - Properties do no random search of their own; for the core, `eng/difftest` does it, with a seed taken from the date ([eng-difftest.md](eng-difftest.md)).

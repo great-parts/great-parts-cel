@@ -10,7 +10,7 @@ namespace Great.Parts.Cel.Tests.Examples.Values;
 // compared with a double as the int rounded to the nearest double; NaN equal to nothing; values of different
 // non-numeric kinds unequal without an error; strings by code units, without normalization; lists and maps
 // by their elements, maps by the key lookup of map keys; type values by kind and name. Operands of different
-// static types need dyn: "1 == 1u" is a type error. Every row is the value cel-go v0.32.0 gives.
+// static types need dyn: "1 == 1u" is a type error. Every row is the value cel-go v0.33.4 gives.
 public sealed class EqualityTests
 {
     private const string Cases = """

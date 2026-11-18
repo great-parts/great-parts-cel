@@ -20,11 +20,11 @@ using Timestamp = Google.Protobuf.WellKnownTypes.Timestamp;
 namespace Great.Parts.Cel.Eng.Difftest.Sides;
 
 /// <summary>The handshake of the oracle: the line it writes before it answers requests.</summary>
-/// <param name="Oracle">The module and the version of cel-go, such as <c>cel.dev/cel-go v0.32.0</c>.</param>
-/// <param name="Go">The Go that built the oracle, such as <c>go1.27.3</c>.</param>
+/// <param name="Oracle">The module and the version of cel-go, such as <c>cel.dev/cel-go v0.33.4</c>.</param>
+/// <param name="Go">The Go that built the oracle, such as <c>go1.27.4</c>.</param>
 internal sealed record OracleHandshake(string Oracle, string Go)
 {
-    /// <summary>The version of cel-go without the module and the <c>v</c>, such as <c>0.32.0</c>, for the journal line.</summary>
+    /// <summary>The version of cel-go without the module and the <c>v</c>, such as <c>0.33.4</c>, for the journal line.</summary>
     internal string Version
     {
         get
@@ -554,7 +554,7 @@ internal static class OracleGoVersion
 
     /// <summary>Compares the Go of the handshake with the <c>go</c> line of the module file.</summary>
     /// <param name="root">The repository root.</param>
-    /// <param name="handshakeGo">The Go that the handshake names, such as <c>go1.27.3</c>.</param>
+    /// <param name="handshakeGo">The Go that the handshake names, such as <c>go1.27.4</c>.</param>
     /// <returns>The <c>ENG821</c> finding at the <c>go</c> line, column 1, or <see langword="null"/> when the versions are equal.</returns>
     /// <exception cref="IOException">The module file has no <c>go</c> line.</exception>
     internal static Finding? Check(string root, string handshakeGo)

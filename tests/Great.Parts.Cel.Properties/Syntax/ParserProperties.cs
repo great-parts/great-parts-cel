@@ -42,7 +42,7 @@ public sealed class ParserProperties
         (1, Gen.Int[0x10000, 0x10FFFF].Select(char.ConvertFromUtf32)));
 
     // Tokens, broken tokens and pieces of tokens of the lexis.
-    private static readonly Gen<string> Token = Gen.OneOfConst(
+    private static readonly Gen<string> Token = Gen.OneOf(
         " ", "\n", "\r\n", "// c\n", "x", "y", "f", "_a1", ".x", "true", "false", "null", "in", "if", "package", "as",
         "0", "42", "0x1F", "1u", "1.5", ".5", "1e3", "1e", "0x", "99999999999999999999", "1.5e999", "12.34m",
         "'a'", "\"b\"", "'''c'''", "r'\\d'", "b'\\xff'", "'\\z'", "'\\uD800'", "\"open", "'''open", "`a-b`", "`", "`a",
@@ -76,9 +76,9 @@ public sealed class ParserProperties
         (2, Gen.Select(Grammar.Expression, Gen.Bool, Case)),
         (2, Gen.Select(Grammar.Expression, Gen.Int[0, 1000], Gen.Int[0, 5], Token, Gen.Bool, Damaged)),
         (1, Gen.Select(Grammar.Expression, Gen.Int[0, 70000], Gen.Bool, Repeated)),
-        (1, Gen.Select(Gen.OneOfConst(Openers).Array[NestingLimit, 400], Token.Array[0, 50], Gen.Bool, TooDeep)),
-        (1, Gen.Select(Gen.OneOfConst(DepthUnits), Gen.Int[NestingLimit + 1, 400], Gen.Int[0, 3], Gen.Bool, SyntaxTreeTooDeep)),
-        (1, Gen.Select(Gen.OneOfConst(ErrorUnits).Array[ErrorLimit + 1, 400], Gen.OneOfConst(("f(", ")"), ("[", "]")), Gen.Bool, TooManyErrors)));
+        (1, Gen.Select(Gen.OneOf(Openers).Array[NestingLimit, 400], Token.Array[0, 50], Gen.Bool, TooDeep)),
+        (1, Gen.Select(Gen.OneOf(DepthUnits), Gen.Int[NestingLimit + 1, 400], Gen.Int[0, 3], Gen.Bool, SyntaxTreeTooDeep)),
+        (1, Gen.Select(Gen.OneOf(ErrorUnits).Array[ErrorLimit + 1, 400], Gen.OneOf(("f(", ")"), ("[", "]")), Gen.Bool, TooManyErrors)));
 
     // Any text — random characters, random tokens, grammatical texts, damaged and repeated ones, and texts over each limit —
     // parses into a tree or into errors: no exception escapes, no error is InternalError, every error lies within the text, and

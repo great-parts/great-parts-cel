@@ -282,7 +282,7 @@ internal static partial class ProfileTables
     /// <summary>The kinds of the value of a <c>dyn</c> variable: the scalar kinds, <c>null</c>, a list and a map.</summary>
     internal static IReadOnlyList<ProfileType> DynKinds { get; } = [.. ScalarKinds, ProfileType.ListType, ProfileType.MapType];
 
-    // The table of the standard library version 1, as the library and cel-go v0.32.0 have it.
+    // The table of the standard library version 1, as the library and cel-go v0.33.4 have it.
     private static List<ProfileOverload> BuildOverloads()
     {
         const ProfileType A = ProfileType.ParameterAType;

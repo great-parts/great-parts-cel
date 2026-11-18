@@ -67,7 +67,7 @@ A value assigned to a field of the type `Value`, to a `Struct` or `ListValue` fi
 | :- | :- | :- |
 | `null` | `null_value` | a `Value` holding `null_value` |
 | `bool` | `bool_value` | `BoolValue` |
-| `int` | `number_value` when the value is from −(2⁵³ − 1) to 2⁵³ − 1, else `string_value` with the decimal digits: a `double`, the number of a `Value`, holds the integers of that range exactly, and the others travel as text, as protobuf's JSON mapping does; the same boundary is that of cel-go v0.32.0, so `9007199254740991` is the number and `9007199254740992` the string `"9007199254740992"`, and `4294967296` is the number | `Int64Value` |
+| `int` | `number_value` when the value is from −(2⁵³ − 1) to 2⁵³ − 1, else `string_value` with the decimal digits: a `double`, the number of a `Value`, holds the integers of that range exactly, and the others travel as text, as protobuf's JSON mapping does; the same boundary is that of cel-go v0.33.4, so `9007199254740991` is the number and `9007199254740992` the string `"9007199254740992"`, and `4294967296` is the number | `Int64Value` |
 | `uint` | `number_value` up to 2⁵³ − 1, else `string_value`; the same boundary | `UInt64Value` |
 | `double` | `number_value`, a NaN and an infinity included | `DoubleValue` |
 | `string` | `string_value` | `StringValue` |
@@ -126,7 +126,7 @@ Unknown fields are not compared: the generated classes of `Google.Protobuf` give
 
 ## Differences from cel-go
 
-Three differences from cel-go v0.32.0 are decided and are four rows of the registry of known differences of the conformance project (`tests/Great.Parts.Cel.Conformance/Regression/known-differences.md`, class `by-design`); each has a minimal case in the regression corpus (`Regression/protobuf-differences.textproto`) and an entry in its skip list, whose expectation is the answer of cel-go:
+Three differences from cel-go v0.33.4 are decided and are four rows of the registry of known differences of the conformance project (`tests/Great.Parts.Cel.Conformance/Regression/known-differences.md`, class `by-design`); each has a minimal case in the regression corpus (`Regression/protobuf-differences.textproto`) and an entry in its skip list, whose expectation is the answer of cel-go:
 
 | Difference | The library | cel-go | Signature of the row |
 | :- | :- | :- | :- |

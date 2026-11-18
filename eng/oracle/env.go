@@ -36,7 +36,7 @@ func loadEnvironment(path string) (*cel.Env, error) {
 	}
 	environment, err := cel.NewCustomEnv(
 		cel.FromConfig(config, ext.ExtensionOptionFactory, networkFactory),
-		// The environment flags of the cel-go conformance runner (stdOpts of conformance_test.go, v0.32.0).
+		// The environment flags of the cel-go conformance runner (stdOpts of conformance_test.go, v0.33.4; the same as in v0.32.0).
 		cel.EagerlyValidateDeclarations(true),
 		cel.EnableErrorOnBadPresenceTest(true),
 		cel.EnableIdentifierEscapeSyntax(),

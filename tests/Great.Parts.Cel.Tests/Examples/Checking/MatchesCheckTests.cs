@@ -15,7 +15,7 @@ namespace Great.Parts.Cel.Tests.Examples.Checking;
 // whole expression in the order of their places. The subject is not looked at, and no other function takes
 // the pattern for a pattern: 'a(b'.contains('(') compiles. A pattern in a variable is checked at evaluation
 // only (see the examples of evaluation).
-// cel-go v0.32.0 with its validator of regex literals finds the error of a constant pattern at compilation in
+// cel-go v0.33.4 with its validator of regex literals finds the error of a constant pattern at compilation in
 // the receiver form only: the validator reads the first argument of the call, which is the pattern of
 // 'abc'.matches('(') and the subject of matches('abc', '('). So for the global form cel-go gives the error of
 // the pattern at evaluation, and an error at compilation for a subject that is no valid pattern

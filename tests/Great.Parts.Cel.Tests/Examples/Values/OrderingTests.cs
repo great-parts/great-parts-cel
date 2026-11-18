@@ -9,7 +9,7 @@ namespace Great.Parts.Cel.Tests.Examples.Values;
 // double as the integer rounded to double within the range of the integer kind; NaN unordered, so every
 // comparison with it is false; strings by code points, bytes by unsigned bytes with a prefix first, false
 // before true. Ordering across numeric kinds needs an operand of the static type dyn. Every row is the value
-// cel-go v0.32.0 gives.
+// cel-go v0.33.4 gives.
 public sealed class OrderingTests
 {
     private const string Cases = """

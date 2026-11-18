@@ -82,7 +82,7 @@ public sealed class ProtobufFieldRowTests
         x.single_bytes_wrapper => b'\x04'
         """;
 
-    // A NullValue field is an enumeration like any other: it reads as the int 0, as in cel-go v0.32.0, and has the type int;
+    // A NullValue field is an enumeration like any other: it reads as the int 0, as in cel-go v0.33.4, and has the type int;
     // it is never null (the type mapping page, the row of enumerations).
     private const string NullValueFields = """
         x.null_value => 0

@@ -7,7 +7,7 @@
 | Item | Value |
 | :- | :- |
 | Path | `eng/oracle/`, not part of the .NET solution |
-| `go.mod` | `module github.com/great-parts/great-parts-cel/eng/oracle`; `go 1.27.3`, the version of Go of the oracle ([Version of Go](#version-of-go)); requires `cel.dev/cel-go` v0.32.0, `cel.dev/expr` v0.25.1 and `google.golang.org/protobuf` v1.36.10 — the last two at the versions that cel-go v0.32.0 itself requires; `go.sum` is committed |
+| `go.mod` | `module github.com/great-parts/great-parts-cel/eng/oracle`; `go 1.27.4`, the version of Go of the oracle ([Version of Go](#version-of-go)); requires `cel.dev/cel-go` v0.33.4, `cel.dev/expr` v0.25.1 and `google.golang.org/protobuf` v1.36.10 — the last two at the versions that cel-go v0.33.4 itself requires; `go.sum` is committed |
 | Direct imports | `cel.dev/cel-go/cel`, `cel.dev/cel-go/common/env`, `cel.dev/cel-go/common/types`, `cel.dev/cel-go/ext`; `cel.dev/expr` and `cel.dev/expr/conformance/...` for `Value` and `SimpleTest`; `google.golang.org/protobuf/encoding/protojson` and `prototext`; the Go standard library |
 | Tests | none in Go: the oracle is checked by the steps of the launcher and by every run; the comparison is tested on the .NET side with fake sides, see [eng-difftest.md](eng-difftest.md#tests) |
 
@@ -36,7 +36,7 @@ cel.NewCustomEnv(
     cel.ASTValidators(cel.ValidateRegexLiterals()))
 ```
 
-`FromConfig` adds the standard library when the manifest has no `stdlib` key and knows `optional` by itself; any other extension set needs a factory, otherwise it is `unrecognized extension` (`cel/options.go` of v0.32.0). `ext.ExtensionOptionFactory` knows the sets of `ext/extension_option_factory.go`; `network` is not among them, so the oracle passes its own factory:
+`FromConfig` adds the standard library when the manifest has no `stdlib` key and knows `optional` by itself; any other extension set needs a factory, otherwise it is `unrecognized extension` (`cel/options.go` of v0.33.4, read on 2026-11-18). `ext.ExtensionOptionFactory` knows the sets of `ext/extension_option_factory.go`; `network` is not among them, so the oracle passes its own factory:
 
 ```text
 networkFactory(element) -> (option, handled):
@@ -48,7 +48,7 @@ networkFactory(element) -> (option, handled):
 
 A manifest that cel-go cannot read, or from which it builds no environment — an unknown extension set, an invalid declaration — is refused with exit code 2 as well, with the message of cel-go.
 
-**Flags.** The three options after `FromConfig` are the environment flags of the cel-go conformance runner: `stdOpts`, lines 82–98 of https://github.com/cel-expr/cel-go/blob/v0.32.0/conformance/conformance_test.go, read on 2026-10-28. The rest of `stdOpts` is content and comes from the manifest or stays out of the run. The regex validator is not a runner flag: the library rejects a constant pattern that fails to compile at compile time, and the validator gives cel-go the same class of outcome. A change of the cel-go version compares this list with `stdOpts` of the new version.
+**Flags.** The three options after `FromConfig` are the environment flags of the cel-go conformance runner: `stdOpts`, lines 82–98 of https://github.com/cel-expr/cel-go/blob/v0.33.4/conformance/conformance_test.go, read on 2026-11-18 (the lines of v0.32.0, read on 2026-10-28, are the same). The rest of `stdOpts` is content and comes from the manifest or stays out of the run. The regex validator is not a runner flag: the library rejects a constant pattern that fails to compile at compile time, and the validator gives cel-go the same class of outcome. A change of the cel-go version compares this list with `stdOpts` of the new version.
 
 ## Time zones
 
@@ -59,7 +59,7 @@ The oracle takes time zones only from `zoneinfo.zip` of the pinned Go: it refuse
 After the environment is built, `serve` writes one handshake line and then answers requests: one JSON object per line on standard input, one per line on standard output, UTF-8, in order. The end of standard input ends the process with exit code 0.
 
 ```text
-{"oracle":"cel.dev/cel-go v0.32.0","go":"go1.27.3"}
+{"oracle":"cel.dev/cel-go v0.33.4","go":"go1.27.4"}
 {"id":7,"op":"eval","expr":"x1 + 1","bindings":{"x1":{"int64Value":"41"}}}
 {"id":7,"outcome":"value","value":{"int64Value":"42"}}
 ```
@@ -100,7 +100,7 @@ The service `oracle` of `eng/compose.yaml` runs the image `golang` of Docker Hub
 
 | Item | Value |
 | :- | :- |
-| Image | `golang:1.27.3`; the tag equals the `go` line of `go.mod` |
+| Image | `golang:1.27.4`; the tag equals the `go` line of `go.mod` |
 | Entry point | `go run ./launch` in `/repo/eng/oracle`; the arguments of `docker compose run` follow it. When the launcher exits with a code other than 0, `go run` prints `exit status <code>` and exits with 1, so the exit code of the container only tells success from failure; the code of the launcher and of the oracle is in that line |
 | Mounts | the working copy at `/repo`; the named volumes `gomod` at `/go/pkg/mod` and `gobuild` at `/root/.cache/go-build`; an empty `tmpfs` over `/usr/share/zoneinfo`. The git mounts of `eng/compose.worktree.yaml` are not added: the oracle does not read git |
 | Variables | `GOTOOLCHAIN=local`, which the image sets too; `ZONEINFO=/repo/tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip`; `GOFLAGS=-mod=readonly -buildvcs=false` — no version stamp, so the build does not read git |

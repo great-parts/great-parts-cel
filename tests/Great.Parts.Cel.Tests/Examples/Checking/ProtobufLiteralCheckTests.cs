@@ -11,7 +11,7 @@ namespace Great.Parts.Cel.Tests.Examples.Checking;
 // Type checking of the literal of a protobuf message, M{f: v} (the type mapping page, the rule of the literal of the table
 // of protobuf messages): a name that the message has not is NoSuchField (2004), "undefined field '<name>' in type
 // '<type>'", and a value that is not assignable to its field TypeMismatch (2002), "expected type '<field type>' but found
-// '<type of the value>'"; both at the ":" of the field in the literal, the place that cel-go v0.32.0 gives too. The check
+// '<type of the value>'"; both at the ":" of the field in the literal, the place that cel-go v0.33.4 gives too. The check
 // goes on after an error, so every faulty field is an error, in the order of the text. The value of a field is assignable
 // by the rules of the language: an int is not a uint nor a double, null fits a field of a message type and a wrapper,
 // and dyn fits every field (its value is refused at the evaluation when it does not fit, the rows of

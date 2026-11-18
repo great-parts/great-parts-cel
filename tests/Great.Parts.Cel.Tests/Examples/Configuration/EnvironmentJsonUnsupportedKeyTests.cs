@@ -54,7 +54,8 @@ public sealed class EnvironmentJsonUnsupportedKeyTests
     public void ObjectFormOfARecord_IsAnErrorAtTheValue(string marked) =>
         JsonExample.AssertError(marked);
 
-    // The spelling of the keys is that of cel-go v0.32.0: camelCase is another key.
+    // The spelling of the keys is that of the YAML reader of cel-go v0.33.4, which the oracle uses: camelCase is another key
+    // (the JSON reader that v0.33 added reads camelCase).
     [Theory]
     [InlineData("""{|"contextVariable": {}}""")]
     [InlineData("""{"variables": [{"name": "x", "type": "int", |"typeName": "int"}]}""")]

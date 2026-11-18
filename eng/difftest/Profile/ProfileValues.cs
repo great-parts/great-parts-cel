@@ -295,6 +295,30 @@ internal static class ProfileValues
         }
     }
 
+    /// <summary>
+    /// A value whose maps, also those inside a list or a map, hold at most one entry, the first: the binding of a variable that the
+    /// argument of <c>json.encode</c> reads is such, since cel-go v0.33.4 writes the entries of a map in the order of a Go map,
+    /// which is random; a value without a map of two entries or more is returned as it is.
+    /// </summary>
+    /// <param name="value">The value.</param>
+    internal static Value WithSmallMaps(Value value)
+    {
+        switch (value.KindCase)
+        {
+            case Value.KindOneofCase.ListValue:
+                ListValue list = new();
+                list.Values.AddRange(value.ListValue.Values.Select(WithSmallMaps));
+                return new Value { ListValue = list };
+            case Value.KindOneofCase.MapValue:
+                MapValue map = new();
+                map.Entries.AddRange(value.MapValue.Entries.Take(1).Select(entry =>
+                    new MapValue.Types.Entry { Key = entry.Key, Value = WithSmallMaps(entry.Value) }));
+                return new Value { MapValue = map };
+            default:
+                return value;
+        }
+    }
+
     private static byte[] ValidUtf8(ReadOnlySpan<byte> bytes)
     {
         byte[] valid = bytes.ToArray();

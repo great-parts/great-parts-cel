@@ -23,7 +23,7 @@ public sealed class RegexLinearityTests
 
     private static readonly string[] Counted = ["a{0,1000}", "[a-z]{1000}", "\\pL{50}", "(?:a{10}){10}b", "(?i)(?:k|s){0,100}x"];
 
-    private static readonly Gen<string> TwoLetters = Gen.OneOfConst('a', 'b').Array[1, 5000].Select(letters => new string(letters));
+    private static readonly Gen<string> TwoLetters = Gen.OneOf('a', 'b').Array[1, 5000].Select(letters => new string(letters));
 
     [Fact]
     [Trait("Requirement", "R-3")]

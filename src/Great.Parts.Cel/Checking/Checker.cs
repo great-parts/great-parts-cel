@@ -1233,7 +1233,7 @@ internal sealed class Checker
     }
 
     // The variable, the type identifier or the enumeration constant that the name in the name buffer refers to, by the
-    // candidates of the container; for each candidate in this order, as cel-go v0.32.0 Env.LookupIdent does.
+    // candidates of the container; for each candidate in this order, as cel-go v0.33.4 Env.LookupIdent does.
     private bool TryResolveName(int length, bool asWritten, [NotNullWhen(true)] out Reference? reference, [NotNullWhen(true)] out CelType? type)
     {
         var candidates = new NameCandidates(_names, _declarations.Container, length, asWritten);

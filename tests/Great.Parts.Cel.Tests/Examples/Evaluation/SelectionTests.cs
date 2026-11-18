@@ -42,7 +42,7 @@ public sealed class SelectionTests
             .Evaluate(bindings, cancellationToken: CancellationToken.None).GetValueOrThrow());
     }
 
-    // cel-go v0.32.0 gives an error too, "no such key: missing".
+    // cel-go v0.33.4 gives an error too, "no such key: missing".
     [Theory]
     [Trait("Requirement", "F-4")]
     [InlineData("m.missing", 1)]
@@ -57,7 +57,7 @@ public sealed class SelectionTests
     }
 
     // has() on such a value is an error as well, not false (the language definition, "Field Selection");
-    // cel-go v0.32.0 with the option EnableErrorOnBadPresenceTest, which its conformance runner sets, gives
+    // cel-go v0.33.4 with the option EnableErrorOnBadPresenceTest, which its conformance runner sets, gives
     // an error for each of these expressions.
     [Theory]
     [Trait("Requirement", "F-1")]
