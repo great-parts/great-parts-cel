@@ -10,6 +10,8 @@ Expressions often come from users of an application and cannot be trusted. If an
 
 The library sets no cost limit by default: without a limit an evaluation is not bounded, so a long evaluation or one that uses a lot of memory is not a vulnerability by itself. An application that evaluates untrusted expressions sets a cost limit in the evaluation options. If an evaluation hangs or exhausts memory although the application set such a limit, report it here as a vulnerability. The limit is `CelEvalOptions.CostLimit`; see [Limits](docs/limits.md#type-checking-and-evaluation).
 
+The threat model, the trust boundaries and the measures against common weaknesses, with what remains the duty of the application, are on the page [Assurance case](docs/assurance-case.md).
+
 Please include:
 
 - the package version, or the commit for a build from the repository;
