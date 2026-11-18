@@ -2,7 +2,7 @@
   "stryker-config": {
     "project": "eng/checks/Great.Parts.Cel.Eng.Checks.csproj",
     "test-projects": [
-      "eng/tests/Great.Parts.Cel.Eng.Tests.csproj"
+      "../tests/Great.Parts.Cel.Eng.Tests.csproj"
     ],
     "target-framework": "net10.0",
     "test-runner": "mtp",

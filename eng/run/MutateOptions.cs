@@ -65,36 +65,54 @@ internal sealed record MutateOptions(string Configuration, string? Since)
     /// of another form counts as one that enables <c>since</c>: the run is not known to do without it.
     /// </summary>
     /// <param name="workingDirectory">The directory that the path of the configuration is relative to; the current directory when <see langword="null"/>.</param>
-    internal bool UsesSince(string? workingDirectory = null)
-    {
-        if (Since is not null)
-        {
-            return true;
-        }
+    internal bool UsesSince(string? workingDirectory = null) => Since is not null || Settings<bool>(workingDirectory, EnablesSince, true);
 
+    /// <summary>
+    /// The directory of the project under test, relative to the repository root: the directory of the key <c>project</c> of the
+    /// configuration file. Stryker.NET runs in it, because a directory with a solution file puts the tool in solution context, which
+    /// refuses the test projects and the project of the configuration. <see langword="null"/> when the file names no project or cannot be read.
+    /// </summary>
+    /// <param name="workingDirectory">The directory that the path of the configuration is relative to; the current directory when <see langword="null"/>.</param>
+    internal string? ProjectDirectory(string? workingDirectory = null) => Settings<string?>(workingDirectory, ProjectDirectoryOf, null);
+
+    // The settings of the configuration file read by `read`; `unreadable` when the file cannot be read or is not JSON.
+    private T Settings<T>(string? workingDirectory, Func<JsonElement, T> read, T unreadable)
+    {
         try
         {
             string text = File.ReadAllText(Path.Combine(workingDirectory ?? string.Empty, Configuration));
             using JsonDocument document = JsonDocument.Parse(text, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
             JsonElement root = document.RootElement;
-            JsonElement settings = root.ValueKind == JsonValueKind.Object && root.TryGetProperty(Section, out JsonElement section) ? section : root;
-            if (settings.ValueKind != JsonValueKind.Object)
-            {
-                return true;
-            }
-
-            if (!settings.TryGetProperty("since", out JsonElement since))
-            {
-                return false;
-            }
-
-            return since.ValueKind != JsonValueKind.Object || !since.TryGetProperty("enabled", out JsonElement enabled) || enabled.ValueKind != JsonValueKind.False;
+            return read(root.ValueKind == JsonValueKind.Object && root.TryGetProperty(Section, out JsonElement section) ? section : root);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
-            return true;
+            return unreadable;
         }
     }
+
+    private static bool EnablesSince(JsonElement settings)
+    {
+        if (settings.ValueKind != JsonValueKind.Object)
+        {
+            return true;
+        }
+
+        if (!settings.TryGetProperty("since", out JsonElement since))
+        {
+            return false;
+        }
+
+        return since.ValueKind != JsonValueKind.Object || !since.TryGetProperty("enabled", out JsonElement enabled) || enabled.ValueKind != JsonValueKind.False;
+    }
+
+    private static string? ProjectDirectoryOf(JsonElement settings) =>
+        settings.ValueKind == JsonValueKind.Object
+        && settings.TryGetProperty("project", out JsonElement project)
+        && project.ValueKind == JsonValueKind.String
+        && Path.GetDirectoryName(project.GetString()) is { Length: > 0 } directory
+            ? directory.Replace('\\', '/')
+            : null;
 
     /// <summary>
     /// The full SHA of the commit that was given, or <see langword="null"/> when none was. Stryker.NET takes a full SHA or a reference

@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using Great.Parts.Cel.Eng.Checks;
 using Great.Parts.Cel.Eng.Run;
 using Great.Parts.Cel.Eng.Tests.Support;
@@ -63,6 +65,69 @@ public sealed class MutateOptionsTests
 
         Assert.Equal(["stryker", "--config-file", "stryker-config.json", "--output", "artifacts/mutate"], steps[2].Arguments);
         Assert.DoesNotContain("--since", steps[3].Arguments);
+    }
+
+    // ---- the directory of the tool ----
+
+    [Theory]
+    [InlineData("{ \"stryker-config\": { \"project\": \"src/A/A.csproj\" } }", "src/A")]
+    [InlineData("{ \"project\": \"a/b/c/C.csproj\" }", "a/b/c")]
+    [InlineData("{ \"stryker-config\": { \"project\": \"A.csproj\" } }", null)]
+    [InlineData("{ \"stryker-config\": { \"project\": 1 } }", null)]
+    [InlineData("{ \"stryker-config\": { \"since\": { } } }", null)]
+    [InlineData("{ \"stryker-config\": [] }", null)]
+    [InlineData("not json", null)]
+    public static void ProjectDirectory_ConfigurationFile_IsTheDirectoryOfTheProject(string text, string? expected)
+    {
+        using TempDirectory root = new();
+        root.Write("c.json", text);
+
+        Assert.Equal(expected, new MutateOptions("c.json", null).ProjectDirectory(root.Path));
+        Assert.Null(new MutateOptions("missing.json", null).ProjectDirectory(root.Path));
+    }
+
+    [Fact]
+    public void MutateStages_TheToolRunsInTheProjectDirectoryWithPathsRelativeToIt()
+    {
+        string root = TestRoot.Find();
+
+        Step[] main = [.. Commands.MutateStages(new MutateOptions("stryker-config.json", null), null, root).SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
+        Step[] control = [.. Commands.MutateStages(new MutateOptions("eng/stryker-control.json", null), null, root).SelectMany(stage => stage.Lanes).SelectMany(lane => lane)];
+
+        Assert.Equal("src/Great.Parts.Cel", main[2].WorkingDirectory);
+        Assert.Equal(["stryker", "--config-file", "../../stryker-config.json", "--output", "../../artifacts/mutate"], main[2].Arguments);
+        Assert.Equal("eng/checks", control[2].WorkingDirectory);
+        Assert.Equal(["stryker", "--config-file", "../stryker-control.json", "--output", "../../artifacts/mutate"], control[2].Arguments);
+
+        // The check reads the report and the configuration from the repository root.
+        Assert.Null(main[3].WorkingDirectory);
+        Assert.Equal(["--report", "artifacts/mutate/reports/mutation-report.json", "--config", "eng/stryker-control.json"], control[3].Arguments.TakeLast(4));
+    }
+
+    // Stryker.NET 5.1.0 refuses test projects and a project when its working directory holds a solution file, and finds the test projects
+    // from that directory: the configurations of the repository name them relative to the directory of the project under test.
+    [Fact]
+    public void Configurations_TheTestProjectsAreRelativeToTheDirectoryOfTheToolAndItHoldsNoSolution()
+    {
+        string root = TestRoot.Find();
+        string[] configurations = ["stryker-config.json", "eng/stryker-control.json", .. Directory.EnumerateFiles(Path.Combine(root, "eng", "stryker-parts"), "*.json").Select(file => Path.GetRelativePath(root, file).Replace('\\', '/'))];
+
+        foreach (string configuration in configurations)
+        {
+            string? directory = new MutateOptions(configuration, null).ProjectDirectory(root);
+            Assert.True(directory is not null, configuration);
+            string full = Path.GetFullPath(directory, root);
+            Assert.Empty(Directory.EnumerateFiles(full, "*.sln*"));
+
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(root, configuration)));
+            JsonElement tests = document.RootElement.GetProperty("stryker-config").GetProperty("test-projects");
+            Assert.True(tests.GetArrayLength() > 0, configuration);
+            foreach (JsonElement test in tests.EnumerateArray())
+            {
+                string path = Path.GetFullPath(test.GetString()!, full);
+                Assert.True(File.Exists(path), $"{configuration}: {path}");
+            }
+        }
     }
 
     [Fact]

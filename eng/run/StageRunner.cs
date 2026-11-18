@@ -85,6 +85,6 @@ internal static class StageRunner
             return new ProcessResult(reason is null ? 0 : 1, reason, string.Empty);
         }
 
-        return Processes.Run(step.FileName, step.Arguments, sink: sink);
+        return Processes.Run(step.FileName, step.Arguments, step.WorkingDirectory, sink: sink);
     }
 }

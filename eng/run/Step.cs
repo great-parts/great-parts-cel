@@ -13,13 +13,16 @@ namespace Great.Parts.Cel.Eng.Run;
 /// <param name="Action">The C# of a step that runs in this process: it returns <see langword="null"/> on success, otherwise the reason.</param>
 /// <param name="IgnoresExitCode">Whether the step counts as run when the program ended with any exit code, because its result is a file that
 /// a later step reads: lychee. A program that did not start still fails the step.</param>
+/// <param name="WorkingDirectory">The directory of the program, relative to the current directory; the current directory when
+/// <see langword="null"/>.</param>
 internal sealed record Step(
     string FileName,
     IReadOnlyList<string> Arguments,
     bool StopsOnFailure = false,
     bool PassesExitCode = false,
     Func<string?>? Action = null,
-    bool IgnoresExitCode = false)
+    bool IgnoresExitCode = false,
+    string? WorkingDirectory = null)
 {
     /// <summary>The command line of the step as it is written in the header line and in the failure summary.</summary>
     internal string CommandLine => string.Join(' ', [FileName, .. Arguments]);

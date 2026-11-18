@@ -30,10 +30,13 @@ internal static class Commands
     private const string DocsReport = DocsOutput + "/lychee.json";
 
     /// <summary>The report of Stryker.NET that <c>mutate</c> reads, under the output directory of the run.</summary>
-    private const string MutateReport = "artifacts/mutate/reports/mutation-report.json";
+    private const string MutateReport = MutateOutput + "/reports/mutation-report.json";
+
+    /// <summary>The output directory of Stryker.NET in <c>mutate</c>.</summary>
+    private const string MutateOutput = "artifacts/mutate";
 
     /// <summary>The directories of <c>mutate</c> under <c>artifacts/</c>, deleted before a run so every report comes from it.</summary>
-    private static readonly string[] MutateWritten = ["artifacts/mutate"];
+    private static readonly string[] MutateWritten = [MutateOutput];
 
     /// <summary>
     /// The directories of <c>test</c> under <c>artifacts/</c>, deleted before a run so every package, report and executable comes from the
@@ -205,15 +208,29 @@ internal static class Commands
     /// <summary>The stages of <c>mutate</c> for the options and the full SHA of the commit that the changes are counted from.</summary>
     /// <param name="options">The configuration file and the commit as they were given.</param>
     /// <param name="since">The full SHA of the commit of <c>--since</c>, or <see langword="null"/> when none was given.</param>
-    internal static List<Stage> MutateStages(MutateOptions options, string? since)
+    /// <param name="workingDirectory">The directory that the path of the configuration is relative to; the current directory when <see langword="null"/>.</param>
+    internal static List<Stage> MutateStages(MutateOptions options, string? since, string? workingDirectory = null)
     {
         string[] sinceOfTool = since is null ? [] : [$"{MutateOptions.SinceOption}:{since}"];
         string[] sinceOfCheck = since is null ? [] : [MutateOptions.SinceOption, since];
+
+        // Stryker.NET 5.1.0 runs in solution context when its working directory holds a solution file, and then refuses the test
+        // projects and the project of the configuration. The tool therefore runs in the directory of the project under test, which holds
+        // none, and its paths are relative to that directory (docs/design/eng-mutate.md, "Tool and settings").
+        string? projectDirectory = options.ProjectDirectory(workingDirectory);
+        string[] toolPaths = [options.Configuration, MutateOutput];
+        if (projectDirectory is not null)
+        {
+            string repository = Path.GetFullPath(workingDirectory ?? ".");
+            string from = Path.GetFullPath(projectDirectory, repository);
+            toolPaths = [.. toolPaths.Select(path => Path.GetRelativePath(from, Path.GetFullPath(path, repository)).Replace('\\', '/'))];
+        }
+
         return
         [
             Stage.Of(new("dotnet", ["tool", "restore"], StopsOnFailure: true)),
             Stage.Of(new("dotnet", ["build", "eng/checks", "-c", "Release"], StopsOnFailure: true)),
-            Stage.Of(new("dotnet", ["stryker", "--config-file", options.Configuration, "--output", "artifacts/mutate", .. sinceOfTool])),
+            Stage.Of(new("dotnet", ["stryker", "--config-file", toolPaths[0], "--output", toolPaths[1], .. sinceOfTool], WorkingDirectory: projectDirectory)),
             Stage.Of(new("dotnet", ["run", "--project", "eng/checks", "-c", "Release", "--no-build", "--", "mutation", "--report", MutateReport, "--config", options.Configuration, .. sinceOfCheck])),
         ];
     }

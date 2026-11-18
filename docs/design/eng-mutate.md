@@ -4,13 +4,13 @@
 
 ## Tool and settings
 
-- Stryker.NET 5.0.0, the package `dotnet-stryker`, is a local tool in `.config/dotnet-tools.json`; `dotnet tool restore` installs it. It runs on the .NET 10 runtime of the image.
+- Stryker.NET 5.1.0, the package `dotnet-stryker`, is a local tool in `.config/dotnet-tools.json`; `dotnet tool restore` installs it. It runs on the .NET 10 runtime of the image. Observations below that name version 5.0.0 were made before the update and are checked again by the first run of the parts on 5.1.0.
 - The settings are in `stryker-config.json` in the repository root:
 
 | Setting | Value | Why |
 | :- | :- | :- |
 | project | `src/Great.Parts.Cel/Great.Parts.Cel.csproj` | the code under test |
-| test projects | `tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj`, `tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj`, `tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj` | the tests of the library and the suite runner; project files, not directories, see [Test projects and since](#test-projects-and-since) |
+| test projects | `../../tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj`, `../../tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj`, `../../tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj` | the tests of the library and the suite runner; project files, not directories, see [Test projects and since](#test-projects-and-since); relative to the directory of the project under test, see below |
 | mutate | not set | every file of the project; a narrow pattern is not always visible, see [mutation](#mutation) |
 | target framework | `net11.0` | its code is a superset: the `decimal` code compiles only for `net11.0` |
 | test runner | `mtp` | the test platform of the repository |
@@ -20,7 +20,7 @@
 | since | enabled, target `main` | only the files changed against the target are mutated; the command can give another commit as the target ([Steps](#steps)) |
 | thresholds | `high` 80, `low` 80, `break` 80 | a score below 80 % makes the exit code of the tool non-zero |
 
-The paths of `project` and `test projects`, of `--config-file` and of `--output` are taken from the working directory, the repository root in the container; the patterns of `mutate` are taken from the directory of the project under test.
+Stryker.NET runs in the directory of the project under test (`src/Great.Parts.Cel/` for the library, `eng/checks/` for the control set), not in the repository root. Since 5.1.0 the tool stops with `Test projects cannot be specified when running Stryker in solution context.` when its working directory holds a solution file and the configuration names `test-projects` or `project`; the repository root holds `Great.Parts.Cel.slnx`, so a run from there is a run in solution context. (The version 5.0.0 ignored the two keys in that context and took every project of the solution, which was not the run that the configuration describes.) The directories of the projects hold no solution file, so the tool runs in project context, with the test projects named in the configuration. `eng/run` takes the directory from the key `project` of the configuration file (`MutateOptions.ProjectDirectory`) and gives the tool the paths of `--config-file` and `--output` relative to it, as `../../stryker-config.json` and `../../artifacts/mutate`; the step is the same for every configuration. So the paths of `test projects` are relative to the directory of the project under test, and `project` stays relative to the repository root: the tool takes it as a part of the path of the project file, and `eng/checks mutation` reads it as a path from the root. The patterns of `mutate` are taken from the directory of the project under test, as before. A test of `eng/tests` keeps the rule: for every configuration of the repository, the directory of its project holds no solution file and every test project exists relative to it.
 
 The verdict of a property test is deterministic ([tests.md](tests.md#property-tests-and-the-seed)), so two runs on the same code give the same score.
 
@@ -36,7 +36,7 @@ The command takes at most one configuration file and at most one `--since <commi
 
 1. `dotnet tool restore`.
 2. `dotnet build eng/checks -c Release`: `eng/checks` is built once here and run without a build in step 4. A failed build stops the command.
-3. `dotnet stryker --config-file <configuration> --output artifacts/mutate`, with `--since:<SHA>` when the command got `--since`. The configuration is `stryker-config.json` unless the command gets another path as its argument.
+3. `dotnet stryker --config-file <configuration> --output artifacts/mutate`, with `--since:<SHA>` when the command got `--since`, run in the directory of the project under test with the two paths relative to it ([Tool and settings](#tool-and-settings)). The configuration is `stryker-config.json` unless the command gets another path as its argument.
 4. `eng/checks mutation --report artifacts/mutate/reports/mutation-report.json --config <configuration>`, with `--since <SHA>` when the command got `--since`, as `dotnet run --project eng/checks -c Release --no-build`.
 
 Before step 1 the command checks its arguments and then `/repo/.git`: when it is a file, the working copy is a linked worktree, and a run with `since` prints `mutate: failed: linked worktree: a run with since needs the main worktree` and returns 1 without running a step ([Linked worktrees](#linked-worktrees)). The value of `--since` is resolved after that check.
@@ -58,7 +58,7 @@ Step 4 runs even when step 3 returns a non-zero exit code, so the surviving muta
 | Setting | Value | Why |
 | :- | :- | :- |
 | project | `eng/checks/Great.Parts.Cel.Eng.Checks.csproj` | the code of the set |
-| test projects | `eng/tests/Great.Parts.Cel.Eng.Tests.csproj` | its tests |
+| test projects | `../tests/Great.Parts.Cel.Eng.Tests.csproj` | its tests; relative to `eng/checks`, the directory in which the tool runs ([Tool and settings](#tool-and-settings)) |
 | target framework | `net10.0` | `eng/checks` and `eng/tests` build only for `net10.0` |
 | mutate | a fixed list of whole files of `eng/checks`, relative to `eng/checks` | a run of minutes; whole files, because a span is a range of character indices and moves with any edit above it |
 | since | disabled | the set does not depend on the change |
@@ -152,7 +152,7 @@ So `since` mutates exactly the changed C# files of the project under test, and `
 
 ## Memory rows under the tool
 
-Stryker.NET builds the solution in the configuration `Debug` (`Using solution configuration/platform 'Debug|Any CPU'` in its output) and compiles the project under test again with the code it injects into every branch; the tests of the first run, the initial test run, execute that build. The rows of memory ([tests.md](tests.md#cost-and-memory-of-the-extension-sets)) are calibrated on the optimized build, so a row with a small margin can allocate more than B per unit there.
+Stryker.NET 5.0.0, in solution context, built the solution in the configuration `Debug` (`Using solution configuration/platform 'Debug|Any CPU'` in its output) and compiles the project under test again with the code it injects into every branch; the tests of the first run, the initial test run, execute that build. The rows of memory ([tests.md](tests.md#cost-and-memory-of-the-extension-sets)) are calibrated on the optimized build, so a row with a small margin can allocate more than B per unit there.
 
 With the test runner `mtp` one failed test of the initial run stops the run, whatever the number of tests: the tool divides the number of failed tests by the number of tests it counts as executed, which is 0 when the run executed every test, and ends with `Initial testrun has more than 50% failing tests.` and the names of the failed tests, before a single mutant. The run on `main` of 2026-11-16 (the run on the whole library, 12 027 tests) named one test, `ProtobufCostTests.Row_AllocatesWithinCost` of the row `protobuf, map field, traversal`, which is calibrated at 62.7 bytes per unit of B = 64; `eng/checks mutation` then gave `ENG504` for every changed file, as there was no report.
 
