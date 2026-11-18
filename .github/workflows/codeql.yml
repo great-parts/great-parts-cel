@@ -1,0 +1,65 @@
+# CodeQL (https://github.com/github/codeql-action) for C#: static analysis of the source on every push to main, on every pull request to
+# main and once a week; the findings go to code scanning. It replaces the default setup of CodeQL of the repository, so that the
+# analysis is a workflow of the repository that OpenSSF Scorecard (scorecard.yml, the check SAST) sees on each commit. Nothing blocks on
+# it: the findings are an observation. The build is the one of ci.yml (the SDK of global.json, locked restore, the solution in Release),
+# traced by CodeQL in the manual build mode. The workflows set no timeout-minutes: the protection is the default limit of GitHub, 6 hours.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 04:17 UTC on Tuesdays, a day after scorecard.yml.
+    - cron: "17 4 * * 2"
+  workflow_dispatch:
+
+# Read only for the workflow; the job below takes what the action needs.
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  analyze:
+    name: CodeQL C#
+    runs-on: ubuntu-latest
+    permissions:
+      # The SARIF file goes to code scanning.
+      security-events: write
+      # The check out of the source.
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The SDK is installed before the initialization, so that CodeQL traces the dotnet of the build below. The runners have no SDK 11:
+      # the SDK of global.json and the SDK 10.0.x, as in ci.yml.
+      - name: Set up .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: csharp
+          build-mode: manual
+
+      - name: Restore (locked)
+        run: dotnet restore Great.Parts.Cel.slnx --locked-mode
+
+      # The compiler runs in the traced process, not in a shared build server, or CodeQL would not see the compilation.
+      - name: Build
+        run: dotnet build Great.Parts.Cel.slnx -c Release --no-restore -p:UseSharedCompilation=false
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: "/language:csharp"

@@ -186,6 +186,22 @@ The cells run the commands of the steps of `eng/run` directly, without container
 
 No job sets `timeout-minutes`: a job that hangs is stopped by the default limit of GitHub Actions, 6 hours. `eng/run` has no limits of steps either ([Time limits](#time-limits)).
 
+### CodeQL
+
+`.github/workflows/codeql.yml` is the static analysis of the C# source with CodeQL. It is a workflow of its own, not a job of `ci`: it runs on every push to `main`, on every pull request to `main`, once a week (Tuesday, 04:17 UTC) and by hand. The default setup of CodeQL of the repository is switched off, so that one analysis runs per commit and the OpenSSF Scorecard check SAST (`scorecard.yml`) finds the tool in the workflows of the repository.
+
+| Step | Does |
+| :- | :- |
+| `Check out` | the source of the commit, without the credentials left in the clone |
+| `Set up .NET` | the SDK of `global.json` and the SDK 10.0.x, as in `ci.yml`; it is before the initialization, so that CodeQL traces the `dotnet` of the build |
+| `Initialize CodeQL` | `languages: csharp`, `build-mode: manual`, the standard queries of the action |
+| `Restore (locked)`, `Build` | `dotnet restore Great.Parts.Cel.slnx --locked-mode`, then `dotnet build Great.Parts.Cel.slnx -c Release --no-restore -p:UseSharedCompilation=false`: the commands of the JIT cells of `ci`; the shared compiler is off, so that the compilation runs in the process that CodeQL traces |
+| `Analyze` | the queries and the upload of the SARIF to code scanning, `category: "/language:csharp"` |
+
+The workflow has the permission `contents: read`; the job adds `security-events: write` for the upload and nothing else. The actions are pinned by SHA with the version in a comment, as in `ci.yml`; `github/codeql-action` has the same version as `upload-sarif` of `scorecard.yml`, and Dependabot proposes the updates. The workflow sets no `timeout-minutes` and nothing blocks on it: the findings are an observation, as the score of Scorecard is. The Go oracle of `eng/oracle` and the workflow files are not analyzed: the language is C# only.
+
+After a push to `main` the run `codeql` is green and the alerts are in the Security tab, Code scanning, with the tool `CodeQL`; the next run of `scorecard` shows the check SAST above 0.
+
 ## Output and exit code
 
 - The exit code of `docker compose run` is the exit code of the command: 0 or 1, and also 2 for `difftest`.
