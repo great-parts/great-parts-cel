@@ -127,6 +127,7 @@ Vladislav Nekrasov ([va-nekrasov](https://github.com/va-nekrasov)).
 ## Contributing and policies
 
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to build, test and propose a change.
+- [GOVERNANCE.md](GOVERNANCE.md): how decisions are made, and who holds which role.
 - [SECURITY.md](SECURITY.md): how to report a vulnerability, how a fix is announced, and which versions get fixes.
 - [SUPPORT.md](SUPPORT.md): where to ask questions and report bugs.
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md): the code of conduct of the project.

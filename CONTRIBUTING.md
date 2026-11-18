@@ -7,6 +7,7 @@ Contributions to Great.Parts.Cel are welcome.
 - A vulnerability goes through [SECURITY.md](SECURITY.md), not through an issue or a pull request.
 - Questions and bug reports: see [SUPPORT.md](SUPPORT.md).
 - Everyone who takes part follows the [code of conduct](CODE_OF_CONDUCT.md).
+- How decisions are made and who holds which role: [GOVERNANCE.md](GOVERNANCE.md).
 
 ## Build and test
 
@@ -40,6 +41,10 @@ The design of the library and of the checks is in [docs/design](docs/design/); t
 4. A change that users of the package can see gets a line under `Unreleased` in [CHANGELOG.md](CHANGELOG.md). A change of the result or of the error of an expression that was valid before goes under `Behavior changes`. A fix of a vulnerability goes under `Security` with the GHSA identifier of its advisory and the CVE identifier when one is assigned; it is not proposed in a public pull request, see [SECURITY.md](SECURITY.md#where-a-fixed-vulnerability-is-announced).
 5. Sign off every commit (below) and open a pull request against `main`. You can run `eng/test` and, if the change needs it, `eng/docs` on your machine first, but you do not have to.
 6. CI runs on the pull request: the full check of the change. The maintainer reviews it and merges it as described below.
+
+## Code style
+
+The code style of the project is set in [`.editorconfig`](.editorconfig) together with the build settings in [`Directory.Build.props`](Directory.Build.props): the .NET analyzers run with `AnalysisMode` set to `All`, the code style is enforced in the build (`EnforceCodeStyleInBuild`), nullable reference types are on, and `TreatWarningsAsErrors` makes every warning an error. Every contribution follows this style. A violation fails the build, and so fails CI; you do not need to check the style by hand, and the build tells you the rule and the place. Do not turn a rule off or suppress a warning to make a change pass; if a rule is wrong for a place, say why in the pull request and give the reason next to the suppression. The same build runs in [`eng/test`](docs/design/eng-test.md) on your machine and in [CI](#ci).
 
 ## CI
 
