@@ -1,0 +1,105 @@
+# The coverage of the statements of src/ by the tests (docs/design/eng-coverage.md): Coverlet runs the test projects under JIT, one after
+# another, and merges the results; the report is the artifact coverage and the summary of the run. The workflow measures, it is not a gate:
+# the criterion of 80 % is read from the summary, and a run that fails because of a test (an instrumented run is slower and has deeper
+# stacks) is not a failure of ci.yml, so the gate ENG908 of a release does not wait for it.
+# The runs are the same as in the JIT cells of ci.yml: dotnet <module>.dll. Coverlet instruments the assemblies of src/ in the directory
+# of the module and starts the test runner as its target. The workflow has no secrets and reads the repository only; it sets no
+# timeout-minutes: the protection against a hung job is the default limit of GitHub Actions, 6 hours.
+name: coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer run of the same pull request replaces the older one; a run on main is never cancelled.
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+
+jobs:
+  coverage:
+    name: Coverage (Coverlet)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      - name: Restore (locked)
+        run: dotnet restore Great.Parts.Cel.slnx --locked-mode
+
+      # Coverlet is a local tool of the repository (.config/dotnet-tools.json), like Stryker.NET.
+      - name: Restore the tools
+        run: dotnet tool restore
+
+      # ContinuousIntegrationBuild is false here: the deterministic build writes /_/ into the debug information instead of the path of
+      # each source file, and Coverlet would take the assemblies for assemblies without sources. Nothing built here is released.
+      - name: Build
+        run: dotnet build Great.Parts.Cel.slnx -c Release --no-restore -p:ContinuousIntegrationBuild=false
+
+      # Four test modules; the order does not matter. The library and the protobuf package are measured in the modules of net11.0, the
+      # superset of net10.0 (the decimal code compiles for net11.0 only); the generator is a library of netstandard2.0 that
+      # Generator.Tests, a module of net10.0, runs in process, and that module has another build of the library, which stays out of the
+      # result. Each run merges its result into artifacts/coverage/coverage.json and writes the Cobertura report of the merged result.
+      - name: Tests with coverage
+        run: |
+          set -u
+          status=0
+          mkdir -p artifacts/coverage
+
+          measure() {
+            name=$1
+            target=$2
+            shift 2
+            directory="tests/$name/bin/Release/$target"
+            merge=()
+            if [ -f artifacts/coverage/coverage.json ]; then
+              merge=(--merge-with artifacts/coverage/coverage.json)
+            fi
+            echo "== $name $target"
+            dotnet tool run coverlet "$directory" \
+              --target dotnet --targetargs "$directory/$name.dll -noColor" \
+              "$@" --exclude-by-file "**/obj/**" "${merge[@]}" \
+              --format json --format cobertura --output artifacts/coverage/ || status=1
+          }
+
+          measure Great.Parts.Cel.Tests net11.0 --include "[Great.Parts.Cel]*" --include "[Great.Parts.Cel.Protobuf]*"
+          measure Great.Parts.Cel.Conformance net11.0 --include "[Great.Parts.Cel]*" --include "[Great.Parts.Cel.Protobuf]*"
+          measure Great.Parts.Cel.Properties net11.0 --include "[Great.Parts.Cel]*" --include "[Great.Parts.Cel.Protobuf]*"
+          measure Great.Parts.Cel.Generator.Tests net10.0 --include "[Great.Parts.Cel.Generator]*"
+          exit $status
+
+      # The report is made after a failed run too, from whatever the runs merged.
+      - name: Report
+        if: ${{ !cancelled() }}
+        run: |
+          status=0
+          mkdir -p artifacts/coverage
+          node .github/scripts/coverage-report.mjs --input artifacts/coverage/coverage.cobertura.xml --output artifacts/coverage || status=$?
+          # The step summary of GitHub is limited to 1 MiB.
+          head -c 900000 artifacts/coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
+          exit $status
+
+      - name: Coverage (artifact)
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: artifacts/coverage
+          if-no-files-found: warn
