@@ -25,13 +25,22 @@
     <Copyright>Copyright 2026 The Great.Parts Authors</Copyright>
     <!-- Version of a local build; release.yml passes the version of the tag with -p:Version. Both packages have one version. -->
     <Version>0.0.0-dev</Version>
-    <!-- Package metadata shared by both packages; Title and Description are set in each project (docs/design/eng-release.md, "Package metadata"). -->
+    <!-- Package metadata shared by all packages; Title and Description are set in each project (docs/design/eng-release.md, "Package metadata"). -->
     <Authors>The Great.Parts Authors</Authors>
+    <!-- The same name goes to the attributes of the assemblies (company and product), so a file of a package shows who made what. -->
+    <Company>The Great.Parts Authors</Company>
+    <Product>Great.Parts.Cel</Product>
+    <!-- The language of the texts of the packages and of the neutral resources of the assemblies. -->
+    <NeutralLanguage>en</NeutralLanguage>
+    <!-- The license is accepted by using the package: the client shows no prompt (the default, written down on purpose). -->
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageProjectUrl>https://github.com/great-parts/great-parts-cel</PackageProjectUrl>
     <RepositoryUrl>https://github.com/great-parts/great-parts-cel</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <!-- The repository URL goes to the package metadata and to the source link of the symbols. -->
     <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <!-- Source Link: the source files that git does not track, such as generated ones, go into the portable PDBs of the symbol package. -->
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
     <PackageTags>cel;common-expression-language;expression;expressions;expression-evaluator;rules;rules-engine;cel-spec;csharp;validation;dotnet;nativeaot;source-generator</PackageTags>
     <!-- The README of a package is the file README.md in its root; each package project adds the file eng/packages/<package id>.README.md under this name. -->
     <PackageReadmeFile>README.md</PackageReadmeFile>

@@ -55,10 +55,14 @@
     <InternalsVisibleTo Include="Great.Parts.Cel.Conformance" />
   </ItemGroup>
 
-  <!-- The notice file and the README of the package (PackageReadmeFile) are in the root of the package. -->
+  <!--
+    The notice file, the README of the package (PackageReadmeFile) and the instructions for AI coding agents (AGENTS.md, which
+    the NuGet MCP server returns for the package) are in the root of the package.
+  -->
   <ItemGroup>
     <None Include="../../NOTICE" Pack="true" PackagePath="" Visible="false" />
     <None Include="../../eng/packages/Great.Parts.Cel.README.md" Pack="true" PackagePath="README.md" Visible="false" />
+    <None Include="../../eng/packages/Great.Parts.Cel.AGENTS.md" Pack="true" PackagePath="AGENTS.md" Visible="false" />
   </ItemGroup>
 
   <!--

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="t d">
+<title id="t">Great.Parts.Cel.DependencyInjection: CEL in the service container</title>
+<desc id="d">One call to AddCel registers a CEL environment, a compilation cache and an evaluator as singletons, and ValidateCel checks options with an expression.</desc>
+<rect width="1200" height="300" rx="22" fill="#1e1b4b"/>
+<rect x="40" y="60" width="238" height="150" rx="14" fill="#2f2b6b" stroke="none" stroke-width="3"/>
+<text x="159" y="102" font-family="'DejaVu Sans Mono', monospace" font-size="22" font-weight="bold" fill="#ffffff" text-anchor="middle">AddCel</text>
+<text x="159" y="138" font-family="'DejaVu Sans', sans-serif" font-size="15.507246376811596" font-weight="normal" fill="#c7c4e8" text-anchor="middle">services.AddCel(b =&gt; …)</text>
+<text x="159" y="164" font-family="'DejaVu Sans', sans-serif" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">or AddKeyedCel</text>
+<line x1="286" y1="135" x2="316" y2="135" stroke="#f06449" stroke-width="4"/>
+<polygon points="326,135 312,126 312,144" fill="#f06449"/>
+<rect x="334" y="60" width="238" height="150" rx="14" fill="#2f2b6b" stroke="none" stroke-width="3"/>
+<text x="453" y="102" font-family="'DejaVu Sans Mono', monospace" font-size="22" font-weight="bold" fill="#ffffff" text-anchor="middle">CelEnvironment</text>
+<text x="453" y="138" font-family="'DejaVu Sans', sans-serif" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">built once, with the</text>
+<text x="453" y="164" font-family="'DejaVu Sans', sans-serif" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">standard library</text>
+<line x1="580" y1="135" x2="610" y2="135" stroke="#f06449" stroke-width="4"/>
+<polygon points="620,135 606,126 606,144" fill="#f06449"/>
+<rect x="628" y="60" width="238" height="150" rx="14" fill="#2f2b6b" stroke="none" stroke-width="3"/>
+<text x="747" y="102" font-family="'DejaVu Sans Mono', monospace" font-size="18.166383701188455" font-weight="bold" fill="#ffffff" text-anchor="middle">CelCompilationCache</text>
+<text x="747" y="138" font-family="'DejaVu Sans', sans-serif" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">compiled programs,</text>
+<text x="747" y="164" font-family="'DejaVu Sans', sans-serif" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">bounded size</text>
+<line x1="874" y1="135" x2="904" y2="135" stroke="#f06449" stroke-width="4"/>
+<polygon points="914,135 900,126 900,144" fill="#f06449"/>
+<rect x="922" y="60" width="238" height="150" rx="14" fill="#2f2b6b" stroke="#f06449" stroke-width="3"/>
+<text x="1041" y="102" font-family="'DejaVu Sans Mono', monospace" font-size="22" font-weight="bold" fill="#ffffff" text-anchor="middle">ICelEvaluator</text>
+<text x="1041" y="138" font-family="'DejaVu Sans', sans-serif" font-size="16.984126984126984" font-weight="normal" fill="#c7c4e8" text-anchor="middle">inject it, replace it</text>
+<text x="1041" y="164" font-family="'DejaVu Sans', sans-serif" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">in tests</text>
+<text x="600" y="270" font-family="'DejaVu Sans', sans-serif" font-size="18" font-weight="normal" fill="#c7c4e8" text-anchor="middle">ValidateCel checks the options of the application with a CEL expression at startup.</text>
+</svg>

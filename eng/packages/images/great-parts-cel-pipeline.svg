@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="t d">
+<title id="t">Great.Parts.Cel: from an expression to a result</title>
+<desc id="d">An expression such as (x + 2) / 3 is parsed, checked against the declared types and evaluated on data, which gives the result 14.</desc>
+<rect width="1200" height="300" rx="22" fill="#1e1b4b"/>
+<rect x="40" y="60" width="179.2" height="150" rx="14" fill="#2f2b6b" stroke="none" stroke-width="3"/>
+<text x="129.6" y="102" font-family="'DejaVu Sans', sans-serif" font-size="21.555555555555557" font-weight="bold" fill="#ffffff" text-anchor="middle">Expression</text>
+<text x="129.6" y="138" font-family="'DejaVu Sans Mono', monospace" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">(x + 2) / 3</text>
+<line x1="227.2" y1="135" x2="257.2" y2="135" stroke="#f06449" stroke-width="4"/>
+<polygon points="267.2,135 253.2,126 253.2,144" fill="#f06449"/>
+<rect x="275.2" y="60" width="179.2" height="150" rx="14" fill="#2f2b6b" stroke="none" stroke-width="3"/>
+<text x="364.79999999999995" y="102" font-family="'DejaVu Sans', sans-serif" font-size="22" font-weight="bold" fill="#ffffff" text-anchor="middle">Parse</text>
+<text x="364.79999999999995" y="138" font-family="'DejaVu Sans', sans-serif" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">syntax errors,</text>
+<text x="364.79999999999995" y="164" font-family="'DejaVu Sans', sans-serif" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">with the place</text>
+<line x1="462.4" y1="135" x2="492.4" y2="135" stroke="#f06449" stroke-width="4"/>
+<polygon points="502.4,135 488.4,126 488.4,144" fill="#f06449"/>
+<rect x="510.4" y="60" width="179.2" height="150" rx="14" fill="#2f2b6b" stroke="none" stroke-width="3"/>
+<text x="600" y="102" font-family="'DejaVu Sans', sans-serif" font-size="19.595959595959595" font-weight="bold" fill="#ffffff" text-anchor="middle">Check types</text>
+<text x="600" y="138" font-family="'DejaVu Sans', sans-serif" font-size="14.37037037037037" font-weight="normal" fill="#c7c4e8" text-anchor="middle">type errors, found</text>
+<text x="600" y="164" font-family="'DejaVu Sans', sans-serif" font-size="15.215686274509803" font-weight="normal" fill="#c7c4e8" text-anchor="middle">before evaluation</text>
+<line x1="697.5999999999999" y1="135" x2="727.5999999999999" y2="135" stroke="#f06449" stroke-width="4"/>
+<polygon points="737.5999999999999,135 723.5999999999999,126 723.5999999999999,144" fill="#f06449"/>
+<rect x="745.5999999999999" y="60" width="179.2" height="150" rx="14" fill="#2f2b6b" stroke="none" stroke-width="3"/>
+<text x="835.1999999999999" y="102" font-family="'DejaVu Sans', sans-serif" font-size="22" font-weight="bold" fill="#ffffff" text-anchor="middle">Evaluate</text>
+<text x="835.1999999999999" y="138" font-family="'DejaVu Sans', sans-serif" font-size="13.614035087719296" font-weight="normal" fill="#c7c4e8" text-anchor="middle">x = 40, with a cost</text>
+<text x="835.1999999999999" y="164" font-family="'DejaVu Sans', sans-serif" font-size="15.215686274509803" font-weight="normal" fill="#c7c4e8" text-anchor="middle">limit and a token</text>
+<line x1="932.8" y1="135" x2="962.8" y2="135" stroke="#f06449" stroke-width="4"/>
+<polygon points="972.8,135 958.8,126 958.8,144" fill="#f06449"/>
+<rect x="980.8" y="60" width="179.2" height="150" rx="14" fill="#2f2b6b" stroke="#f06449" stroke-width="3"/>
+<text x="1070.3999999999999" y="102" font-family="'DejaVu Sans', sans-serif" font-size="22" font-weight="bold" fill="#ffffff" text-anchor="middle">Result</text>
+<text x="1070.3999999999999" y="138" font-family="'DejaVu Sans Mono', monospace" font-size="17" font-weight="normal" fill="#c7c4e8" text-anchor="middle">14</text>
+<text x="600" y="270" font-family="'DejaVu Sans', sans-serif" font-size="18" font-weight="normal" fill="#c7c4e8" text-anchor="middle">Compile once, evaluate many times. Errors are results, not exceptions. Works under Native AOT.</text>
+</svg>
