@@ -15,7 +15,7 @@ public sealed class SyntheticSuiteTests
 {
     private const string SuitePath = "tests/Great.Parts.Cel.Conformance/Synthetic/synthetic.textproto";
     private const string ListPath = "tests/Great.Parts.Cel.Conformance/Synthetic/skips.md";
-    private const string Commit = "8bef98f1caadc2036fe63d5516cf1df65dc4b741";
+    private const string Commit = "3dd8162270505540492e4198a35717c173e1506a";
     private const string Failing = "| synthetic/failing/wrong_expectation | * * * | Expects 1 + 1 to be 3. | | |";
 
     private const string ListHead = """
@@ -131,7 +131,7 @@ public sealed class SyntheticSuiteTests
         SuiteResult result = Run(new RunCell("native-aot", "linux-x64", "net10.0"), Failing);
 
         Assert.Equal((2, 3), (result.Passed, result.Total));
-        Assert.Equal("cel-spec 8bef98f: 2/3 passed, 2027-01-05 (native-aot, linux-x64, net10.0)", result.Summary("cel-spec 8bef98f", new DateOnly(2027, 1, 5)));
+        Assert.Equal("cel-spec 3dd8162: 2/3 passed, 2027-01-05 (native-aot, linux-x64, net10.0)", result.Summary("cel-spec 3dd8162", new DateOnly(2027, 1, 5)));
     }
 
     private static SuiteResult Run(RunCell cell, params string[] entries)

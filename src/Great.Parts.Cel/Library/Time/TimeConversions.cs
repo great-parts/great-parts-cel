@@ -48,9 +48,19 @@ internal static class TimeConversions
     internal static CelValue TimestampToInt64(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
         arguments[0].TryGetTimestamp(out CelTimestamp value) ? CelValue.FromInt64(value.Seconds) : site.NoMatchingOverload(arguments);
 
-    // duration_to_int64, (duration) -> int: the nanoseconds.
-    internal static CelValue DurationToInt64(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
-        arguments[0].TryGetDuration(out CelDuration value) ? CelValue.FromInt64(value.TotalNanoseconds) : site.NoMatchingOverload(arguments);
+    // duration_to_int64, (duration) -> int: the nanoseconds; a duration longer than about 292 years has more nanoseconds than an int
+    // holds, and is ConversionRange with the text of the duration.
+    internal static CelValue DurationToInt64(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        if (!arguments[0].TryGetDuration(out CelDuration value))
+        {
+            return site.NoMatchingOverload(arguments);
+        }
+
+        return value.TryGetTotalNanoseconds(out long nanoseconds)
+            ? CelValue.FromInt64(nanoseconds)
+            : OutOfRange(in site, CelValue.FromString(value.ToString()), "int");
+    }
 
     // string_to_timestamp, (string) -> timestamp: RFC 3339.
     internal static CelValue StringToTimestamp(ReadOnlySpan<CelValue> arguments, in CallSite site)
@@ -96,7 +106,7 @@ internal static class TimeConversions
         return CelValue.FromString(new string(text[..TimeTextRules.WriteTimestamp(value, text)]));
     }
 
-    // duration_to_string, (duration) -> string: the seconds and the fraction of up to nine digits, exact, with s; at most 22
+    // duration_to_string, (duration) -> string: the seconds and the fraction of up to nine digits, exact, with s; at most 24
     // characters, formed on the stack.
     internal static CelValue DurationToString(ReadOnlySpan<CelValue> arguments, in CallSite site)
     {
@@ -106,7 +116,7 @@ internal static class TimeConversions
         }
 
         Span<char> text = stackalloc char[TimeTextRules.MaxDurationLength];
-        return CelValue.FromString(new string(text[..TimeTextRules.WriteDuration(value.TotalNanoseconds, text)]));
+        return CelValue.FromString(new string(text[..TimeTextRules.WriteDuration(value, text)]));
     }
 
     // The value, an int or a string, is written as it is.

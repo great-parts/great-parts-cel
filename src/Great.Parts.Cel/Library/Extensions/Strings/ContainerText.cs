@@ -31,7 +31,7 @@ internal static class ContainerText
     {
         Span<char> text = stackalloc char[TimeTextRules.MaxDurationLength + 2];
         int open = quoted ? 1 : 0;
-        int written = TimeTextRules.WriteDuration(duration.TotalNanoseconds, text[open..]);
+        int written = TimeTextRules.WriteDuration(duration, text[open..]);
         Quote(text, open, written);
         builder.Append(text[..(written + (2 * open))]);
     }

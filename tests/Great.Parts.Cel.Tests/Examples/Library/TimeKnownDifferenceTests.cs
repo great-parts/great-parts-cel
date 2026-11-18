@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Library;
 
-// The 16 entries of the register of known differences with cel-go that belong to time, each with the
+// The 21 entries of the register of known differences with cel-go that belong to time, each with the
 // minimal case of the entry and the outcome of Great.Parts.Cel that the entry states (the outcome of
 // cel-go is in the entry, and the differential run takes it from the oracle). A row is
 // "signature | expression | outcome" in the form of TimeRows; the signature is that of the register.
@@ -17,6 +17,12 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 //                              cel-go gives 1500.
 //   duration_to_string         string(duration('9223372036.854775807s')) keeps all the digits; cel-go
 //                              formats the seconds through a float and gives 9223372036.854776s.
+//   add_duration_duration,     a duration has the range of google.protobuf.Duration, about 10 000 years:
+//   subtract_duration_duration, a sum, a difference and the difference of two moments beyond an int64 of
+//   subtract_timestamp_timestamp, nanoseconds, and a duration string beyond it, are values; cel-go keeps a
+//   string_to_duration (we-value) duration as an int64 of nanoseconds and fails them.
+//   string_to_duration         the terms of duration('9223372036854775808ns9223372036854775808ns') add
+//     (value-mismatch)         exactly; cel-go adds them in 64 bits, as time.ParseDuration does, and gives 0s.
 //   timestamp_to_string        string(timestamp('2023-01-01T00:00:00-07:00')) is the moment in UTC with Z,
 //                              2023-01-01T07:00:00Z; cel-go keeps the offset of the string, which RFC 3339
 //                              allows, so the entry is of the class by-design.
@@ -31,11 +37,16 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 public sealed class TimeKnownDifferenceTests
 {
     private const string Rows = """
+        add_duration_duration(duration, duration) we-value | duration('9223372036854775807ns') + duration('1ns') | du 9223372036854775808
         duration_to_hours(duration) value-mismatch | (duration('2562047h') - duration('1ns')).getHours() | int 2562046
         duration_to_milliseconds(duration) value-mismatch | duration('1.5s').getMilliseconds() | int 500
         duration_to_minutes(duration) value-mismatch | (duration('2562047m') - duration('1ns')).getMinutes() | int 2562046
         duration_to_seconds(duration) value-mismatch | (duration('9223372036s') - duration('1ns')).getSeconds() | int 9223372035
         duration_to_string(duration) value-mismatch | string(duration('9223372036.854775807s')) | str 9223372036.854775807s
+        string_to_duration(string) value-mismatch | duration('9223372036854775808ns9223372036854775808ns') | du 18446744073709551616
+        string_to_duration(string) we-value | duration('9223372036854775808ns') | du 9223372036854775808
+        subtract_duration_duration(duration, duration) we-value | duration('-9223372036854775808ns') - duration('1ns') | du -9223372036854775809
+        subtract_timestamp_timestamp(timestamp, timestamp) we-value | timestamp('9999-12-31T23:59:59Z') - timestamp('0001-01-01T00:00:00Z') | du 315537897599000000000
         timestamp_to_string(timestamp) value-mismatch | string(timestamp('2023-01-01T00:00:00-07:00')) | str 2023-01-01T07:00:00Z
         timestamp_to_year_with_tz(timestamp, string) we-error | timestamp('2023-01-01T00:00:00Z').getFullYear('') | error TimeZoneNotFound 45: time zone '' is not found in the time zone database of the environment (version 2026a)
         timestamp_to_year_with_tz(timestamp, string) we-error | timestamp('2023-01-01T00:00:00Z').getFullYear('Local') | error TimeZoneNotFound 45: time zone 'Local' is not found in the time zone database of the environment (version 2026a)
@@ -71,11 +82,16 @@ public sealed class TimeKnownDifferenceTests
 
     private static readonly string[] Signatures =
     [
+        "add_duration_duration(duration, duration) we-value",
         "duration_to_hours(duration) value-mismatch",
         "duration_to_milliseconds(duration) value-mismatch",
         "duration_to_minutes(duration) value-mismatch",
         "duration_to_seconds(duration) value-mismatch",
         "duration_to_string(duration) value-mismatch",
+        "string_to_duration(string) value-mismatch",
+        "string_to_duration(string) we-value",
+        "subtract_duration_duration(duration, duration) we-value",
+        "subtract_timestamp_timestamp(timestamp, timestamp) we-value",
         "timestamp_to_day_of_month_1_based_with_tz(timestamp, string) we-error",
         "timestamp_to_day_of_month_with_tz(timestamp, string) we-error",
         "timestamp_to_day_of_week_with_tz(timestamp, string) we-error",
@@ -105,7 +121,7 @@ public sealed class TimeKnownDifferenceTests
     {
         var expected = new SortedSet<string>(Signatures, System.StringComparer.Ordinal);
 
-        Assert.Equal(16, expected.Count);
+        Assert.Equal(21, expected.Count);
         Assert.Equal(expected, TimeRows.Labels(Rows));
     }
 }

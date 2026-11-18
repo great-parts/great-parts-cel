@@ -13,7 +13,8 @@ namespace Great.Parts.Cel.Tests.Examples.Values;
 // that Outcome gives:
 //   int 5, uint 5, bool true, double 1.5, str text    the value, as its kind and string() write it
 //   ts 1234567890 0                                   a timestamp: Unix seconds and nanoseconds
-//   du 3600000000000                                  a duration: nanoseconds
+//   du 3600000000000                                  a duration: its exact length in nanoseconds, which can
+//                                                     exceed an int64 in the range of google.protobuf.Duration
 //   error Overflow 4: timestamp overflow              the only error: code, offset of its place in the
 //                                                     expression (the line is 1) and message
 // An outcome that ends with " *" is a prefix: the text before the star is the start of the real one. It
@@ -135,7 +136,8 @@ internal static class TimeRows
 
         if (value.TryGetDuration(out CelDuration duration))
         {
-            return "du " + duration.TotalNanoseconds.ToString(CultureInfo.InvariantCulture);
+            System.Int128 nanoseconds = ((System.Int128)duration.Seconds * 1_000_000_000) + duration.Nanoseconds;
+            return "du " + nanoseconds.ToString(CultureInfo.InvariantCulture);
         }
 
         return "kind " + value.Kind;

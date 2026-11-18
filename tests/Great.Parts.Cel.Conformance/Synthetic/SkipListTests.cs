@@ -15,8 +15,8 @@ public sealed class SkipListTests
     private const string CelSpecPath = "tests/Great.Parts.Cel.Conformance/CelSpec/skips.md";
     private const string CorpusPath = "tests/Great.Parts.Cel.Conformance/Regression/skips.md";
     private const string RegistryPath = "tests/Great.Parts.Cel.Conformance/Regression/known-differences.md";
-    private const string Commit = "8bef98f1caadc2036fe63d5516cf1df65dc4b741";
-    private const string Langdef = "https://github.com/google/cel-spec/blob/8bef98f1caadc2036fe63d5516cf1df65dc4b741/doc/langdef.md#";
+    private const string Commit = "3dd8162270505540492e4198a35717c173e1506a";
+    private const string Langdef = "https://github.com/google/cel-spec/blob/3dd8162270505540492e4198a35717c173e1506a/doc/langdef.md#";
     private const string Signature = "add_int64(int, int) we-error";
 
     private const string CelSpecTop = """
@@ -64,7 +64,8 @@ public sealed class SkipListTests
         "string_to_ip(string) stage-mismatch",
     ];
 
-    // The 171 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time (the hours, minutes and seconds of a duration through a float included), matches, the subtraction of the smallest duration,
+    // The 176 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time (the hours, minutes and seconds of a duration through a float included), matches, the subtraction of the smallest duration,
+    // durations beyond 64 bits of nanoseconds (a sum, a difference, the difference of two timestamps, a duration string and the sum of its terms),
     // messages of protobuf, a macro over an empty string or empty bytes, and the extension sets (the offset of indexOf and lastIndexOf, the constant of ip and cidr, the order of sort and sortBy, %s of bytes,
     // json.encode of a duration, of a timestamp, of U+007F in a string, a list and a map and of a map with a key that is not a string, the negation of a duration, has() and or of optional,
     // the key of an index of an optional) — and
@@ -79,8 +80,8 @@ public sealed class SkipListTests
 
         Assert.Empty(registry.Findings);
         Assert.Empty(list.Findings);
-        Assert.Equal(171, registry.Signatures.Count);
-        Assert.Equal(168, list.Entries.Count);
+        Assert.Equal(176, registry.Signatures.Count);
+        Assert.Equal(173, list.Entries.Count);
         Assert.Equal(
             registry.Signatures.Except(SignaturesWithoutEntry).Order(StringComparer.Ordinal),
             EntrySignatures(text).Order(StringComparer.Ordinal));
@@ -224,7 +225,7 @@ public sealed class SkipListTests
         | zeta/b/c | * * * | Reason. | | #12 | => entry 'zeta/b/c': the issue '#12' is not a link https://github.com/great-parts/great-parts-cel/issues/<number>
         | zeta/b/c | * * * | Reason. | | https://github.com/great-parts/great-parts-cel/issues/12a | => entry 'zeta/b/c': the issue 'https://github.com/great-parts/great-parts-cel/issues/12a' is not a link https://github.com/great-parts/great-parts-cel/issues/<number>
         | zeta/b/c | * * * | Reason. | https://github.com/google/cel-spec/blob/0000000000000000000000000000000000000000/doc/langdef.md#macros | | => entry 'zeta/b/c': the reference has the link 'https://github.com/google/cel-spec/blob/0000000000000000000000000000000000000000/doc/langdef.md#macros', which is not {Langdef}<section>
-        | zeta/b/c | * * * | Reason. | https://github.com/google/cel-spec/blob/8bef98f1caadc2036fe63d5516cf1df65dc4b741/doc/intro.md#macros | | => entry 'zeta/b/c': the reference has the link 'https://github.com/google/cel-spec/blob/8bef98f1caadc2036fe63d5516cf1df65dc4b741/doc/intro.md#macros', which is not {Langdef}<section>
+        | zeta/b/c | * * * | Reason. | https://github.com/google/cel-spec/blob/3dd8162270505540492e4198a35717c173e1506a/doc/intro.md#macros | | => entry 'zeta/b/c': the reference has the link 'https://github.com/google/cel-spec/blob/3dd8162270505540492e4198a35717c173e1506a/doc/intro.md#macros', which is not {Langdef}<section>
         | zeta/b/c | * * * | Reason. | {Langdef} | | => entry 'zeta/b/c': the reference has the link '{Langdef}', which is not {Langdef}<section>
         | zeta/b/c | * * * | Reason. | {Langdef}Macros | | => entry 'zeta/b/c': the reference has the link '{Langdef}Macros', which is not {Langdef}<section>
         | zeta/b/c | * * * | Reason. | Minimal case: see http://example.com/case for the data. | | => entry 'zeta/b/c': the reference has the link 'http://example.com/case', which is not {Langdef}<section>

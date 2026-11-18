@@ -8,11 +8,14 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // is 1 and the column the offset plus 1). The place of a call is the operator, or the "(" after the name; of
 // a receiver call too.
 //   Overflow (3006): "{kind} overflow", the kind "timestamp" or "duration"; the sum and the difference of
-//     moments and durations outside the range, the difference of two moments outside int64 nanoseconds.
+//     moments and durations outside the range of their type. The range of a duration is that of
+//     google.protobuf.Duration, -315576000000.999999999s to 315576000000.999999999s; the difference of two
+//     moments is always within it and is no error.
 //   ConversionRange (3007): "{value} is out of the range of {targetType}": timestamp(int) outside the
 //     seconds -62135596800 to 253402300799; a string of time that parses but is outside the range of
-//     the type. {value} of a string is its text, of an int the number; the target type is written
-//     "timestamp" and "duration", as the kind of Overflow (the name of the type of time in messages).
+//     the type; int(duration) of a duration whose nanoseconds do not fit an int. {value} of a string is its
+//     text, of an int the number, of a duration its text; the target type is written "timestamp",
+//     "duration" and "int", as the kind of Overflow (the name of the type of time in messages).
 //   InvalidArgument (3008): "invalid argument to '{function}': {detail}", the function the name of the
 //     call; the detail is the library's own text, so the rows state the start of the message.
 //   TimeZoneNotFound (3022): "time zone '{zone}' is not found in the time zone database of the
@@ -34,14 +37,11 @@ public sealed class TimeErrorTests
         timestamp('0001-01-01T00:00:00Z') - duration('9223372036854775807ns') | error Overflow 34: timestamp overflow
         timestamp('0001-01-01T00:00:00Z') + duration('-1ns') | error Overflow 34: timestamp overflow
         timestamp('9999-12-31T23:59:59Z') - duration('-9223372036854775808ns') | error Overflow 34: timestamp overflow
-        duration('9223372036854775807ns') + duration('1ns') | error Overflow 34: duration overflow
-        duration('-9223372036854775808ns') + duration('-1ns') | error Overflow 35: duration overflow
-        duration('-9223372036854775808ns') - duration('1ns') | error Overflow 35: duration overflow
-        duration('9223372036854775807ns') - duration('-1ns') | error Overflow 34: duration overflow
-        duration('0s') - duration('-9223372036854775808ns') | error Overflow 15: duration overflow
-        timestamp('9999-12-31T23:59:59Z') - timestamp('0001-01-01T00:00:00Z') | error Overflow 34: duration overflow
-        timestamp('0001-01-01T00:00:00Z') - timestamp('9999-12-31T23:59:59Z') | error Overflow 34: duration overflow
-        timestamp('2262-04-11T23:47:16.854775808Z') - timestamp('1970-01-01T00:00:00Z') | error Overflow 44: duration overflow
+        duration('315576000000s999999999ns') + duration('1ns') | error Overflow 37: duration overflow
+        duration('-315576000000s999999999ns') + duration('-1ns') | error Overflow 38: duration overflow
+        duration('-315576000000s999999999ns') - duration('1ns') | error Overflow 38: duration overflow
+        duration('315576000000s999999999ns') - duration('-1ns') | error Overflow 37: duration overflow
+        duration('-1s') - duration('315576000000s') | error Overflow 16: duration overflow
         (timestamp('9999-12-31T23:59:59.999999999Z') + duration('1ns')).getFullYear() | error Overflow 45: timestamp overflow
         timestamp(253402300800) | error ConversionRange 9: 253402300800 is out of the range of timestamp
         timestamp(-62135596801) | error ConversionRange 9: -62135596801 is out of the range of timestamp
@@ -51,10 +51,12 @@ public sealed class TimeErrorTests
         timestamp('0000-01-01T00:00:00Z') | error ConversionRange 9: 0000-01-01T00:00:00Z is out of the range of timestamp
         timestamp('0001-01-01T00:00:00+01:00') | error ConversionRange 9: 0001-01-01T00:00:00+01:00 is out of the range of timestamp
         timestamp('9999-12-31T23:59:59-01:00') | error ConversionRange 9: 9999-12-31T23:59:59-01:00 is out of the range of timestamp
-        duration('9223372036854775808ns') | error ConversionRange 8: 9223372036854775808ns is out of the range of duration
-        duration('2562048h') | error ConversionRange 8: 2562048h is out of the range of duration
-        duration('9223372036.854775808s') | error ConversionRange 8: 9223372036.854775808s is out of the range of duration
-        duration('-9223372036854775809ns') | error ConversionRange 8: -9223372036854775809ns is out of the range of duration
+        duration('315576000001s') | error ConversionRange 8: 315576000001s is out of the range of duration
+        duration('87660001h') | error ConversionRange 8: 87660001h is out of the range of duration
+        duration('315576000000s1000000000ns') | error ConversionRange 8: 315576000000s1000000000ns is out of the range of duration
+        duration('-315576000001s') | error ConversionRange 8: -315576000001s is out of the range of duration
+        int(duration('9223372036854775808ns')) | error ConversionRange 3: 9223372036.854775808s is out of the range of int
+        int(duration('-9223372036854775809ns')) | error ConversionRange 3: -9223372036.854775809s is out of the range of int
         timestamp('2023-02-30T00:00:00Z') | error InvalidArgument 9: invalid argument to 'timestamp': *
         timestamp('') | error InvalidArgument 9: invalid argument to 'timestamp': *
         duration('1H') | error InvalidArgument 8: invalid argument to 'duration': *

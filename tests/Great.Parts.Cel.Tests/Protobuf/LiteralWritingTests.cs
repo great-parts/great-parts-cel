@@ -224,6 +224,17 @@ public sealed class LiteralWritingTests
         Assert.True(Reading.IsTrue("TestAllTypes{single_any: b'a'}.single_any == b'a'"));
     }
 
+    // The range of a duration is that of the message, so the longest duration goes into a field and into an Any as it is.
+    [Fact]
+    public static void LongestDuration_GoesIntoAFieldAndAnAny_Unchanged()
+    {
+        Duration packed = Packed("duration('-315576000000s999999999ns')").Unpack<Duration>();
+
+        Assert.Equal((-315_576_000_000L, -999_999_999), (packed.Seconds, packed.Nanos));
+        Assert.True(Reading.IsTrue("TestAllTypes{single_duration: duration('315576000000s999999999ns')}.single_duration == duration('315576000000s999999999ns')"));
+        Assert.True(Reading.IsTrue("TestAllTypes{single_any: duration('315576000000s999999999ns')}.single_any == duration('315576000000s999999999ns')"));
+    }
+
     // A message that goes into a field is that instance, shared and not copied; an expression never changes a message it has read.
     [Fact]
     public static void MessageInAField_IsSharedNotCopied()

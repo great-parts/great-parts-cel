@@ -73,7 +73,7 @@ internal static class StructuralEquality
         }
     }
 
-    // The payloads of two values of the same time kind: seconds and nanoseconds of a timestamp, nanoseconds of a duration.
+    // The payloads of two values of the same time kind: seconds and nanoseconds, of a timestamp and of a duration.
     private static bool TimeEqual(CelValue left, CelValue right)
     {
         if (left.TryGetTimestamp(out CelTimestamp leftMoment))
@@ -84,7 +84,7 @@ internal static class StructuralEquality
 
         _ = left.TryGetDuration(out CelDuration leftSpan);
         _ = right.TryGetDuration(out CelDuration rightSpan);
-        return leftSpan.TotalNanoseconds == rightSpan.TotalNanoseconds;
+        return leftSpan.Seconds == rightSpan.Seconds && leftSpan.Nanoseconds == rightSpan.Nanoseconds;
     }
 
     private static bool ListsEqual(CelList left, CelList right)

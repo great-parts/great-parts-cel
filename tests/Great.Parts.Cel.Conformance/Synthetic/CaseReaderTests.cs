@@ -32,8 +32,8 @@ public sealed class CaseReaderTests
     {
         List<ConformanceCase> cases = [.. EmbeddedData.TextFiles(EmbeddedData.CelSpecTestData).SelectMany(CaseReader.ReadEmbedded)];
 
-        Assert.Equal(2592, cases.Count);
-        Assert.Equal(2592, cases.Select(testCase => testCase.Name).Distinct(System.StringComparer.Ordinal).Count());
+        Assert.Equal(2771, cases.Count);
+        Assert.Equal(2771, cases.Select(testCase => testCase.Name).Distinct(System.StringComparer.Ordinal).Count());
         Assert.Equal(141, cases.Count(testCase => testCase.Check == CheckMode.WithoutCheck));
         Assert.Contains(cases, testCase => testCase.Name == "basic/self_eval_zeroish/self_eval_int_zero" && (testCase.Line, testCase.Column) == (9, 3));
     }

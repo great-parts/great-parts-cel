@@ -1,7 +1,7 @@
 # Minimized cases of known divergences from cel-go in the values of time. The expectation of each case is the answer of cel-go.
 
 name: "time_strings"
-description: "Milliseconds of a duration and the text of a duration and of a timestamp"
+description: "Milliseconds of a duration, the text of a duration and of a timestamp, and the range of a duration string"
 section {
   name: "duration"
   description: "cel-go returns the total milliseconds of a duration, converts it to hours, minutes and seconds and prints its seconds through a 64-bit float"
@@ -43,6 +43,30 @@ section {
     expr: "string(duration('9223372036.854775807s'))"
     value: {
       string_value: "9223372036.854776s"
+    }
+  }
+}
+section {
+  name: "duration_range"
+  description: "cel-go reads a duration string into 64 bits of nanoseconds: a longer one fails, and the sum of its terms wraps"
+  test {
+    name: "beyond_int64"
+    description: "string_to_duration(string) we-value"
+    expr: "duration('9223372036854775808ns')"
+    eval_error: {
+      errors: {
+        message: "type conversion error from 'string' to 'google.protobuf.Duration'"
+      }
+    }
+  }
+  test {
+    name: "wrapped_sum"
+    description: "string_to_duration(string) value-mismatch"
+    expr: "duration('9223372036854775808ns9223372036854775808ns')"
+    value: {
+      object_value: {
+        [type.googleapis.com/google.protobuf.Duration] {}
+      }
     }
   }
 }

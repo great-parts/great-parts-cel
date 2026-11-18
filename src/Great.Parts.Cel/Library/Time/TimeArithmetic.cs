@@ -5,9 +5,9 @@ using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Library.Time;
 
-// The six operations + and - of time. A duration splits into whole seconds and nanoseconds within the second by floor
-// division, so a shift of a timestamp is an addition of two small numbers that cannot overflow `long`; the result is checked
-// against the range of timestamp. The difference of two timestamps is computed in 128 bits. Nothing throws.
+// The six operations + and - of time. A duration is whole seconds and nanoseconds with the sign of the seconds, as
+// google.protobuf.Duration keeps it, so every operation is an addition of two small numbers in a long that cannot overflow:
+// the nanoseconds carry or borrow one second, and the result is checked against the range of its type. Nothing throws.
 internal static class TimeArithmetic
 {
     private const long NanosecondsPerSecond = 1_000_000_000;
@@ -17,22 +17,23 @@ internal static class TimeArithmetic
     // add_timestamp_duration, (timestamp, duration) -> timestamp.
     internal static CelValue AddTimestampDuration(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
         arguments[0].TryGetTimestamp(out CelTimestamp moment) && arguments[1].TryGetDuration(out CelDuration span)
-            ? Shift(in site, moment, span.TotalNanoseconds, false)
+            ? Shift(in site, moment, span.Seconds, span.Nanoseconds)
             : site.NoMatchingOverload(arguments);
 
     // add_duration_timestamp, (duration, timestamp) -> timestamp.
     internal static CelValue AddDurationTimestamp(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
         arguments[0].TryGetDuration(out CelDuration span) && arguments[1].TryGetTimestamp(out CelTimestamp moment)
-            ? Shift(in site, moment, span.TotalNanoseconds, false)
+            ? Shift(in site, moment, span.Seconds, span.Nanoseconds)
             : site.NoMatchingOverload(arguments);
 
     // subtract_timestamp_duration, (timestamp, duration) -> timestamp.
     internal static CelValue SubtractTimestampDuration(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
         arguments[0].TryGetTimestamp(out CelTimestamp moment) && arguments[1].TryGetDuration(out CelDuration span)
-            ? Shift(in site, moment, span.TotalNanoseconds, true)
+            ? Shift(in site, moment, -span.Seconds, -span.Nanoseconds)
             : site.NoMatchingOverload(arguments);
 
-    // subtract_timestamp_timestamp, (timestamp, timestamp) -> duration.
+    // subtract_timestamp_timestamp, (timestamp, timestamp) -> duration. The timestamps are at most 3.2 * 10^11 seconds apart, within the
+    // range of a duration, so the difference never overflows.
     internal static CelValue SubtractTimestampTimestamp(ReadOnlySpan<CelValue> arguments, in CallSite site)
     {
         if (!arguments[0].TryGetTimestamp(out CelTimestamp left) || !arguments[1].TryGetTimestamp(out CelTimestamp right))
@@ -40,11 +41,7 @@ internal static class TimeArithmetic
             return site.NoMatchingOverload(arguments);
         }
 
-        // The seconds differ by less than 3.2 * 10^11, so the product with 10^9 fits 128 bits with room to spare.
-        Int128 difference = ((Int128)(left.Seconds - right.Seconds) * NanosecondsPerSecond) + (left.Nanoseconds - right.Nanoseconds);
-        return difference < long.MinValue || difference > long.MaxValue
-            ? site.Error(CelErrorCode.Overflow, DurationOverflow)
-            : CelValue.FromDuration(new CelDuration((long)difference));
+        return Normalize(in site, left.Seconds - right.Seconds, left.Nanoseconds - right.Nanoseconds);
     }
 
     // add_duration_duration, (duration, duration) -> duration.
@@ -55,12 +52,7 @@ internal static class TimeArithmetic
             return site.NoMatchingOverload(arguments);
         }
 
-        long a = left.TotalNanoseconds;
-        long b = right.TotalNanoseconds;
-        long sum = unchecked(a + b);
-
-        // The sum overflows when both operands have the same sign and the sum has the other one.
-        return ((a ^ sum) & (b ^ sum)) < 0 ? site.Error(CelErrorCode.Overflow, DurationOverflow) : CelValue.FromDuration(new CelDuration(sum));
+        return Normalize(in site, left.Seconds + right.Seconds, (long)left.Nanoseconds + right.Nanoseconds);
     }
 
     // subtract_duration_duration, (duration, duration) -> duration.
@@ -71,43 +63,55 @@ internal static class TimeArithmetic
             return site.NoMatchingOverload(arguments);
         }
 
-        long a = left.TotalNanoseconds;
-        long b = right.TotalNanoseconds;
-        long difference = unchecked(a - b);
-
-        // The difference overflows when the operands have different signs and the difference has the sign of the subtrahend.
-        return ((a ^ b) & (a ^ difference)) < 0
-            ? site.Error(CelErrorCode.Overflow, DurationOverflow)
-            : CelValue.FromDuration(new CelDuration(difference));
+        return Normalize(in site, left.Seconds - right.Seconds, (long)left.Nanoseconds - right.Nanoseconds);
     }
 
-    // The moment shifted by the duration forward or back: the duration is d = ds * 10^9 + dn with 0 <= dn < 10^9, the
-    // nanoseconds carry or borrow one second, and the seconds are checked against the range of timestamp.
-    private static CelValue Shift(in CallSite site, CelTimestamp moment, long nanoseconds, bool subtract)
+    // The duration of seconds and nanoseconds, each the sum or the difference of two parts: the nanoseconds are less than 2 * 10^9 in
+    // absolute value. They carry into the seconds, then take the sign of the seconds, and the seconds are checked against the range.
+    private static CelValue Normalize(in CallSite site, long seconds, long nanoseconds)
     {
-        long seconds = nanoseconds / NanosecondsPerSecond;
-        long remainder = nanoseconds % NanosecondsPerSecond;
-        if (remainder < 0)
+        if (nanoseconds >= NanosecondsPerSecond)
         {
-            remainder += NanosecondsPerSecond;
+            seconds++;
+            nanoseconds -= NanosecondsPerSecond;
+        }
+        else if (nanoseconds <= -NanosecondsPerSecond)
+        {
             seconds--;
+            nanoseconds += NanosecondsPerSecond;
         }
 
-        long total;
-        long fraction;
-        if (subtract)
+        if (seconds > 0 && nanoseconds < 0)
         {
-            fraction = moment.Nanoseconds - remainder;
-            long borrow = fraction < 0 ? 1 : 0;
-            fraction += borrow * NanosecondsPerSecond;
-            total = moment.Seconds - seconds - borrow;
+            seconds--;
+            nanoseconds += NanosecondsPerSecond;
         }
-        else
+        else if (seconds < 0 && nanoseconds > 0)
         {
-            fraction = moment.Nanoseconds + remainder;
-            long carry = fraction >= NanosecondsPerSecond ? 1 : 0;
-            fraction -= carry * NanosecondsPerSecond;
-            total = moment.Seconds + seconds + carry;
+            seconds++;
+            nanoseconds -= NanosecondsPerSecond;
+        }
+
+        return seconds is >= -CelDuration.MaxSeconds and <= CelDuration.MaxSeconds
+            ? CelValue.FromDuration(CelDuration.FromChecked(seconds, (int)nanoseconds))
+            : site.Error(CelErrorCode.Overflow, DurationOverflow);
+    }
+
+    // The moment shifted by the duration of the given seconds and nanoseconds, both with the same sign: the nanoseconds carry or
+    // borrow one second, and the seconds are checked against the range of timestamp.
+    private static CelValue Shift(in CallSite site, CelTimestamp moment, long seconds, int nanoseconds)
+    {
+        long fraction = moment.Nanoseconds + nanoseconds;
+        long total = moment.Seconds + seconds;
+        if (fraction >= NanosecondsPerSecond)
+        {
+            fraction -= NanosecondsPerSecond;
+            total++;
+        }
+        else if (fraction < 0)
+        {
+            fraction += NanosecondsPerSecond;
+            total--;
         }
 
         return total is >= CelTimestamp.MinSeconds and <= CelTimestamp.MaxSeconds

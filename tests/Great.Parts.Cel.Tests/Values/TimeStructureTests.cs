@@ -199,8 +199,8 @@ public sealed class TimeStructureTests
         Assert.Equal((long.MaxValue / 100) * 100, CelDuration.FromTimeSpan(TimeSpan.FromTicks(long.MaxValue / 100)).TotalNanoseconds);
         Assert.Equal((long.MinValue / 100) * 100, CelDuration.FromTimeSpan(TimeSpan.FromTicks(long.MinValue / 100)).TotalNanoseconds);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.FromTicks((long.MaxValue / 100) + 1)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.FromTicks((long.MinValue / 100) - 1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.FromTicks(3_155_760_000_010_000_000)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.FromTicks(-3_155_760_000_010_000_000)));
         Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.MaxValue));
         Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.MinValue));
     }

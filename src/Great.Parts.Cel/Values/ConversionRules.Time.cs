@@ -40,8 +40,8 @@ internal static partial class ConversionRules
     /// </summary>
     /// <param name="value">The value.</param>
     /// <returns>A duration or the error value.</returns>
-    internal static CelValue FromTimeSpan(TimeSpan value) => value.Ticks is >= long.MinValue / 100 and <= long.MaxValue / 100
-        ? CelValue.FromDuration(new CelDuration(value.Ticks * 100))
+    internal static CelValue FromTimeSpan(TimeSpan value) => CelDuration.TryFromTicks(value.Ticks, out CelDuration duration)
+        ? CelValue.FromDuration(duration)
         : CelValue.FromError(new CelError(CelErrorCode.ConversionRange, TicksOutOfRangeText, null, 0, number: value.Ticks));
 
     /// <summary>

@@ -265,7 +265,7 @@ The planner does not look up a constant zone. The reasons: a wrong constant must
 | `timestamp(string)`, `duration(string)`, folded or not | 1 + ⌈L/10⌉, L the UTF-16 length of the string | the call; the folded node |
 | `timestamp(int)`, `int(timestamp)`, `int(duration)`, `timestamp(timestamp)`, `duration(duration)` | 1 | the call |
 | `string(timestamp)` | 1 + ⌈Lᵣ/10⌉ with Lᵣ = 20, or 21 plus the digits of the fraction, from the nanoseconds | the call, before the string is made |
-| `string(duration)` | 1 + ⌈Lᵣ/10⌉ with Lᵣ at most 22, from the value | the call, before the string is made |
+| `string(duration)` | 1 + ⌈Lᵣ/10⌉ with Lᵣ at most 24, from the value | the call, before the string is made |
 | a receiver without a zone; `+`, `-` and the relations of time | 1 | the call |
 | `==` and `!=` of two time values | 1 as eq of two scalars, at any depth in a list or a map | `EqualityRules` |
 | a receiver with a zone, constant or not | 1 + ⌈L/10⌉, L the UTF-16 length of the zone string; the lookup is inside it | the call |

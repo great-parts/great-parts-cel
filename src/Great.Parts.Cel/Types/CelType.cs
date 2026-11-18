@@ -88,7 +88,7 @@ public sealed class CelType : IEquatable<CelType>
     public static CelType Timestamp { get; } = new(CelTypeKind.Timestamp, "google.protobuf.Timestamp", []);
 
     /// <summary>
-    /// <c>google.protobuf.Duration</c>: a signed time span of a 64-bit number of nanoseconds; on .NET,
+    /// <c>google.protobuf.Duration</c>: a signed time span of the range of that type, about 10,000 years each way; on .NET,
     /// <c>CelDuration</c>.
     /// </summary>
     public static CelType Duration { get; } = new(CelTypeKind.Duration, "google.protobuf.Duration", []);

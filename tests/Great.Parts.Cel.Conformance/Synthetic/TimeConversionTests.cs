@@ -53,9 +53,11 @@ public sealed class TimeConversionTests
     [InlineData(-123, -321_456_789)]
     [InlineData(9_223_372_036, 854_775_807)]
     [InlineData(-9_223_372_036, -854_775_808)]
+    [InlineData(315_576_000_000, 999_999_999)]
+    [InlineData(-315_576_000_000, -999_999_999)]
     public static void Duration_IsWrittenWithTheSecondsAndTheNanosecondsOfTheSameSign(long seconds, int nanos)
     {
-        CelValue value = CelValue.FromDuration(new CelDuration((seconds * 1_000_000_000L) + nanos));
+        CelValue value = CelValue.FromDuration(new CelDuration(seconds, nanos));
 
         Value written = ValueConversion.ToExprValue(value);
 
@@ -63,7 +65,7 @@ public sealed class TimeConversionTests
         Assert.Equal(seconds, message.Seconds);
         Assert.Equal(nanos, message.Nanos);
         Assert.True(ValueConversion.ToCelValue(written).TryGetDuration(out CelDuration read));
-        Assert.Equal((seconds * 1_000_000_000L) + nanos, read.TotalNanoseconds);
+        Assert.Equal((seconds, nanos), (read.Seconds, read.Nanoseconds));
     }
 
     [Theory]

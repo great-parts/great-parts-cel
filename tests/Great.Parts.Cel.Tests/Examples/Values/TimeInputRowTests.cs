@@ -13,8 +13,9 @@ namespace Great.Parts.Cel.Tests.Examples.Values;
 // offset is not kept); DateTime of the kind Utc is a timestamp, and of any other kind is refused by
 // CelBindings.Add with ArgumentException, since its meaning would depend on the zone of the process;
 // CelDuration and TimeSpan are a duration (a tick is 100 nanoseconds); a TimeSpan outside the range of
-// duration (an int64 of nanoseconds) is the evaluation error ConversionRange at the node that read the
-// value. The nullable forms have the type of the value, and a null binding of such a variable is
+// duration (that of google.protobuf.Duration, 315 576 000 000 seconds) is the evaluation error ConversionRange
+// at the node that read the value. A TimeSpan longer than an int64 of nanoseconds is a duration, and
+// int() of it is ConversionRange at the call. The nullable forms have the type of the value, and a null binding of such a variable is
 // BindingTypeMismatch at the identifier. A value of time of the type dyn, as a list element and as a map
 // value, is read the same way; a typed collection of time is outside the closed list of the elements:
 // TypeNotDeclared for AddVariable<T> and ArgumentException for CelBindings.Add<T>.
@@ -84,7 +85,7 @@ public sealed class TimeInputRowTests
     [Trait("Requirement", "F-4")]
     public void TimeSpanOutsideTheRangeOfDuration_IsConversionRangeAtTheIdentifier()
     {
-        foreach (TimeSpan value in new[] { TimeSpan.MaxValue, TimeSpan.MinValue, TimeSpan.FromTicks((long.MaxValue / 100) + 1) })
+        foreach (TimeSpan value in new[] { TimeSpan.MaxValue, TimeSpan.MinValue, TimeSpan.FromTicks((315_576_000_001L * TimeSpan.TicksPerSecond) + 1) })
         {
             CelEvalResult<CelValue> result = Run("1 + int(ts)", new CelBindings().Add("ts", value));
 
@@ -93,6 +94,21 @@ public sealed class TimeInputRowTests
         }
 
         Assert.Equal(long.MaxValue / 100 * 100, Evaluate<long>("int(ts)", new CelBindings().Add("ts", TimeSpan.FromTicks(long.MaxValue / 100))));
+    }
+
+    [Fact]
+    [Trait("Requirement", "F-4")]
+    public void TimeSpanLongerThanAnInt64OfNanoseconds_IsADuration_AndIntOfItIsConversionRangeAtTheCall()
+    {
+        var bindings = new CelBindings().Add("ts", TimeSpan.FromTicks((long.MaxValue / 100) + 1));
+
+        Assert.Equal("9223372036.8547759s", Evaluate<string>("string(ts)", bindings));
+        Assert.True(Evaluate<bool>("ts > duration('9223372036854775807ns')", bindings));
+
+        CelError error = Assert.Single(Run("1 + int(ts)", bindings).Errors);
+        Assert.Equal(
+            (CelErrorCode.ConversionRange, CelErrorStage.Evaluate, 7, "9223372036.8547759s is out of the range of int"),
+            (error.Code, error.Stage, error.Location.Offset, error.Message));
     }
 
     [Fact]

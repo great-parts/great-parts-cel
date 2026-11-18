@@ -13,8 +13,6 @@ namespace Great.Parts.Cel.Protobuf;
 /// </summary>
 internal static class AnyPacker
 {
-    private const long NanosecondsPerSecond = 1_000_000_000;
-
     /// <summary>
     /// Packs a value.
     /// </summary>
@@ -94,11 +92,7 @@ internal static class AnyPacker
                 return new Timestamp { Seconds = timestamp.Seconds, Nanos = timestamp.Nanoseconds };
             case CelValueKind.Duration:
                 _ = value.TryGetDuration(out CelDuration duration);
-                return new Duration
-                {
-                    Seconds = duration.TotalNanoseconds / NanosecondsPerSecond,
-                    Nanos = (int)(duration.TotalNanoseconds % NanosecondsPerSecond),
-                };
+                return new Duration { Seconds = duration.Seconds, Nanos = duration.Nanoseconds };
             case CelValueKind.Object:
                 _ = value.TryGetObject(out object? instance);
                 return instance as IMessage;

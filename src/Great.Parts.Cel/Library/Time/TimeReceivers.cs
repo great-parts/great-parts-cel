@@ -11,9 +11,8 @@ namespace Great.Parts.Cel.Library.Time;
 // arguments are checked. The fields are those of the local time, not clamped to the range of timestamp.
 internal static class TimeReceivers
 {
-    private const long NanosecondsPerSecond = 1_000_000_000;
-    private const long NanosecondsPerMinute = 60 * NanosecondsPerSecond;
-    private const long NanosecondsPerHour = 60 * NanosecondsPerMinute;
+    private const long SecondsPerMinute = 60;
+    private const long SecondsPerHour = 3_600;
     private const long NanosecondsPerMillisecond = 1_000_000;
 
     // The zone string is the first part and the database, or null without one, the second.
@@ -137,13 +136,12 @@ internal static class TimeReceivers
                 return site.NoMatchingOverload(arguments);
             }
 
-            long nanoseconds = value.TotalNanoseconds;
             return CelValue.FromInt64(part switch
             {
-                Part.Hours => nanoseconds / NanosecondsPerHour,
-                Part.Minutes => nanoseconds / NanosecondsPerMinute,
-                Part.Seconds => nanoseconds / NanosecondsPerSecond,
-                _ => nanoseconds % NanosecondsPerSecond / NanosecondsPerMillisecond,
+                Part.Hours => value.Seconds / SecondsPerHour,
+                Part.Minutes => value.Seconds / SecondsPerMinute,
+                Part.Seconds => value.Seconds,
+                _ => value.Nanoseconds / NanosecondsPerMillisecond,
             });
         }
     }

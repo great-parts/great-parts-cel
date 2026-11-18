@@ -178,7 +178,7 @@ internal static class ValueConversion
         if (name == Duration.Descriptor.FullName)
         {
             Duration duration = message.Unpack<Duration>();
-            return CelValue.FromDuration(new CelDuration(checked((duration.Seconds * 1_000_000_000L) + duration.Nanos)));
+            return CelValue.FromDuration(new CelDuration(duration.Seconds, duration.Nanos));
         }
 
         return null;
@@ -229,11 +229,7 @@ internal static class ValueConversion
     private static string TypeName(string typeUrl) => typeUrl[(typeUrl.AsSpan().LastIndexOf('/') + 1)..];
 
     // A duration with the seconds and the nanoseconds of the same sign, as the protobuf rule for Duration asks.
-    private static Duration ToProtobuf(CelDuration duration) => new()
-    {
-        Seconds = duration.TotalNanoseconds / 1_000_000_000L,
-        Nanos = (int)(duration.TotalNanoseconds % 1_000_000_000L),
-    };
+    private static Duration ToProtobuf(CelDuration duration) => new() { Seconds = duration.Seconds, Nanos = duration.Nanoseconds };
 
     // The type value of a name, with the parameters erased as at evaluation; the time types are read by their full names.
     private static CelType TypeOfName(string name) => name switch

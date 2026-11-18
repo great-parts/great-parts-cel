@@ -7,15 +7,23 @@ namespace Great.Parts.Cel.Tests.Examples.Values;
 
 // The values of time as .NET structures. CelTimestamp is a point in time in UTC with nanoseconds, from
 // 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z, kept as Unix seconds and nanoseconds within the
-// second (0 to 999 999 999); default is the epoch. CelDuration is a whole int64 of nanoseconds; default is
-// zero. DateTimeOffset and TimeSpan count in ticks of 100 nanoseconds: they convert to the CEL structures
-// exactly, the other way only when the nanoseconds are a multiple of 100, and a conversion never rounds.
+// second (0 to 999 999 999); default is the epoch. CelDuration is whole seconds and nanoseconds with the sign of
+// the seconds, as google.protobuf.Duration keeps them, from -315 576 000 000.999999999 to 315 576 000 000.999999999
+// seconds (about ±10 000 years); default is zero. TotalNanoseconds is the length as a long, and
+// InvalidOperationException for a duration whose nanoseconds do not fit a long (longer than about 292 years).
+// DateTimeOffset and TimeSpan count in ticks of 100 nanoseconds: they convert to the CEL structures exactly
+// within their range, the other way only when the nanoseconds are a multiple of 100, and a conversion never rounds.
 // The text of both is what string() gives in CEL. The comparison is by the
 // point in time and by the length; the hash code is consistent with the equality.
 [Trait("Requirement", "F-1")]
 [Trait("Requirement", "+R-10")]
 public sealed class TimeValueTests
 {
+    // The longest TimeSpan within the range of a duration: 315 576 000 000 seconds and 9 999 999 ticks.
+    private const long LongestTicks = (315_576_000_000L * TimeSpan.TicksPerSecond) + 9_999_999;
+
+    private static readonly CelDuration Longest = CelDuration.FromTimeSpan(TimeSpan.FromTicks(LongestTicks));
+
     [Fact]
     public void Timestamp_KeepsSecondsAndNanoseconds()
     {
@@ -107,12 +115,46 @@ public sealed class TimeValueTests
     }
 
     [Fact]
-    public void Duration_KeepsAWholeInt64OfNanoseconds()
+    public void Duration_OfNanoseconds_KeepsAWholeInt64()
     {
         Assert.Equal(1500000000L, new CelDuration(1500000000).TotalNanoseconds);
         Assert.Equal(0L, default(CelDuration).TotalNanoseconds);
         Assert.Equal(long.MaxValue, new CelDuration(long.MaxValue).TotalNanoseconds);
         Assert.Equal(long.MinValue, new CelDuration(long.MinValue).TotalNanoseconds);
+        Assert.Equal((9223372036L, 854775807), (new CelDuration(long.MaxValue).Seconds, new CelDuration(long.MaxValue).Nanoseconds));
+        Assert.Equal((-1L, -500000000), (new CelDuration(-1500000000).Seconds, new CelDuration(-1500000000).Nanoseconds));
+        Assert.Equal(long.MinValue, new CelDuration(-9223372036, -854775808).TotalNanoseconds);
+    }
+
+    [Fact]
+    public void Duration_KeepsSecondsAndNanosecondsInTheRangeOfProtobufDuration()
+    {
+        Assert.Equal((315576000000L, 999999999), (new CelDuration(315576000000, 999999999).Seconds, new CelDuration(315576000000, 999999999).Nanoseconds));
+        Assert.Equal((-315576000000L, -999999999), (new CelDuration(-315576000000, -999999999).Seconds, new CelDuration(-315576000000, -999999999).Nanoseconds));
+        Assert.Equal((0L, -5), (new CelDuration(0, -5).Seconds, new CelDuration(0, -5).Nanoseconds));
+        Assert.Equal((0L, 0), (default(CelDuration).Seconds, default(CelDuration).Nanoseconds));
+        Assert.Equal(new CelDuration(1500000000), new CelDuration(1, 500000000));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CelDuration(315576000001, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CelDuration(-315576000001, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CelDuration(0, 1_000_000_000));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CelDuration(0, -1_000_000_000));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CelDuration(1, -1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CelDuration(-1, 1));
+
+        Assert.Throws<InvalidOperationException>(() => new CelDuration(9223372036, 854775808).TotalNanoseconds);
+        Assert.Throws<InvalidOperationException>(() => new CelDuration(-315576000000, 0).TotalNanoseconds);
+    }
+
+    [Theory]
+    [InlineData(315576000000L, 999999999, "315576000000.999999999s")]
+    [InlineData(-315576000000L, -999999999, "-315576000000.999999999s")]
+    [InlineData(9223372036L, 854775808, "9223372036.854775808s")]
+    [InlineData(0L, -1, "-0.000000001s")]
+    [InlineData(-1L, 0, "-1s")]
+    public static void Duration_OfSecondsAndNanoseconds_PrintsExactly(long seconds, int nanoseconds, string expected)
+    {
+        Assert.Equal(expected, new CelDuration(seconds, nanoseconds).ToString());
     }
 
     [Theory]
@@ -139,8 +181,12 @@ public sealed class TimeValueTests
         Assert.Equal(long.MaxValue / 100 * 100, CelDuration.FromTimeSpan(TimeSpan.FromTicks(long.MaxValue / 100)).TotalNanoseconds);
         Assert.Equal(long.MinValue / 100 * 100, CelDuration.FromTimeSpan(TimeSpan.FromTicks(long.MinValue / 100)).TotalNanoseconds);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.FromTicks((long.MaxValue / 100) + 1)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.FromTicks((long.MinValue / 100) - 1)));
+        Assert.Equal((315576000000L, 999999900), (Longest.Seconds, Longest.Nanoseconds));
+        Assert.Equal((-315576000000L, -999999900), (CelDuration.FromTimeSpan(TimeSpan.FromTicks(-LongestTicks)).Seconds, CelDuration.FromTimeSpan(TimeSpan.FromTicks(-LongestTicks)).Nanoseconds));
+        Assert.Equal((9223372036L, 854775900), (CelDuration.FromTimeSpan(TimeSpan.FromTicks((long.MaxValue / 100) + 1)).Seconds, CelDuration.FromTimeSpan(TimeSpan.FromTicks((long.MaxValue / 100) + 1)).Nanoseconds));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.FromTicks(LongestTicks + 1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.FromTicks(-LongestTicks - 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.MaxValue));
         Assert.Throws<ArgumentOutOfRangeException>(() => CelDuration.FromTimeSpan(TimeSpan.MinValue));
     }
@@ -157,6 +203,9 @@ public sealed class TimeValueTests
         Assert.Equal(TimeSpan.Zero, rounded);
         Assert.False(new CelDuration(1).TryGetTimeSpan(out _));
         Assert.False(new CelDuration(long.MaxValue).TryGetTimeSpan(out _));
+        Assert.True(Longest.TryGetTimeSpan(out TimeSpan longest));
+        Assert.Equal(TimeSpan.FromTicks(LongestTicks), longest);
+        Assert.False(new CelDuration(315576000000, 999999999).TryGetTimeSpan(out _));
     }
 
     [Fact]

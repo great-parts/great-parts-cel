@@ -16,7 +16,8 @@ internal static class KnownValues
     private const long MinTimestampSeconds = -62_135_596_800;
     private const long MaxTimestampSeconds = 253_402_300_799;
 
-    private const long NanosecondsPerSecond = 1_000_000_000;
+    // The range of the seconds of a duration, as google.protobuf.Duration defines it.
+    private const long MaxDurationSeconds = 315_576_000_000;
 
     /// <summary>
     /// Converts a message.
@@ -104,7 +105,7 @@ internal static class KnownValues
 
     /// <summary>
     /// Reads a <c>Duration</c>. A field that is not set reads as the zero duration. Nanoseconds that are out of range or of the other
-    /// sign than the seconds are reported by the nanoseconds; a total that does not fit a 64-bit number, by the seconds.
+    /// sign than the seconds are reported by the nanoseconds; seconds out of the range of a duration, by the seconds.
     /// </summary>
     /// <param name="duration">The message, or <see langword="null"/> for a field that is not set.</param>
     /// <param name="owner">The description that errors name.</param>
@@ -124,29 +125,10 @@ internal static class KnownValues
             return FieldErrors.Range(owner, number, Decimal(nanos), "duration");
         }
 
-        return TryTotal(seconds, nanos, out long total)
-            ? CelValue.FromDuration(new CelDuration(total))
+        return seconds is >= -MaxDurationSeconds and <= MaxDurationSeconds
+            ? CelValue.FromDuration(new CelDuration(seconds, nanos))
             : FieldErrors.Range(owner, number, Decimal(seconds), "duration");
     }
 
     private static string Decimal(long value) => value.ToString(CultureInfo.InvariantCulture);
-
-    // The nanoseconds of a duration, or false when they do not fit a 64-bit number.
-    private static bool TryTotal(long seconds, int nanos, out long total)
-    {
-        total = 0;
-        if (seconds is > long.MaxValue / NanosecondsPerSecond or < long.MinValue / NanosecondsPerSecond)
-        {
-            return false;
-        }
-
-        long scaled = seconds * NanosecondsPerSecond;
-        if ((nanos > 0 && scaled > long.MaxValue - nanos) || (nanos < 0 && scaled < long.MinValue - nanos))
-        {
-            return false;
-        }
-
-        total = scaled + nanos;
-        return true;
-    }
 }

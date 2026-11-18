@@ -15,11 +15,11 @@ public sealed class CelSpecSuiteTests
         SuiteAssert.PassOrAreSkipped(CelSpecSuite.Run(new LibraryEvaluator(), RunCell.Current), CelSpecSuite.Source);
 
     [Fact]
-    public void Run_RunsThe2592CasesOfThe32TestFiles()
+    public void Run_RunsThe2771CasesOfThe32TestFiles()
     {
         // unknowns.textproto has no cases.
         Assert.Equal(32, EmbeddedData.TextFiles(EmbeddedData.CelSpecTestData).Count);
-        Assert.Equal(2592, CelSpecSuite.Run(new LibraryEvaluator(), RunCell.Current).Total);
+        Assert.Equal(2771, CelSpecSuite.Run(new LibraryEvaluator(), RunCell.Current).Total);
     }
 
     // A disable_check case is evaluated through the internal entry point without type checking, with the result type dyn: the
@@ -61,8 +61,8 @@ public sealed class CelSpecSuiteTests
     [Fact]
     public void Source_IsTheShortShaOfThePinnedCommit()
     {
-        Assert.Equal("8bef98f1caadc2036fe63d5516cf1df65dc4b741", CelSpecSuite.Commit);
-        Assert.Equal("cel-spec 8bef98f", CelSpecSuite.Source);
+        Assert.Equal("3dd8162270505540492e4198a35717c173e1506a", CelSpecSuite.Commit);
+        Assert.Equal("cel-spec 3dd8162", CelSpecSuite.Source);
     }
 
     private static ConformanceCase Case(IReadOnlyList<ConformanceCase> cases, string name) =>

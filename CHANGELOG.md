@@ -12,6 +12,15 @@ A fix of a vulnerability is listed under `Security` of its version, with the GHS
 
 ## [Unreleased]
 
+### Added
+
+- `CelDuration(long seconds, int nanoseconds)`, `CelDuration.Seconds` and `CelDuration.Nanoseconds`: a duration is whole seconds and nanoseconds, as `google.protobuf.Duration` keeps it.
+
+### Behavior changes
+
+- The range of `duration` is that of `google.protobuf.Duration`, from `-315576000000.999999999s` to `315576000000.999999999s` (about ±10 000 years), as the language definition says; it was a 64-bit number of nanoseconds, about ±292 years. A longer duration is now a value where it was `Overflow` (a sum or a difference of durations, the difference of two timestamps) or `ConversionRange` (`duration(string)`, a `TimeSpan` of the application, a `google.protobuf.Duration` field of a message). `duration('9223372036854775808ns')` is `9223372036.854775808s`, and `duration('9223372036854775808ns9223372036854775808ns')` is `18446744073.709551616s` where it was `0s`. `int(duration)` is `ConversionRange` when the nanoseconds do not fit an `int`.
+- `CelDuration.TotalNanoseconds` throws `InvalidOperationException` for a duration whose nanoseconds do not fit a `long`; read `Seconds` and `Nanoseconds` instead.
+
 ## [1.0.1] - 2026-11-17
 
 Only the properties of the packages `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf` change; the code of the libraries is the code of 1.0.0.

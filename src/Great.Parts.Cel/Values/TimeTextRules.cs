@@ -26,10 +26,18 @@ internal static class TimeTextRules
     /// <summary>The longest text of a timestamp, <c>9999-12-31T23:59:59.999999999Z</c>.</summary>
     internal const int MaxTimestampLength = 30;
 
-    /// <summary>The longest text of a duration, <c>-9223372036.854775808s</c>.</summary>
-    internal const int MaxDurationLength = 22;
+    /// <summary>The longest text of a duration, <c>-315576000000.999999999s</c>.</summary>
+    internal const int MaxDurationLength = 24;
 
     private const ulong TwoToThe63 = 1UL << 63;
+
+    private const ulong NanosecondsPerSecond = 1_000_000_000;
+
+    // The longest duration, 315 576 000 000.999999999 seconds, in nanoseconds: it does not fit 64 bits.
+    private static readonly UInt128 MaxDurationNanoseconds = ((UInt128)(ulong)CelDuration.MaxSeconds * NanosecondsPerSecond) + 999_999_999;
+
+    // A whole part that, read digit by digit, is above this value, is above MaxDurationNanoseconds with the next digit.
+    private static readonly UInt128 MaxWholeBeforeDigit = MaxDurationNanoseconds / 10;
 
     private const long SecondsPerHour = 3_600;
 
@@ -112,8 +120,9 @@ internal static class TimeTextRules
     /// Reads a duration by the grammar and the algorithm of <c>time.ParseDuration</c> of Go: an optional sign, then one or
     /// more groups of digits, an optional fraction and a unit (<c>ns</c>, <c>us</c>, <c>µs</c> U+00B5, <c>μs</c> U+03BC,
     /// <c>ms</c>, <c>s</c>, <c>m</c>, <c>h</c>); <c>0</c> alone is zero. A fraction is the only floating-point step, kept as Go has
-    /// it so that it is cut the same way. An overflow at any step is <see cref="TimeParseResult.OutOfRange"/>, any other
-    /// failure <see cref="TimeParseResult.Invalid"/>; the first failing check decides.
+    /// it so that it is cut the same way. The sums are exact in 128 bits and the range is that of a duration, 315 576 000 000.999999999
+    /// seconds either way, where Go stops at 2^63 nanoseconds. A value outside the range at any step is
+    /// <see cref="TimeParseResult.OutOfRange"/>, any other failure <see cref="TimeParseResult.Invalid"/>; the first failing check decides.
     /// </summary>
     /// <param name="text">The text.</param>
     /// <param name="value">The duration when the result is <see cref="TimeParseResult.Parsed"/>; otherwise zero.</param>
@@ -139,35 +148,38 @@ internal static class TimeTextRules
             return TimeParseResult.Invalid;
         }
 
-        ulong total = 0;
+        UInt128 total = 0;
         while (!rest.IsEmpty)
         {
-            TimeParseResult group = ReadGroup(ref rest, out ulong nanoseconds);
+            TimeParseResult group = ReadGroup(ref rest, out UInt128 nanoseconds);
             if (group != TimeParseResult.Parsed)
             {
                 return group;
             }
 
-            // The sum of two values of at most 2^63 wraps at exactly 2^64, as the uint64 of Go does.
-            total = unchecked(total + nanoseconds);
-            if (total > TwoToThe63)
+            // Each group is at most the maximum, so the sum cannot overflow 128 bits.
+            total += nanoseconds;
+            if (total > MaxDurationNanoseconds)
             {
                 return TimeParseResult.OutOfRange;
             }
         }
 
-        if (negative)
+        long seconds;
+        int remainder;
+        if (total <= ulong.MaxValue)
         {
-            value = new CelDuration(unchecked((long)(0 - total)));
-            return TimeParseResult.Parsed;
+            ulong small = (ulong)total;
+            seconds = (long)(small / NanosecondsPerSecond);
+            remainder = (int)(small % NanosecondsPerSecond);
+        }
+        else
+        {
+            seconds = (long)(total / NanosecondsPerSecond);
+            remainder = (int)(total % NanosecondsPerSecond);
         }
 
-        if (total > long.MaxValue)
-        {
-            return TimeParseResult.OutOfRange;
-        }
-
-        value = new CelDuration((long)total);
+        value = negative ? CelDuration.FromChecked(-seconds, -remainder) : CelDuration.FromChecked(seconds, remainder);
         return TimeParseResult.Parsed;
     }
 
@@ -175,32 +187,30 @@ internal static class TimeTextRules
     /// The number of characters of the text of a duration: the sign, the seconds, and a <c>.</c> with the nine-digit
     /// remainder without trailing zeros when it is not zero, then <c>s</c>.
     /// </summary>
-    /// <param name="nanoseconds">The duration.</param>
+    /// <param name="value">The duration.</param>
     /// <returns>The length, at most <see cref="MaxDurationLength"/>.</returns>
-    internal static int DurationLength(long nanoseconds)
+    internal static int DurationLength(CelDuration value)
     {
-        ulong magnitude = Magnitude(nanoseconds);
-        int length = (nanoseconds < 0 ? 1 : 0) + DecimalDigits(magnitude / 1_000_000_000) + 1;
-        uint remainder = (uint)(magnitude % 1_000_000_000);
-        return remainder == 0 ? length : length + 1 + FractionDigits((int)remainder);
+        int length = (value.Seconds < 0 || value.Nanoseconds < 0 ? 1 : 0) + DecimalDigits((ulong)Math.Abs(value.Seconds)) + 1;
+        int remainder = Math.Abs(value.Nanoseconds);
+        return remainder == 0 ? length : length + 1 + FractionDigits(remainder);
     }
 
     /// <summary>
     /// Writes the text of a duration, exactly and without floating point: <c>1.5s</c>, <c>-0.000000001s</c>, <c>3600s</c>, <c>0s</c>.
     /// </summary>
-    /// <param name="nanoseconds">The duration.</param>
+    /// <param name="value">The duration.</param>
     /// <param name="destination">The buffer, at least <see cref="DurationLength"/> characters.</param>
     /// <returns>The number of characters written.</returns>
-    internal static int WriteDuration(long nanoseconds, Span<char> destination)
+    internal static int WriteDuration(CelDuration value, Span<char> destination)
     {
-        ulong magnitude = Magnitude(nanoseconds);
         int length = 0;
-        if (nanoseconds < 0)
+        if (value.Seconds < 0 || value.Nanoseconds < 0)
         {
             destination[length++] = '-';
         }
 
-        ulong seconds = magnitude / 1_000_000_000;
+        ulong seconds = (ulong)Math.Abs(value.Seconds);
         int digits = DecimalDigits(seconds);
         for (int index = digits - 1; index >= 0; index--)
         {
@@ -209,12 +219,12 @@ internal static class TimeTextRules
         }
 
         length += digits;
-        uint remainder = (uint)(magnitude % 1_000_000_000);
+        int remainder = Math.Abs(value.Nanoseconds);
         if (remainder != 0)
         {
-            int fractionDigits = FractionDigits((int)remainder);
+            int fractionDigits = FractionDigits(remainder);
             destination[length++] = '.';
-            WriteNumber(destination, length, (int)(remainder / (uint)Pow10(9 - fractionDigits)), fractionDigits);
+            WriteNumber(destination, length, remainder / Pow10(9 - fractionDigits), fractionDigits);
             length += fractionDigits;
         }
 
@@ -306,7 +316,7 @@ internal static class TimeTextRules
 
     // One group of a duration: digits, an optional fraction, a unit. Gives the nanoseconds of the group and moves the text
     // past it; the first failing check decides, an overflow being OutOfRange.
-    private static TimeParseResult ReadGroup(ref ReadOnlySpan<char> rest, out ulong nanoseconds)
+    private static TimeParseResult ReadGroup(ref ReadOnlySpan<char> rest, out UInt128 nanoseconds)
     {
         nanoseconds = 0;
         if (rest[0] != '.' && !IsDigit(rest[0]))
@@ -314,7 +324,7 @@ internal static class TimeTextRules
             return TimeParseResult.Invalid;
         }
 
-        TimeParseResult read = ReadWhole(ref rest, out ulong integer, out int whole);
+        TimeParseResult read = ReadWhole(ref rest, out UInt128 integer, out int whole);
         if (read != TimeParseResult.Parsed)
         {
             return read;
@@ -339,20 +349,21 @@ internal static class TimeTextRules
         return unit == 0 ? TimeParseResult.Invalid : Scale(integer, fraction, scale, unit, out nanoseconds);
     }
 
-    // The digits before the point as an unsigned integer; more than 2^63 is OutOfRange. Gives the number of digits.
-    private static TimeParseResult ReadWhole(ref ReadOnlySpan<char> rest, out ulong integer, out int digits)
+    // The digits before the point as an unsigned integer; more than the longest duration in nanoseconds is OutOfRange. Gives the
+    // number of digits.
+    private static TimeParseResult ReadWhole(ref ReadOnlySpan<char> rest, out UInt128 integer, out int digits)
     {
         integer = 0;
         digits = 0;
         for (; digits < rest.Length && IsDigit(rest[digits]); digits++)
         {
-            if (integer > TwoToThe63 / 10)
+            if (integer > MaxWholeBeforeDigit)
             {
                 return TimeParseResult.OutOfRange;
             }
 
-            integer = (integer * 10) + (ulong)(rest[digits] - '0');
-            if (integer > TwoToThe63)
+            integer = (integer * 10) + (uint)(rest[digits] - '0');
+            if (integer > MaxDurationNanoseconds)
             {
                 return TimeParseResult.OutOfRange;
             }
@@ -378,19 +389,21 @@ internal static class TimeTextRules
     }
 
     // The nanoseconds of a group: the whole part times the unit, plus the fraction in the one floating-point step that Go has.
-    private static TimeParseResult Scale(ulong integer, ulong fraction, double scale, ulong unit, out ulong nanoseconds)
+    private static TimeParseResult Scale(UInt128 integer, ulong fraction, double scale, ulong unit, out UInt128 nanoseconds)
     {
         nanoseconds = 0;
-        if (integer > TwoToThe63 / unit)
+
+        // The integer is at most about 3.2 * 10^20 and the unit at most 3.6 * 10^12: the product fits 128 bits.
+        integer *= unit;
+        if (integer > MaxDurationNanoseconds)
         {
             return TimeParseResult.OutOfRange;
         }
 
-        integer *= unit;
         if (fraction > 0)
         {
             integer += (ulong)((double)fraction * ((double)unit / scale));
-            if (integer > TwoToThe63)
+            if (integer > MaxDurationNanoseconds)
             {
                 return TimeParseResult.OutOfRange;
             }
@@ -499,9 +512,6 @@ internal static class TimeTextRules
     }
 
     private static bool IsDigit(char c) => (uint)(c - '0') <= 9;
-
-    // The magnitude of a duration as an unsigned number, so that long.MinValue is no special case.
-    private static ulong Magnitude(long value) => value < 0 ? (ulong)(-(value + 1)) + 1 : (ulong)value;
 
     // The digits of a nine-digit fraction of a second after the trailing zeros are dropped.
     private static int FractionDigits(int nanoseconds)

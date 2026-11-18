@@ -16,7 +16,10 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // (U+00B5 and U+03BC) with s, and ns, in this case; a bare 0 with a sign or without. A string that does not
 // parse is InvalidArgument, one that parses but is outside the range of the type is ConversionRange, both
 // at the call, the "(" after the name; the detail of InvalidArgument is the text of the library and the
-// rows state the start of the message. The text of ConversionRange has the string as {value}.
+// rows state the start of the message. The text of ConversionRange has the string as {value}. The range of a
+// duration is that of google.protobuf.Duration, -315576000000.999999999s to 315576000000.999999999s; the terms of
+// a duration string add exactly, without the 64-bit wrap of time.ParseDuration. int(duration) of a duration whose
+// nanoseconds do not fit an int is ConversionRange at the call, with the text of the duration as {value}.
 // The cases of the cel-spec files timestamps and conversions are in the runner of the suite; the rows
 // here are the boundaries of the page. Strings of time are errors at evaluation, also as constants.
 [Trait("Requirement", "F-1")]
@@ -143,17 +146,29 @@ public sealed class TimeConversionTests
         string_to_duration | duration('one hour') | error InvalidArgument 8: invalid argument to 'duration': *
         string_to_duration | duration('1_0s') | error InvalidArgument 8: invalid argument to 'duration': *
         string_to_duration | duration('0x10s') | error InvalidArgument 8: invalid argument to 'duration': *
-        string_to_duration | duration('9223372036854775808ns') | error ConversionRange 8: 9223372036854775808ns is out of the range of duration
-        string_to_duration | duration('2562048h') | error ConversionRange 8: 2562048h is out of the range of duration
-        string_to_duration | duration('9223372036.854775808s') | error ConversionRange 8: 9223372036.854775808s is out of the range of duration
-        string_to_duration | duration('-9223372036854775809ns') | error ConversionRange 8: -9223372036854775809ns is out of the range of duration
-        string_to_duration | duration('-9223372036.854775809s') | error ConversionRange 8: -9223372036.854775809s is out of the range of duration
+        string_to_duration | duration('9223372036854775808ns') | du 9223372036854775808
+        string_to_duration | duration('2562048h') | du 9223372800000000000
+        string_to_duration | duration('9223372036.854775808s') | du 9223372036854775808
+        string_to_duration | duration('-9223372036854775809ns') | du -9223372036854775809
+        string_to_duration | duration('-9223372036.854775809s') | du -9223372036854775809
+        string_to_duration | duration('9223372036854775808ns9223372036854775808ns') | du 18446744073709551616
+        string_to_duration | duration('315576000000s999999999ns') | du 315576000000999999999
+        string_to_duration | duration('-315576000000s999999999ns') | du -315576000000999999999
+        string_to_duration | duration('315576000000.999999999s') | du 315576000000999999999
+        string_to_duration | duration('87660000h') | du 315576000000000000000
+        string_to_duration | duration('99999999999999999999') | error InvalidArgument 8: invalid argument to 'duration': *
+        string_to_duration | duration('315576000001s') | error ConversionRange 8: 315576000001s is out of the range of duration
+        string_to_duration | duration('-315576000001s') | error ConversionRange 8: -315576000001s is out of the range of duration
+        string_to_duration | duration('315576000000s1000000000ns') | error ConversionRange 8: 315576000000s1000000000ns is out of the range of duration
+        string_to_duration | duration('87660001h') | error ConversionRange 8: 87660001h is out of the range of duration
         string_to_duration | duration('9223372036854775807s') | error ConversionRange 8: 9223372036854775807s is out of the range of duration
         duration_to_int64 | int(duration('1h')) | int 3600000000000
         duration_to_int64 | int(duration('-1.5s')) | int -1500000000
         duration_to_int64 | int(duration('1ns')) | int 1
         duration_to_int64 | int(duration('9223372036854775807ns')) | int 9223372036854775807
         duration_to_int64 | int(duration('-9223372036854775808ns')) | int -9223372036854775808
+        duration_to_int64 | int(duration('9223372036854775808ns')) | error ConversionRange 3: 9223372036.854775808s is out of the range of int
+        duration_to_int64 | int(duration('-315576000000s999999999ns')) | error ConversionRange 3: -315576000000.999999999s is out of the range of int
         duration_to_string | string(duration('0s')) | str 0s
         duration_to_string | string(duration('60.001s')) | str 60.001s
         duration_to_string | string(duration('-1.5s')) | str -1.5s
@@ -166,6 +181,9 @@ public sealed class TimeConversionTests
         duration_to_string | string(duration('-9223372036854775808ns')) | str -9223372036.854775808s
         duration_to_string | string(duration('9223372036.854775807s')) | str 9223372036.854775807s
         duration_to_string | string(duration('1234567890123456789ns')) | str 1234567890.123456789s
+        duration_to_string | string(duration('9223372036854775808ns')) | str 9223372036.854775808s
+        duration_to_string | string(duration('315576000000s999999999ns')) | str 315576000000.999999999s
+        duration_to_string | string(duration('-315576000000s999999999ns')) | str -315576000000.999999999s
         duration_to_string | string(duration('-0.5s')) | str -0.5s
         duration_to_string | string(duration('1m1.5s')) | str 61.5s
         """;

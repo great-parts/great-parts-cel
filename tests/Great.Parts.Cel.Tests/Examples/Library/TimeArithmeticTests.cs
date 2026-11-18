@@ -6,8 +6,9 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // The arithmetic of time of the standard library page: timestamp + duration and duration + timestamp
 // move the moment, timestamp - duration moves it back, timestamp - timestamp is a duration, durations
 // add and subtract. The results to the nanosecond, at the edges of the range of timestamp (0001-01-01T00:00:00Z
-// to 9999-12-31T23:59:59.999999999Z) and of duration (a whole int64 of nanoseconds, about 292 years)
-// that the page gives as the limits of time. The overflow of the results is Overflow, with its text and place, in
+// to 9999-12-31T23:59:59.999999999Z) and of duration (the range of google.protobuf.Duration,
+// -315576000000.999999999s to 315576000000.999999999s, about 10 000 years) that the page gives as the limits
+// of time. The difference of two moments is always within the range of a duration. The overflow of the results is Overflow, with its text and place, in
 // TimeErrorTests. There is no other arithmetic of time: no sum of two moments, no product, no negation of
 // a duration (the checker says NoMatchingOverload).
 [Trait("Requirement", "F-1")]
@@ -36,6 +37,18 @@ public sealed class TimeArithmeticTests
         duration('-9223372036854775808ns') + duration('9223372036854775807ns') | du -1
         duration('-9223372036854775808ns') - duration('0s') | du -9223372036854775808
         duration('9223372036854775807ns') - duration('1ns') | du 9223372036854775806
+        timestamp('9999-12-31T23:59:59Z') - timestamp('0001-01-01T00:00:00Z') | du 315537897599000000000
+        timestamp('0001-01-01T00:00:00Z') - timestamp('9999-12-31T23:59:59.999999999Z') | du -315537897599999999999
+        timestamp('2262-04-11T23:47:16.854775808Z') - timestamp('1970-01-01T00:00:00Z') | du 9223372036854775808
+        timestamp('0001-01-01T00:00:00Z') + duration('315537897599s999999999ns') | ts 253402300799 999999999
+        timestamp('9999-12-31T23:59:59.999999999Z') - duration('315537897599s999999999ns') | ts -62135596800 0
+        duration('9223372036854775807ns') + duration('1ns') | du 9223372036854775808
+        duration('0s') - duration('-9223372036854775808ns') | du 9223372036854775808
+        duration('315576000000s') + duration('999999999ns') | du 315576000000999999999
+        duration('-315576000000s') - duration('999999999ns') | du -315576000000999999999
+        duration('315576000000s999999999ns') - duration('315576000000s999999999ns') | du 0
+        duration('1s') - duration('1.5s') | du -500000000
+        duration('-1s') + duration('1.5s') | du 500000000
         timestamp('2009-02-13T23:31:30Z') + timestamp('2009-02-13T23:31:30Z') | compile NoMatchingOverload
         duration('1s') - timestamp('2009-02-13T23:31:30Z') | compile NoMatchingOverload
         timestamp('2009-02-13T23:31:30Z') * 2 | compile NoMatchingOverload

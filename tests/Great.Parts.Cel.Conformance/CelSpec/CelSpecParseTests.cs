@@ -14,7 +14,7 @@ namespace Great.Parts.Cel.Conformance.CelSpec;
 // without a difference; the cases of BlockTestMacroCases fail as described there. The skip list does not apply.
 public sealed class CelSpecParseTests
 {
-    private const int CaseCount = 2592;
+    private const int CaseCount = 2771;
 
     private const string MacroMessageStart = "invalid call of macro '";
     private const string MacroMessageEnd = "': argument must be a simple name";

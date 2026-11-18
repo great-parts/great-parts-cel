@@ -35,7 +35,7 @@ internal static class TimeCosts
     // the s.
     internal static readonly CelCostFunction DurationText = static arguments =>
         arguments.Length > 0 && arguments[0].TryGetDuration(out CelDuration value)
-            ? Tenths((ulong)TimeTextRules.DurationLength(value.TotalNanoseconds))
+            ? Tenths((ulong)TimeTextRules.DurationLength(value))
             : 0;
 
     // ⌈x/10⌉.

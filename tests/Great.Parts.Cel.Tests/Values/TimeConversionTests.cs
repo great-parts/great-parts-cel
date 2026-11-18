@@ -87,8 +87,8 @@ public sealed class TimeConversionTests
     }
 
     [Theory]
-    [InlineData(long.MaxValue / 100 + 1)]
-    [InlineData(long.MinValue / 100 - 1)]
+    [InlineData(3_155_760_000_010_000_000)]
+    [InlineData(-3_155_760_000_010_000_000)]
     [InlineData(long.MaxValue)]
     [InlineData(long.MinValue)]
     public static void TimeSpan_OutsideTheRangeOfDuration_IsAnErrorValueWithTheTicks(long ticks)
@@ -108,12 +108,12 @@ public sealed class TimeConversionTests
     [Fact]
     public static void TimeSpan_AtTheEdgesOfTheRange_IsADuration()
     {
-        Assert.True(ConversionRules.TryFromClr(TimeSpan.FromTicks(long.MaxValue / 100), out CelValue max));
-        Assert.True(ConversionRules.TryFromClr(TimeSpan.FromTicks(long.MinValue / 100), out CelValue min));
+        Assert.True(ConversionRules.TryFromClr(TimeSpan.FromTicks(3_155_760_000_009_999_999), out CelValue max));
+        Assert.True(ConversionRules.TryFromClr(TimeSpan.FromTicks(-3_155_760_000_009_999_999), out CelValue min));
         Assert.True(max.TryGetDuration(out CelDuration last));
         Assert.True(min.TryGetDuration(out CelDuration first));
-        Assert.Equal((long.MaxValue / 100) * 100, last.TotalNanoseconds);
-        Assert.Equal((long.MinValue / 100) * 100, first.TotalNanoseconds);
+        Assert.Equal((315_576_000_000L, 999_999_900), (last.Seconds, last.Nanoseconds));
+        Assert.Equal((-315_576_000_000L, -999_999_900), (first.Seconds, first.Nanoseconds));
     }
 
     [Fact]

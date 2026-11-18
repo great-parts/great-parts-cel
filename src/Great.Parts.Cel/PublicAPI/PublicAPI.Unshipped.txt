@@ -1,1 +1,4 @@
 #nullable enable
+Great.Parts.Cel.Values.CelDuration.CelDuration(long seconds, int nanoseconds) -> void
+Great.Parts.Cel.Values.CelDuration.Nanoseconds.get -> int
+Great.Parts.Cel.Values.CelDuration.Seconds.get -> long

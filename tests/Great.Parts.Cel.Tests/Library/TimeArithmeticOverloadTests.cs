@@ -1,4 +1,5 @@
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Values;
 using Xunit;
 using static Great.Parts.Cel.Tests.Library.TimeCalls;
 
@@ -75,15 +76,14 @@ public sealed class TimeArithmeticOverloadTests
     }
 
     [Theory]
-    [InlineData(9_223_372_036L, 854_775_808, 0L, 0)]
-    [InlineData(0L, 0, 9_223_372_036L, 854_775_809)]
-    [InlineData(MaxSeconds, 999_999_999, MinSeconds, 0)]
-    [InlineData(MinSeconds, 0, MaxSeconds, 999_999_999)]
-    public static void DifferenceOfMomentsOutsideTheNanosecondsOfALong_IsDurationOverflow(long seconds, int nanoseconds, long otherSeconds, int otherNanoseconds)
+    [InlineData(9_223_372_036L, 854_775_808, 0L, 0, 9_223_372_036L, 854_775_808)]
+    [InlineData(0L, 0, 9_223_372_036L, 854_775_809, -9_223_372_036L, -854_775_809)]
+    [InlineData(MaxSeconds, 999_999_999, MinSeconds, 0, 315_537_897_599L, 999_999_999)]
+    [InlineData(MinSeconds, 0, MaxSeconds, 999_999_999, -315_537_897_599L, -999_999_999)]
+    public static void DifferenceOfMomentsBeyondTheNanosecondsOfALong_IsTheDuration(long seconds, int nanoseconds, long otherSeconds, int otherNanoseconds, long expectedSeconds, int expectedNanoseconds)
     {
-        Assert.Equal(
-            (CelErrorCode.Overflow, Offset, "duration overflow"),
-            Error(Call("subtract_timestamp_timestamp", Ts(seconds, nanoseconds), Ts(otherSeconds, otherNanoseconds))));
+        Assert.True(Call("subtract_timestamp_timestamp", Ts(seconds, nanoseconds), Ts(otherSeconds, otherNanoseconds)).TryGetDuration(out CelDuration difference));
+        Assert.Equal((expectedSeconds, expectedNanoseconds), (difference.Seconds, difference.Nanoseconds));
     }
 
     [Theory]
@@ -97,13 +97,14 @@ public sealed class TimeArithmeticOverloadTests
     }
 
     [Theory]
-    [InlineData(long.MaxValue, 1L)]
-    [InlineData(long.MinValue, -1L)]
-    [InlineData(long.MaxValue, long.MaxValue)]
-    [InlineData(long.MinValue, long.MinValue)]
-    public static void DurationPlusDurationOutsideALong_IsDurationOverflow(long left, long right)
+    [InlineData(long.MaxValue, 1L, 9_223_372_036L, 854_775_808)]
+    [InlineData(long.MinValue, -1L, -9_223_372_036L, -854_775_809)]
+    [InlineData(long.MaxValue, long.MaxValue, 18_446_744_073L, 709_551_614)]
+    [InlineData(long.MinValue, long.MinValue, -18_446_744_073L, -709_551_616)]
+    public static void DurationPlusDurationBeyondALong_IsTheSum(long left, long right, long expectedSeconds, int expectedNanoseconds)
     {
-        Assert.Equal((CelErrorCode.Overflow, Offset, "duration overflow"), Error(Call("add_duration_duration", Du(left), Du(right))));
+        Assert.True(Call("add_duration_duration", Du(left), Du(right)).TryGetDuration(out CelDuration sum));
+        Assert.Equal((expectedSeconds, expectedNanoseconds), (sum.Seconds, sum.Nanoseconds));
     }
 
     [Theory]
@@ -118,13 +119,14 @@ public sealed class TimeArithmeticOverloadTests
     }
 
     [Theory]
-    [InlineData(long.MinValue, 1L)]
-    [InlineData(long.MaxValue, -1L)]
-    [InlineData(0L, long.MinValue)]
-    [InlineData(-2L, long.MaxValue)]
-    public static void DurationMinusDurationOutsideALong_IsDurationOverflow(long left, long right)
+    [InlineData(long.MinValue, 1L, -9_223_372_036L, -854_775_809)]
+    [InlineData(long.MaxValue, -1L, 9_223_372_036L, 854_775_808)]
+    [InlineData(0L, long.MinValue, 9_223_372_036L, 854_775_808)]
+    [InlineData(-2L, long.MaxValue, -9_223_372_036L, -854_775_809)]
+    public static void DurationMinusDurationBeyondALong_IsTheDifference(long left, long right, long expectedSeconds, int expectedNanoseconds)
     {
-        Assert.Equal((CelErrorCode.Overflow, Offset, "duration overflow"), Error(Call("subtract_duration_duration", Du(left), Du(right))));
+        Assert.True(Call("subtract_duration_duration", Du(left), Du(right)).TryGetDuration(out CelDuration difference));
+        Assert.Equal((expectedSeconds, expectedNanoseconds), (difference.Seconds, difference.Nanoseconds));
     }
 
     [Theory]

@@ -149,7 +149,7 @@ internal static class OptionalFunctions
     // The duration of 0 nanoseconds and the timestamp 0001-01-01T00:00:00Z.
     private static bool IsZeroTime(CelValue value) =>
         value.TryGetDuration(out CelDuration span)
-            ? span.TotalNanoseconds == 0
+            ? span == default
             : value.TryGetTimestamp(out CelTimestamp moment) && moment.Seconds == CelTimestamp.MinSeconds && moment.Nanoseconds == 0;
 
     // Whether none of the fields of an object is set: the fields in the order of the description, up to the first one that is set. The

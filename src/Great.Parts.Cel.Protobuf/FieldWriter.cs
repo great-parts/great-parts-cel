@@ -12,8 +12,6 @@ namespace Great.Parts.Cel.Protobuf;
 /// </summary>
 internal sealed class FieldWriter
 {
-    private const long NanosecondsPerSecond = 1_000_000_000;
-
     private readonly ValueShape _shape;
     private readonly MessageType _owner;
     private readonly int _number;
@@ -193,11 +191,7 @@ internal sealed class FieldWriter
         error = default;
         if (value.TryGetDuration(out CelDuration duration))
         {
-            result = new Duration
-            {
-                Seconds = duration.TotalNanoseconds / NanosecondsPerSecond,
-                Nanos = (int)(duration.TotalNanoseconds % NanosecondsPerSecond),
-            };
+            result = new Duration { Seconds = duration.Seconds, Nanos = duration.Nanoseconds };
             return true;
         }
 

@@ -231,36 +231,27 @@ public sealed class TimeTextRulesTests
         Assert.Equal(0L, value.TotalNanoseconds);
     }
 
-    // Each of these overflows at one step of the algorithm; the digits of the whole part overflow before the unit is read.
+    // Each of these is above the range of a duration at one step of the algorithm; the digits of the whole part are checked
+    // before the unit is read. The range is that of google.protobuf.Duration (DurationRangeTests).
     [Theory]
-    [InlineData("9223372036854775808ns")]
-    [InlineData("9223372036854775809ns")]
-    [InlineData("-9223372036854775809ns")]
-    [InlineData("99999999999999999999ns")]
-    [InlineData("99999999999999999999x")]
-    [InlineData("99999999999999999999")]
+    [InlineData("999999999999999999999ns")]
     [InlineData("9223372036855s")]
-    [InlineData("2562048h")]
-    [InlineData("-2562048h")]
-    [InlineData("9223372036854775807ns1ns")]
-    [InlineData("-9223372036854775808ns1ns")]
-    [InlineData("9223372036854775807ns9223372036854775807ns")]
     [InlineData("1000000000000s1000000000000s")]
-    [InlineData("9223372036.854775808s")]
-    [InlineData("9223372036.99999s")]
-    public static void Duration_Overflow_IsOutOfRange(string text)
+    [InlineData("-1000000000000s")]
+    [InlineData("99999999999999999999999999999999999999999")]
+    public static void Duration_AboveTheRange_IsOutOfRange(string text)
     {
         Assert.Equal(TimeParseResult.OutOfRange, TimeTextRules.TryParseDuration(text, out CelDuration value));
-        Assert.Equal(0L, value.TotalNanoseconds);
+        Assert.Equal(default, value);
     }
 
-    // The sum of two groups of exactly 2^63 wraps at 2^64 in the uint64 of Go, and the wrapped zero passes the check: the
-    // algorithm is kept as it is, so that the library reads such a text as time.ParseDuration does.
+    // Past 2^63 nanoseconds a sum no longer wraps as the uint64 of Go does: both groups of 2^63 add up to a duration of 18 446 744 073
+    // seconds, within the range.
     [Fact]
-    public static void Duration_TwoGroupsOfTwoToThe63_WrapLikeGo()
+    public static void Duration_TwoGroupsOfTwoToThe63_AddUp()
     {
         Assert.Equal(TimeParseResult.Parsed, TimeTextRules.TryParseDuration("9223372036854775808ns9223372036854775808ns", out CelDuration value));
-        Assert.Equal(0L, value.TotalNanoseconds);
+        Assert.Equal(new CelDuration(18_446_744_073, 709_551_616), value);
     }
 
     // The one floating-point step is the fraction: its product with the unit is cut, as the uint64 conversion of Go cuts it,
@@ -293,7 +284,7 @@ public sealed class TimeTextRulesTests
         string text = value.ToString();
 
         Assert.Equal(expected, text);
-        Assert.Equal(text.Length, TimeTextRules.DurationLength(nanoseconds));
+        Assert.Equal(text.Length, TimeTextRules.DurationLength(value));
         Assert.True(text.Length <= TimeTextRules.MaxDurationLength);
         Assert.Equal(TimeParseResult.Parsed, TimeTextRules.TryParseDuration(text, out CelDuration back));
         Assert.Equal(value, back);
@@ -306,14 +297,27 @@ public sealed class TimeTextRulesTests
         Span<char> buffer = stackalloc char[TimeTextRules.MaxDurationLength];
         for (int index = 0; index < 20_000; index++)
         {
-            long nanoseconds = random.Next(3) == 0 ? random.Next(-5_000_000_000, 5_000_000_000) : unchecked((long)random.NextBits());
+            CelDuration value = random.Next(3) switch
+            {
+                0 => new CelDuration(random.Next(-5_000_000_000, 5_000_000_000)),
+                1 => new CelDuration(unchecked((long)random.NextBits())),
+                _ => WideDuration(random),
+            };
 
-            int length = TimeTextRules.WriteDuration(nanoseconds, buffer);
+            int length = TimeTextRules.WriteDuration(value, buffer);
 
-            Assert.Equal(TimeTextRules.DurationLength(nanoseconds), length);
+            Assert.Equal(TimeTextRules.DurationLength(value), length);
             Assert.Equal(TimeParseResult.Parsed, TimeTextRules.TryParseDuration(buffer[..length], out CelDuration back));
-            Assert.Equal(nanoseconds, back.TotalNanoseconds);
+            Assert.Equal(value, back);
         }
+    }
+
+    // A duration of any length of the range, with nanoseconds of the sign of the seconds.
+    private static CelDuration WideDuration(TimeSamples random)
+    {
+        long seconds = random.Next(-315_576_000_000, 315_576_000_001);
+        int nanoseconds = (int)random.Next(0, 1_000_000_000);
+        return new CelDuration(seconds, seconds < 0 ? -nanoseconds : nanoseconds);
     }
 
     private const long MinSecondsValue = -62_135_596_800;

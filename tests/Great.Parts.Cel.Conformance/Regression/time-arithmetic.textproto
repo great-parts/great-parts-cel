@@ -1,7 +1,41 @@
 # Minimized cases of known divergences from cel-go in the arithmetic of time. The expectation of each case is the answer of cel-go.
 
 name: "time_arithmetic"
-description: "Subtraction of a duration from a timestamp"
+description: "Arithmetic of durations and timestamps"
+section {
+  name: "duration_range"
+  description: "cel-go keeps a duration as 64 bits of nanoseconds, so a result beyond them fails with an integer overflow"
+  test {
+    name: "add"
+    description: "add_duration_duration(duration, duration) we-value"
+    expr: "duration('9223372036854775807ns') + duration('1ns')"
+    eval_error: {
+      errors: {
+        message: "integer overflow"
+      }
+    }
+  }
+  test {
+    name: "subtract"
+    description: "subtract_duration_duration(duration, duration) we-value"
+    expr: "duration('-9223372036854775808ns') - duration('1ns')"
+    eval_error: {
+      errors: {
+        message: "integer overflow"
+      }
+    }
+  }
+  test {
+    name: "subtract_timestamps"
+    description: "subtract_timestamp_timestamp(timestamp, timestamp) we-value"
+    expr: "timestamp('9999-12-31T23:59:59Z') - timestamp('0001-01-01T00:00:00Z')"
+    eval_error: {
+      errors: {
+        message: "integer overflow"
+      }
+    }
+  }
+}
 section {
   name: "subtract_duration"
   description: "cel-go subtracts a duration by negating it, so the smallest duration fails with an integer overflow"

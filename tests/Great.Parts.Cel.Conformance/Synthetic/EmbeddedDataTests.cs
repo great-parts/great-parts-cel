@@ -16,7 +16,7 @@ public sealed class EmbeddedDataTests
         List<SimpleTest> cases = [.. parsed.SelectMany(file => file.Section).SelectMany(section => section.Test)];
 
         Assert.Equal(32, files.Count);
-        Assert.Equal(2592, cases.Count);
+        Assert.Equal(2771, cases.Count);
         Assert.Equal(141, cases.Count(testCase => testCase.DisableCheck));
     }
 

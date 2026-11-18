@@ -374,7 +374,7 @@ public abstract class CelObjectType
     /// Converts a <see cref="TimeSpan"/> member to a <c>google.protobuf.Duration</c> value, exactly.
     /// </summary>
     /// <remarks>
-    /// A duration holds a 64-bit number of nanoseconds, about 292 years each way, while a
+    /// A duration has the range of <c>google.protobuf.Duration</c>, 315,576,000,000 seconds each way, while a
     /// <see cref="TimeSpan"/> reaches further; a longer value gives an error value with the code
     /// <see cref="CelErrorCode.ConversionRange"/> that names the type and the field.
     /// </remarks>

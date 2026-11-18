@@ -279,7 +279,7 @@ The errors of a receiver with a zone are `TimeZoneNotFound` (3022) and `InvalidT
 
 #### Limits of time
 
-A `timestamp` runs from `0001-01-01T00:00:00Z` to `9999-12-31T23:59:59.999999999Z`; a `duration` is one `int` of nanoseconds, about ±292 years. A result of arithmetic outside the range is `Overflow` (3006), and of a conversion `ConversionRange`. The page [Limits](limits.md#values) has the table.
+A `timestamp` runs from `0001-01-01T00:00:00Z` to `9999-12-31T23:59:59.999999999Z`; a `duration` runs from `-315576000000.999999999s` to `315576000000.999999999s`, about ±10 000 years, the range of `google.protobuf.Duration`. A result of arithmetic outside the range is `Overflow` (3006), and of a conversion `ConversionRange`. The page [Limits](limits.md#values) has the table.
 
 #### Where the library differs from cel-go
 
@@ -287,6 +287,8 @@ The language definition decides; each row is a difference from cel-go v0.33.4.
 
 | Call | cel-go | This library |
 | :- | :- | :- |
+| a `duration` longer than about ±292 years, such as `timestamp('9999-12-31T23:59:59Z') - timestamp('0001-01-01T00:00:00Z')` or `duration('9223372036854775808ns')` | an error: a duration is a 64-bit number of nanoseconds | a duration up to `315576000000.999999999s`, as the language definition says |
+| `int(duration)` of such a duration | not possible | `ConversionRange`: the nanoseconds do not fit an `int` |
 | `duration.getMilliseconds()` | the whole milliseconds of the duration | the milliseconds within the second |
 | `string(timestamp)` of a timestamp read from a string with an offset such as `-07:00` | keeps the offset of the string | always UTC with `Z` |
 | `string(duration)` of a long duration with nanoseconds | goes through `double`, so low digits are lost: `string(duration('9223372036.854775807s'))` is `"9223372036.854776s"` | exact |

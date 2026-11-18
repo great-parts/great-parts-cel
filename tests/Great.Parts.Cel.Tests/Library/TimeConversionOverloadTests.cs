@@ -132,9 +132,9 @@ public sealed class TimeConversionOverloadTests
     }
 
     [Theory]
-    [InlineData("9223372036854775808ns")]
-    [InlineData("2562048h")]
-    [InlineData("-9223372036854775809ns")]
+    [InlineData("315576000001s")]
+    [InlineData("87660001h")]
+    [InlineData("-315576000001s")]
     public static void StringToDuration_OutsideTheRange_IsConversionRangeWithTheText(string text)
     {
         Assert.Equal(

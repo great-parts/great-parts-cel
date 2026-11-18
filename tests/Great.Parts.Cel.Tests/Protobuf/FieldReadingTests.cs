@@ -155,18 +155,20 @@ public sealed class FieldReadingTests
         var latest = new Proto3.TestAllTypes
         {
             SingleTimestamp = new Timestamp { Seconds = 253_402_300_799, Nanos = 999_999_999 },
-            SingleDuration = new Duration { Seconds = 9_223_372_036, Nanos = 854_775_807 },
+            SingleDuration = new Duration { Seconds = 315_576_000_000, Nanos = 999_999_999 },
         };
         var earliest = new Proto3.TestAllTypes
         {
             SingleTimestamp = new Timestamp { Seconds = -62_135_596_800 },
-            SingleDuration = new Duration { Seconds = -9_223_372_036, Nanos = -854_775_808 },
+            SingleDuration = new Duration { Seconds = -315_576_000_000, Nanos = -999_999_999 },
         };
+        var beyondAnInt64 = new Proto3.TestAllTypes { SingleDuration = new Duration { Seconds = 9_223_372_036, Nanos = 854_775_808 } };
 
         Assert.True(Reading.IsTrue("x.single_timestamp == timestamp('9999-12-31T23:59:59.999999999Z')", latest));
-        Assert.True(Reading.IsTrue("x.single_duration == duration('9223372036854775807ns')", latest));
+        Assert.True(Reading.IsTrue("x.single_duration == duration('315576000000s999999999ns')", latest));
         Assert.True(Reading.IsTrue("x.single_timestamp == timestamp('0001-01-01T00:00:00Z')", earliest));
-        Assert.True(Reading.IsTrue("x.single_duration == duration('-9223372036854775808ns')", earliest));
+        Assert.True(Reading.IsTrue("x.single_duration == duration('-315576000000s999999999ns')", earliest));
+        Assert.True(Reading.IsTrue("x.single_duration == duration('9223372036854775808ns')", beyondAnInt64));
     }
 
     // Beyond the range of CEL the field reads as ConversionRange, whose text names the seconds, or the nanoseconds when the seconds fit.
@@ -179,13 +181,13 @@ public sealed class FieldReadingTests
         AssertTimestampError(new Timestamp { Seconds = 5, Nanos = -1 }, "-1 is out of the range of timestamp");
     }
 
-    // The nanoseconds of the wrong sign or beyond a second are named by the error, a total that does not fit 64 bits by the seconds.
+    // The nanoseconds of the wrong sign or beyond a second are named by the error, seconds beyond 315 576 000 000 by the seconds.
     [Fact]
     public static void Duration_BeyondTheRange_IsConversionRange()
     {
-        AssertDurationError(new Duration { Seconds = 9_223_372_036, Nanos = 854_775_808 }, "9223372036 is out of the range of duration");
-        AssertDurationError(new Duration { Seconds = 9_223_372_037 }, "9223372037 is out of the range of duration");
-        AssertDurationError(new Duration { Seconds = -9_223_372_037 }, "-9223372037 is out of the range of duration");
+        AssertDurationError(new Duration { Seconds = 315_576_000_001 }, "315576000001 is out of the range of duration");
+        AssertDurationError(new Duration { Seconds = -315_576_000_001 }, "-315576000001 is out of the range of duration");
+        AssertDurationError(new Duration { Seconds = long.MaxValue }, "9223372036854775807 is out of the range of duration");
         AssertDurationError(new Duration { Seconds = 1, Nanos = -1 }, "-1 is out of the range of duration");
         AssertDurationError(new Duration { Seconds = -1, Nanos = 1 }, "1 is out of the range of duration");
         AssertDurationError(new Duration { Nanos = 1_000_000_000 }, "1000000000 is out of the range of duration");
@@ -198,7 +200,7 @@ public sealed class FieldReadingTests
         var message = new Proto3.TestAllTypes
         {
             RepeatedTimestamp = { new Timestamp { Seconds = 1 }, new Timestamp { Seconds = 253_402_300_800 } },
-            MapBoolDuration = { [true] = new Duration { Seconds = 9_223_372_037 }, [false] = new Duration { Seconds = 2 } },
+            MapBoolDuration = { [true] = new Duration { Seconds = 315_576_000_001 }, [false] = new Duration { Seconds = 2 } },
         };
 
         Assert.True(Reading.IsTrue("size(x.repeated_timestamp) == 2 && x.repeated_timestamp[0] == timestamp(1)", message));
