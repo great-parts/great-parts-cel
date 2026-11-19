@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Unit tests of the dependency injection package (docs/design/tests.md). The tests run under JIT and as a published Native AOT
+    executable; the same tests must run in both modes. InvariantGlobalization is set on the publish command line only.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel.DependencyInjection.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- Restore is the same for JIT and Native AOT, so publishing does not change the lock file. -->
+    <PublishAot>true</PublishAot>
+    <!-- Only the publish runs without dynamic code; the JIT run tests the library with it (as in Great.Parts.Cel.Tests). -->
+    <DynamicCodeSupport Condition="'$(_IsPublishing)' != 'true'">true</DynamicCodeSupport>
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
+    <!-- The publish names linux-x64 with -r; the runtime identifier of the host would change the locked restore (NU1004). -->
+    <UseDefaultPublishRuntimeIdentifier>false</UseDefaultPublishRuntimeIdentifier>
+    <!-- The published test executable needs no XML documentation (MSB3030 otherwise). -->
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Tests have no XML documentation. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Test method names are <Situation>_<Expectation>, with an underscore. -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.aot" />
+    <!--
+      The container of the tests (ServiceCollection.BuildServiceProvider) comes from the shared framework of ASP.NET Core, a part of
+      the platform, so the tests add no NuGet package for it.
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Great.Parts.Cel.DependencyInjection/Great.Parts.Cel.DependencyInjection.csproj" />
+    <!-- The types of the generator samples and their type contexts: the options and the inputs of the tests. -->
+    <ProjectReference Include="../Great.Parts.Cel.Generator.Samples/Great.Parts.Cel.Generator.Samples.csproj" />
+  </ItemGroup>
+
+  <!-- The whole assembly of the package is a root of the Native AOT publish, so the publish analyzes all its public code. -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Great.Parts.Cel.DependencyInjection" />
+  </ItemGroup>
+
+</Project>

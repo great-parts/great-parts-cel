@@ -17,7 +17,7 @@ The library targets `net10.0` and `net11.0`. Add the package to a project:
 dotnet add package Great.Parts.Cel
 ```
 
-Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](docs/protobuf.md). The type `decimal` is available on both targets, with a smaller range on `net10.0`; see [Decimal](docs/decimal.md).
+Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](docs/protobuf.md). An application with dependency injection takes `Great.Parts.Cel.DependencyInjection` (an environment, its compilation cache and an evaluator as services, and the validation of options), and an ASP.NET Core application `Great.Parts.Cel.AspNetCore` (authorization policies and the validation of requests). The type `decimal` is available on both targets, with a smaller range on `net10.0`; see [Decimal](docs/decimal.md).
 
 ## Quick start
 

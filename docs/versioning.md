@@ -1,6 +1,6 @@
 # Versioning and compatibility
 
-The packages `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf` follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) and always have the same version. A breaking change comes only in a major version. This page says what is breaking, what a minor version may change, and what an application can rely on. Which versions get fixes is in [SECURITY.md](../SECURITY.md): versions 1.x get none, and from release 2.0 only the latest release does.
+The packages `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore` follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) and always have the same version. A breaking change comes only in a major version. This page says what is breaking, what a minor version may change, and what an application can rely on. Which versions get fixes is in [SECURITY.md](../SECURITY.md): versions 1.x get none, and from release 2.0 only the latest release does.
 
 ## What is breaking
 

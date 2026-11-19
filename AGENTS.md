@@ -16,7 +16,7 @@ The full check of a change is CI (`.github/workflows/ci.yml`): on every push to 
 
 ## Where things are
 
-- `src/Great.Parts.Cel`: the library. `src/Great.Parts.Cel.Protobuf`: protobuf types. `src/Great.Parts.Cel.Generator`: the source generator.
+- `src/Great.Parts.Cel`: the library. `src/Great.Parts.Cel.Protobuf`: protobuf types. `src/Great.Parts.Cel.DependencyInjection`: registration in a dependency injection container and the validation of options. `src/Great.Parts.Cel.AspNetCore`: authorization policies and the validation of requests of ASP.NET Core. `src/Great.Parts.Cel.Generator`: the source generator.
 - `tests/`: unit, property and conformance tests. `tests/cel-spec/`: an unchanged copy of cel-spec at the commit in `tests/cel-spec/COMMIT`.
 - `eng/`: the containers, the repository checks (`eng/checks`), the analyzers and their tests.
 - `docs/design/`: the design of each part. Read the page of the part before you change it; the code follows it.

@@ -23,3 +23,9 @@ Great.Parts.Cel.Configuration -> Great.Parts.Cel, Great.Parts.Cel.Evaluation, Gr
 
 [Great.Parts.Cel.Protobuf]
 Great.Parts.Cel.Protobuf ->
+
+[Great.Parts.Cel.DependencyInjection]
+Great.Parts.Cel.DependencyInjection ->
+
+[Great.Parts.Cel.AspNetCore]
+Great.Parts.Cel.AspNetCore ->

@@ -1,6 +1,6 @@
 # API concepts
 
-This page lists every public type of the `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf` assemblies. For each type it names the cel-spec concept the type represents, or the purpose it serves when the type has no counterpart in cel-spec, and explains how the name differs from the cel-spec term.
+This page lists every public type of the `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore` assemblies. For each type it names the cel-spec concept the type represents, or the purpose it serves when the type has no counterpart in cel-spec, and explains how the name differs from the cel-spec term.
 
 cel-spec sources:
 
@@ -75,3 +75,11 @@ How to read the table:
 | `CelEnvironmentJson` | `Great.Parts.Cel.Configuration` | Purpose: reads an environment description from JSON (variables, types, extensions with versions, function declarations with implementations registered in code) into a `CelEnvironmentBuilder`; the format is a subset of the cel-go environment configuration format | Not a cel-spec concept: the JSON reader of an environment description |
 | `CelProtobufTypes` | `Great.Parts.Cel.Protobuf` | langdef "Protocol Buffer Data Conversion", "Dynamic Values": a type provider for protobuf messages built from file descriptors | Not a cel-spec term: the provider of protobuf message types |
 | `CelProtobufTypesBuilder` | `Great.Parts.Cel.Protobuf` | Purpose: builds a `CelProtobufTypes` provider from `.proto` file descriptors and typed proto2 extensions | Not a cel-spec concept: the builder of `CelProtobufTypes` |
+| `CelServiceCollectionExtensions` | `Great.Parts.Cel.DependencyInjection` | Purpose: registers a CEL environment, its compilation cache and an `ICelEvaluator` in a dependency injection container, one for the application or several by name | Not a cel-spec concept: registration methods, in the style of the `Add…` extensions of `IServiceCollection` |
+| `CelOptions` | `Great.Parts.Cel.DependencyInjection` | Purpose: the settings of a registered environment, the default cost limit and the capacities of the compilation cache, that the application binds from its configuration | Not a cel-spec concept: options in the style of `IOptions<T>` |
+| `ICelEvaluator` | `Great.Parts.Cel.DependencyInjection` | Purpose: the evaluation and validation of expression texts in a registered environment through its cache, a service that tests replace | Not a cel-spec concept: the injectable evaluator |
+| `CelOptionsBuilderExtensions` | `Great.Parts.Cel.DependencyInjection` | Purpose: the validation of the options of an application by a CEL expression over their fields | Not a cel-spec concept: an extension of `OptionsBuilder<TOptions>` |
+| `CelAuthorizationExtensions` | `Great.Parts.Cel.AspNetCore` | Purpose: authorization policies of ASP.NET Core with CEL expressions over the claims of the user and the resource | Not a cel-spec concept: extensions of `AuthorizationPolicyBuilder` and of the service collection |
+| `CelAuthorizationRequirement` | `Great.Parts.Cel.AspNetCore` | Purpose: the authorization requirement that a CEL expression gives `true` | Not a cel-spec concept: an `IAuthorizationRequirement` of ASP.NET Core |
+| `CelEndpointExtensions` | `Great.Parts.Cel.AspNetCore` | Purpose: the validation of requests of minimal API endpoints by a CEL expression over the request | Not a cel-spec concept: endpoint filters of ASP.NET Core |
+| `CelValidateAttribute<TRequest>` | `Great.Parts.Cel.AspNetCore` | Purpose: the validation of an action argument of an MVC controller by a CEL expression over the argument | Not a cel-spec concept: an MVC action filter attribute |

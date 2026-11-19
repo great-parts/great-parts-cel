@@ -60,7 +60,7 @@ api.WithCelValidation<CreateOrder>("currency in ['EUR', 'USD']", "Unsupported cu
 - `true` runs the handler. `false` answers 400 with a validation problem that has your message. A compilation or evaluation error also answers 400 with the code of the error. A handler without an argument of the type `TRequest` answers 400 too.
 - The call on a group applies the filter to every endpoint of the group.
 - `WithCelValidation` takes one type argument: write `WithCelValidation<CreateOrder>(…)`, nothing else.
-- MVC controllers: if the package ships `[CelValidate<TRequest>("expression", "message")]` (an `IAsyncActionFilter`), it works the same way; for minimal API endpoints use `WithCelValidation`. Check the API of the installed version before you use the attribute.
+- MVC controllers: `[CelValidate<TRequest>("expression", "message")]` on an action or a controller (an `IAsyncActionFilter`) works the same way, with the argument of the action of the type `TRequest`. The attribute itself uses no reflection, but MVC does not support Native AOT: an application published with Native AOT uses minimal API endpoints and `WithCelValidation`.
 - Settings of options of the application are checked with `ValidateCel` of the package `Great.Parts.Cel.DependencyInjection`, not here.
 
 ## Common mistakes

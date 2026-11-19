@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel.DependencyInjection</RootNamespace>
+    <Title>Great.Parts.Cel.DependencyInjection: dependency injection for Great.Parts.Cel</Title>
+    <Description>Dependency injection for Great.Parts.Cel: register CEL environments, a compilation cache and a replaceable evaluator in Microsoft.Extensions.DependencyInjection, and validate options with CEL expressions.</Description>
+    <PackageTags>$(PackageTags);dependency-injection</PackageTags>
+    <!-- Trimming and Native AOT analyzers: IL2xxx and IL3xxx are build errors. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!--
+    The package depends only on Great.Parts.Cel, Microsoft.Extensions.DependencyInjection.Abstractions and
+    Microsoft.Extensions.Options. The core gives this assembly no access to its internals: only the public API of the core is
+    used. Configuration binding stays with the application, so there is no Microsoft.Extensions.Configuration package.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Banned APIs: every use is RS0030. -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../eng/BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+
+  <!-- The API concept list: every public type of the package has a row there. -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../docs/api-concepts.md" Link="api-concepts.md" />
+  </ItemGroup>
+
+  <!-- Public API snapshot shared by both target frameworks; this package has no API specific to net11.0. -->
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <!--
+    The notice file, the README of the package (PackageReadmeFile) and the instructions for AI coding agents (AGENTS.md, which
+    the NuGet MCP server returns for the package) are in the root of the package.
+  -->
+  <ItemGroup>
+    <None Include="../../NOTICE" Pack="true" PackagePath="" Visible="false" />
+    <None Include="../../eng/packages/Great.Parts.Cel.DependencyInjection.README.md" Pack="true" PackagePath="README.md" Visible="false" />
+    <None Include="../../eng/packages/Great.Parts.Cel.DependencyInjection.AGENTS.md" Pack="true" PackagePath="AGENTS.md" Visible="false" />
+  </ItemGroup>
+
+</Project>

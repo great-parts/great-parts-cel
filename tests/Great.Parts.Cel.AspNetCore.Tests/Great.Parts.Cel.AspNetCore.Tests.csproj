@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    Unit tests of the ASP.NET Core package and its test application (docs/design/tests.md): an ASP.NET Core application with a
+    minimal API endpoint filter, an authorization policy and the MVC action filter. The tests run under JIT and as a published
+    Native AOT executable; the same tests must run in both modes. The Web SDK runs the request delegate generator with PublishAot,
+    so the endpoints are built without reflection. InvariantGlobalization is set on the publish command line only.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel.AspNetCore.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <!-- Restore is the same for JIT and Native AOT, so publishing does not change the lock file. -->
+    <PublishAot>true</PublishAot>
+    <!-- Only the publish runs without dynamic code; the JIT run tests the library with it (as in Great.Parts.Cel.Tests). -->
+    <DynamicCodeSupport Condition="'$(_IsPublishing)' != 'true'">true</DynamicCodeSupport>
+    <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>
+    <!-- The publish names linux-x64 with -r; the runtime identifier of the host would change the locked restore (NU1004). -->
+    <UseDefaultPublishRuntimeIdentifier>false</UseDefaultPublishRuntimeIdentifier>
+    <!-- The published test executable needs no XML documentation (MSB3030 otherwise). -->
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Tests have no XML documentation. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <!-- Test method names are <Situation>_<Expectation>, with an underscore. -->
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3.aot" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Great.Parts.Cel.AspNetCore/Great.Parts.Cel.AspNetCore.csproj" />
+    <!-- The types of the generator samples and their type contexts: the requests and the resources of the tests. -->
+    <ProjectReference Include="../Great.Parts.Cel.Generator.Samples/Great.Parts.Cel.Generator.Samples.csproj" />
+  </ItemGroup>
+
+  <!--
+    The whole assemblies of the two packages are roots of the Native AOT publish, so the publish analyzes all their public code,
+    the MVC action filter included, and reports every IL2xxx and IL3xxx warning of it.
+  -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="Great.Parts.Cel.AspNetCore" />
+    <TrimmerRootAssembly Include="Great.Parts.Cel.DependencyInjection" />
+  </ItemGroup>
+
+</Project>

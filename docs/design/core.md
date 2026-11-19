@@ -11,7 +11,7 @@ The core is the code that decides the value or the error of an expression by the
 - the standard library and the extension sets with the implementations of their functions, including `matches`, `decimal` and the time functions — `Great.Parts.Cel.Library` and its sub-namespaces;
 - the value rules that evaluation relies on: assignability of types in `Great.Parts.Cel.Types`; CEL equality, ordering, hashing of map keys and conversions of values in `Great.Parts.Cel.Values`.
 
-Not core: the parser and the macros (`Great.Parts.Cel.Syntax`), the public facade, declarations, diagnostics, the environment description in JSON (`Great.Parts.Cel.Configuration`), the value model in `Types` and `Values` outside the rule files, the text of error messages, including the names of types in it (`Values/ValueTypeNames.cs`), the source generator, the type providers, the type descriptions and their builders outside the rule files, the adapters of application collections and of `JsonElement` outside the rule files, the `Great.Parts.Cel.Protobuf` package, `eng/` and the tests.
+Not core: the parser and the macros (`Great.Parts.Cel.Syntax`), the public facade, declarations, diagnostics, the environment description in JSON (`Great.Parts.Cel.Configuration`), the value model in `Types` and `Values` outside the rule files, the text of error messages, including the names of types in it (`Values/ValueTypeNames.cs`), the source generator, the type providers, the type descriptions and their builders outside the rule files, the adapters of application collections and of `JsonElement` outside the rule files, the packages `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore`, `eng/` and the tests.
 
 A defect in the core gives a wrong value instead of a visible error. Core changes are therefore also checked against the reference implementation with `eng/difftest`.
 
@@ -128,6 +128,8 @@ git diff --name-only --no-renames <base>...<head>
 
 Moving code across the line — a new rule file outside this naming, a rule in a model file, a new core directory — changes this page in the same change.
 
+The packages `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore` are not core: their paths match no pattern above, and they use only the public API of `Great.Parts.Cel`, so no part of the core serves them.
+
 ## Protobuf messages
 
 The package `Great.Parts.Cel.Protobuf` is not core: `src/Great.Parts.Cel.Protobuf/**` matches no pattern above, and a defect of it is caught by its tests, the conformance cases and the Native AOT publication ([protobuf](protobuf.md)). The part of the core that serves it is small, and none of it needs a new directory:
@@ -173,6 +175,8 @@ The package `Great.Parts.Cel.Protobuf` is not core: `src/Great.Parts.Cel.Protobu
 | `src/Great.Parts.Cel/Diagnostics/CelErrorCode.cs` | no | diagnostics |
 | `src/Great.Parts.Cel/PublicAPI/PublicAPI.Unshipped.txt` | no | snapshot |
 | `src/Great.Parts.Cel.Protobuf/CelProtobufTypes.cs` | no | other package |
+| `src/Great.Parts.Cel.DependencyInjection/CelServiceCollectionExtensions.cs` | no | other package |
+| `src/Great.Parts.Cel.AspNetCore/CelAuthorizationHandler.cs` | no | other package |
 | `tests/Great.Parts.Cel.Tests/Examples/EndToEndTests.cs` | no | tests |
 | `eng/layers.txt` | no | `eng/` |
 

@@ -1,0 +1,16 @@
+# Expected content of the Great.Parts.Cel.AspNetCore package.
+# The only package dependency is Great.Parts.Cel.DependencyInjection; ASP.NET Core comes as the shared framework.
+
+dependencies net10.0: Great.Parts.Cel.DependencyInjection
+dependencies net11.0: Great.Parts.Cel.DependencyInjection
+
+license Apache-2.0
+
+file NOTICE
+file README.md
+file AGENTS.md
+file icon.png
+file lib/net10.0/Great.Parts.Cel.AspNetCore.dll
+file lib/net10.0/Great.Parts.Cel.AspNetCore.xml
+file lib/net11.0/Great.Parts.Cel.AspNetCore.dll
+file lib/net11.0/Great.Parts.Cel.AspNetCore.xml

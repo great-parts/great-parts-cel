@@ -17,6 +17,12 @@
     <!-- The compiler version of the .NET SDK 10.0.100: the analyzer and the source generator load in that compiler and newer. -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" />
+    <!--
+      The lower bounds in the package of Great.Parts.Cel.DependencyInjection, one for both target frameworks, so that an
+      application on .NET 10 is not made to raise its version; applications can use a later version.
+    -->
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
     <PackageVersion Include="xunit.v3.aot" Version="4.0.3" />
   </ItemGroup>
 </Project>

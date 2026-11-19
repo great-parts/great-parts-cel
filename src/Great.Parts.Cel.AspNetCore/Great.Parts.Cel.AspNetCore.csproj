@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+    <RootNamespace>Great.Parts.Cel.AspNetCore</RootNamespace>
+    <Title>Great.Parts.Cel.AspNetCore: ASP.NET Core support for Great.Parts.Cel</Title>
+    <Description>ASP.NET Core support for Great.Parts.Cel: CEL expressions in authorization policies and in the validation of requests of minimal API endpoints.</Description>
+    <PackageTags>$(PackageTags);aspnetcore;authorization</PackageTags>
+    <!-- Trimming and Native AOT analyzers: IL2xxx and IL3xxx are build errors. -->
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+
+  <!--
+    The package depends only on Great.Parts.Cel.DependencyInjection and uses the shared framework of ASP.NET Core, which is
+    part of the .NET platform and adds no NuGet package. Only the public API of the core and of the dependency injection
+    package is used.
+  -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../Great.Parts.Cel.DependencyInjection/Great.Parts.Cel.DependencyInjection.csproj" />
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Banned APIs: every use is RS0030. -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../eng/BannedSymbols.txt" Link="BannedSymbols.txt" />
+  </ItemGroup>
+
+  <!-- The API concept list: every public type of the package has a row there. -->
+  <ItemGroup>
+    <AdditionalFiles Include="../../docs/api-concepts.md" Link="api-concepts.md" />
+  </ItemGroup>
+
+  <!-- Public API snapshot shared by both target frameworks; this package has no API specific to net11.0. -->
+  <ItemGroup>
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Shipped.txt" />
+    <AdditionalFiles Include="PublicAPI/PublicAPI.Unshipped.txt" />
+  </ItemGroup>
+
+  <!--
+    The notice file, the README of the package (PackageReadmeFile) and the instructions for AI coding agents (AGENTS.md, which
+    the NuGet MCP server returns for the package) are in the root of the package.
+  -->
+  <ItemGroup>
+    <None Include="../../NOTICE" Pack="true" PackagePath="" Visible="false" />
+    <None Include="../../eng/packages/Great.Parts.Cel.AspNetCore.README.md" Pack="true" PackagePath="README.md" Visible="false" />
+    <None Include="../../eng/packages/Great.Parts.Cel.AspNetCore.AGENTS.md" Pack="true" PackagePath="AGENTS.md" Visible="false" />
+  </ItemGroup>
+
+</Project>
