@@ -8,11 +8,13 @@ internal sealed class PatternEntry
 {
     private int referenced;
 
+    // The weight of a program is m + ⌈D/16⌉, D the bytes of the tables of its automaton, 0 when it has none: the unit of the weight is
+    // 16 bytes, as an instruction of the program is.
     internal PatternEntry(CompiledPattern program)
     {
         Program = program;
         Size = program.Size;
-        Weight = program.Size;
+        Weight = program.Size + (program.Automaton is { } automaton ? (automaton.TableBytes + 15) / 16 : 0);
     }
 
     internal PatternEntry(RegexError error)
@@ -31,7 +33,8 @@ internal sealed class PatternEntry
     // The size m of the program, 0 for an error.
     internal int Size { get; }
 
-    // What the entry counts against the capacity of the cache, in units of the size of a program: m, and 1 for an error.
+    // What the entry counts against the capacity of the cache, in units of the size of a program: m plus the tables of the automaton
+    // in units of 16 bytes, and 1 for an error.
     internal int Weight { get; }
 
     // A hit sets the flag with a plain write: a flag lost to a race only makes the entry the next to be removed.

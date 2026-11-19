@@ -278,14 +278,17 @@ public sealed class MatcherTests
     }
 
     // The steps are the entries of an instruction into a set. "a" is Char and Match; on "a" the first instruction enters at
-    // position 0 and Match enters from it.
+    // position 0 and Match enters from it. A program that begins with the start of the text is not entered again after position 0,
+    // and one with a literal prefix is entered only where the prefix is.
     [Theory]
     [InlineData("a", "", false, 1)]
     [InlineData("a", "b", false, 2)]
     [InlineData("a", "a", true, 2)]
     [InlineData("ab", "ab", true, 4)]
+    [InlineData("ab", "xab", true, 4)]
+    [InlineData("ab", "xyz", false, 0)]
     [InlineData("a*", "", true, 3)]
-    [InlineData("^a", "ba", false, 4)]
+    [InlineData("^a", "ba", false, 2)]
     [InlineData("", "", true, 1)]
     public static void Steps_OfSmallRuns_AreTheEntriesOfInstructions(string pattern, string subject, bool matches, long steps)
     {

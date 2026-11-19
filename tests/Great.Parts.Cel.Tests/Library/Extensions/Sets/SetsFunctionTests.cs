@@ -42,14 +42,14 @@ public sealed class SetsFunctionTests
 
     // "expression | units"
     private const string Costs = """
-        sets.contains([5, 6], [6]) | 9
-        sets.contains([5, 6], [7, 5]) | 10
-        sets.contains([], [1]) | 5
-        sets.intersects([1, 2, 3], [3]) | 13
-        sets.intersects([1], []) | 5
-        sets.contains(['aa', 'b'], ['b']) | 11
-        sets.equivalent([1], [2, 1]) | 8
-        sets.equivalent([1, 2], [1, 2]) | 17
+        sets.contains([5, 6], [6]) | 11
+        sets.contains([5, 6], [7, 5]) | 11
+        sets.contains([], [1]) | 6
+        sets.intersects([1, 2, 3], [3]) | 15
+        sets.intersects([1], []) | 6
+        sets.contains(['aa', 'b'], ['b']) | 15
+        sets.equivalent([1], [2, 1]) | 9
+        sets.equivalent([1, 2], [1, 2]) | 23
         """;
 
     public static TheoryData<string, string, string, bool> ResultRows => ResultData();
@@ -92,16 +92,17 @@ public sealed class SetsFunctionTests
         Assert.Equal(CelErrorCode.CostLimitExceeded, Assert.Single(Evaluate(expression, null, cost - 1).Errors).Code);
     }
 
-    // Two reads of variables at 1 each, and then 1 for the call and, for each element looked up, 1 and the comparisons made.
+    // Two reads of variables at 1 each, and then 1 for the call, 1 for the hashing of each element of the list searched, and for each
+    // element looked up 1, its hashing and the one comparison that found it.
     [Fact]
-    public static void Cost_OfListsOfMixedNumbers_CountsEachComparison()
+    public static void Cost_OfListsOfMixedNumbers_CountsHashingAndTheComparisonThatFound()
     {
         CelBindings bindings = new CelBindings()
             .Add("a", Evaluate("[1, 2]").GetValueOrThrow())
             .Add("b", Evaluate("[2.0, 1u]").GetValueOrThrow());
 
-        Assert.True(Evaluate("sets.contains(a, b)", bindings, 8).IsSuccess);
-        Assert.Equal(CelErrorCode.CostLimitExceeded, Assert.Single(Evaluate("sets.contains(a, b)", bindings, 7).Errors).Code);
+        Assert.True(Evaluate("sets.contains(a, b)", bindings, 11).IsSuccess);
+        Assert.Equal(CelErrorCode.CostLimitExceeded, Assert.Single(Evaluate("sets.contains(a, b)", bindings, 10).Errors).Code);
     }
 
     [Theory]

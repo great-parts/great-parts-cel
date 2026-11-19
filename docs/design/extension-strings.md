@@ -8,7 +8,7 @@ The functions of `strings` except `format`, which has [its own page](extension-f
 | `src/Great.Parts.Cel/Library/Extensions/Strings/CodePoints.cs` | length and the offset of an index, over UTF-16 |
 | `src/Great.Parts.Cel/Library/Extensions/Strings/StringFunctions.cs` | the implementations of the overloads of this page |
 | `src/Great.Parts.Cel/Library/Extensions/Strings/ResultBuilder.cs` | the builder of a result that charges as it grows |
-| `src/Great.Parts.Cel/Library/SubstringSearch.cs` | the search, extended as below |
+| `src/Great.Parts.Cel/Library/Text/SubstringSearch.cs` | the search, extended as below |
 
 ## Conventions
 

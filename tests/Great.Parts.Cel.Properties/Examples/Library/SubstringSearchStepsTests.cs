@@ -1,7 +1,7 @@
 using System;
 using System.Text;
 using System.Threading;
-using Great.Parts.Cel.Library;
+using Great.Parts.Cel.Library.Text;
 using Xunit;
 
 namespace Great.Parts.Cel.Properties.Examples.Library;

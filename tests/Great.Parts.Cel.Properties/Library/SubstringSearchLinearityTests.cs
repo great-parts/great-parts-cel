@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 using CsCheck;
-using Great.Parts.Cel.Library;
+using Great.Parts.Cel.Library.Text;
 using Xunit;
 
 namespace Great.Parts.Cel.Properties.Library;
@@ -59,21 +59,34 @@ public sealed class SubstringSearchLinearityTests
         ];
     }
 
-    // The reason why the search breaks the property on a case, or null.
+    // The reason why the search breaks the property on a case, or null: the hybrid, which searches a short pattern by .NET, and the
+    // search by KMP, which the hybrid keeps for a long one and which a short pattern must pass as well.
     private static string? Violation(SearchCase input)
     {
+        int expected = NaiveIndexOf(input.Text, input.Pattern);
+        long bound = 4L * (input.Text.Length + input.Pattern.Length);
         long steps = 0;
         int index = SubstringSearch.IndexOf(input.Text, input.Pattern, ref steps);
-        long bound = 4L * (input.Text.Length + input.Pattern.Length);
-        if (steps > bound)
+        if (Verdict("hybrid", index, steps, expected, bound) is { } hybrid)
         {
-            return string.Create(CultureInfo.InvariantCulture, $"{steps} steps > 4 · (n + m) = {bound}");
+            return hybrid;
         }
 
-        int expected = NaiveIndexOf(input.Text, input.Pattern);
+        steps = 0;
+        index = SubstringSearch.IndexOfKmp(input.Text, input.Pattern, ref steps);
+        return Verdict("KMP", index, steps, expected, bound);
+    }
+
+    private static string? Verdict(string search, int index, long steps, int expected, long bound)
+    {
+        if (steps > bound)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"{search}: {steps} steps > 4 · (n + m) = {bound}");
+        }
+
         return index == expected
             ? null
-            : string.Create(CultureInfo.InvariantCulture, $"index {index}, the naive search finds {expected}");
+            : string.Create(CultureInfo.InvariantCulture, $"{search}: index {index}, the naive search finds {expected}");
     }
 
     // The search of the definition: each start in order, comparing code units until the first difference.

@@ -50,7 +50,7 @@ public sealed class OptionalCostTests
         .Add("optional, list literal with ? of empty optionals", size => With("[" + Repeat("?optional.none()", size) + "]", CelValue.Null))
         .Add("optional, map literal with ?", size => With("{" + string.Join(", ", Enumerable.Range(0, size).Select(index => $"?'k{index}': optional.of(1)")) + "}", CelValue.Null))
 
-        // Sets: the units grow with the square of the size, the bytes do not grow.
+        // Sets: the elements are hashed, so the units and the bytes grow with the size.
         .Add("sets, contains", size => Two("sets.contains(x, p)", CostTests.IntList(size), CostTests.IntList(size)), sizes: Quadratic)
         .Add("sets, intersects", size => Two("sets.intersects(x, p)", CostTests.IntList(size), Ints(size, size)), sizes: Quadratic)
         .Add("sets, equivalent", size => Two("sets.equivalent(x, p)", CostTests.IntList(size), CostTests.IntList(size)), sizes: Quadratic)

@@ -169,16 +169,16 @@ public sealed class Re2SearchCorpusTests
         return shown.Append('"').ToString();
     }
 
-    private sealed record Result(int Line, string Subject, string[] Fields);
+    internal sealed record Result(int Line, string Subject, string[] Fields);
 
-    private sealed record Entry(int Line, string Pattern, List<Result> Results);
+    internal sealed record Entry(int Line, string Pattern, List<Result> Results);
 
     // The corpus as the reader of testRE2 takes it. A line that begins with # is a comment, one that begins with an upper-case letter
     // names a group; "strings" starts a list of subjects and "regexps" ends it; a quoted line is a subject in the list and a pattern
     // after it; a line that begins with "-" or a digit holds the four results of the last pattern on the next subject of the list.
     // A blank line, a line of another form, a pattern that comes before all the results of the last, a result line that has no
     // subject left, and a subject that is left at the end of the file are an error: the reader would get out of step with the file.
-    private sealed class Corpus
+    internal sealed class Corpus
     {
         internal static readonly string Path = System.IO.Path.Combine(AppContext.BaseDirectory, "Regex", "Data", "re2-search.txt");
 

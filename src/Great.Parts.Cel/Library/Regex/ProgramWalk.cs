@@ -73,7 +73,7 @@ internal ref struct ProgramWalk
 
         // The ranges of a class that is only under x{0} were counted by the parse and are not in the program.
         int[] used = rangeTop == ranges.Length ? ranges : ranges.AsSpan(0, rangeTop).ToArray();
-        return new CompiledPattern(instructions, used, tree.Size, start);
+        return new CompiledPattern(instructions, used, tree.Size, start, LiteralPrefix.Of(instructions, start), AnchoredStart.Of(instructions, start));
     }
 
     internal void Dispose()

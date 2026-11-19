@@ -98,7 +98,7 @@ public sealed class CelProgram<T>
     internal CelEvalResult<T> EvaluateWithLimit(CelBindings bindings, ulong costLimit, CancellationToken cancellationToken) =>
         Run(Plan, ResultType, bindings, costLimit, _start, cancellationToken);
 
-    // Evaluates a plan in a new frame, with a cost limit, null for none, and the token of the evaluation, whose
+    // Evaluates a plan in a frame that the thread rents and gives back when the evaluation ends, with a cost limit, null for none, and the token of the evaluation, whose
     // cancellation passes through as OperationCanceledException, and converts the value of the root to T by the
     // result rows and the static type of the root: an error value of the root is the one error of the result, and a
     // value that does not convert is ResultConversion at the position of the root. With the start of the expression in
@@ -110,10 +110,21 @@ public sealed class CelProgram<T>
         ulong? costLimit,
         CelSourceLocation? start,
         CancellationToken cancellationToken,
-        object? input = null) =>
-        Run(plan, resultType, plan.CreateFrame(bindings.Values, costLimit, cancellationToken, input), start);
+        object? input = null)
+    {
+        Frame frame = plan.RentFrame(bindings.Values, costLimit, cancellationToken, input);
+        try
+        {
+            return Run(plan, resultType, frame, start);
+        }
+        finally
+        {
+            frame.Release();
+        }
+    }
 
-    // The evaluation of a plan in a frame that the caller made, and the conversion of the value of the root: the steps of Run.
+    // The evaluation of a plan in a frame that the caller rented, and the conversion of the value of the root: the steps of Run. The
+    // result holds nothing of the frame, so the caller may give it back as soon as this returns.
     private static CelEvalResult<T> Run(Plan plan, CelType resultType, Frame frame, CelSourceLocation? start)
     {
         // The cost is the sum the frame charged, reported only when a limit applied: on an error of the evaluation the sum including
@@ -198,13 +209,20 @@ public sealed class CelProgram<T>
             // A structure stays in the frame of the evaluation and is read by reference through the typed description; it is never boxed
             // for the call.
             CelEnvironment.CheckInputType(_inputType, typeof(TInput));
-            Frame frame = Plan.CreateInputFrame(
+            InputFrame<TInput> frame = Plan.RentInputFrame(
                 (bindings ?? CelBindings.Empty).Values,
                 costLimit,
                 input,
                 _inputType as CelObjectType<TInput>,
                 cancellationToken);
-            return Run(Plan, ResultType, frame, _start);
+            try
+            {
+                return Run(Plan, ResultType, frame, _start);
+            }
+            finally
+            {
+                frame.Release();
+            }
         }
 
         CelEnvironment.CheckInput(_inputType, input!);

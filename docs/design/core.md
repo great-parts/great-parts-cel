@@ -31,6 +31,7 @@ Each namespace of the assembly is a directory, and the namespace of a file equal
 | `src/Great.Parts.Cel/Checking/` | `Great.Parts.Cel.Checking` | internal | yes |
 | `src/Great.Parts.Cel/Library/` | `Great.Parts.Cel.Library` | internal | yes |
 | `src/Great.Parts.Cel/Library/Unicode/` | `Great.Parts.Cel.Library.Unicode` | internal, generated code | yes |
+| `src/Great.Parts.Cel/Library/Text/` | `Great.Parts.Cel.Library.Text` | internal, no dependencies | yes |
 | `src/Great.Parts.Cel/Library/Regex/` | `Great.Parts.Cel.Library.Regex` | internal | yes |
 | `src/Great.Parts.Cel/Library/Time/` | `Great.Parts.Cel.Library.Time` | internal | yes |
 | `src/Great.Parts.Cel/Library/Decimals/` | `Great.Parts.Cel.Library.Decimals` | internal, `net11.0` only | yes |
@@ -96,7 +97,7 @@ A defect in a core file is a wrong answer for a decimal and no visible error, bu
 
 `Library/Regex/` and `Library/Unicode/` are internal sub-namespaces of `Library`, so both are core by the paths below: a defect in them is a wrong answer of `matches`, not a visible error, and a change goes through `eng/difftest`. They hold the code of [regex-syntax](regex-syntax.md) and [regex-engine](regex-engine.md) and the generated tables of [unicode-tables](unicode-tables.md).
 
-- **Layers** (`eng/layers.txt`, unchanged): `Library.Regex` references `Library.Unicode`, `Declarations`, `Values` and `Diagnostics`; `Library.Unicode` references no namespace of the library; `Library` references both. `Checking` and `Evaluation` reference neither: they reach the preparation of a pattern through the types of `Declarations` ([declarations](declarations.md), "Constant arguments"), which the library fills in.
+- **Layers** (`eng/layers.txt`): `Library.Regex` references `Library.Unicode`, `Library.Text`, `Declarations`, `Values` and `Diagnostics`; `Library.Unicode` and `Library.Text`, the search for a substring that `Library` and `Library.Regex` share, reference no namespace of the library; `Library` references all three. `Checking` and `Evaluation` reference neither: they reach the preparation of a pattern through the types of `Declarations` ([declarations](declarations.md), "Constant arguments"), which the library fills in.
 - **Generated files.** `src/Great.Parts.Cel/Library/Unicode/*.g.cs` are written by the generator in `eng/unicode/`, which is not core; the files are, since they match `Library/**`, so a regenerated table is checked like a change of the code that reads it. The source checks skip them ([eng-checks-source](eng-checks-source.md#generated-code)).
 - **No other directory** is added: the parse, the engine and the cache are files of `Library/Regex/`, and the implementation of the two overloads is `Library/Matches.cs` ([library](library.md)).
 

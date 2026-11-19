@@ -2,7 +2,7 @@
     "codeMetrics": {
         "CA1502": 15
     },
-    "duplicates": 1032,
+    "duplicates": 1069,
     "suppressions": {
         "CA1002": 1,
         "CA1008": 2,
@@ -33,7 +33,7 @@
         "GPCEL010": 4,
         "IDE0005": 1,
         "RS0026": 4,
-        "RS0030": 1,
+        "RS0030": 2,
         "lychee": 3,
         "nullable": 1,
         "xUnit1051": 1

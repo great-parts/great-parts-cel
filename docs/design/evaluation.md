@@ -27,7 +27,7 @@
 | `AndPlanNode`, `OrPlanNode` | a chain of `_&&_` or of `_\|\|_` calls | 0 beyond the operands |
 | `ConditionalPlanNode` | `_?_:_` | 0 beyond the operands |
 | `NotStrictlyFalsePlanNode` | `@not_strictly_false` | 0 |
-| `ListPlanNode` | a list literal | 1 + n for n elements |
+| `ListPlanNode` | a list literal with an element that is not a literal, and the empty `[]`; a literal of constants is a `ConstantPlanNode` that holds the list made at planning and charges the same | 1 + n for n elements |
 | `MapPlanNode` | a map literal | 1 + 2n for n entries, a key and a value each, and ⌈L/10⌉ for each string key of length L |
 | `ComprehensionPlanNode` | a comprehension | 1 per executed step |
 | `AppendPlanNode` | the step `@result + [e]` of `map` and `filter` | 1 per added element |
@@ -136,6 +136,8 @@ A value of a `System.Decimal` or a `Decimal128` that the application puts in a p
 - the offset of the node whose own operation runs, which each node records before it: the place of `CostLimitExceeded` and `InternalError`.
 
 `Plan.Evaluate` is two internal steps, which the property of cost and memory (see [tests](tests.md), "Properties of evaluation") calls one by one: `Frame CreateFrame(IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken)` allocates the frame with its slots, argument stack and meter, and `CelValue Run(Frame frame)` evaluates the root inside the handler of "Stack and internal errors", turning `CostLimitException` into `CostLimitExceeded`; `Evaluate` is `Run(CreateFrame(…))` and nothing else. The internal `Frame.ChargedUnits` is the limit minus the remaining units, 0 without a meter.
+
+The evaluation of a program (`CelProgram<T>`) does not create its frame but rents one: `Plan.RentFrame` and `Plan.RentInputFrame<TInput>` take a frame that the current thread kept from an earlier evaluation, or make one, and `Frame.Release` gives it back in a `finally`, however the evaluation ends — a value, an error, an exception, a cancellation. A released frame is cleared of everything of the evaluation: the values of its slots, locals, cells and stack, the bindings, the plan, the token, the input structure and the counters, so it holds no object of the application and a program evaluated next sees nothing of the last one. A frame whose arrays are longer than 256 values is not kept. The thread keeps up to four frames of each kind (`FrameSpares<TFrame>`, one list for each input type of a structure), so an evaluation inside an evaluation — a function or a field getter of the application evaluates a program on the same thread — finds the outer frame taken and rents another; deeper nesting allocates frames that it does not keep. The value of an evaluation holds no array of the frame, so the frame may be given back as soon as the value is converted. `CreateFrame` still allocates a frame that no thread keeps, for the tests of the plan.
 
 ## Cost
 

@@ -17,8 +17,8 @@ namespace Great.Parts.Cel.Tests.Allocation;
 // under JIT and under Native AOT; a budget of 0 holds in every configuration.
 public sealed class EvaluationAllocationTests
 {
-    // The bytes that the public call adds to Run: the frame with its slots and argument stack, and the result object; they do not grow
-    // with the data. The greatest measured is 440, in the scenarios with a comprehension.
+    // The most that the public call adds to Run: the frame of the evaluation is rented, so after the first call there is none to
+    // allocate (FrameReuseAllocationTests), and the result is a structure; the room is what a call that finds no frame to rent allocates.
     private const long FacadeBytes = 512;
 
     private const int Counted = 3;
@@ -132,20 +132,16 @@ public sealed class EvaluationAllocationTests
         Add(table, "E7, 10 lines", 10, Scenario.Of<bool>("order.created + duration('72h') > now", _ => true, _ => 0));
         Add(table, "E7, 100 lines", 100, Scenario.Of<bool>("order.created + duration('72h') > now", _ => true, _ => 0));
 
-        // E8: the size of a list and a membership test in a literal list of constants; the plan builds the literal at each evaluation,
-        // so the budget is that one list.
-        Add(table, "E8, 10 lines", 10, Scenario.Of<bool>("size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']", _ => true, _ => E8Budget));
-        Add(table, "E8, 100 lines", 100, Scenario.Of<bool>("size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']", _ => true, _ => E8Budget));
+        // E8: the size of a list and a membership test in a literal list of constants; the planner folds the literal into one constant of
+        // the plan, so the evaluation builds no list and the budget is 0 bytes.
+        Add(table, "E8, 10 lines", 10, Scenario.Of<bool>("size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']", _ => true, _ => 0));
+        Add(table, "E8, 100 lines", 100, Scenario.Of<bool>("size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']", _ => true, _ => 0));
 
         // E9: the three strings of the concatenations, one for each `+`.
         Add(table, "E9", 10, Scenario.Of<string>("'Order ' + order.id + ': ' + order.status", _ => "Order ORD-0001: approved", _ => E9Budget));
 
         return table;
     }
-
-    // The new list of the literal `['RUB', 'USD', 'EUR']`: an array of 3 values and the object of the list over it, which is
-    // smaller than the accumulator of a comprehension.
-    private static readonly ulong E8Budget = ArrayBytes(3) + LiteralListObjectBytes;
 
     // The three strings of `'Order ' + order.id`, `… + ': '` and `… + order.status`: 14, 16 and 24 code units.
     private static readonly ulong E9Budget = StringBytes(14) + StringBytes(16) + StringBytes(24);
@@ -157,9 +153,6 @@ public sealed class EvaluationAllocationTests
 
     // The accumulator of a comprehension and the list that its result turns it into, two small objects.
     private const ulong ListObjectBytes = 56;
-
-    // The object of the list that a literal builds over its array.
-    private const ulong LiteralListObjectBytes = 24;
 
     private static ulong ArrayBytes(int length) => ArrayHeaderBytes + (ValueBytes * (ulong)length);
 

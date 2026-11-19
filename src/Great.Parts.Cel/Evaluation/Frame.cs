@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
@@ -10,61 +12,147 @@ namespace Great.Parts.Cel.Evaluation;
 // the meter of the cost limit, the event counter of cancellation, the type index of the environment and the offset of
 // the node whose own operation runs. A frame serves one call of Plan.Run on one thread. The frame of an input that is a structure is
 // the class derived from this one (InputFrame<TInput>), which holds the structure itself.
+//
+// The frame of a call is rented: the evaluation takes one that its thread kept from an earlier evaluation, or makes a new one, and
+// gives it back when it ends, however it ends, cleared of everything of the evaluation; so a thread that evaluates again and again
+// allocates no frame. An evaluation inside an evaluation, which application code makes, finds the outer frame taken and rents another.
 internal class Frame : IEvaluationMeter, IApplicationBoundary
 {
     // How many events begin between two checks of the token.
     private const uint EventsPerCheck = 64;
 
-    private readonly IReadOnlyDictionary<string, CelValue> _bindings;
+    // A frame with an array longer than this is not kept: a thread keeps the frames of the expressions of a usual size, not those of one
+    // that is huge, which are made again for each call.
+    private const int KeptLength = 256;
 
-    private readonly CelValue[] _slots;
+    // What a frame that waits for its next evaluation holds instead of the bindings of the last one.
+    private static readonly FrozenDictionary<string, CelValue> NoBindings = FrozenDictionary<string, CelValue>.Empty;
+
+    private IReadOnlyDictionary<string, CelValue> _bindings;
+
+    private Plan _plan;
+
+    private CelValue[] _slots = [];
 
     // Two slots for each comprehension: its iteration variable and its accumulator.
-    private readonly CelValue[] _locals;
-    private readonly bool[] _filled;
+    private CelValue[] _locals = [];
+    private bool[] _filled = [];
 
     // The cells of the slots of the blocks, with the state of each: the epoch of the block shifted left by one, and its low bit
     // set when the slot is evaluated; the epoch of each block; and the counter that gives a new epoch at each entry of a block.
-    private readonly CelValue[] _cells;
-    private readonly ulong[] _cellStates;
-    private readonly ulong[] _blockEpochs;
+    private CelValue[] _cells = [];
+    private ulong[] _cellStates = [];
+    private ulong[] _blockEpochs = [];
     private ulong _epoch;
-    private readonly CelValue[] _stack;
+    private CelValue[] _stack = [];
     private int _count;
 
+    // The lengths of the arrays that the plan of the evaluation uses: a kept array may be longer, and only these places are dirty.
+    private int _variableCount;
+    private int _localCount;
+    private int _cellCount;
+    private int _blockCount;
+    private int _stackSize;
+
     // The meter: only with a cost limit.
-    private readonly bool _metered;
-    private readonly ulong _limit;
+    private bool _metered;
+    private ulong _limit;
     private ulong _remaining;
 
     // The event counter: only when the token can be canceled.
-    private readonly bool _counts;
-    private readonly CancellationToken _token;
+    private bool _counts;
+    private CancellationToken _token;
     private uint _events;
 
+    // A frame for one evaluation, not kept for another: the form that the tests of the plan use. The evaluation of a program rents.
     internal Frame(Plan plan, IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken, object? input = null)
     {
+        Prepare(plan, bindings, costLimit, input, cancellationToken);
+    }
+
+    // Takes a frame that the thread kept and prepares it for the evaluation, or makes one; Release gives it back.
+    internal static Frame Rent(Plan plan, IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, object? input, CancellationToken cancellationToken)
+    {
+        Frame? kept = FrameSpares<Frame>.Take();
+        if (kept is null)
+        {
+            return new Frame(plan, bindings, costLimit, cancellationToken, input);
+        }
+
+        kept.Prepare(plan, bindings, costLimit, input, cancellationToken);
+        return kept;
+    }
+
+    // Ends the evaluation of a rented frame: clears it of everything of the evaluation, and the thread keeps it for the next one.
+    internal virtual void Release()
+    {
+        if (Clear())
+        {
+            FrameSpares<Frame>.Put(this);
+        }
+    }
+
+    // Makes the frame ready for the evaluation of the plan: arrays that are long enough are kept, shorter ones are made again, and all
+    // the state of an evaluation is set.
+    [MemberNotNull(nameof(_plan), nameof(_bindings))]
+    private protected void Prepare(Plan plan, IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, object? input, CancellationToken cancellationToken)
+    {
         Input = input;
+        _plan = plan;
         _bindings = bindings;
-        _slots = Allocate<CelValue>(plan.VariableCount);
-        _filled = Allocate<bool>(plan.VariableCount);
-        _locals = Allocate<CelValue>(plan.LocalCount);
-        _cells = Allocate<CelValue>(plan.SlotCount);
-        _cellStates = Allocate<ulong>(plan.SlotCount);
-        _blockEpochs = Allocate<ulong>(plan.BlockCount);
-        _stack = Allocate<CelValue>(plan.StackSize);
-        Lines = plan.Lines;
-        Types = plan.Types;
-        TimeZones = plan.TimeZones;
+        _variableCount = plan.VariableCount;
+        _localCount = plan.LocalCount;
+        _cellCount = plan.SlotCount;
+        _blockCount = plan.BlockCount;
+        _stackSize = plan.StackSize;
+        Fit(ref _slots, _variableCount);
+        Fit(ref _filled, _variableCount);
+        Fit(ref _locals, _localCount);
+        Fit(ref _cells, _cellCount);
+        Fit(ref _cellStates, _cellCount);
+        Fit(ref _blockEpochs, _blockCount);
+        Fit(ref _stack, _stackSize);
         if (costLimit is { } limit)
         {
             _metered = true;
             _limit = limit;
             _remaining = limit;
         }
+        else
+        {
+            _metered = false;
+            _limit = 0;
+            _remaining = 0;
+        }
 
         _counts = cancellationToken.CanBeCanceled;
         _token = cancellationToken;
+    }
+
+    // Clears the frame of the evaluation, so that a frame that waits holds no value, bindings, plan or token of it, and tells whether
+    // the arrays are short enough for the thread to keep it.
+    private protected bool Clear()
+    {
+        _slots.AsSpan(0, _variableCount).Clear();
+        _filled.AsSpan(0, _variableCount).Clear();
+        _locals.AsSpan(0, _localCount).Clear();
+        _cells.AsSpan(0, _cellCount).Clear();
+        _cellStates.AsSpan(0, _cellCount).Clear();
+        _blockEpochs.AsSpan(0, _blockCount).Clear();
+        _stack.AsSpan(0, _stackSize).Clear();
+        _count = 0;
+        _epoch = 0;
+        _events = 0;
+        Offset = 0;
+        Input = null;
+        _bindings = NoBindings;
+        _plan = null!;
+        _token = default;
+        _counts = false;
+        _metered = false;
+        _limit = 0;
+        _remaining = 0;
+        return Math.Max(Math.Max(_slots.Length, _locals.Length), Math.Max(Math.Max(_cells.Length, _blockEpochs.Length), _stack.Length)) <= KeptLength;
     }
 
     // The instance of the input type of the environment whose fields the evaluation reads; null when the call passed none, or when
@@ -86,13 +174,13 @@ internal class Frame : IEvaluationMeter, IApplicationBoundary
     }
 
     // The line table of the plan, which turns the offsets of nodes into the positions of errors.
-    internal LineTable Lines { get; }
+    internal LineTable Lines => _plan.Lines;
 
     // The type index of the environment of the plan, which describes object values.
-    internal TypeIndex Types { get; }
+    internal TypeIndex Types => _plan.Types;
 
     // The time zone database of the environment of the plan, which the receivers of time with a zone resolve names against.
-    internal CelTimeZoneDatabase? TimeZones { get; }
+    internal CelTimeZoneDatabase? TimeZones => _plan.TimeZones;
 
     // Whether the evaluation has a cost limit.
     internal bool Metered => _metered;
@@ -206,7 +294,13 @@ internal class Frame : IEvaluationMeter, IApplicationBoundary
 
     internal void Pop(int count) => _count -= count;
 
-    // An expression without variables needs no slots and one without calls no stack: a length of 0 takes the
-    // shared empty array instead of a new one.
-    private static T[] Allocate<T>(int length) => length == 0 ? [] : new T[length];
+    // An array of at least the length: one that is long enough stays, a shorter one is made again, and an expression without variables
+    // or calls takes the shared empty array.
+    private static void Fit<T>(ref T[] array, int length)
+    {
+        if (array.Length < length)
+        {
+            array = new T[length];
+        }
+    }
 }

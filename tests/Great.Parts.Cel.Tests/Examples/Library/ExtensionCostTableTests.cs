@@ -92,20 +92,20 @@ public sealed class ExtensionCostTableTests
         list_int_sortByAssociatedKeys, sortBy | [3, 1, 2].sortBy(e, e) | 25
         list_string_sortByAssociatedKeys, Lmax 3 | ['bb', 'a', 'ccc'].sortBy(e, e) | 31
         sortBy, empty list | [].sortBy(e, e) | 4
-        list_distinct, 1 and 2 compared | [1, 2, 1].distinct() | 10
+        list_distinct, one repeat | [1, 2, 1].distinct() | 12
         list_distinct, all different | [1, 2, 3].distinct() | 11
         list_distinct, empty list | [].distinct() | 2
         """;
 
     private const string Sets = """
-        list_sets_contains_list, 1 + (1 + 1) + (1 + 2) | sets.contains([1, 2, 3], [1, 2]) | 13
-        list_sets_contains_list, the first element absent | sets.contains([1, 2], [3, 1]) | 10
+        list_sets_contains_list, 1 + 3 + (1 + 1 + 1) + (1 + 1 + 1) | sets.contains([1, 2, 3], [1, 2]) | 17
+        list_sets_contains_list, the first element absent | sets.contains([1, 2], [3, 1]) | 11
         list_sets_contains_list, empty lists | sets.contains([], []) | 3
-        list_sets_intersects_list, found at the second | sets.intersects([1, 2], [3, 2]) | 13
-        list_sets_intersects_list, found at the first | sets.intersects([1, 2], [1, 2]) | 9
+        list_sets_intersects_list, found at the second | sets.intersects([1, 2], [3, 2]) | 14
+        list_sets_intersects_list, found at the first | sets.intersects([1, 2], [1, 2]) | 12
         list_sets_intersects_list, empty first list | sets.intersects([], [1]) | 4
-        list_sets_equivalent_list, 1 + 5 + 5 | sets.equivalent([1, 2], [2, 1]) | 17
-        list_sets_equivalent_list, the first contains is false | sets.equivalent([1, 2], [3]) | 9
+        list_sets_equivalent_list, 1 + 8 + 8 | sets.equivalent([1, 2], [2, 1]) | 23
+        list_sets_equivalent_list, the first contains is false | sets.equivalent([1, 2], [3]) | 10
         list_sets_equivalent_list, empty lists | sets.equivalent([], []) | 3
         """;
 

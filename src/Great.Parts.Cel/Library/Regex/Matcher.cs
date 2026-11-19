@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using Great.Parts.Cel.Library.Text;
 using Great.Parts.Cel.Library.Unicode;
 
 namespace Great.Parts.Cel.Library.Regex;
@@ -69,6 +70,23 @@ internal static class Matcher
         int conditions = Context(-1, point);
         while (true)
         {
+            if (current.Count == 0)
+            {
+                // No thread is alive: only a place where a match may begin changes the set, so go to the next one.
+                int resumed = Resume(program, text, position);
+                if (resumed < 0)
+                {
+                    return false;
+                }
+
+                if (resumed != position)
+                {
+                    position = resumed;
+                    point = Read(text, position, out width);
+                    conditions = Context(Before(text, position), point);
+                }
+            }
+
             if (Add(code, ref current, stack, program.Start, conditions, ref steps))
             {
                 return true;
@@ -100,6 +118,40 @@ internal static class Matcher
             width = afterWidth;
             conditions = afterConditions;
         }
+    }
+
+    // The position, not before the one given, where a match may begin when no thread is alive there, or -1 when there is none. A
+    // program that every match of which begins at the start of the text has the position 0 and no other. The prefix is every place
+    // where it occurs: it begins with a code unit that is not a low surrogate, so the place is the start of a code point, and no other
+    // place can begin a match. The search is followed by the read of the whole prefix, so it costs no more than the text.
+    private static int Resume(CompiledPattern program, ReadOnlySpan<char> text, int position)
+    {
+        if (program.Anchored)
+        {
+            return position == 0 ? 0 : -1;
+        }
+
+        if (program.Prefix is not { } prefix)
+        {
+            return position;
+        }
+
+        long ignored = 0;
+        int distance = SubstringSearch.IndexOf(text[position..], prefix, ref ignored);
+        return distance < 0 ? -1 : position + distance;
+    }
+
+    // The code point before a position, for the conditions of zero width: -1 at the start. A surrogate is told by U+FFFD: a
+    // condition cannot tell a pair or a lone surrogate from it, since none of them is a word character or a line feed.
+    private static int Before(ReadOnlySpan<char> text, int position)
+    {
+        if (position == 0)
+        {
+            return -1;
+        }
+
+        char unit = text[position - 1];
+        return unit is >= '\uD800' and <= '\uDFFF' ? ReplacementCharacter : unit;
     }
 
     // Adds an instruction and, through the forks and the conditions that hold, everything it leads to without reading a code point.
@@ -142,7 +194,7 @@ internal static class Matcher
     }
 
     // Whether an instruction that reads a code point accepts it; the other kinds read nothing.
-    private static bool Accepts(in Instruction instruction, ReadOnlySpan<int> ranges, int point)
+    internal static bool Accepts(in Instruction instruction, ReadOnlySpan<int> ranges, int point)
     {
         switch (instruction.Kind)
         {
@@ -184,7 +236,7 @@ internal static class Matcher
 
     // The code point at an index of the text and the number of code units it takes; -1 and 0 at the end. A high surrogate followed
     // by a low one is one code point; a lone surrogate is U+FFFD and one position by itself.
-    private static int Read(ReadOnlySpan<char> text, int index, out int width)
+    internal static int Read(ReadOnlySpan<char> text, int index, out int width)
     {
         if ((uint)index >= (uint)text.Length)
         {

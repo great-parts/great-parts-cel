@@ -211,6 +211,30 @@ internal sealed class Planner
         }
     }
 
+    // A list literal whose elements are all literals, made once at planning: the list is immutable, so every evaluation may share it.
+    // It charges what the literal charges, 1 and 1 for each element, at the position of the literal. A literal without elements, with
+    // an element that is not a literal, or with an error value as an element stays a node that builds it.
+    private static ConstantPlanNode? TryFoldList(ListNode list, int offset)
+    {
+        if (list.Elements.IsEmpty)
+        {
+            return null;
+        }
+
+        var items = new CelValue[list.Elements.Length];
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (list.Elements[i] is not ConstantNode { Value: var value } || value.Kind == CelValueKind.Error)
+            {
+                return null;
+            }
+
+            items[i] = value;
+        }
+
+        return new ConstantPlanNode(offset, CelValue.FromList(new ValueArrayList(items)), 1 + (ulong)items.Length);
+    }
+
     private PlanNode VisitNode(ExprNode node, int offset, out int stackSize)
     {
         stackSize = 0;
@@ -227,6 +251,8 @@ internal sealed class Planner
 
             case ListNode { OptionalIndices.IsEmpty: false } optionalList:
                 return VisitOptionalList(optionalList, offset, out stackSize);
+            case ListNode list when TryFoldList(list, offset) is { } folded:
+                return folded;
             case ListNode list:
                 return new ListPlanNode(offset, VisitAll(list.Elements, out stackSize));
             case StructNode { MessageName.Length: > 0 } message:

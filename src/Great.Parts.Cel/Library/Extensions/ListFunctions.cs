@@ -273,9 +273,10 @@ internal static class ListFunctions
         return CelValue.FromList(new ValueArrayList(items));
     }
 
-    // distinct(list): the first of each group of equal elements, in order. Each element is compared with the ones kept so far, in the
-    // order they were kept, up to the first equal one, and CEL equality charges each pair before it compares it: so 1, 1u and 1.0 are
-    // one element and a NaN is equal to nothing, each NaN staying.
+    // distinct(list): the first of each group of equal elements, in order, by CEL equality: 1, 1u and 1.0 are one element and a NaN is equal
+    // to nothing, each NaN staying. The elements are looked up by their hash (HashedLists; docs/cost.md, "Hashing in distinct and sets"); the elements that hold an
+    // object of the application are compared with each other in the order of the pairs, so the code of the application is called as it
+    // was.
     internal static CelValue Distinct(ReadOnlySpan<CelValue> arguments, in CallSite site)
     {
         if (!arguments[0].TryGetList(out CelList? list))
@@ -288,45 +289,7 @@ internal static class ListFunctions
             return arguments[0];
         }
 
-        var kept = new CelValue[list.Count];
-        int keptCount = 0;
-        for (int i = 0; i < kept.Length; i++)
-        {
-            CelValue item = list.Read(i, site.Meter);
-            if (item.Kind == CelValueKind.Error)
-            {
-                return site.Placed(item);
-            }
-
-            bool found = false;
-            for (int j = 0; j < keptCount && !found; j++)
-            {
-                switch (EqualityRules.AreEqual(item, kept[j], site.Meter, out CelValue error, site.Types, site.Boundary))
-                {
-                    case ValueEquality.Equal:
-                        found = true;
-                        break;
-                    case ValueEquality.Error:
-                        return site.Placed(error);
-                    case ValueEquality.NotEqual:
-                        break;
-                    default:
-                        return site.Error(CelErrorCode.InsufficientStack, EqualityRules.InsufficientStackMessage);
-                }
-            }
-
-            if (!found)
-            {
-                kept[keptCount++] = item;
-            }
-        }
-
-        if (keptCount == kept.Length)
-        {
-            return arguments[0];
-        }
-
-        return CelValue.FromList(new ValueArrayList(kept.AsSpan(0, keptCount).ToArray()));
+        return HashedLists.Distinct(arguments[0], list, in site);
     }
 
     // Reads every element into the destination in order; an element that is an error value is the error of the call.

@@ -2,7 +2,8 @@ using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Evaluation;
 
-// A literal, which costs nothing, or a type identifier with its type value, which costs 1 as a name read.
+// A literal, which costs nothing, a type identifier with its type value, which costs 1 as a name read, or a list literal of constants
+// that the planner made into its list once, which costs 1 + n for n elements as the literal does.
 internal sealed class ConstantPlanNode : PlanNode
 {
     private readonly CelValue _value;

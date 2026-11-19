@@ -31,7 +31,11 @@ internal static class Matches
         var patterns = cache as PatternCache;
         if (patterns is not null && patterns.TryGet(value, out PatternEntry? entry))
         {
-            return Preparation(entry);
+            // A program that a pattern from data put in the cache has no automaton, for none was tried. The literal gets one on a copy
+            // over the same arrays: the program of the entry may run on other threads, and the cache keeps it as it is.
+            return entry.Program is { Automaton: null, AutomatonTried: false } fromData
+                ? ConstantPreparation.Success(fromData.WithAutomaton(DfaBuilder.TryBuild(fromData)))
+                : Preparation(entry);
         }
 
         if (!PatternParser.TryParse(value, out PatternTree? tree, out RegexError? failure))
@@ -51,6 +55,9 @@ internal static class Matches
             tree!.Dispose();
         }
 
+        // The automaton is built here, with the expression, and not at the first call: a call then pays the match only, and what the
+        // build takes is part of the compilation. A pattern from data has none.
+        program.Automaton = DfaBuilder.TryBuild(program);
         var built = new PatternEntry(program);
         patterns?.Add(value, built);
         return Preparation(built);
@@ -154,6 +161,13 @@ internal static class Matches
 
     private static CelValue Run(CompiledPattern program, string subject)
     {
+        // The automaton answers as the engine does, by one lookup for each code point; the program of a literal pattern has one unless
+        // a limit of the build stopped it.
+        if (program.Automaton is { } automaton)
+        {
+            return CelValue.FromBoolean(automaton.IsMatch(subject));
+        }
+
         // The engine counts steps for the property test of linearity; the library has no use for the count.
         long steps = 0;
         return CelValue.FromBoolean(Matcher.IsMatch(program, subject, ref steps));

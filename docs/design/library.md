@@ -12,7 +12,7 @@ The library has version 1: twelve type identifiers and 162 overloads — the 113
 | `src/Great.Parts.Cel/Library/Comparisons.cs` | `!`, equality and ordering over the value rules |
 | `src/Great.Parts.Cel/Library/Collections.cs` | index, `in`, `size`, concatenation of lists |
 | `src/Great.Parts.Cel/Library/Strings.cs` | functions of strings and bytes, concatenation |
-| `src/Great.Parts.Cel/Library/SubstringSearch.cs` | the linear search for a substring, with its step counter |
+| `src/Great.Parts.Cel/Library/Text/SubstringSearch.cs` | the search for a substring, with its step counter; the layer `Library.Text` has no dependencies |
 | `src/Great.Parts.Cel/Library/Conversions.cs` | `type`, `dyn` and the conversions |
 | `src/Great.Parts.Cel/Library/NumberText.cs` | numbers to text and text to numbers, without culture |
 | `src/Great.Parts.Cel/Library/Costs.cs` | the cost functions of the arguments |
@@ -226,9 +226,10 @@ The 47 overloads of time have the identifiers of cel-go, letter for letter: 9 co
 
 ## Substring search
 
-`contains` uses `internal static int SubstringSearch.IndexOf(ReadOnlySpan<char> text, ReadOnlySpan<char> pattern, ref long steps)`, which the functions `indexOf`, `lastIndexOf`, `replace` and `split` of the extension set `strings` will share; the .NET search methods are banned in the library, because their worst case is O(n · m) and the cost formula 1 + ⌈Lₐ/10⌉ assumes linear time.
+`contains` uses `internal static int SubstringSearch.IndexOf(ReadOnlySpan<char> text, ReadOnlySpan<char> pattern, ref long steps)` of the layer `Great.Parts.Cel.Library.Text`, which the functions `indexOf`, `lastIndexOf`, `replace` and `split` of the extension set `strings` share; the .NET search methods are banned in the library, because their worst case is O(n · m) and the cost formula 1 + ⌈Lₐ/10⌉ assumes linear time.
 
-- The algorithm is Knuth–Morris–Pratt over UTF-16 code units: the prefix function of the pattern, then one pass over the text. A step is one comparison of two code units. The prefix function takes at most 2m steps and the pass at most 2n, so a call takes at most 2(n + m), half the bound 4 · (n + m) that its property test checks. An empty pattern is found at 0 without steps; a pattern longer than the text is not found without steps.
+- The hybrid. A pattern of at most `SubstringSearch.HybridLimit` = 64 UTF-16 code units is searched by the vectorized ordinal search of .NET, through one private wrapper that is the only place in the library to call it (the one suppression of RS0030): its worst case is 64 · n comparisons, linear with a constant factor, and on the adversarial text `(ab)^n` it is faster than the linear search at that length. A longer pattern is searched as below. Each place of the text where an occurrence may start that the .NET search passes counts one step, so a call takes at most n steps. `IndexOfKmp` is the search below for a pattern of any length, which the property test of linearity runs on short patterns too, and the tests compare the answers of both on patterns of 63, 64 and 65 code units.
+- The algorithm for a longer pattern is Knuth–Morris–Pratt over UTF-16 code units: the prefix function of the pattern, then one pass over the text. A step is one comparison of two code units. The prefix function takes at most 2m steps and the pass at most 2n, so a call takes at most 2(n + m), half the bound 4 · (n + m) that its property test checks. An empty pattern is found at 0 without steps; a pattern longer than the text is not found without steps.
 - In the state "nothing matched" the pass may jump to the next occurrence of the first code unit of the pattern with `MemoryExtensions.IndexOf(char)`, which is vectorized and linear; each code unit it passes counts one step, so the bound becomes 3n + 2m and stays under the limit.
 - The prefix function of a pattern up to 256 code units lives on the stack, a longer one in an array of m `int`s: 4m bytes, within B = 64 bytes for each of the m/10 units that the pattern alone adds to the cost.
 - The step counter is a parameter that the property test reads; the library passes a local and ignores it. It is a `long`: the bound 4 · (n + m) of long inputs does not fit an `int`.

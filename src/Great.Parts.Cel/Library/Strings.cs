@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using Great.Parts.Cel.Declarations;
+using Great.Parts.Cel.Library.Text;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Library;

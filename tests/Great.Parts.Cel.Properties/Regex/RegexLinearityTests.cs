@@ -6,8 +6,9 @@ using Xunit;
 namespace Great.Parts.Cel.Properties.RegexEngine;
 
 // The engine takes linear time (docs/design/tests.md, "Tests of matches"): on each pattern and subject the steps that it counts are
-// at most (n + 1) · m, n the length of the subject in UTF-16 code units and m the size of the program, and at least 1. No time is
-// measured: the counter of the engine counts the entries of an instruction into a set. The patterns are those that make a
+// at most (n + 1) · m, n the length of the subject in UTF-16 code units and m the size of the program, and, for a program with no
+// literal prefix and no anchor, at least 1 (a run that skips to a prefix it does not find, or is refused by its anchor, counts none).
+// No time is measured: the counter of the engine counts the entries of an instruction into a set. The patterns are those that make a
 // backtracking engine take exponential time, patterns with large counts and with classes of tables, and the patterns of the
 // generator of the other property on subjects of up to 20 000 code points.
 public sealed class RegexLinearityTests
@@ -93,7 +94,7 @@ public sealed class RegexLinearityTests
         long steps = 0;
         Matcher.IsMatch(program, subject, ref steps);
         long bound = ((long)subject.Length + 1) * program.Size;
-        if (steps < 1)
+        if (steps < 1 && program.Prefix is null && !program.Anchored)
         {
             return "the run counted no step";
         }

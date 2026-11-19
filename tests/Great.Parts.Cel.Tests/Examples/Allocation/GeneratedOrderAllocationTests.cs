@@ -123,19 +123,15 @@ public sealed class GeneratedOrderAllocationTests
         Add(table, "E7, 10 lines", 10, Scenario.Of<bool>("order.created + duration('72h') > now", _ => true, _ => 0));
         Add(table, "E7, 100 lines", 100, Scenario.Of<bool>("order.created + duration('72h') > now", _ => true, _ => 0));
 
-        // E8: the view of `lines` for its size, and the list of the literal of constants, which the plan builds at each evaluation.
-        Add(table, "E8, 10 lines", 10, Scenario.Of<bool>("size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']", _ => true, _ => E8Budget + ViewBytes));
-        Add(table, "E8, 100 lines", 100, Scenario.Of<bool>("size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']", _ => true, _ => E8Budget + ViewBytes));
+        // E8: the view of `lines` for its size; the list of the literal of constants is one constant of the plan, folded at planning.
+        Add(table, "E8, 10 lines", 10, Scenario.Of<bool>("size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']", _ => true, _ => ViewBytes));
+        Add(table, "E8, 100 lines", 100, Scenario.Of<bool>("size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']", _ => true, _ => ViewBytes));
 
         // E9: the three strings of the concatenations, one for each `+`; the fields are read without allocation.
         Add(table, "E9", 10, Scenario.Of<string>("'Order ' + order.id + ': ' + order.status", _ => "Order ORD-0001: approved", _ => E9Budget));
 
         return table;
     }
-
-    // The new list of the literal `['RUB', 'USD', 'EUR']`: an array of 3 values and the object of the list over it, which is
-    // smaller than the accumulator of a comprehension.
-    private static readonly ulong E8Budget = ArrayBytes(3) + LiteralListObjectBytes;
 
     // The three strings of `'Order ' + order.id`, `… + ': '` and `… + order.status`: 14, 16 and 24 code units.
     private static readonly ulong E9Budget = StringBytes(14) + StringBytes(16) + StringBytes(24);
@@ -147,9 +143,6 @@ public sealed class GeneratedOrderAllocationTests
 
     // The accumulator of a comprehension and the list that its result turns it into, two small objects.
     private const ulong ListObjectBytes = 56;
-
-    // The object of the list that a literal builds over its array.
-    private const ulong LiteralListObjectBytes = 24;
 
     private static ulong ArrayBytes(int length) => ArrayHeaderBytes + (ValueBytes * (ulong)length);
 

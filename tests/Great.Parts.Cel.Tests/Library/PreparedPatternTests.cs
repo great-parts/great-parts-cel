@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using Great.Parts.Cel.Library;
+using Great.Parts.Cel.Library.Text;
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Library;
@@ -68,6 +68,36 @@ public sealed class PreparedPatternTests
         Assert.Equal(-1, forward.IndexOf(text, 302, ref steps));
         Assert.Equal(301, backward.LastIndexOf(text, text.Length, ref steps));
         Assert.Equal(0, backward.LastIndexOf(text, text.Length - 1, ref steps));
+    }
+
+    // A pattern of 63, 64 or 65 code units, either side of the limit of the search by .NET, finds from any position the occurrence that
+    // the ordinal search of .NET finds, forward and backward, and a pattern of up to 64 units makes no prefix function.
+    [Theory]
+    [InlineData(63)]
+    [InlineData(64)]
+    [InlineData(65)]
+    public static void AroundTheLimit_FindsTheOccurrencesOfDotNetFromAnyPosition(int length)
+    {
+        string pattern = string.Concat(Enumerable.Repeat("ab", length))[..(length - 1)] + "c";
+        string text = string.Concat(Enumerable.Repeat("ab", 100)) + pattern + string.Concat(Enumerable.Repeat("ab", 50)) + pattern + "ab";
+        long steps = 0;
+        Span<byte> forwardBuffer = stackalloc byte[SubstringSearch.StackPatternLength];
+        Span<byte> backwardBuffer = stackalloc byte[SubstringSearch.StackPatternLength];
+        SubstringSearch.PreparedPattern forward = SubstringSearch.PreparedPattern.Create(pattern, false, forwardBuffer, ref steps);
+        long preparationSteps = steps;
+        SubstringSearch.PreparedPattern backward = SubstringSearch.PreparedPattern.Create(pattern, true, backwardBuffer, ref steps);
+
+        Assert.Equal(length <= SubstringSearch.HybridLimit, preparationSteps == 0);
+        for (int from = 0; from <= text.Length; from += 7)
+        {
+            int relative = text.AsSpan(from).IndexOf(pattern.AsSpan(), StringComparison.Ordinal);
+            Assert.Equal(relative < 0 ? -1 : from + relative, forward.IndexOf(text, from, ref steps));
+        }
+
+        for (int end = 0; end <= text.Length; end += 7)
+        {
+            Assert.Equal(text.AsSpan(0, end).LastIndexOf(pattern.AsSpan(), StringComparison.Ordinal), backward.LastIndexOf(text, end, ref steps));
+        }
     }
 
     // The steps stay within 2m for the preparation and 3n for the passes over the text, which include the units that a jump to the

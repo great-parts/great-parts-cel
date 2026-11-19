@@ -65,19 +65,23 @@ internal sealed class Plan
         CancellationToken cancellationToken) =>
         Run(CreateFrame(bindings, costLimit, cancellationToken));
 
-    // Allocates the frame of one evaluation with its slots, argument stack and meter.
+    // Allocates the frame of one evaluation with its slots, argument stack and meter, which no thread keeps for another evaluation.
     internal Frame CreateFrame(IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken, object? input = null) =>
         new(this, bindings, costLimit, cancellationToken, input);
 
-    // Allocates the frame of one evaluation on an input that is a structure: the frame holds the structure, so the call does not box it.
+    // Takes the frame of one evaluation from those of the thread, or makes one; the evaluation gives it back with Frame.Release.
+    internal Frame RentFrame(IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken, object? input = null) =>
+        Frame.Rent(this, bindings, costLimit, input, cancellationToken);
+
+    // The rented frame of one evaluation on an input that is a structure: the frame holds the structure, so the call does not box it.
     // typed is the description of the input when it is the class CelObjectType<TInput>, which reads a field from the structure by reference.
-    internal Frame CreateInputFrame<TInput>(
+    internal InputFrame<TInput> RentInputFrame<TInput>(
         IReadOnlyDictionary<string, CelValue> bindings,
         ulong? costLimit,
         TInput input,
         CelObjectType<TInput>? typed,
         CancellationToken cancellationToken) =>
-        new InputFrame<TInput>(this, bindings, costLimit, input, typed, cancellationToken);
+        InputFrame<TInput>.Rent(this, bindings, costLimit, input, typed, cancellationToken);
 
     // Evaluates the root in the frame inside the one handler of the evaluation: an exceeded cost limit is
     // CostLimitExceeded at the recorded node, and any other exception but OutOfMemoryException and the

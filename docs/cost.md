@@ -190,15 +190,15 @@ For example, `'a,b,c'.split(',')` costs 1 + 1 + 1 + 3 = 6, `['a', 'b'].join('-')
 
 ### Set `sets`
 
-Each element that is looked up in the other list is an `in` over it: 1 unit and eq of each pair compared, up to the first equal element, each charged before the comparison. The call itself is 1 unit.
+The elements are looked up by hash, as the page "Hashing in `distinct` and `sets`" below says; the values that are not hashed (an object of the application, an error, a number of 2^53 or more) are compared with the values of their group in order, each pair charged. The call itself is 1 unit. In the rows, h is the units of hashing a value and "the comparison" is the one comparison of the element looked up with the equal element it found. The list that is looked in is indexed whole, so an element of it that is an error ends the call wherever it stands.
 
 | Overloads | Units |
 | :- | :- |
-| `list_sets_contains_list` | 1 + the sum, over the elements of the second list in order, of 1 + eq of the pairs compared with the first list; the first element that is missing ends the call |
-| `list_sets_intersects_list` | 1 + the sum, over the elements of the first list in order, of 1 + eq of the pairs compared with the second list; the first element that is found ends the call |
+| `list_sets_contains_list` | 1; when the second list is not empty, also the sum of h over the whole first list, and over the elements of the second list in order, h + 1 + the comparison; the first element that is missing ends the call |
+| `list_sets_intersects_list` | 1; when the first list is not empty, also the sum of h over the whole second list, and over the elements of the first list in order, h + 1 + the comparison; the first element that is found ends the call |
 | `list_sets_equivalent_list` | 1 + the sums of `contains(a, b)` and, when that is `true`, of `contains(b, a)`, each without its own 1 |
 
-For example, `sets.contains([1, 2, 3], [1, 2])` costs 1 + (1 + 1) + (1 + 2) = 6 beyond the two list literals.
+For example, `sets.contains([1, 2, 3], [1, 2])` costs 1 + 3 + (1 + 1 + 1) + (1 + 1 + 1) = 10 beyond the two list literals, and `sets.contains([1], [])` costs 1.
 
 ### Set `lists`
 
@@ -213,11 +213,27 @@ A call is 1 unit and the part of its arguments that the call node charges before
 | `list_int_sort`, `list_uint_sort`, `list_double_sort`, `list_bool_sort`, `list_google.protobuf.Duration_sort`, `list_google.protobuf.Timestamp_sort` | 1 + n + n · ⌈log₂(n + 1)⌉, with ⌈log₂(n + 1)⌉ the bit length of n |
 | `list_string_sort`, `list_bytes_sort` | 1 + n + c · n · ⌈log₂(n + 1)⌉, with c = 1 + ⌈2 · Lmax/10⌉ for the longest element, found in one pass before the call is charged |
 | `list_<U>_sortByAssociatedKeys` | the same, with n and Lmax of the list of keys and c by the type `U` |
-| `list_distinct` | 1 + n + the units of the equality of each pair compared, each charged before the comparison; each element is compared with the ones kept, in order, up to the first equal one |
+| `list_distinct` | 1 + n + the sum of h over all the elements + the comparison of each element that repeats a kept one; the elements that hold an object of the application, an error, or a number of 2^53 or more are compared as the page "Hashing in `distinct` and `sets`" says |
 
 The macro `sortBy` is charged by its expansion: the receiver; the empty list that is the range of the binding, 1, charged although no list is made; the `map` of the keys as the standard macro charges it — 1 for the empty list, 1 for each step and the expression of the key, 1 for each key added; and the call of `@sortByAssociatedKeys` by its row. The reads of the hidden names cost nothing.
 
 For example, `[3, 1, 2].sort()` costs the list literal 4 and the call 1 + 3 + 3 · 2 = 10, 14 in all, and `[3, 1, 2].sortBy(e, e)` costs 4 + 1 + 10 + 10 = 25.
+
+### Hashing in `distinct` and `sets`
+
+`distinct` and the functions of the set `sets` look an element up by a hash that agrees with CEL equality, so a call does not compare every pair. The cost is the hashing of the values and, for each element that is equal to another, the one comparison that found it; the comparisons of values that only share a hash are not charged, since how many there are depends on the random seed of the hash and the cost depends only on the data. The cost does not depend on the threshold of the pairwise pass, the length of the list at which the library changes from scanning the hashes to buckets, and the result is the one that comparing the pairs in order gives: the elements for which no equal one was kept before stay, in order.
+
+Each element is in one of three groups, taken in this order, the first that fits:
+
+- **Pairwise**: a value with, at any depth, an object of the application, a message of protobuf, a value that is an error (an element of a list of the application that cannot be read, an object of JSON with a repeated name), or a number of 2^53 or more in absolute value: an `int` or a `uint`, or a `double`, an infinity included. The equality of these values calls the code of the application, gives an error, or is not transitive, so they are compared with each other in the order of the pairs, as in version 1.0, each pair charged as the description of the type says (see Data of the application), and the code of the application is called for the same pairs in the same order. An exception that the code throws ends the call with the error `ApplicationException` as before; an error of the equality ends the call when the comparison in order reaches it. Such a value is never equal to a value of another group.
+- **Single**: a value with a NaN inside, and none of the above. It is equal to nothing, not even to itself, so `distinct` keeps every one of them and no function of `sets` finds one; it costs its hashing only.
+- **With a hash**: every other value. Numbers of the three kinds with the same value below 2^53 in absolute value (`1`, `1u`, `1.0`) are equal, so are both zeros, strings and bytes of the same content, lists of equal elements in order, and maps of equal entries in any order.
+
+The equality of an `int` or a `uint` with a `double` compares the integer rounded to the nearest `double`, and an `int` with a `uint` exactly, so from 2^53 on equality is not transitive: `9007199254740993 == 9007199254740992.0` and `9007199254740992 == 9007199254740992.0`, but `9007199254740993 != 9007199254740992`. A number below 2^53 is the same as its `double` and equals no number of 2^53 or more, so those numbers are a group of their own, compared in order, and the result of `distinct` is what the passes over the pairs give: an element stays when no element kept before it is equal to it. A call on a long list of numbers of 2^53 or more (identifiers of 64 bits, for example) is therefore as slow as in version 1.0 and is charged for every pair.
+
+The units h of hashing a value are charged before each of its nodes, in the order they are walked: 1 for `null`, a `bool`, a number, a time, a duration, a type, an `optional` without a value, an object of the application and a message of protobuf (they are not walked into); 1 + ⌈L/10⌉ for a string of L UTF-16 code units; 1 + ⌈B/10⌉ for `bytes` of B bytes; 1 + the sum of h of the elements for a list; 1 + the sum of h of the keys and values for a map; 1 + h of the value for an `optional` with a value. A value is hashed once, whatever its group. The reading of the data of the application and of JSON while a value is walked (the enumeration and the `size` of a JSON object, the index of a JSON array, the enumeration of a map with its order of keys, the check for repeated keys) is charged beyond h by the rows of [Data of the application](#data-of-the-application), as it is in equality; a value that the walk and a comparison both read pays the reading twice.
+
+The functions of `sets` index the whole list that is looked in before they look for the first element: an element of that list that is itself an error ends the call with that error, wherever it stands, when the index is built (when the other list is not empty), where a search in order of version 1.0 could have stopped before it. An error inside an element makes it a value of the group Pairwise, and is reached by the comparison in order within the group; a comparison of such a value with a value of another group, which in version 1.0 could give that error, is not made in 2.0.
 
 ### Set `encoders`
 
