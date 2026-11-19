@@ -286,6 +286,42 @@ public sealed class OptionalProfileTests
         Assert.Empty(search.NewSignatures);
     }
 
+    // Case 415367 of seed 1304226227: {0x8000000U: y1, true: uint, 0xACu: d1}.exists_one(v, has({r"a": (mx[?v]),}.a.f)). The keys are
+    // of two types, so v is dyn, and the instance with a key in parentheses, mx[?(0x8000000U)], does not compile on either side (mx has
+    // int keys); the instance with the key in dyn() diverges by the known signature. Without it the case stayed the macro,
+    // comprehension(map) we-value.
+    [Fact]
+    public void PresenceUnderAMacroOverKeysOfTwoTypes_GivesTheKnownSignatureOfTheRegistry()
+    {
+        Expr first = new UintLiteral(0x8000000, IntegerForm.HexLower, 'U');
+        Expr map = new MapLiteral(
+            [new MapEntry(first, new Ident("y1")), new MapEntry(new BoolLiteral(true), new Ident("uint")), new MapEntry(new UintLiteral(0xAC, IntegerForm.HexUpper, 'u'), new Ident("d1"))],
+            TrailingComma: false);
+        Expr Presence(Expr key) => new PresenceTest(
+            new Select(
+                new MapLiteral([new MapEntry(Quoted("a"), new Call(ProfileTables.OptionalIndex, [new Ident("mx"), key]) { Overload = "map_optindex_optional_value" })], TrailingComma: true),
+                "a"),
+            "f");
+        Expr root = new Comprehension(ProfileTables.ExistsOne, map, "v", [Presence(new Ident("v"))]);
+        Expr instance = Presence(new Call(ProfileTables.Dyn, [first]));
+        Dictionary<string, SideOutcome> library = new()
+        {
+            [ExprPrinter.PrintCase(root)] = SideOutcome.Of(Bool(false)),
+            [ExprPrinter.PrintCase(instance)] = SideOutcome.Of(Bool(false)),
+        };
+        Dictionary<string, SideOutcome> oracle = new()
+        {
+            [ExprPrinter.PrintCase(root)] = SideOutcome.EvaluationError("no such key: f"),
+            [ExprPrinter.PrintCase(instance)] = SideOutcome.EvaluationError("no such key: f"),
+        };
+
+        (Divergence? divergence, DivergenceSearch search) = Search(library, oracle, root, "has(optional_type) we-value");
+
+        Assert.Equal("has(optional_type) we-value", divergence?.Signature);
+        Assert.Equal(ExprPrinter.PrintCase(instance), divergence?.Case.Text);
+        Assert.Empty(search.NewSignatures);
+    }
+
     // Case 438374 of seed 3708384748: the literal that unwrapOpt takes holds an optional, so it is asked for as its size, which
     // agrees; the divergence is in the element, whose value is the known signature of the registry. Without the search under such
     // a literal the case stayed the root, optional_unwrapOpt(list) value-mismatch.

@@ -103,7 +103,8 @@ internal static class Minimizer
     /// literal in
     /// <c>dyn()</c>, the node is the element in parentheses, or <c>dyn(element)</c> when the range is in <c>dyn()</c>, so that
     /// the static types stay; for a literal that is not in <c>dyn()</c> each element that is a string literal has one more
-    /// instance, <c>dyn(element)</c>, after those of all the elements (<see cref="ElementInstances"/>). For any other range (a variable, <c>dyn(x1)</c>, <c>lx + []</c>, the result of <c>map</c> or
+    /// instance, <c>dyn(element)</c>, after those of all the elements, and every element has it when the literal holds literals
+    /// of two types, whose join makes the variable <c>dyn</c> (<see cref="ElementInstances"/>). For any other range (a variable, <c>dyn(x1)</c>, <c>lx + []</c>, the result of <c>map</c> or
     /// <c>filter</c>) the elements are those of its value that the library gives: for a list, the index <c>range[i]</c> for
     /// each position <c>i</c> from 0; for a map, <c>dyn(k)</c> for each key <c>k</c> in the order the library iterates the map.
     /// A range whose value is not a list or a map (an error, an unbound variable, a scalar) gives an argument that reads the
@@ -376,13 +377,23 @@ internal static class Minimizer
         static Expr InParentheses(Expr node) => node with { Parenthesized = true };
         static Expr StringInDyn(Expr node) => node is StringLiteral ? InDyn(node) : InParentheses(node);
 
-        return inDyn
-            ? [.. entries.Select(entry => (InDyn(entry.First), InDyn(entry.Second)))]
-            :
-            [
-                .. entries.Select(entry => (InParentheses(entry.First), InParentheses(entry.Second))),
-                .. entries.Where(entry => entry.First is StringLiteral || entry.Second is StringLiteral).Select(entry => (StringInDyn(entry.First), StringInDyn(entry.Second))),
-            ];
+        if (inDyn)
+        {
+            return [.. entries.Select(entry => (InDyn(entry.First), InDyn(entry.Second)))];
+        }
+
+        // The keys or the values of literals of two types make that variable dyn, as for a one-variable macro (ElementInstances): the
+        // pairs come once more with that node of each pair in dyn().
+        bool firstMixed = HoldsLiteralsOfTwoTypes(entries.Select(entry => entry.First));
+        bool secondMixed = HoldsLiteralsOfTwoTypes(entries.Select(entry => entry.Second));
+        return
+        [
+            .. entries.Select(entry => (InParentheses(entry.First), InParentheses(entry.Second))),
+            .. entries.Where(entry => entry.First is StringLiteral || entry.Second is StringLiteral).Select(entry => (StringInDyn(entry.First), StringInDyn(entry.Second))),
+            .. (firstMixed || secondMixed
+                ? entries.Select(entry => (firstMixed ? InDyn(entry.First) : InParentheses(entry.First), secondMixed ? InDyn(entry.Second) : InParentheses(entry.Second)))
+                : []),
+        ];
     }
 
     // The pairs for a range with no element or with no list or map in it: each pair of the zero literals of the profile.
@@ -396,15 +407,40 @@ internal static class Minimizer
     // in parentheses, then each element that is a string literal in dyn(): the validator of regular expression literals of cel-go
     // reads a string literal that is the first argument of matches as a pattern, so with the subject in parentheses cel-go may
     // refuse the call when the expression is compiled, where the variable it stands for let the evaluation reach the pattern, and
-    // the two sides agree; dyn(element) is not a literal for the validator.
-    private static IReadOnlyList<Expr> ElementInstances(IReadOnlyList<Expr> elements, bool inDyn) =>
-        inDyn
-            ? [.. elements.Select(element => new Call(ProfileTables.Dyn, [element]))]
-            :
-            [
-                .. elements.Select(element => element with { Parenthesized = true }),
-                .. elements.OfType<StringLiteral>().Select(element => new Call(ProfileTables.Dyn, [element])),
-            ];
+    // the two sides agree; dyn(element) is not a literal for the validator. A literal that holds literals of two types, as the keys
+    // of {1u: a, true: b}, has the element type dyn by the join of the checker, so the variable is dyn, and an element in
+    // parentheses may not compile where the variable does (mx[?(1u)] for mx a map with int keys, mx[?v] for v dyn): then every
+    // element comes once more in dyn(), after those in parentheses (the case 415367 of seed 1304226227 hid the known divergence
+    // has(optional_type) we-value under exists_one so).
+    private static IReadOnlyList<Expr> ElementInstances(IReadOnlyList<Expr> elements, bool inDyn)
+    {
+        if (inDyn)
+        {
+            return [.. elements.Select(element => new Call(ProfileTables.Dyn, [element]))];
+        }
+
+        bool mixed = HoldsLiteralsOfTwoTypes(elements);
+        return
+        [
+            .. elements.Select(element => element with { Parenthesized = true }),
+            .. elements.Where(element => mixed || element is StringLiteral).Select(element => new Call(ProfileTables.Dyn, [element])),
+        ];
+    }
+
+    // Whether the nodes hold literals of two types (int, uint, double, bool, string, bytes, null): the join of the checker of two
+    // such types is dyn, whatever the other nodes are.
+    private static bool HoldsLiteralsOfTwoTypes(IEnumerable<Expr> nodes) =>
+        nodes.Select(node => node switch
+        {
+            IntLiteral => 0,
+            UintLiteral => 1,
+            DoubleLiteral => 2,
+            BoolLiteral => 3,
+            StringLiteral => 4,
+            BytesLiteral => 5,
+            NullLiteral => 6,
+            _ => -1,
+        }).Where(kind => kind >= 0).Distinct().Skip(1).Any();
 
     // The nodes that stand for the element of a range whose value is not a list or a map (an error, an unbound variable, a
     // scalar under dyn): one for each zero literal of the profile in the order of ZeroLiteral, whatever the type of the

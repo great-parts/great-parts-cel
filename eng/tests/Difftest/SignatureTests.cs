@@ -754,17 +754,55 @@ public sealed class SignatureTests
         Expr b = Quoted("b");
         Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
         Expr positive = new Call(ProfileTables.Greater, [new Ident("v"), one]);
-        Expr strings = new ListLiteral([a, one, b], TrailingComma: false);
+        Expr strings = new ListLiteral([a, new Ident("s1"), b], TrailingComma: false);
         Expr map = new MapLiteral([new MapEntry(a, one), new MapEntry(b, one)], TrailingComma: false);
 
         Assert.Equal(
-            ["('a') > 1", "(1) > 1", "('b') > 1", "dyn('a') > 1", "dyn('b') > 1", "1"],
+            ["('a') > 1", "(s1) > 1", "('b') > 1", "dyn('a') > 1", "dyn('b') > 1", "1"],
             Printed(new Comprehension(ProfileTables.All, strings, "v", [positive])));
         Assert.Equal(["('a') > 1", "('b') > 1", "dyn('a') > 1", "dyn('b') > 1", "1"], Printed(new Comprehension(ProfileTables.All, map, "v", [positive])));
         Assert.Equal(
-            ["dyn('a') > 1", "dyn(1) > 1", "dyn('b') > 1", "1"],
+            ["dyn('a') > 1", "dyn(s1) > 1", "dyn('b') > 1", "1"],
             Printed(new Comprehension(ProfileTables.All, new Call(ProfileTables.Dyn, [strings]), "v", [positive])));
         Assert.Equal(["(1) > 1", "1"], Printed(new Comprehension(ProfileTables.All, new ListLiteral([one], TrailingComma: false), "v", [positive])));
+    }
+
+    // A literal that holds literals of two types has the element type dyn, so every element, not only a string literal, has one more
+    // instance in dyn(), after the instances of all the elements in parentheses; a non-literal element does not make two types.
+    [Fact]
+    public void BodyInstances_OverLiteralsOfTwoTypes_EndWithEveryElementInDyn()
+    {
+        Expr a = Quoted("a");
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr unsigned = new UintLiteral(1, IntegerForm.DecimalDigits, 'u');
+        Expr yes = new BoolLiteral(true);
+        Expr positive = new Call(ProfileTables.Greater, [new Ident("v"), one]);
+
+        Assert.Equal(
+            ["('a') > 1", "(1) > 1", "dyn('a') > 1", "dyn(1) > 1", "1"],
+            Printed(new Comprehension(ProfileTables.All, new ListLiteral([a, one], TrailingComma: false), "v", [positive])));
+        Assert.Equal(
+            ["(1u) > 1", "(true) > 1", "dyn(1u) > 1", "dyn(true) > 1", "1"],
+            Printed(new Comprehension(ProfileTables.All, new MapLiteral([new MapEntry(unsigned, one), new MapEntry(yes, one)], TrailingComma: false), "v", [positive])));
+        Assert.Equal(
+            ["(1) > 1", "(x2) > 1", "1"],
+            Printed(new Comprehension(ProfileTables.All, new ListLiteral([one, new Ident("x2")], TrailingComma: false), "v", [positive])));
+    }
+
+    // The same for the key of a two-variable macro: keys of two types make the first variable dyn, so each pair comes once more with
+    // the key in dyn() and the value in parentheses.
+    [Fact]
+    public void PairInstances_OverKeysOfTwoTypes_EndWithTheKeysInDyn()
+    {
+        Expr one = new IntLiteral(1, IntegerForm.DecimalDigits);
+        Expr unsigned = new UintLiteral(1, IntegerForm.DecimalDigits, 'u');
+        Expr yes = new BoolLiteral(true);
+        Expr body = new Call(ProfileTables.Greater, [new Ident("w"), new Ident("k")]);
+        Expr map = new MapLiteral([new MapEntry(unsigned, one), new MapEntry(yes, one)], TrailingComma: false);
+
+        Assert.Equal(
+            ["(1) > (1u)", "(1) > (true)", "(1) > dyn(1u)", "(1) > dyn(true)"],
+            Printed(new Comprehension(ProfileTables.All, map, "k", [body]) { SecondVariable = "w" }));
     }
 
     [Fact]
