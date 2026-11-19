@@ -167,7 +167,7 @@ The XML documentation of the public API says:
 
 - `CelProtobufTypes`: the sentence on equality names what [protobuf-messages](protobuf-messages.md#equality) does — the descriptors and the set fields by CEL equality, a NaN not equal to itself, `Any` unpacked first, and the bytes of the packed message when it cannot be unpacked — and does not say that unknown fields are compared by their bytes: the generated classes give no access to them.
 - `CelProtobufTypesBuilder.AddFile`: the `ArgumentException` above.
-- `CelObjectType.CreateInstance`: the default throws `NotSupportedException`, as its documentation says.
+- `CelObjectType.CreateInstance`: the default throws `InvalidOperationException`, as its documentation says.
 - `CelObjectType.FieldError`: for `InvalidAny`, as for `ConversionRange`, the argument `detail` is the whole text; the package builds it from the template of the code ([objects](objects.md#members-for-protobuf-messages)).
 
 Related pages: [protobuf-messages](protobuf-messages.md), [objects](objects.md), [values](values.md), [checking](checking.md), [evaluation](evaluation.md), [library](library.md), [conformance](conformance.md), [tests](tests.md), [core](core.md).

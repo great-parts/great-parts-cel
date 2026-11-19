@@ -154,15 +154,21 @@ public sealed class ConversionRulesTests
     }
 
 #if !NET11_0_OR_GREATER
-    // There is no decimal on .NET 10: a System.Decimal has no row, and in a place of type dyn it is a bare object value.
+    // On .NET 10 the only decimal is System.Decimal: it has the row of type decimal, also in a place of type dyn and as a nullable.
     [Fact]
-    public void SystemDecimalOnNet10_IsNoInputType_AndABoxedOneIsABareObject()
+    public void SystemDecimalOnNet10_IsTheDecimalRow_AlsoBoxedAndNullable()
     {
-        Assert.Null(ConversionRules.InputType<decimal>());
-        Assert.False(ConversionRules.TryFromClr(1m, out CelValue value));
-        Assert.Equal(CelValue.Null, value);
-        Assert.True(ConversionRules.TryFromClr<object>(1m, out CelValue boxed));
-        Assert.Equal(CelValueKind.Object, boxed.Kind);
+        Assert.Equal(CelType.Decimal, ConversionRules.InputType<decimal>());
+        Assert.Equal(CelType.Decimal, ConversionRules.InputType<decimal?>());
+        Assert.True(ConversionRules.TryFromClr(1.50m, out CelValue direct));
+        Assert.True(ConversionRules.TryFromClr<object>(1.50m, out CelValue boxed));
+        Assert.True(ConversionRules.TryFromClr<decimal?>(1.50m, out CelValue nullable));
+        Assert.Equal((CelValueKind.Decimal, CelValueKind.Decimal, CelValueKind.Decimal), (direct.Kind, boxed.Kind, nullable.Kind));
+        Assert.True(boxed.TryGetDecimal(out decimal number));
+        Assert.Equal(1.50m, number);
+        Assert.Equal(direct, boxed);
+        Assert.True(ConversionRules.TryFromClr<decimal?>(null, out CelValue none));
+        Assert.Equal(CelValue.Null, none);
     }
 #endif
 

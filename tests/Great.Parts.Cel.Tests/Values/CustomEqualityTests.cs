@@ -21,7 +21,7 @@ public sealed class CustomEqualityTests
         CelObjectType description = new OrderType("acme.Order", [new CelObjectField(0, "total", CelType.Int)]);
 
         Assert.False(description.IsConstructible);
-        Assert.Throws<NotSupportedException>(() => description.CreateInstance([], []));
+        Assert.Throws<InvalidOperationException>(() => description.CreateInstance([], []));
         Assert.Equal(0, description.FieldReadCost(new object(), 0));
         Assert.Null(description.EqualityCost(new object(), new object()));
     }
