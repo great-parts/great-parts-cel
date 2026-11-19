@@ -15,8 +15,8 @@ namespace Great.Parts.Cel.Eng.Checks;
 /// </summary>
 internal static class PackageMetadataChange
 {
-    // The properties that reach only the package, never the assembly. Description, Authors, Copyright and Version are not here: they are
-    // written to the attributes of the assembly.
+    // The properties that reach only the package or the symbol package, never the assembly. Description, Authors, Copyright, Version,
+    // Company, Product and NeutralLanguage are not here: they are written to the attributes of the assembly.
     private static readonly HashSet<string> MetadataProperties = new(StringComparer.Ordinal)
     {
         "PackageReadmeFile",
@@ -26,6 +26,7 @@ internal static class PackageMetadataChange
         "PackageReleaseNotes",
         "PackageLicenseExpression",
         "PackageRequireLicenseAcceptance",
+        "EmbedUntrackedSources",
     };
 
     /// <summary>Whether the path is a file that holds the metadata of the packages and can be compared.</summary>

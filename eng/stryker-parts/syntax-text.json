@@ -16,7 +16,18 @@
       "target": "main"
     },
     "mutate": [
-      "Syntax/**/*.cs"
+      "Syntax/Printer.cs",
+      "Syntax/Lexer.cs",
+      "Syntax/SyntaxTreeComparer.cs",
+      "Syntax/NodeFactory.cs",
+      "Syntax/StructEntry.cs",
+      "Syntax/StructNode.cs",
+      "Syntax/CallNode.cs",
+      "Syntax/SelectNode.cs",
+      "Syntax/ListNode.cs",
+      "Syntax/ConstantNode.cs",
+      "Syntax/IdentNode.cs",
+      "Syntax/ExprNode.cs"
     ],
     "thresholds": {
       "high": 80,

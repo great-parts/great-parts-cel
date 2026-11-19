@@ -1,9 +1,9 @@
-# Source checks: suppressions, duplicates, ratchet
+# Source checks: suppressions, duplicates, ratchet, traces
 
-Three commands of [eng/checks](eng-checks.md) that read the source files. They run together, so the scans are made once:
+Four commands of [eng/checks](eng-checks.md) that read the source files. The first three run together, so the scans are made once; `traces` reads the text files and shares no scan with them:
 
 ```text
-eng/checks suppressions duplicates ratchet
+eng/checks suppressions duplicates ratchet traces
 ```
 
 ## C# sources
@@ -126,3 +126,14 @@ eng/ratchet.json(7,9): error ENG602: suppressions of CA1502: 3, baseline 2; new:
 ```
 
 - A lower number is an error too: `ENG605` asks to lower the baseline, or to remove the key when no place is left.
+
+## traces
+
+The repository is public and in English, and it does not name the plans it is built from. `traces` reads the text of the repository and reports a trace of them as `ENG103`, with no baseline: a trace is an error from the first one.
+
+- **Files.** The text files of `src/`, `tests/`, `docs/` and `eng/packages/` and the files `README.md` and `CHANGELOG.md`; a file is text by its extension (`.cs`, `.md`, `.txt`, `.json`, `.csproj`, `.props`, `.targets`, `.proto`, `.textproto`, `.xml`, `.html`, `.css`, `.js`, `.mjs`, `.razor`, `.yml`, `.yaml`, `.sh`, `.slnx`, `.toml`), so an archive, a binary message and a picture are not read. The files of the file set in `bin` and `obj`, `tests/cel-spec` and the [generated files](#generated-code) of the allowed directories are left out. `eng/`, the workflows and the files of the root other than the two are not read.
+- **Codes.** A code is a whole word: a letter, a digit, an underscore, a hyphen or, for a requirement, a plus before it makes it part of another word (`UTF-8`, `x-F-1`), and a letter or a digit after it too. The codes are `ADR-` and a number (a decision record), `FF-` and a number (a fitness function), `F-`, `S-`, `R-`, `U-`, `P-`, `Q-` and `+R-` with a number (a requirement), `TASK-` and `THEME-` with a number (a task and a theme), and the names `c1-` to `c7-` followed by a lowercase word, with or without `.md` (a document of the specification).
+- **Requirement marker.** The one place where a code of a requirement is allowed is the marker of a test that belongs to it, `[Trait("Requirement", "<code>")]`. It is blanked before the line is read, so any other code on the same line is found at its own column.
+- **Cyrillic.** A Cyrillic letter (`U+0400` to `U+04FF`) in any of these files is `ENG103` at the first letter of the line, one finding for a line. The files in `ConceptTraces.CyrillicTestData` are the exception: the letters there are the subject of the test (a name that a test feeds to the library, a letter whose class a table of cases shows). Only the letters are allowed in them, and a test checks that each of the files exists and has a Cyrillic letter. A new file is added to the list together with this paragraph.
+
+The message names the trace, as `'<code>' is a code of a decision record of the plans of the project; the texts of the repository name none`, and the place is its first character. A trace is removed by saying the thing in words: the requirement or the decision is named by what it says, and the link goes to a page of `docs/`.

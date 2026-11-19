@@ -36,6 +36,7 @@ CI runs the checks of this page, with the external links, on every push to `main
 | :- | :- |
 | `README.md`, `docs/` | the examples, the links and the error codes page |
 | `src/` | the XML documentation with its examples and links, and `CelErrorCode`, which the error codes page must match |
+| `eng/packages/*.AGENTS.md` | the examples of the `AGENTS.md` of the packages |
 | `lychee.toml`, `.lycheeignore` | the settings and the exclusions of lychee |
 | `eng/checks/` | the commands `examples`, `error-codes` and `links`, with the project and its lock file |
 | `eng/findings/` | the findings that these commands return |
@@ -47,7 +48,7 @@ CI runs the checks of this page, with the external links, on every push to `main
 | `Directory.Build.props`, `Directory.Packages.props` | the settings and the package versions of the build of step 1 |
 | `.github/workflows/ci.yml` | the cell of the examples and of the external links |
 
-Not triggers: `tests/`, `eng/tests/`, `eng/difftest/`, `eng/oracle/`, `eng/analyzers/`, `eng/min-sdk/`, `eng/packages/`, `eng/ratchet.json`, `eng/layers.txt`, `eng/BannedSymbols.txt`, `eng/stryker-control.json`, `stryker-config.json`, `.editorconfig`, `NuGet.config`, `.config/dotnet-tools.json`; the files of the root that lychee does not read — `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `AGENTS.md`. A failing test of the checks is shown by the jobs of the tests of `ci.yml`. The external links are not checked by the run on the host: the job `Docs` of CI checks them.
+Not triggers: `tests/`, `eng/tests/`, `eng/difftest/`, `eng/oracle/`, `eng/analyzers/`, `eng/min-sdk/`, the rest of `eng/packages/`, `eng/ratchet.json`, `eng/layers.txt`, `eng/BannedSymbols.txt`, `eng/stryker-control.json`, `stryker-config.json`, `.editorconfig`, `NuGet.config`, `.config/dotnet-tools.json`; the files of the root that lychee does not read — `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `AGENTS.md`. A failing test of the checks is shown by the jobs of the tests of `ci.yml`. The external links are not checked by the run on the host: the job `Docs` of CI checks them.
 
 ## examples
 
@@ -55,8 +56,10 @@ Every C# example is a whole program: top-level statements, followed by the type 
 
 | Source | Example | Options |
 | :- | :- | :- |
-| `README.md`, `docs/**/*.md` | a fenced block whose information string starts with `csharp` | words after `csharp` in the same line |
+| `README.md`, `docs/**/*.md`, `eng/packages/<package>.AGENTS.md` | a fenced block whose information string starts with `csharp` | words after `csharp` in the same line |
 | XML documentation in `src/**/*.cs` | a `<code>` element | attributes of the element |
+
+The `AGENTS.md` of a package is read only when the project `src/<package>/<package>.csproj` exists: an example of a package that is not written yet has nothing to compile against, so its file is left out until the project appears. The examples are built with references to the projects of the core package and of the Protobuf package only; the `AGENTS.md` of a package that needs more, such as ASP.NET Core, gets its references in `ExampleProjects` when its project is added.
 
 The documentation comments are read from the [C# sources](eng-checks-source.md#c-sources) with documentation parsing on, so the examples of members under `#if NET11_0_OR_GREATER` are found; an example found in several symbol sets is one example.
 

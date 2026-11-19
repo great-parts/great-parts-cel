@@ -7,7 +7,7 @@
 # The result is the artifact bench-results (the summary, the verification, the table and the BenchmarkDotNet reports of every run, the
 # verdicts and the reports of the limits) and the step summary. The workflow has no secrets and reads the repository only. It sets no timeout-minutes: the protection
 # against a hung job is the default limit of GitHub Actions, 6 hours.
-# The publication of a result (U-6): the job `bench` makes the report (report.json, report.md, the verification and the table of each run:
+# The publication of a result: the job `bench` makes the report (report.json, report.md, the verification and the table of each run:
 # the date and the time in UTC, the commit of this repository, the run) and keeps it as the artifact bench-report; the job `publish`,
 # the only one with `permissions: contents: write`, commits it to the branch `reports` (publish-report.yml, docs/design/eng-release.md,
 # "Reports of the runs"). It runs for a measurement (job Default) of at least 3 runs on the main branch; a Dry run is a check of the

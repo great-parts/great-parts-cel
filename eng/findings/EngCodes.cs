@@ -12,6 +12,9 @@ public static class EngCodes
     /// <summary>The reason next to the turning off of a check or a rule only repeats the rule ID.</summary>
     public const string Eng102 = "ENG102";
 
+    /// <summary>A text of the repository has a trace of the plans of the project: a code of a decision record, a requirement, a fitness function, a task or a theme, the name of a document of the specification, or a Cyrillic letter.</summary>
+    public const string Eng103 = "ENG103";
+
     /// <summary>A line of a package list <c>eng/packages/&lt;package&gt;.txt</c> does not parse.</summary>
     public const string Eng200 = "ENG200";
 

@@ -413,6 +413,23 @@ public sealed class ExamplesTests
         Assert.Equal(new ExampleSkip(new Position(19, 1), "uses the network", "'csharp skip'", "reason after the word skip in the same line"), examples[2].Skip);
     }
 
+    // The AGENTS.md of a package ships in the package, and its examples are checked like those of the README, but only when the package
+    // has a project: the file of a package that is not written yet has nothing to compile against.
+    [Fact]
+    public void PackageAgentsFile_IsReadOnlyForAPackageThatHasAProject()
+    {
+        using TempDirectory root = new();
+        root.Write("src/Lib/Lib.csproj", ProjectFile);
+        root.Write("eng/packages/Lib.AGENTS.md", Text("```csharp", "Console.WriteLine(1); // Output: 1", "```"));
+        root.Write("eng/packages/Planned.AGENTS.md", Text("```csharp", "Console.WriteLine(2); // Output: 2", "```"));
+        root.Write("eng/packages/Lib.README.md", Text("```csharp", "Console.WriteLine(3); // Output: 3", "```"));
+        root.Write("eng/packages/Sub/Lib.AGENTS.md", Text("```csharp", "Console.WriteLine(4); // Output: 4", "```"));
+
+        IReadOnlyList<Example> examples = Read(root);
+
+        Assert.Equal(["eng/packages/Lib.AGENTS.md"], examples.Select(example => example.Path));
+    }
+
     [Fact]
     public void MarkdownBlock_TextBlockThatIsNotDirectlyAfter_IsNotTheExpectedOutput()
     {

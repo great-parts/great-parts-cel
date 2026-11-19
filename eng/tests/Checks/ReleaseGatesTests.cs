@@ -205,6 +205,7 @@ public sealed class ReleaseGatesTests
     [InlineData("Directory.Build.props", PropsBefore, "<Project>\n  <!-- A new comment. -->\n  <PropertyGroup>\n    <Nullable>enable</Nullable>\n    <PackageTags>cel;rules</PackageTags>\n  </PropertyGroup>\n</Project>")]
     [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description><PackageReadmeFile>README.md</PackageReadmeFile></PropertyGroup><ItemGroup><None Include=\"../../eng/packages/Lib.README.md\" Pack=\"true\" PackagePath=\"README.md\" Visible=\"false\" /></ItemGroup></Project>")]
     [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>d</Description></PropertyGroup><PropertyGroup><PackageProjectUrl>https://example.test</PackageProjectUrl></PropertyGroup></Project>")]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags><EmbedUntrackedSources>true</EmbedUntrackedSources></PropertyGroup></Project>")]
     public static void Eng904_RunOnAnAncestorAndOnlyThePackageMetadataChangedSince_Passes(string path, string before, string after)
     {
         using Fixture fixture = FixtureWithFileChangedAfterTheRun(path, before, after, out _);
@@ -216,6 +217,8 @@ public sealed class ReleaseGatesTests
     [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>disable</Nullable><PackageTags>cel</PackageTags></PropertyGroup></Project>")]
     [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><PackageTags>cel</PackageTags><PackageReadmeFile>README.md</PackageReadmeFile></PropertyGroup></Project>")]
     [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags><Version>1.0.1</Version></PropertyGroup></Project>")]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags><Company>Other</Company></PropertyGroup></Project>")]
+    [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags><NeutralLanguage>ru</NeutralLanguage></PropertyGroup></Project>")]
     [InlineData("Directory.Build.props", PropsBefore, "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags></PropertyGroup>")]
     [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0</TargetFrameworks><Description>other</Description></PropertyGroup></Project>")]
     [InlineData("src/Lib/Lib.csproj", ProjectBefore, "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><TargetFrameworks>net10.0;net11.0</TargetFrameworks><Description>d</Description></PropertyGroup></Project>")]

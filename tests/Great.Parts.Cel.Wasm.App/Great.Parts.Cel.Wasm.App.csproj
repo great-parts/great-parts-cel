@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
 
   <!--
-    The test application of S-9: a Blazor WebAssembly application that uses Great.Parts.Cel and Great.Parts.Cel.Protobuf. It is published
+    The test application of the trimming check: a Blazor WebAssembly application that uses Great.Parts.Cel and Great.Parts.Cel.Protobuf. It is published
     in the default mode (IL trimming, no AOT compilation to WebAssembly) by the job wasm of ci.yml, and the publish must report 0 warnings
     IL2xxx and IL3xxx from the assemblies of the two packages. It is not run: the runner of the suite is
     tests/Great.Parts.Cel.Conformance.Wasm.
@@ -24,11 +24,25 @@
 
   <!--
     The two assemblies are roots of the trimmer, so it analyzes all their code and not only the code the application calls: the publish
-    reports an IL warning for every public capability that is not safe under trimming, which is what S-9 asks for.
+    reports an IL warning for every public capability that is not safe under trimming, which is what the check of the packages needs.
   -->
   <ItemGroup>
     <TrimmerRootAssembly Include="Great.Parts.Cel" />
     <TrimmerRootAssembly Include="Great.Parts.Cel.Protobuf" />
+  </ItemGroup>
+
+  <!--
+    The control example of the check of 0 IL warnings: with -p:IlControl=true the application has one call that is not safe under
+    trimming (IlControl/IlWarning.cs), and its assembly is a root of the trimmer too, so the publish reports it. The job wasm of ci.yml
+    publishes the application this way after the real publish and requires that the check turns red on it. Without the property the
+    file is not part of the application.
+  -->
+  <ItemGroup>
+    <Compile Remove="IlControl/**" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(IlControl)' == 'true'">
+    <Compile Include="IlControl/IlWarning.cs" />
+    <TrimmerRootAssembly Include="Great.Parts.Cel.Wasm.App" />
   </ItemGroup>
 
 </Project>

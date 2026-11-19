@@ -78,10 +78,10 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
         run: git rev-parse --verify --quiet refs/heads/main > /dev/null || git branch main origin/main
 
-      # Suppressions, duplicates, the ratchet and the content of the packages.
+      # Suppressions, duplicates, the ratchet, the content of the packages and the traces of the plans in the texts.
       - name: Repository checks
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
-        run: dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages --no-build
+        run: dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages traces --no-build
 
   # Native AOT cells, linux-x64. A cell builds the solution, runs the two published test projects under JIT for its target (the
   # reference of the test count), publishes them as eng/test does, runs the executables and compares the tests of both runs
@@ -149,13 +149,15 @@ jobs:
           done
           exit $status
 
-  # browser-wasm cells (S-9, R-1; docs/design/conformance.md, "browser-wasm"), both targets. The cel-spec runner
+  # browser-wasm cells (docs/design/conformance.md, "browser-wasm"), both targets. The cel-spec runner
   # tests/Great.Parts.Cel.Conformance.Wasm is published as a console application of the runtime for WebAssembly in the default mode (the
   # interpreter of the runtime, IL trimming, no AOT compilation to WebAssembly) with the data of the suite embedded, and runs under Node.js
-  # in a container; its exit code is the result, and the summary line and the skipped cases are in the log. The test application
-  # tests/Great.Parts.Cel.Wasm.App, a Blazor WebAssembly application that takes the assemblies of both packages as roots of the trimmer, is
-  # published too: a publish with a trimming warning fails (every warning is an error), and the step counts the lines IL2xxx and IL3xxx
-  # of the log, so 0 of them is part of the cell. The projects are not in the solution: a build of the solution on a runner that
+  # in a container; its exit code is the result, and the summary line and the skipped cases are in the log. The runner is built with
+  # the invariant time zone mode of the runtime, and it also checks that CelTimeZoneDatabase.FromSystem() then finds no zone (TimeZoneNotFound, never another zone).
+  # The test application tests/Great.Parts.Cel.Wasm.App, a Blazor WebAssembly application that takes the assemblies of both packages as
+  # roots of the trimmer, is published too: a publish with a trimming warning fails (every warning is an error), and the step counts the
+  # lines IL2xxx and IL3xxx of the log (.github/scripts/il-gate.mjs), so 0 of them is part of the cell; a control example with one
+  # intentional warning shows that this gate turns red. The projects are not in the solution: a build of the solution on a runner that
   # does not run this job downloads no runtime pack for WebAssembly. The SDK needs no workload: the default mode needs no wasm-tools.
   wasm:
     name: browser-wasm ${{ matrix.tfm }}
@@ -203,10 +205,28 @@ jobs:
           set -euo pipefail
           status=0
           dotnet publish tests/Great.Parts.Cel.Wasm.App -f "$TARGET" -c Release --no-restore -o "artifacts/wasm/app/$TARGET" 2>&1 | tee "artifacts/wasm/app-$TARGET.log" || status=1
-          count=$(grep -cE 'IL[23][0-9]{3}' "artifacts/wasm/app-$TARGET.log" || true)
-          echo "warnings IL2xxx and IL3xxx in the publish: $count"
-          [ "$count" = "0" ] || status=1
+          node .github/scripts/il-gate.mjs "artifacts/wasm/app-$TARGET.log" || status=1
           exit $status
+
+      # The control example of the gate above: the same application with one intentional warning IL2070 (-p:IlControl=true adds
+      # tests/Great.Parts.Cel.Wasm.App/IlControl/IlWarning.cs) is published, and the gate has to turn red on its log. A gate that stayed
+      # green here would show nothing. The publish itself may fail on the warning; only its log is read.
+      - name: Control example (the gate of 0 IL warnings goes red)
+        env:
+          TARGET: ${{ matrix.tfm }}
+        run: |
+          set -u
+          log="artifacts/wasm/control-$TARGET.log"
+          dotnet publish tests/Great.Parts.Cel.Wasm.App -f "$TARGET" -c Release --no-restore -p:IlControl=true -o "artifacts/wasm/control/$TARGET" > "$log" 2>&1 || true
+          if node .github/scripts/il-gate.mjs "$log"; then
+            echo "The control example has an IL warning, but the gate stayed green."
+            exit 1
+          fi
+          if ! grep -q 'IL2070' "$log"; then
+            echo "The gate went red, but not on the warning of the control example."
+            exit 1
+          fi
+          echo "The gate went red on the warning of the control example, as it has to."
 
   # The documentation (docs/design/eng-docs.md): the steps of eng/docs, and the external links, which only this cell checks. The steps run
   # in this order and, like in eng/docs, a failed step does not hide the later ones: the examples and the error codes page need the build

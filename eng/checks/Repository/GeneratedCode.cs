@@ -45,6 +45,11 @@ internal static class GeneratedCode
     private static readonly string[] NameEndings = [".designer", ".generated", ".g", ".g.i"];
     private const string TemporaryName = "TemporaryGeneratedFile_";
 
+    /// <summary>Returns whether the text of a comment has the marker of generated code, case-sensitive.</summary>
+    /// <param name="comment">The text of a comment or of a line of one.</param>
+    internal static bool HasMarker(string comment) =>
+        Markers.Any(sign => comment.Contains(sign, StringComparison.Ordinal));
+
     /// <summary>Returns whether the path is in an allowed directory.</summary>
     /// <param name="path">The path relative to the root, with <c>/</c>.</param>
     internal static bool IsInAllowedDirectory(string path) =>
@@ -77,7 +82,7 @@ internal static class GeneratedCode
             string text = trivia.ToString();
             Position position = lines.Locate(trivia.SpanStart);
             comments.Add(new LeadingComment(position, text));
-            if (marker is null && Markers.Any(sign => text.Contains(sign, StringComparison.Ordinal)))
+            if (marker is null && HasMarker(text))
             {
                 marker = position;
             }

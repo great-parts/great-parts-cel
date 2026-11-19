@@ -88,7 +88,7 @@ CelProgram<bool> program = compiled.Program!;
 CelEvalResult<bool> result = program.Evaluate(new CelBindings().Add("total", 120L).Add("limit", 100L));
 if (result.IsSuccess)
 {
-    Console.WriteLine(result.Value); // True
+    Console.WriteLine(result.Value); // Output: True
 }
 ```
 
@@ -106,18 +106,21 @@ Describe the .NET types in a type context. The source generator completes it at 
 using Great.Parts.Cel;
 using Great.Parts.Cel.Values;
 
-[CelObject(typeof(Order))]
-internal sealed partial class AppTypes : CelTypeContext;
-
-public sealed record Order(long Total, string Currency);
-
 CelEnvironment environment = CelEnvironment.Create(b => b
     .AddTypes(AppTypes.Default)
     .UseInput<Order>());
 
 CelProgram<bool> program = environment.Compile<bool>("total > 100 && currency == 'EUR'").GetProgramOrThrow();
 bool big = program.EvaluateInput(new Order(120, "EUR")).GetValueOrThrow();
+Console.WriteLine(big); // Output: True
+
+[CelObject(typeof(Order))]
+internal sealed partial class AppTypes : CelTypeContext;
+
+public sealed record Order(long Total, string Currency);
 ```
+
+In a program with top-level statements, the type declarations go after the statements.
 
 - The fields of the input type are variables of the top level (`total`, not `order.total`). The default naming policy is camel case: `TotalAmount` is `totalAmount`. `[CelName("x")]` renames a member and `[CelIgnore]` hides it.
 - One input type per environment; a different second type is the build error `InputConflict`. A type that no added context describes is `TypeNotDeclared`. A field with the name of another variable is `DuplicateVariable`.
@@ -128,9 +131,16 @@ bool big = program.EvaluateInput(new Order(120, "EUR")).GetValueOrThrow();
 ## Validate an expression without running it
 
 ```csharp
+using Great.Parts.Cel;
+
+CelEnvironment environment = CelEnvironment.Create(b => b
+    .AddVariable<long>("total")
+    .AddVariable<long>("limit"));
+
 CelValidationResult check = environment.Validate<bool>("total > limit");
 // check.IsValid, check.Errors, check.ResultType,
 // check.ReferencedVariables (names, sorted), check.ReferencedFunctions (names, sorted)
+Console.WriteLine(check.IsValid); // Output: True
 ```
 
 `Validate` compiles with the same rules as `Compile<T>` and returns no program. Use it when a user saves a rule: show `error.ToDisplayString(text)` and, if you need to know what the rule reads, `ReferencedVariables`. Local variables of macros are not listed.

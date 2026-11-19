@@ -17,7 +17,10 @@
     },
     "mutate": [
       "Library/*.cs",
-      "Types/**/*.cs"
+      "!Library/Conversions.cs",
+      "!Library/NumberText.cs",
+      "!Library/StandardLibraryV1.cs",
+      "Library/Text/**/*.cs"
     ],
     "thresholds": {
       "high": 80,

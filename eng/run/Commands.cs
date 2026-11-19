@@ -18,7 +18,7 @@ internal static class Commands
     private const string AotRuntime = "linux-x64";
 
     /// <summary>The checks of <c>eng/checks</c> that <c>test</c> runs; <c>eng/checks</c> is built once, with the solution, and run without a build.</summary>
-    private static readonly string[] Checks = ["suppressions", "duplicates", "ratchet", "packages", "--no-build"];
+    private static readonly string[] Checks = ["suppressions", "duplicates", "ratchet", "packages", "traces", "--no-build"];
 
     /// <summary>The error codes page that <c>docs</c> checks against <c>CelErrorCode</c> (<c>docs/design/eng-docs.md</c>, "Steps").</summary>
     private const string ErrorCodesPage = "docs/error-codes.md";

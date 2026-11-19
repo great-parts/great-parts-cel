@@ -19,7 +19,9 @@
       "Values/O*.cs",
       "Values/T*.cs",
       "Values/V*.cs",
-      "Values/Z*.cs"
+      "Values/Z*.cs",
+      "Values/P*.cs",
+      "Values/S*.cs"
     ],
     "thresholds": {
       "high": 80,

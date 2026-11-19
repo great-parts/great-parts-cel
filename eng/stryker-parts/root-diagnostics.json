@@ -17,7 +17,8 @@
     },
     "mutate": [
       "*.cs",
-      "Diagnostics/**/*.cs"
+      "Diagnostics/**/*.cs",
+      "SimpleEntry/**/*.cs"
     ],
     "thresholds": {
       "high": 80,

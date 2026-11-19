@@ -9,9 +9,10 @@ using Great.Parts.Cel.Eng.Findings;
 namespace Great.Parts.Cel.Conformance;
 
 /// <summary>
-/// The cel-spec suite on browser-wasm (S-9, R-1). It runs every case of <c>tests/simple/testdata</c> of the pinned commit on the library,
+/// The cel-spec suite on browser-wasm. It runs every case of <c>tests/simple/testdata</c> of the pinned commit on the library,
 /// as the suite project does, in the cell of the run (<c>jit, browser-wasm</c> and the target of the build), and prints the summary line, the
-/// skipped cases of the cell with their reasons and the findings. The exit code is 0 when there is no finding with the severity error,
+/// skipped cases of the cell with their reasons and the findings. Then it checks the database of the system without zones
+/// (<see cref="SystemZones"/>). The exit code is 0 when there is no finding with the severity error and no problem of that check,
 /// 1 when there is one, and 2 when the run is not a run on browser-wasm or the suite has no cases.
 /// </summary>
 internal static class Program
@@ -50,7 +51,15 @@ internal static class Program
             return 2;
         }
 
-        return errors.Length == 0 ? 0 : 1;
+        // The database of the system on a runtime without zones (the invariant time zone mode): its problems are errors of the run, like a finding.
+        string[] zoneProblems = SystemZones.Problems();
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"problems of the database of the system without zones: {zoneProblems.Length}"));
+        foreach (string problem in zoneProblems)
+        {
+            Console.WriteLine(problem);
+        }
+
+        return errors.Length == 0 && zoneProblems.Length == 0 ? 0 : 1;
     }
 
     // The entries of the skip list whose scope contains the cell: each is a case that fails in the cell (a case that passes is ENG802), with

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.WebAssembly">
 
   <!--
-    The cel-spec suite on browser-wasm (S-9, R-1): the runner of tests/Great.Parts.Cel.Conformance as a console application of the
+    The cel-spec suite on browser-wasm: the runner of tests/Great.Parts.Cel.Conformance as a console application of the
     runtime for WebAssembly. It is published in the default mode (the interpreter of the runtime, IL trimming, no AOT compilation to
     WebAssembly) and runs under Node.js in a container (eng/wasm/run.sh). The sources of the runner and the data are the ones of the
     suite project, linked; nothing is copied.
@@ -21,6 +21,16 @@
     <PublishTrimmed>true</PublishTrimmed>
     <RunAOTCompilation>false</RunAOTCompilation>
   </PropertyGroup>
+
+  <!--
+    The invariant time zone mode of the runtime, which the property InvariantTimezone sets: TimeZoneInfo finds no named zone. The property
+    is not used because it needs the workload wasm-tools (NETSDK1147), and the default mode of this application needs none; the option of
+    the runtime is what it writes. Program.cs checks that CelTimeZoneDatabase.FromSystem() then finds none either (SystemZones.cs). The
+    cel-spec cases use the archive of the suite project, not the zones of the platform.
+  -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.TimeZoneInfo.Invariant" Value="true" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" />

@@ -16,7 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "Library/Regex/**/*.cs"
+      "Types/**/*.cs"
     ],
     "thresholds": {
       "high": 80,
