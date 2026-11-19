@@ -19,6 +19,8 @@
       IL2104 is the single warning that the trimmer gives for a whole assembly that is not marked trimmable and has trim warnings: here
       Microsoft.AspNetCore.Components and Microsoft.JSInterop of the framework, which the check does not judge. The two packages of the
       library are marked trimmable (IsAotCompatible), so their warnings are reported one by one, with their own codes, and stay counted.
+      Warnings are errors here, so the single warning of the framework would fail the publish; the form is counted in eng/ratchet.json
+      (IL2104: 1).
     -->
     <NoWarn>$(NoWarn);IL2104</NoWarn>
   </PropertyGroup>
