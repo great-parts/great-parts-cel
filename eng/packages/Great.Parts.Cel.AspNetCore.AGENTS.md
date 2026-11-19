@@ -28,16 +28,27 @@ The package targets `net10.0` and `net11.0` and depends on `Great.Parts.Cel.Depe
 ## Authorization
 
 ```csharp
+using System.Security.Claims;
 using Great.Parts.Cel.AspNetCore;
 using Great.Parts.Cel.DependencyInjection;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.DependencyInjection;
 
-builder.Services.AddCel(b => b.SetDefaultCostLimit(10_000));
-builder.Services.AddCelAuthorization();
+// In an application these calls are on builder.Services; here the services are made apart, to run the policy.
+ServiceCollection services = new();
+services.AddLogging();
+services.AddCel(b => b.SetDefaultCostLimit(10_000));
+services.AddCelAuthorization();
 
-builder.Services.AddAuthorizationBuilder()
+services.AddAuthorizationBuilder()
     .AddPolicy("SalesManager", policy => policy
         .RequireAuthenticatedUser()
         .RequireCel("'manager' in user.role && user.department == ['sales']"));
+
+using ServiceProvider provider = services.BuildServiceProvider();
+ClaimsPrincipal manager = new(new ClaimsIdentity([new Claim("role", "manager"), new Claim("department", "sales")], "example"));
+AuthorizationResult result = await provider.GetRequiredService<IAuthorizationService>().AuthorizeAsync(manager, "SalesManager");
+Console.WriteLine(result.Succeeded); // Output: True
 ```
 
 - The expression has the type `bool` and sees `user`, of the type `map(string, list(string))`: the claim types of the user and their values. `user.role` is the list of the values of the claim `role`.
@@ -49,11 +60,29 @@ builder.Services.AddAuthorizationBuilder()
 ## Validation of requests
 
 ```csharp
+using Great.Parts.Cel;
+using Great.Parts.Cel.AspNetCore;
+using Great.Parts.Cel.DependencyInjection;
+using Great.Parts.Cel.Values;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+
+WebApplicationBuilder builder = WebApplication.CreateBuilder();
+builder.Services.AddCel(b => b.AddTypes(OrderTypes.Default).SetDefaultCostLimit(10_000));
+using WebApplication app = builder.Build();
+
 app.MapPost("/orders", (CreateOrder order) => Results.Created($"/orders/{order.Id}", order))
    .WithCelValidation<CreateOrder>("items.size() > 0 && total >= 0", "The order is empty or the total is negative");
 
 var api = app.MapGroup("/api/orders");
 api.WithCelValidation<CreateOrder>("currency in ['EUR', 'USD']", "Unsupported currency");
+
+[CelObject(typeof(CreateOrder))]
+internal sealed partial class OrderTypes : CelTypeContext;
+
+public sealed record CreateOrder(long Id, IReadOnlyList<string> Items, long Total, string Currency);
 ```
 
 - The fields of `TRequest` are the variables of the expression (`items`, `total`), not `request.items`. The environment is derived with `UseInput<TRequest>()`, so a type source of the registered environment must describe `TRequest`; the derived environment and the compiled expression are created once.

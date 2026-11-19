@@ -37,13 +37,13 @@ The service `min-sdk` is the second exception: building `eng/run` needs the SDK 
 
 | Stage | Base image | Added |
 | :- | :- | :- |
-| `sdk` | `mcr.microsoft.com/dotnet/sdk` with the SDK version of `global.json` | the .NET 10 runtime, copied from the `mcr.microsoft.com/dotnet/sdk` 10.0 image; `/repo` and `/git` registered as safe directories of `git` |
+| `sdk` | `mcr.microsoft.com/dotnet/sdk` with the SDK version of `global.json` | the .NET 10 runtime and the ASP.NET Core 10 shared framework, copied from the `mcr.microsoft.com/dotnet/sdk` 10.0 image; `/repo` and `/git` registered as safe directories of `git` |
 | `sdk-aot` | the `-aot` variant of the same SDK version: it adds the native toolchain that Native AOT needs; the service `test` runs on it | the same as `sdk` |
 | `docs` | the `sdk` stage | the `lychee` program, copied from `lycheeverse/lychee` 0.24.2 |
 | `sdk-min` | `mcr.microsoft.com/dotnet/sdk:10.0.100`, the first .NET 10 SDK | `/repo` and `/git` registered as safe directories of `git` |
 
 - Tags are exact versions; floating tags such as `latest` are not used. The SDK tag of `sdk` changes together with `global.json`, the tag of `sdk-min` together with `eng/min-sdk/global.json`.
-- The .NET 10 runtime runs the tests and examples for `net10.0` and the mutation tool.
+- The .NET 10 runtime runs the tests and examples for `net10.0` and the mutation tool; the ASP.NET Core 10 shared framework runs the tests of the ASP.NET Core package for `net10.0`.
 - `git` comes with the SDK image; the safe directory entries avoid its ownership error for files of another host user.
 
 ## Linked worktrees
@@ -212,7 +212,7 @@ After a push to `main` the run `codeql` is green and the alerts are in the Secur
 | :- | :- |
 | `artifacts/test-results/` | the reports of the JIT runs and of the Native AOT runs of `test` |
 | `artifacts/aot/` | the Native AOT publish of `test` |
-| `artifacts/packages/` | `eng/checks packages` |
+| `artifacts/packages/` | `eng/checks packages`; `package-closure` reads it ([eng-checks-artifacts.md](eng-checks-artifacts.md#package-closure)) |
 | `artifacts/docs/` | `eng/docs` |
 | `artifacts/mutate/` | `eng/mutate` |
 | `artifacts/oracle/` | the launcher of the oracle container ([eng-oracle.md](eng-oracle.md#launcher)) |

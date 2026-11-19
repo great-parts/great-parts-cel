@@ -4,6 +4,9 @@
 dependencies net10.0: Great.Parts.Cel, Google.Protobuf
 dependencies net11.0: Great.Parts.Cel, Google.Protobuf
 
+closure net10.0: Great.Parts.Cel, Google.Protobuf
+closure net11.0: Great.Parts.Cel, Google.Protobuf
+
 license Apache-2.0
 
 file NOTICE

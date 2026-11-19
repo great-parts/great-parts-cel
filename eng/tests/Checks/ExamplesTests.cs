@@ -638,6 +638,24 @@ public sealed class ExamplesTests
     }
 
     [Fact]
+    public void Project_ReferencesTheDependencyInjectionAndAspNetCoreProjectsOnlyWhenTheRepositoryHasThem()
+    {
+        using TempDirectory emptyRoot = new();
+        using TempDirectory fullRoot = new();
+        fullRoot.Write(ExampleProjects.InjectionProject, ProjectFile);
+        fullRoot.Write(ExampleProjects.AspNetCoreProject, ProjectFile);
+        Example example = new("README.md", 5, ["Console.WriteLine(1);"], Example.DefaultTarget, null, []);
+
+        string absent = ExampleProjects.ProjectText(emptyRoot.Path, example);
+        string present = ExampleProjects.ProjectText(fullRoot.Path, example);
+
+        Assert.DoesNotContain("Great.Parts.Cel.DependencyInjection", absent, StringComparison.Ordinal);
+        Assert.DoesNotContain("Great.Parts.Cel.AspNetCore", absent, StringComparison.Ordinal);
+        Assert.Contains(Path.Combine(fullRoot.Path, ExampleProjects.InjectionProject), present, StringComparison.Ordinal);
+        Assert.Contains(Path.Combine(fullRoot.Path, ExampleProjects.AspNetCoreProject), present, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Project_ReferencesTheGeneratorAsAnAnalyzerWhenTheRepositoryHasIt()
     {
         using TempDirectory root = new();

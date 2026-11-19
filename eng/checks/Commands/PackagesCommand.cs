@@ -46,7 +46,7 @@ internal sealed class PackagesCommand : ICheckCommand
 
         List<PackageContent> packages = [.. ReadPackages(context.Root)];
         List<PackageList> lists = [.. ReadLists(context.Root)];
-        List<Finding> findings = [.. lists.SelectMany(list => list.Problems)];
+        List<Finding> findings = [.. NewProblems(context, lists)];
         foreach (PackageContent package in packages)
         {
             findings.AddRange(PackageMetadata.Check(package, Path.Combine(context.Root, package.Path)));
@@ -82,7 +82,21 @@ internal sealed class PackagesCommand : ICheckCommand
         return findings;
     }
 
-    private static IEnumerable<PackageContent> ReadPackages(string root)
+    /// <summary>
+    /// The problems (<c>ENG200</c>) of the lists that no command of the run has reported yet. <c>packages</c> and <c>package-closure</c>
+    /// both read the lists, and a problem of a list is one finding even when both commands run in one invocation.
+    /// </summary>
+    /// <param name="context">The context of the run, which keeps the paths of the lists that were reported.</param>
+    /// <param name="lists">The lists that the command read.</param>
+    internal static IEnumerable<Finding> NewProblems(CheckContext context, IEnumerable<PackageList> lists)
+    {
+        HashSet<string> reported = context.Scan("package-lists-reported", () => new HashSet<string>(StringComparer.Ordinal));
+        return lists.Where(list => list.Problems.Count > 0 && reported.Add(list.Path)).SelectMany(list => list.Problems);
+    }
+
+    /// <summary>Reads the <c>.nupkg</c> files of <c>artifacts/packages</c> in the order of their names.</summary>
+    /// <param name="root">The full path of the repository root.</param>
+    internal static IEnumerable<PackageContent> ReadPackages(string root)
     {
         string directory = Path.Combine(root, PackagesDirectory);
         if (!Directory.Exists(directory))
@@ -97,7 +111,9 @@ internal sealed class PackagesCommand : ICheckCommand
         }
     }
 
-    private static IEnumerable<PackageList> ReadLists(string root)
+    /// <summary>Reads the lists of <c>eng/packages</c> in the order of their names.</summary>
+    /// <param name="root">The full path of the repository root.</param>
+    internal static IEnumerable<PackageList> ReadLists(string root)
     {
         string directory = Path.Combine(root, ListsDirectory);
         if (!Directory.Exists(directory))

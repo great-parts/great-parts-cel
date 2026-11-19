@@ -35,16 +35,23 @@ Declare the types the rules read in a `CelTypeContext` (see the `AGENTS.md` of `
 using Great.Parts.Cel;
 using Great.Parts.Cel.DependencyInjection;
 using Great.Parts.Cel.Values;
+using Microsoft.Extensions.DependencyInjection;
+
+// In an application these calls are on builder.Services; here the services are made apart, to run the rules.
+ServiceCollection services = new();
+services.AddCel(b => b
+    .AddTypes(AppTypes.Default)
+    .UseInput<Order>()
+    .SetDefaultCostLimit(100_000));
+services.AddSingleton<PricingRules>();
+
+using ServiceProvider provider = services.BuildServiceProvider();
+Console.WriteLine(provider.GetRequiredService<PricingRules>().IsLarge(new Order(150, "EUR"))); // Output: True
 
 [CelObject(typeof(Order))]
 internal sealed partial class AppTypes : CelTypeContext;
 
 public sealed record Order(long Total, string Currency);
-
-builder.Services.AddCel(b => b
-    .AddTypes(AppTypes.Default)
-    .UseInput<Order>()
-    .SetDefaultCostLimit(100_000));
 
 public sealed class PricingRules(ICelEvaluator evaluator)
 {
@@ -64,8 +71,28 @@ public sealed class PricingRules(ICelEvaluator evaluator)
 `CelOptions` has `DefaultCostLimit` (`ulong?`, replaces a limit that `configure` set), `CacheMaxEntryCount` and `CacheMaxTotalTextLength`. The package does not bind them; the application does, with its own binding, for example:
 
 ```csharp
+using Great.Parts.Cel.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+
+HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+{
+    ["Cel:DefaultCostLimit"] = "50000",
+    ["Cel:Pricing:CacheMaxEntryCount"] = "64",
+});
+
+builder.Services.AddCel(b => b.SetDefaultCostLimit(100_000));
+builder.Services.AddKeyedCel("pricing", b => b.SetDefaultCostLimit(100_000));
 builder.Services.Configure<CelOptions>(builder.Configuration.GetSection("Cel"));
 builder.Services.Configure<CelOptions>("pricing", builder.Configuration.GetSection("Cel:Pricing")); // the named environment
+
+using IHost host = builder.Build();
+IOptionsMonitor<CelOptions> options = host.Services.GetRequiredService<IOptionsMonitor<CelOptions>>();
+Console.WriteLine(options.CurrentValue.DefaultCostLimit); // Output: 50000
+Console.WriteLine(options.Get("pricing").CacheMaxEntryCount); // Output: 64
 ```
 
 The values are read once, when the environment and the cache are created. Wrong values are an `OptionsValidationException` when `IOptions<CelOptions>.Value` is read.
@@ -73,10 +100,42 @@ The values are read once, when the environment and the cache are created. Wrong 
 ## Validate options with CEL
 
 ```csharp
+using Great.Parts.Cel;
+using Great.Parts.Cel.DependencyInjection;
+using Great.Parts.Cel.Values;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+
+HostApplicationBuilder builder = Host.CreateApplicationBuilder();
+builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Shop:MaxDiscount"] = "80", ["Shop:MinOrder"] = "0" });
+
+builder.Services.AddCel(b => b.AddTypes(ShopTypes.Default));
 builder.Services.AddOptions<ShopOptions>()
     .Bind(builder.Configuration.GetSection("Shop"))
     .ValidateCel("maxDiscount <= 50 && minOrder >= 0", "The discount is above 50% or the minimum order is negative")
     .ValidateOnStart();
+
+using IHost host = builder.Build();
+try
+{
+    _ = host.Services.GetRequiredService<IOptions<ShopOptions>>().Value;
+}
+catch (OptionsValidationException exception)
+{
+    Console.WriteLine(exception.Failures.Single()); // Output: The discount is above 50% or the minimum order is negative
+}
+
+[CelObject(typeof(ShopOptions))]
+internal sealed partial class ShopTypes : CelTypeContext;
+
+public sealed class ShopOptions
+{
+    public long MaxDiscount { get; set; }
+
+    public long MinOrder { get; set; }
+}
 ```
 
 The fields of the options type are the variables of the expression, so the context of the environment has to describe the type (`[CelObject(typeof(ShopOptions))]`). `false`, an error of compilation and an error of evaluation all fail the validation with the message; the last two add the code of the error. Pass `environmentName` for an environment registered by name. The check runs when the options are read, or at startup with `ValidateOnStart()`.

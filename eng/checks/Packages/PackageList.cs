@@ -4,25 +4,29 @@ using Great.Parts.Cel.Eng.Findings;
 
 namespace Great.Parts.Cel.Eng.Checks;
 
-/// <summary>A <c>dependencies</c> line of a package list: the target framework, the package IDs and the line.</summary>
+/// <summary>A <c>dependencies</c>, <c>framework</c> or <c>closure</c> line of a package list: the target framework, the names and the line.</summary>
 /// <param name="Target">The target framework as the <c>.nuspec</c> writes it, such as <c>net10.0</c>.</param>
-/// <param name="Dependencies">The IDs of the packages of the group; empty for a group without dependencies.</param>
+/// <param name="Names">The IDs of the packages, or the names of the shared frameworks; empty for a line without names.</param>
 /// <param name="Line">The line of the list, starting with 1.</param>
-internal sealed record PackageListGroup(string Target, IReadOnlyList<string> Dependencies, int Line);
+internal sealed record PackageListLine(string Target, IReadOnlyList<string> Names, int Line);
 
 /// <summary>
 /// A list <c>eng/packages/&lt;package id&gt;.txt</c> (<c>docs/design/eng-checks-artifacts.md</c>, "packages"): the files, the
-/// dependency groups and the license expression that the package must have. A line that does not parse is one <c>ENG200</c>
-/// in <see cref="Problems"/>; the lines that do parse are kept.
+/// dependency groups, the shared frameworks, the closure of the restore and the license expression that the package must have. A
+/// line that does not parse is one <c>ENG200</c> in <see cref="Problems"/>; the lines that do parse are kept.
 /// </summary>
 internal sealed class PackageList
 {
     private const string DependenciesKeyword = "dependencies";
+    private const string FrameworkKeyword = "framework";
+    private const string ClosureKeyword = "closure";
     private const string LicenseKeyword = "license";
     private const string FileKeyword = "file";
 
     private readonly List<Finding> _problems = [];
-    private readonly List<PackageListGroup> _groups = [];
+    private readonly List<PackageListLine> _groups = [];
+    private readonly List<PackageListLine> _frameworks = [];
+    private readonly List<PackageListLine> _closures = [];
     private readonly Dictionary<string, int> _files = new(StringComparer.Ordinal);
 
     private PackageList(string path, string id)
@@ -40,8 +44,14 @@ internal sealed class PackageList
     /// <summary>One <c>ENG200</c> per line that does not parse; empty when every line parses.</summary>
     internal IReadOnlyList<Finding> Problems => _problems;
 
-    /// <summary>The dependency groups in the order of the list.</summary>
-    internal IReadOnlyList<PackageListGroup> Groups => _groups;
+    /// <summary>The dependency groups (the <c>dependencies</c> lines) in the order of the list.</summary>
+    internal IReadOnlyList<PackageListLine> Groups => _groups;
+
+    /// <summary>The shared frameworks of the <c>frameworkReferences</c> groups (the <c>framework</c> lines) in the order of the list.</summary>
+    internal IReadOnlyList<PackageListLine> Frameworks => _frameworks;
+
+    /// <summary>The packages that the restore adds to an application (the <c>closure</c> lines) in the order of the list.</summary>
+    internal IReadOnlyList<PackageListLine> Closures => _closures;
 
     /// <summary>The files of the package: the path in the package and the line of the list.</summary>
     internal IReadOnlyDictionary<string, int> Files => _files;
@@ -70,6 +80,7 @@ internal sealed class PackageList
             }
         }
 
+        list.CheckClosures();
         return list;
     }
 
@@ -81,7 +92,13 @@ internal sealed class PackageList
         switch (keyword)
         {
             case DependenciesKeyword:
-                ParseGroup(rest, number);
+                ParseTargetLine(DependenciesKeyword, "the dependencies", "package IDs", _groups, rest, number, duplicate: target => $"the group '{target}' is already in the list");
+                break;
+            case FrameworkKeyword:
+                ParseTargetLine(FrameworkKeyword, "the frameworks", "names of shared frameworks", _frameworks, rest, number, duplicate: target => $"the list has more than one '{FrameworkKeyword}' line for '{target}'");
+                break;
+            case ClosureKeyword:
+                ParseTargetLine(ClosureKeyword, "the packages of the closure", "package IDs", _closures, rest, number, duplicate: target => $"the list has more than one '{ClosureKeyword}' line for '{target}'");
                 break;
             case LicenseKeyword:
                 ParseLicense(rest, number);
@@ -90,51 +107,72 @@ internal sealed class PackageList
                 ParseFile(rest, number);
                 break;
             default:
-                Problem(number, $"unknown line '{line}'; a line starts with '{DependenciesKeyword}', '{LicenseKeyword}' or '{FileKeyword}'");
+                Problem(number, $"unknown line '{line}'; a line starts with '{DependenciesKeyword}', '{FrameworkKeyword}', '{ClosureKeyword}', '{LicenseKeyword}' or '{FileKeyword}'");
                 break;
         }
     }
 
-    private void ParseGroup(string rest, int number)
+    // A line '<keyword> <target>: <name>, <name>, ...'. The same target on two lines of one keyword is a problem of the second line.
+    private void ParseTargetLine(
+        string keyword,
+        string subject,
+        string what,
+        List<PackageListLine> lines,
+        string rest,
+        int number,
+        Func<string, string> duplicate)
     {
         int colon = rest.IndexOf(':', StringComparison.Ordinal);
         if (colon < 0)
         {
-            Problem(number, $"a '{DependenciesKeyword}' line needs a colon after the target: '{DependenciesKeyword} <target>: <id>, <id>, ...'");
+            Problem(number, $"a '{keyword}' line needs a colon after the target: '{keyword} <target>: <name>, <name>, ...'");
             return;
         }
 
         string target = rest[..colon].Trim();
         if (target.Length == 0 || target.AsSpan().ContainsAny(' ', '\t'))
         {
-            Problem(number, $"a '{DependenciesKeyword}' line needs one target before the colon: '{DependenciesKeyword} <target>: <id>, <id>, ...'");
+            Problem(number, $"a '{keyword}' line needs one target before the colon: '{keyword} <target>: <name>, <name>, ...'");
             return;
         }
 
-        string ids = rest[(colon + 1)..].Trim();
-        List<string> dependencies = [];
-        if (ids.Length > 0)
+        string names = rest[(colon + 1)..].Trim();
+        List<string> items = [];
+        if (names.Length > 0)
         {
-            foreach (string part in ids.Split(','))
+            foreach (string part in names.Split(','))
             {
-                string id = part.Trim();
-                if (id.Length == 0 || id.AsSpan().ContainsAny(' ', '\t'))
+                string item = part.Trim();
+                if (item.Length == 0 || item.AsSpan().ContainsAny(' ', '\t'))
                 {
-                    Problem(number, $"the dependencies of '{target}' are not a list of package IDs separated by commas");
+                    Problem(number, $"{subject} of '{target}' are not a list of {what} separated by commas");
                     return;
                 }
 
-                dependencies.Add(id);
+                items.Add(item);
             }
         }
 
-        if (_groups.Exists(group => group.Target == target))
+        if (lines.Exists(line => line.Target == target))
         {
-            Problem(number, $"the group '{target}' is already in the list");
+            Problem(number, duplicate(target));
             return;
         }
 
-        _groups.Add(new PackageListGroup(target, dependencies, number));
+        lines.Add(new PackageListLine(target, items, number));
+    }
+
+    // A target of the dependency groups without a closure line is a list that does not say what the restore adds: one problem on the
+    // first line of the list.
+    private void CheckClosures()
+    {
+        foreach (PackageListLine group in _groups)
+        {
+            if (!_closures.Exists(closure => closure.Target == group.Target))
+            {
+                Problem(1, $"the list has a '{DependenciesKeyword}' line for '{group.Target}' and no '{ClosureKeyword}' line for it: '{ClosureKeyword} {group.Target}: <id>, <id>, ...'");
+            }
+        }
     }
 
     private void ParseLicense(string rest, int number)

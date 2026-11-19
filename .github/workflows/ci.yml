@@ -78,10 +78,12 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
         run: git rev-parse --verify --quiet refs/heads/main > /dev/null || git branch main origin/main
 
-      # Suppressions, duplicates, the ratchet, the content of the packages and the traces of the plans in the texts.
+      # Suppressions, duplicates, the ratchet, the content of the packages, what the restore of each package adds to an application
+      # (package-closure restores from artifacts/packages that packages made, and from nuget.org, so it needs the network) and the
+      # traces of the plans in the texts.
       - name: Repository checks
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
-        run: dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages traces --no-build
+        run: dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages package-closure traces --no-build
 
   # Native AOT cells, linux-x64. A cell builds the solution, runs the two published test projects under JIT for its target (the
   # reference of the test count), publishes them as eng/test does, runs the executables and compares the tests of both runs

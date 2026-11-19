@@ -29,6 +29,9 @@ public sealed class PackagesTests
         file lib/net11.0/Great.Parts.Cel.dll
         file analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll
         file README.md
+
+        closure net10.0:
+        closure net11.0:
         """;
     private const string ProtobufList = """
         # Expected content of the Great.Parts.Cel.Protobuf package.
@@ -43,13 +46,37 @@ public sealed class PackagesTests
         file lib/net10.0/Great.Parts.Cel.Protobuf.dll
         file lib/net11.0/Great.Parts.Cel.Protobuf.dll
         file README.md
+
+        closure net10.0: Great.Parts.Cel, Google.Protobuf
+        closure net11.0: Great.Parts.Cel, Google.Protobuf
+        """;
+    private const string AspNetCoreList = """
+        # Expected content of the Great.Parts.Cel.AspNetCore package.
+        dependencies net10.0: Great.Parts.Cel.DependencyInjection
+        dependencies net11.0: Great.Parts.Cel.DependencyInjection
+
+        framework net10.0: Microsoft.AspNetCore.App
+        framework net11.0: Microsoft.AspNetCore.App
+
+        closure net10.0: Great.Parts.Cel, Great.Parts.Cel.DependencyInjection
+        closure net11.0: Great.Parts.Cel, Great.Parts.Cel.DependencyInjection
+
+        license Apache-2.0
+
+        file NOTICE
+        file lib/net10.0/Great.Parts.Cel.AspNetCore.dll
+        file lib/net11.0/Great.Parts.Cel.AspNetCore.dll
+        file README.md
         """;
     private const string CelListPath = "eng/packages/Great.Parts.Cel.txt";
     private const string ProtobufListPath = "eng/packages/Great.Parts.Cel.Protobuf.txt";
+    private const string AspNetCoreListPath = "eng/packages/Great.Parts.Cel.AspNetCore.txt";
     private static readonly string[] CelFiles =
         ["NOTICE", "lib/net10.0/Great.Parts.Cel.dll", "lib/net11.0/Great.Parts.Cel.dll", "analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll"];
     private static readonly string[] ProtobufFiles =
         ["NOTICE", "lib/net10.0/Great.Parts.Cel.Protobuf.dll", "lib/net11.0/Great.Parts.Cel.Protobuf.dll"];
+    private static readonly string[] AspNetCoreFiles =
+        ["NOTICE", "lib/net10.0/Great.Parts.Cel.AspNetCore.dll", "lib/net11.0/Great.Parts.Cel.AspNetCore.dll"];
 
     [Fact]
     public void PackagesThatMatchTheirLists_HaveNoFindings()
@@ -93,19 +120,42 @@ public sealed class PackagesTests
             license MIT
             file
             file NOTICE
+            framework net10.0 Microsoft.AspNetCore.App
+            framework net11.0: Microsoft.AspNetCore.App
+            framework net11.0: Microsoft.AspNetCore.App
+            closure net11.0: Great.Parts.Cel
+            closure net11.0:
+            closure : Great.Parts.Cel
+            closure net9.0: Great.Parts.Cel,, Google.Protobuf
             """);
         Pack(root, "Great.Parts.Cel", ["NOTICE"], Groups(("net11.0", ["Great.Parts.Cel"])));
 
         FindingAssert.Exactly(
             Check(root),
-            Error(EngCodes.Eng200, CelListPath, 3, "unknown line 'nonsense line'; a line starts with 'dependencies', 'license' or 'file'"),
-            Error(EngCodes.Eng200, CelListPath, 4, "a 'dependencies' line needs a colon after the target: 'dependencies <target>: <id>, <id>, ...'"),
-            Error(EngCodes.Eng200, CelListPath, 5, "a 'dependencies' line needs one target before the colon: 'dependencies <target>: <id>, <id>, ...'"),
+            Error(EngCodes.Eng200, CelListPath, 3, "unknown line 'nonsense line'; a line starts with 'dependencies', 'framework', 'closure', 'license' or 'file'"),
+            Error(EngCodes.Eng200, CelListPath, 4, "a 'dependencies' line needs a colon after the target: 'dependencies <target>: <name>, <name>, ...'"),
+            Error(EngCodes.Eng200, CelListPath, 5, "a 'dependencies' line needs one target before the colon: 'dependencies <target>: <name>, <name>, ...'"),
             Error(EngCodes.Eng200, CelListPath, 6, "the dependencies of 'net10.0' are not a list of package IDs separated by commas"),
             Error(EngCodes.Eng200, CelListPath, 8, "the group 'net11.0' is already in the list"),
             Error(EngCodes.Eng200, CelListPath, 9, "a 'license' line needs an expression: 'license <expression>'"),
             Error(EngCodes.Eng200, CelListPath, 11, "the list has more than one 'license' line"),
-            Error(EngCodes.Eng200, CelListPath, 12, "a 'file' line needs a path in the package: 'file <path>'"));
+            Error(EngCodes.Eng200, CelListPath, 12, "a 'file' line needs a path in the package: 'file <path>'"),
+            Error(EngCodes.Eng200, CelListPath, 14, "a 'framework' line needs a colon after the target: 'framework <target>: <name>, <name>, ...'"),
+            Error(EngCodes.Eng200, CelListPath, 16, "the list has more than one 'framework' line for 'net11.0'"),
+            Error(EngCodes.Eng200, CelListPath, 18, "the list has more than one 'closure' line for 'net11.0'"),
+            Error(EngCodes.Eng200, CelListPath, 19, "a 'closure' line needs one target before the colon: 'closure <target>: <name>, <name>, ...'"),
+            Error(EngCodes.Eng200, CelListPath, 20, "the packages of the closure of 'net9.0' are not a list of package IDs separated by commas"));
+    }
+
+    [Fact]
+    public void Eng200_TargetOfTheDependenciesWithoutAClosureLine_IsReportedAtTheFirstLine()
+    {
+        using TempDirectory root = Repository("# a comment\ndependencies net10.0:\ndependencies net11.0: Great.Parts.Cel\nclosure net11.0: Great.Parts.Cel\nlicense Apache-2.0\n");
+        Pack(root, "Great.Parts.Cel", ["NOTICE"], Groups(("net10.0", []), ("net11.0", ["Great.Parts.Cel"])));
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng200, CelListPath, 1, "the list has a 'dependencies' line for 'net10.0' and no 'closure' line for it: 'closure net10.0: <id>, <id>, ...'"));
     }
 
     [Fact]
@@ -116,7 +166,21 @@ public sealed class PackagesTests
 
         FindingAssert.Exactly(
             Check(root),
-            Error(EngCodes.Eng200, CelListPath, 2, "unknown line 'bad'; a line starts with 'dependencies', 'license' or 'file'"));
+            Error(EngCodes.Eng200, CelListPath, 2, "unknown line 'bad'; a line starts with 'dependencies', 'framework', 'closure', 'license' or 'file'"));
+    }
+
+    [Fact]
+    public void Eng200_ProblemOfAListThatPackagesAndPackageClosureBothRead_IsOneFinding()
+    {
+        using TempDirectory root = Repository("license Apache-2.0\nbad\nfile NOTICE\n");
+        Pack(root, "Great.Parts.Cel", ["NOTICE"], Groups());
+        CheckContext context = new(root.Path, new Dictionary<string, string>());
+
+        List<Finding> findings = [.. new PackagesCommand((_, _) => { }).Run(context), .. new PackageClosureCommand(_ => string.Empty).Run(context)];
+
+        FindingAssert.Exactly(
+            findings,
+            Error(EngCodes.Eng200, CelListPath, 2, "unknown line 'bad'; a line starts with 'dependencies', 'framework', 'closure', 'license' or 'file'"));
     }
 
     [Fact]
@@ -183,6 +247,50 @@ public sealed class PackagesTests
             Error(EngCodes.Eng202, CelListPath, 3, "the package has no dependency group 'net11.0'"),
             Error(EngCodes.Eng202, ProtobufListPath, 4, "missing dependency 'Google.Protobuf' in group net10.0"),
             Error(EngCodes.Eng202, ProtobufListPath, 5, "missing dependency 'Great.Parts.Cel' in group net11.0"));
+    }
+
+    [Fact]
+    public void FrameworkReferences_ThatMatchTheList_HaveNoFindings()
+    {
+        using TempDirectory root = Repository(CelList, ProtobufList, AspNetCoreList);
+        Pack(root, "Great.Parts.Cel", CelFiles, Groups(("net10.0", []), ("net11.0", [])));
+        Pack(root, "Great.Parts.Cel.Protobuf", ProtobufFiles, ProtobufGroups());
+        Pack(root, "Great.Parts.Cel.AspNetCore", AspNetCoreFiles, AspNetCoreGroups(), frameworks: AspNetCoreFrameworks());
+
+        FindingAssert.None(Check(root));
+    }
+
+    [Fact]
+    public void Eng201_FrameworkReferences_ExtraReferenceAndGroupThatTheListDoesNotName_AreReported()
+    {
+        using TempDirectory root = Repository(CelList, ProtobufList, AspNetCoreList);
+        Pack(root, "Great.Parts.Cel", CelFiles, Groups(("net10.0", []), ("net11.0", [])), frameworks: Groups(("net10.0", ["Microsoft.AspNetCore.App"])));
+        Pack(root, "Great.Parts.Cel.Protobuf", ProtobufFiles, ProtobufGroups());
+        Pack(
+            root,
+            "Great.Parts.Cel.AspNetCore",
+            AspNetCoreFiles,
+            AspNetCoreGroups(),
+            frameworks: Groups(("net10.0", ["Microsoft.AspNetCore.App", "Microsoft.WindowsDesktop.App"]), ("net11.0", ["Microsoft.AspNetCore.App"]), ("net9.0", [])));
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng201, CelListPath, 1, "unexpected framework reference 'Microsoft.AspNetCore.App' in group net10.0, which the list does not name"),
+            Error(EngCodes.Eng201, AspNetCoreListPath, 5, "unexpected framework reference 'Microsoft.WindowsDesktop.App' in group net10.0"));
+    }
+
+    [Fact]
+    public void Eng202_FrameworkReferences_MissingGroupAndMissingReference_AreReportedAtTheLine()
+    {
+        using TempDirectory root = Repository(CelList, ProtobufList, AspNetCoreList);
+        Pack(root, "Great.Parts.Cel", CelFiles, Groups(("net10.0", []), ("net11.0", [])));
+        Pack(root, "Great.Parts.Cel.Protobuf", ProtobufFiles, ProtobufGroups());
+        Pack(root, "Great.Parts.Cel.AspNetCore", AspNetCoreFiles, AspNetCoreGroups(), frameworks: Groups(("net11.0", [])));
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng202, AspNetCoreListPath, 5, "the package has no framework reference group 'net10.0'"),
+            Error(EngCodes.Eng202, AspNetCoreListPath, 6, "missing framework reference 'Microsoft.AspNetCore.App' in group net11.0"));
     }
 
     [Fact]
@@ -282,7 +390,7 @@ public sealed class PackagesTests
     [Fact]
     public void Eng207_ListWithoutALicenseLine_IsReportedAtTheFirstLine()
     {
-        using TempDirectory root = Repository("dependencies net10.0:\nfile NOTICE\nfile README.md\n");
+        using TempDirectory root = Repository("dependencies net10.0:\nclosure net10.0:\nfile NOTICE\nfile README.md\n");
         Pack(root, "Great.Parts.Cel", ["NOTICE"], Groups(("net10.0", [])));
 
         FindingAssert.Exactly(Check(root), Error(EngCodes.Eng207, CelListPath, 1, "the list has no 'license' line"));
@@ -427,13 +535,20 @@ public sealed class PackagesTests
     private static (string Target, string[] Dependencies)[] ProtobufGroups() =>
         Groups(("net10.0", ["Great.Parts.Cel", "Google.Protobuf"]), ("net11.0", ["Great.Parts.Cel", "Google.Protobuf"]));
 
+    private static (string Target, string[] Dependencies)[] AspNetCoreGroups() =>
+        Groups(("net10.0", ["Great.Parts.Cel.DependencyInjection"]), ("net11.0", ["Great.Parts.Cel.DependencyInjection"]));
+
+    private static (string Target, string[] Dependencies)[] AspNetCoreFrameworks() =>
+        Groups(("net10.0", ["Microsoft.AspNetCore.App"]), ("net11.0", ["Microsoft.AspNetCore.App"]));
+
     private static (string Target, string[] Dependencies)[] Groups(params (string Target, string[] Dependencies)[] groups) => groups;
 
-    // A temporary repository root with the lists: the first text is Great.Parts.Cel.txt, the second Great.Parts.Cel.Protobuf.txt.
+    // A temporary repository root with the lists: the first text is Great.Parts.Cel.txt, the second Great.Parts.Cel.Protobuf.txt, the
+    // third Great.Parts.Cel.AspNetCore.txt.
     private static TempDirectory Repository(params string[] lists)
     {
         TempDirectory root = new();
-        string[] paths = [CelListPath, ProtobufListPath];
+        string[] paths = [CelListPath, ProtobufListPath, AspNetCoreListPath];
         for (int index = 0; index < lists.Length; index++)
         {
             root.Write(paths[index], lists[index] + Newline);
@@ -470,7 +585,8 @@ public sealed class PackagesTests
         string version = "0.0.0-dev",
         Metadata? metadata = null,
         bool symbols = true,
-        bool readmeEntry = true)
+        bool readmeEntry = true,
+        (string Target, string[] Dependencies)[]? frameworks = null)
     {
         string path = Path.Combine(root.Path, "artifacts", "packages", $"{id}.{version}.nupkg");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -479,7 +595,7 @@ public sealed class PackagesTests
             AddEntry(archive, "[Content_Types].xml", "<Types />");
             AddEntry(archive, "_rels/.rels", "<Relationships />");
             AddEntry(archive, "package/services/metadata/core-properties/id.psmdcp", "<coreProperties />");
-            AddEntry(archive, $"{id}.nuspec", Nuspec(id, version, groups, license, licenseType, metadata ?? new Metadata()));
+            AddEntry(archive, $"{id}.nuspec", Nuspec(id, version, groups, frameworks ?? [], license, licenseType, metadata ?? new Metadata()));
             foreach (string file in files)
             {
                 AddEntry(archive, file, file.EndsWith('/') ? string.Empty : "content");
@@ -511,7 +627,14 @@ public sealed class PackagesTests
         writer.Write(content);
     }
 
-    private static string Nuspec(string id, string version, (string Target, string[] Dependencies)[] groups, string? license, string licenseType, Metadata metadata)
+    private static string Nuspec(
+        string id,
+        string version,
+        (string Target, string[] Dependencies)[] groups,
+        (string Target, string[] Dependencies)[] frameworks,
+        string? license,
+        string licenseType,
+        Metadata metadata)
     {
         StringBuilder text = new();
         text.Append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<package xmlns=\"http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd\">\n<metadata>\n");
@@ -553,7 +676,25 @@ public sealed class PackagesTests
             text.Append("</group>\n");
         }
 
-        text.Append("</dependencies>\n</metadata>\n</package>\n");
+        text.Append("</dependencies>\n");
+        if (frameworks.Length > 0)
+        {
+            text.Append("<frameworkReferences>\n");
+            foreach ((string target, string[] names) in frameworks)
+            {
+                text.Append(CultureInfo.InvariantCulture, $"<group targetFramework=\"{target}\">\n");
+                foreach (string name in names)
+                {
+                    text.Append(CultureInfo.InvariantCulture, $"<frameworkReference name=\"{name}\" />\n");
+                }
+
+                text.Append("</group>\n");
+            }
+
+            text.Append("</frameworkReferences>\n");
+        }
+
+        text.Append("</metadata>\n</package>\n");
         return text.ToString();
     }
 }

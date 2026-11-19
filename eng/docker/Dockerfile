@@ -9,6 +9,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.404@sha256:fe0fd4e93bd2fbb47c883b7a6369e5
 # OpenSSF Scorecard check Pinned-Dependencies); Dependabot (docker, /eng/docker) updates the tag and the digest together.
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100@sha256:65f3c7c6a25a239ab3e6719f2896147e7b68242ff2d8818dd70498bde6ef8bea AS sdk
 COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
+# The ASP.NET Core shared framework 10.0: the tests of the ASP.NET Core package of net10.0 run on it.
+COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.AspNetCore.App /usr/share/dotnet/shared/Microsoft.AspNetCore.App
 # Files of the working copy and of the git directory belong to another host user: git must not refuse them.
 RUN git config --system --add safe.directory /repo \
  && git config --system --add safe.directory /git
@@ -23,6 +25,7 @@ COPY --from=lycheeverse/lychee:0.24.2@sha256:e2d19e57cf6ab037026f20b8e449a1f30d9
 # The service test runs on it (docs/design/eng-test.md). The tag changes together with global.json.
 FROM mcr.microsoft.com/dotnet/sdk:11.0.100-aot@sha256:f3264ae0bf11e2062b9650e0822d20c999320ac1685fe3acf4b7c17d0881af85 AS sdk-aot
 COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.NETCore.App /usr/share/dotnet/shared/Microsoft.NETCore.App
+COPY --from=runtime10 /usr/share/dotnet/shared/Microsoft.AspNetCore.App /usr/share/dotnet/shared/Microsoft.AspNetCore.App
 # Files of the working copy and of the git directory belong to another host user: git must not refuse them.
 RUN git config --system --add safe.directory /repo  && git config --system --add safe.directory /git
 

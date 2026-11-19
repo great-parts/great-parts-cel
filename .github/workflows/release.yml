@@ -159,8 +159,9 @@ jobs:
           done
           exit $status
 
-      - name: Content of the packages (eng/checks packages)
-        run: dotnet run --project eng/checks -c Release --no-build -- packages --no-build
+      # package-closure restores each package in an application from artifacts/packages that packages made, and from nuget.org.
+      - name: Content of the packages and their closure (eng/checks packages, package-closure)
+        run: dotnet run --project eng/checks -c Release --no-build -- packages package-closure --no-build
 
       # The packages of the release: the version of the tag in the name, the symbol packages next to them.
       - name: Pack

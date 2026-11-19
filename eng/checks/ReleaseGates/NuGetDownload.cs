@@ -8,14 +8,15 @@ using Great.Parts.Cel.Eng.Findings;
 namespace Great.Parts.Cel.Eng.Checks;
 
 /// <summary>
-/// Downloads the two packages of the version of the tag from nuget.org as it gives them, with the signature of the repository inside.
+/// Downloads the four packages of the version of the tag from nuget.org as it gives them, with the signature of the repository inside.
 /// It asks again every 30 seconds for up to 15 minutes while nuget.org does not give a package yet; a package that does not appear is
 /// <c>ENG907</c>.
 /// </summary>
 internal sealed class NuGetDownload
 {
     /// <summary>The ids of the packages of a release, one list for the workflow and the checks.</summary>
-    internal static readonly IReadOnlyList<string> PackageIds = ["Great.Parts.Cel", "Great.Parts.Cel.Protobuf"];
+    internal static readonly IReadOnlyList<string> PackageIds =
+        ["Great.Parts.Cel", "Great.Parts.Cel.Protobuf", "Great.Parts.Cel.DependencyInjection", "Great.Parts.Cel.AspNetCore"];
 
     /// <summary>The wait between two asks.</summary>
     internal static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);

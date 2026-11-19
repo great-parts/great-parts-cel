@@ -6,5 +6,5 @@ namespace Great.Parts.Cel.Eng.Checks;
 internal static class CommandRegistry
 {
     /// <summary>Every command of the application.</summary>
-    internal static IReadOnlyList<ICheckCommand> All { get; } = [new SuppressionsCommand(), new DuplicatesCommand(), new RatchetCommand(), new SignoffCommand(), new PackagesCommand(), new TestCountCommand(), new MutationCommand(), new ErrorCodesCommand(), new ExamplesCommand(), new LinksCommand(), new ReleaseGatesCommand(), new QuickStartCommand(), new TracesCommand()];
+    internal static IReadOnlyList<ICheckCommand> All { get; } = [new SuppressionsCommand(), new DuplicatesCommand(), new RatchetCommand(), new SignoffCommand(), new PackagesCommand(), new PackageClosureCommand(), new TestCountCommand(), new MutationCommand(), new ErrorCodesCommand(), new ExamplesCommand(), new LinksCommand(), new ReleaseGatesCommand(), new QuickStartCommand(), new TracesCommand()];
 }

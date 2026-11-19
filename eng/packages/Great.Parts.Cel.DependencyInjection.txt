@@ -1,9 +1,12 @@
 # Expected content of the Great.Parts.Cel.DependencyInjection package.
 # The net10.0 group lists Great.Parts.Cel, Microsoft.Extensions.DependencyInjection.Abstractions and Microsoft.Extensions.Options.
-# On net11.0 the two Microsoft.Extensions packages are part of the platform, and the SDK leaves them out of the group.
+# On net11.0 the Microsoft.Extensions packages are part of the platform: the SDK leaves them out of the group and the restore.
 
 dependencies net10.0: Great.Parts.Cel, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Options
 dependencies net11.0: Great.Parts.Cel
+
+closure net10.0: Great.Parts.Cel, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Options, Microsoft.Extensions.Primitives
+closure net11.0: Great.Parts.Cel
 
 license Apache-2.0
 

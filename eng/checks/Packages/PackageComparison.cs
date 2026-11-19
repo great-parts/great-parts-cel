@@ -18,10 +18,15 @@ internal static class PackageComparison
     {
         List<Finding> findings = [];
         CompareFiles(list, package, findings);
-        CompareGroups(list, package, findings);
+        CompareGroups(list.Groups, package.Groups, new GroupKind("dependency", "dependency group", ReportsEmptyGroup: true), list, findings);
+        CompareGroups(list.Frameworks, package.FrameworkGroups, new GroupKind("framework reference", "framework reference group", ReportsEmptyGroup: false), list, findings);
         CompareLicense(list, package, findings);
         return findings;
     }
+
+    // The words of the messages for the dependency groups and for the groups of references to a shared framework; an empty group of
+    // dependencies that the list does not name is a finding, an empty group of references is not (it references nothing).
+    private sealed record GroupKind(string Noun, string GroupNoun, bool ReportsEmptyGroup);
 
     private static void CompareFiles(PackageList list, PackageContent package, List<Finding> findings)
     {
@@ -37,42 +42,47 @@ internal static class PackageComparison
         }
     }
 
-    private static void CompareGroups(PackageList list, PackageContent package, List<Finding> findings)
+    private static void CompareGroups(
+        IReadOnlyList<PackageListLine> expectedLines,
+        IReadOnlyList<PackageGroup> packageGroups,
+        GroupKind kind,
+        PackageList list,
+        List<Finding> findings)
     {
-        foreach (PackageListGroup expected in list.Groups)
+        foreach (PackageListLine expected in expectedLines)
         {
-            PackageGroup[] groups = [.. package.Groups.Where(group => group.Target == expected.Target)];
+            PackageGroup[] groups = [.. packageGroups.Where(group => group.Target == expected.Target)];
             if (groups.Length == 0)
             {
-                findings.Add(Error(list, expected.Line, EngCodes.Eng202, $"the package has no dependency group '{expected.Target}'"));
+                findings.Add(Error(list, expected.Line, EngCodes.Eng202, $"the package has no {kind.GroupNoun} '{expected.Target}'"));
                 continue;
             }
 
             HashSet<string> actual = new(groups.SelectMany(group => group.Dependencies), StringComparer.OrdinalIgnoreCase);
-            foreach (string dependency in expected.Dependencies.Where(dependency => !actual.Contains(dependency)))
+            foreach (string name in expected.Names.Where(name => !actual.Contains(name)))
             {
-                findings.Add(Error(list, expected.Line, EngCodes.Eng202, $"missing dependency '{dependency}' in group {expected.Target}"));
+                findings.Add(Error(list, expected.Line, EngCodes.Eng202, $"missing {kind.Noun} '{name}' in group {expected.Target}"));
             }
 
-            HashSet<string> named = new(expected.Dependencies, StringComparer.OrdinalIgnoreCase);
-            foreach (string dependency in actual.Where(dependency => !named.Contains(dependency)).Order(StringComparer.Ordinal))
+            HashSet<string> named = new(expected.Names, StringComparer.OrdinalIgnoreCase);
+            foreach (string name in actual.Where(name => !named.Contains(name)).Order(StringComparer.Ordinal))
             {
-                findings.Add(Error(list, expected.Line, EngCodes.Eng201, $"unexpected dependency '{dependency}' in group {expected.Target}"));
+                findings.Add(Error(list, expected.Line, EngCodes.Eng201, $"unexpected {kind.Noun} '{name}' in group {expected.Target}"));
             }
         }
 
-        // A group that the list does not name has no line of its own: its dependencies, or the group itself, are put on the first line.
-        foreach (PackageGroup group in package.Groups.Where(group => !list.Groups.Any(expected => expected.Target == group.Target)))
+        // A group that the list does not name has no line of its own: its entries, or the group itself, are put on the first line.
+        foreach (PackageGroup group in packageGroups.Where(group => !expectedLines.Any(expected => expected.Target == group.Target)))
         {
-            string name = group.Target.Length == 0 ? "without a target" : group.Target;
-            if (group.Dependencies.Count == 0)
+            string target = group.Target.Length == 0 ? "without a target" : group.Target;
+            if (group.Dependencies.Count == 0 && kind.ReportsEmptyGroup)
             {
-                findings.Add(Error(list, 1, EngCodes.Eng201, $"unexpected dependency group {name}, which the list does not name"));
+                findings.Add(Error(list, 1, EngCodes.Eng201, $"unexpected {kind.GroupNoun} {target}, which the list does not name"));
             }
 
-            foreach (string dependency in group.Dependencies)
+            foreach (string name in group.Dependencies)
             {
-                findings.Add(Error(list, 1, EngCodes.Eng201, $"unexpected dependency '{dependency}' in group {name}, which the list does not name"));
+                findings.Add(Error(list, 1, EngCodes.Eng201, $"unexpected {kind.Noun} '{name}' in group {target}, which the list does not name"));
             }
         }
     }

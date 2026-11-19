@@ -19,6 +19,15 @@ internal static class ExampleProjects
     /// <summary>The project of the Protobuf package, relative to the repository root.</summary>
     internal const string ProtobufProject = "src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj";
 
+    /// <summary>The project of the dependency injection package, relative to the repository root.</summary>
+    internal const string InjectionProject = "src/Great.Parts.Cel.DependencyInjection/Great.Parts.Cel.DependencyInjection.csproj";
+
+    /// <summary>
+    /// The project of the ASP.NET Core package, relative to the repository root. Its reference brings the shared framework of
+    /// ASP.NET Core, so an example may use the web host, the container of services and the authorization of ASP.NET Core.
+    /// </summary>
+    internal const string AspNetCoreProject = "src/Great.Parts.Cel.AspNetCore/Great.Parts.Cel.AspNetCore.csproj";
+
     /// <summary>The project of the source generator, which the package adds to the compiler of an application as an analyzer.</summary>
     internal const string GeneratorProject = "src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj";
 
@@ -36,7 +45,7 @@ internal static class ExampleProjects
 
     /// <summary>
     /// The project file of an example: a console application for its target with nullable reference types, implicit usings and warnings
-    /// as errors, referencing both package projects, and the generator as an analyzer, as the package does. No application host is
+    /// as errors, referencing the package projects that exist, and the generator as an analyzer, as the package does. No application host is
     /// made: the program runs with <c>dotnet</c>. The audit of packages is off, so a new advisory does not break a build of examples.
     /// </summary>
     /// <param name="root">The full path of the repository root.</param>
@@ -44,9 +53,14 @@ internal static class ExampleProjects
     internal static string ProjectText(string root, Example example)
     {
         XElement references = new("ItemGroup");
-        foreach (string project in new[] { LibraryProject, ProtobufProject })
+        foreach (string project in new[] { LibraryProject, ProtobufProject, InjectionProject, AspNetCoreProject })
         {
-            references.Add(new XElement("ProjectReference", new XAttribute("Include", Path.Combine(root, project))));
+            // The first two are required (the command checks them); a package that the repository does not have yet is not referenced.
+            string full = Path.Combine(root, project);
+            if (project is LibraryProject or ProtobufProject || File.Exists(full))
+            {
+                references.Add(new XElement("ProjectReference", new XAttribute("Include", full)));
+            }
         }
 
         string generator = Path.Combine(root, GeneratorProject);

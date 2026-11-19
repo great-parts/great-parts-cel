@@ -15,13 +15,13 @@ public static class EngCodes
     /// <summary>A text of the repository has a trace of the plans of the project: a code of a decision record, a requirement, a fitness function, a task or a theme, the name of a document of the specification, or a Cyrillic letter.</summary>
     public const string Eng103 = "ENG103";
 
-    /// <summary>A line of a package list <c>eng/packages/&lt;package&gt;.txt</c> does not parse.</summary>
+    /// <summary>A line of a package list <c>eng/packages/&lt;package&gt;.txt</c> does not parse, or the list has no <c>closure</c> line for a target of its <c>dependencies</c> lines.</summary>
     public const string Eng200 = "ENG200";
 
-    /// <summary>A dependency group of a package has a dependency that the package list does not name.</summary>
+    /// <summary>A dependency group of a package has a dependency, or a framework reference group has a reference, that the package list does not name.</summary>
     public const string Eng201 = "ENG201";
 
-    /// <summary>A dependency group or a dependency of the package list is missing in the package.</summary>
+    /// <summary>A dependency group, a dependency, a framework reference group or a framework reference of the package list is missing in the package.</summary>
     public const string Eng202 = "ENG202";
 
     /// <summary>A package has an entry that the package list does not name.</summary>
@@ -41,6 +41,12 @@ public static class EngCodes
 
     /// <summary>The package has the default description or authors of the SDK, no repository url, or no <c>.snupkg</c> next to it.</summary>
     public const string Eng208 = "ENG208";
+
+    /// <summary>The restore of a package in an application adds a package that the <c>closure</c> line of the package list does not name.</summary>
+    public const string Eng209 = "ENG209";
+
+    /// <summary>A package of the <c>closure</c> line of the package list is not in the restore of the package in an application.</summary>
+    public const string Eng210 = "ENG210";
 
     /// <summary>The output of a C# example of the documentation differs from the output shown next to it.</summary>
     public const string Eng301 = "ENG301";

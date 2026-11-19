@@ -4,6 +4,12 @@
 dependencies net10.0: Great.Parts.Cel.DependencyInjection
 dependencies net11.0: Great.Parts.Cel.DependencyInjection
 
+framework net10.0: Microsoft.AspNetCore.App
+framework net11.0: Microsoft.AspNetCore.App
+
+closure net10.0: Great.Parts.Cel, Great.Parts.Cel.DependencyInjection
+closure net11.0: Great.Parts.Cel, Great.Parts.Cel.DependencyInjection
+
 license Apache-2.0
 
 file NOTICE

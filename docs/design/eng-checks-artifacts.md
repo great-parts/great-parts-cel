@@ -1,6 +1,6 @@
-# Artifact checks: packages, signoff, test-count
+# Artifact checks: packages, package-closure, signoff, test-count
 
-Three commands of [eng/checks](eng-checks.md) that read results of a build, of the test runs and of the git history.
+Four commands of [eng/checks](eng-checks.md) that read results of a build, of a restore, of the test runs and of the git history.
 
 ## packages
 
@@ -8,14 +8,16 @@ Checks the packages of the solution against the lists `eng/packages/<package id>
 
 1. Packs the solution: `dotnet pack Great.Parts.Cel.slnx -c Release -o artifacts/packages`. With `--no-build` it packs the Release build that already exists; `eng/test` builds in Release first.
 2. Reads every `.nupkg` with `System.IO.Compression`: the list of entries and the `.nuspec` as XML. Versions are not compared.
-3. Reads every list: `dependencies <target>: <id>, …`, `license <expression>`, `file <path>`. Lines that start with `#` and empty lines are skipped.
+3. Reads every list: `dependencies <target>: <id>, …`, `framework <target>: <name>, …`, `closure <target>: <id>, …`, `license <expression>`, `file <path>`. Lines that start with `#` and empty lines are skipped.
 
 | Situation | Code | Place |
 | :- | :- | :- |
-| a line of a list that does not parse; a second `license` line; a second group line of one target | `ENG200` | the line |
-| a dependency of a group that the list does not name | `ENG201` | the group line |
+| a line of a list that does not parse; a second `license` line; a second `dependencies`, `framework` or `closure` line of one target | `ENG200` | the line |
+| a target of the `dependencies` lines without a `closure` line | `ENG200` | the first line of the list; the message names the target |
+| a dependency of a group that the list does not name; a framework reference of a group that the list does not name | `ENG201` | the group line (`dependencies` or `framework`) |
 | a dependency group of the `.nuspec` that the list does not name | `ENG201` | the first line of the list; the message names each dependency, or the empty group |
-| a group or a dependency of the list missing in the package | `ENG202` | the group line |
+| a framework reference group of the `.nuspec` that the list does not name, with a reference in it | `ENG201` | the first line of the list; the message names each reference |
+| a group or a dependency of the list missing in the package; a framework reference group or a reference of the list missing in the package | `ENG202` | the group line |
 | a package entry that the list does not name | `ENG203` | the first line of the list; the message names the entry |
 | a listed file missing in the package | `ENG204` | the `file` line |
 | a package without a list | `ENG205` | the path of the `.nupkg`, `(1,1)` |
@@ -25,7 +27,7 @@ Checks the packages of the solution against the lists `eng/packages/<package id>
 | the `.nuspec` has no `description` or the SDK default `Package Description`; no `authors` or the package ID as the authors (the SDK default); no `repository` `url`; no `readme`, or the file that the `readme` names is not in the package (the entry name is compared with `/`, `\` read as `/`); no `.snupkg` next to the `.nupkg` | `ENG208` | the path of the `.nupkg`, `(1,1)`; one finding per problem |
 
 - Entries of the package format — `[Content_Types].xml`, `_rels/`, `package/` and `<id>.nuspec` — are not compared as files.
-- From the `.nuspec` only the dependency groups and the license expression (`<license type="expression">`) are compared. Groups are matched by the target framework as the `.nuspec` writes it. Dependencies of the `.nuspec` outside any `<group>` form one group without a target; a group line of a list always names a target, so such dependencies are always an `ENG201`, and the message calls the group `without a target`.
+- From the `.nuspec` only the dependency groups, the groups of `frameworkReferences` (the shared frameworks of the package, such as `Microsoft.AspNetCore.App`) and the license expression (`<license type="expression">`) are compared. A `framework` line gives the references of the group of its target; a target without a `framework` line must have no references, so a package without such lines is one that references no shared framework. The `closure` lines are not read by this command; `package-closure` reads them. Groups are matched by the target framework as the `.nuspec` writes it. Dependencies of the `.nuspec` outside any `<group>` form one group without a target; a group line of a list always names a target, so such dependencies are always an `ENG201`, and the message calls the group `without a target`.
 - The metadata of a package is described in [eng-release.md](eng-release.md#package-metadata); the symbol package is read only by its presence: `<name>.snupkg` next to `<name>.nupkg`.
 - A list and a package are paired by the package ID: the name of the list without `.txt` and the `<id>` of the `.nuspec`, compared without regard to case, as NuGet does.
 - A repeated `file` line, or a package ID repeated within one group line, is not an error: the list describes sets, and the comparison in both directions still finds every difference.
@@ -36,6 +38,32 @@ Checks the packages of the solution against the lists `eng/packages/<package id>
 
 ```text
 eng/packages/Great.Parts.Cel.Protobuf.txt(4,1): error ENG201: unexpected dependency 'System.Memory' in group net10.0
+```
+
+## package-closure
+
+Checks what the restore of each package adds to an application against the `closure` lines of the lists `eng/packages/<package id>.txt`: the packages of the whole closure, not only the direct dependencies that `packages` compares.
+
+```text
+eng/checks package-closure
+```
+
+1. Reads every `.nupkg` of `artifacts/packages` (the packages that `packages` packed, in the same invocation or before; an empty or missing directory is exit code 2) and every list, as `packages` does. A package without a list is `ENG205` of `packages`, not of this command, and a list with a line that did not parse is not restored; its `ENG200` is reported once when both commands run in one invocation.
+2. For each package with a list and for each target of its `closure` lines, writes a console application of that target framework into a new temporary directory outside the repository, so that no `Directory.Build.props` or `Directory.Packages.props` of the repository applies. Its project has one `PackageReference` to the package, at exactly the version of the `.nuspec`. When the list has a `framework` line for the target that names `Microsoft.AspNetCore.App`, the project is a `Microsoft.NET.Sdk.Web` project, as an application that uses the package would be. The `global.json` of the repository is copied next to it, so the SDK is the one of the build.
+3. Runs `dotnet restore` with two sources: the directory `artifacts/packages` and nuget.org, and an empty packages folder of its own, so that a package of an earlier run with the same version is never used. The result is the `libraries` object of `obj/project.assets.json`.
+4. The packages of type `package` of the `libraries`, without versions, the package itself left out, are compared with the line `closure <target>:`, ignoring case:
+
+| Situation | Code | Place |
+| :- | :- | :- |
+| the restore adds a package that the line does not name | `ENG209` | the `closure <target>:` line; the message names the package and the target |
+| a package of the line is not in the restore | `ENG210` | the `closure <target>:` line; the message names the package and the target |
+
+- The restore of a project needs nuget.org, so the command runs in the cell JIT Linux `net11.0` of `ci.yml` and in the job `build` of `release.yml` ([eng-release.md](eng-release.md)), and not in the container check `eng/test`. A restore that fails (no network, a package that no source has) is an input that cannot be used: exit code 2, and the message names the package, the target and the first `error` line of the output of `dotnet restore`.
+- The line is the whole closure: a package that the SDK takes out of the restore because the platform has it (the Microsoft.Extensions packages on `net11.0`, the ASP.NET Core packages of a `Microsoft.NET.Sdk.Web` project) is not in the restore and is not in the line.
+- The tests, `eng/tests/Checks/PackageClosureTests.cs`, give the text of `project.assets.json` instead of running `dotnet restore`: an extra package (`ENG209`), a missing package (`ENG210`), versions, the case of the ids, the package itself and projects that are not compared, a line that does not parse (`ENG200`), and the exit code 2 for a missing package or a text that is not an assets file.
+
+```text
+eng/packages/Great.Parts.Cel.DependencyInjection.txt(9,1): error ENG209: the restore of Great.Parts.Cel.DependencyInjection in a net10.0 application adds package 'Microsoft.Extensions.Logging.Abstractions', which is not in the closure list
 ```
 
 ## signoff

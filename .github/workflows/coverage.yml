@@ -53,10 +53,11 @@ jobs:
       - name: Build
         run: dotnet build Great.Parts.Cel.slnx -c Release --no-restore -p:ContinuousIntegrationBuild=false
 
-      # Four test modules; the order does not matter. The library and the protobuf package are measured in the modules of net11.0, the
-      # superset of net10.0 (the decimal code compiles for net11.0 only); the generator is a library of netstandard2.0 that
-      # Generator.Tests, a module of net10.0, runs in process, and that module has another build of the library, which stays out of the
-      # result. Each run merges its result into artifacts/coverage/coverage.json and writes the Cobertura report of the merged result.
+      # Six test modules; the order does not matter. The library and the protobuf package are measured in the modules of net11.0, the
+      # superset of net10.0 (the decimal code compiles for net11.0 only); the dependency injection and ASP.NET Core packages are
+      # measured in their own test modules, also on net11.0; the generator is a library of netstandard2.0 that Generator.Tests, a
+      # module of net10.0, runs in process, and that module has another build of the library, which stays out of the result. Each run
+      # merges its result into artifacts/coverage/coverage.json and writes the Cobertura report of the merged result.
       - name: Tests with coverage
         run: |
           set -u
@@ -82,6 +83,8 @@ jobs:
           measure Great.Parts.Cel.Tests net11.0 --include "[Great.Parts.Cel]*" --include "[Great.Parts.Cel.Protobuf]*"
           measure Great.Parts.Cel.Conformance net11.0 --include "[Great.Parts.Cel]*" --include "[Great.Parts.Cel.Protobuf]*"
           measure Great.Parts.Cel.Properties net11.0 --include "[Great.Parts.Cel]*" --include "[Great.Parts.Cel.Protobuf]*"
+          measure Great.Parts.Cel.DependencyInjection.Tests net11.0 --include "[Great.Parts.Cel.DependencyInjection]*"
+          measure Great.Parts.Cel.AspNetCore.Tests net11.0 --include "[Great.Parts.Cel.AspNetCore]*" --include "[Great.Parts.Cel.DependencyInjection]*"
           measure Great.Parts.Cel.Generator.Tests net10.0 --include "[Great.Parts.Cel.Generator]*"
           exit $status
 

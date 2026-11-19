@@ -48,6 +48,7 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `ratchet` | `eng/ratchet.json`, `CodeMetricsConfig.txt`, results of the two commands above | `ENG600`, `ENG602`–`ENG605` | the same | [eng-checks-source.md](eng-checks-source.md) |
 | `traces` | text files of `src/`, `tests/`, `docs/`, `eng/packages/`, `README.md`, `CHANGELOG.md` | `ENG103` | the same | [eng-checks-source.md](eng-checks-source.md#traces) |
 | `packages` | result of `dotnet pack`, `eng/packages/*.txt` | `ENG200`–`ENG208` | the same | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
+| `package-closure` | `artifacts/packages`, `eng/packages/*.txt`, the restore of each package in an application (needs nuget.org) | `ENG200`, `ENG209`, `ENG210` | CI, cell JIT Linux `net11.0`; `release.yml`, the job `build` | [eng-checks-artifacts.md](eng-checks-artifacts.md#package-closure) |
 | `signoff` | commits of a range | `ENG701` | CI: push to `main`, pull request of an outside contributor | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `test-count` | two test reports | `ENG810`, `ENG811` | `eng/test` for Native AOT; CI, Native AOT cells | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `mutation` | mutation report, its configuration file, changed files from git when `since` is enabled | `ENG501`–`ENG504` | `eng/mutate` | [eng-mutate.md](eng-mutate.md) |
