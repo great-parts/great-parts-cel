@@ -4,8 +4,8 @@
 //   node .github/scripts/bench-report.mjs --results bench/results --output <directory> [--runs <n>] [--job <job>] [--cases <ids>]
 //
 // The directory gets <stamp>/ with report.json (the date and the time of the report in UTC, the commit, the run, the inputs, the
-// runs), report.md (the summary of the rig), verify.json and runs/<k>/ with run.json and summary.md; the stamp is
-// yyyy-MM-ddTHHmmssZ. The full reports of BenchmarkDotNet stay in the artifact bench-results of the run. The workflow
+// runs), report.md (the summary of the rig), verify.json, thresholds.json (the verdicts on the limits of the speed-ups, when the
+// run measured them) and runs/<k>/ with run.json and summary.md; the stamp is yyyy-MM-ddTHHmmssZ. The full reports of BenchmarkDotNet stay in the artifact bench-results of the run. The workflow
 // publish-report.yml writes the directory to the branch. No npm dependencies.
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -52,6 +52,9 @@ const commit = e.GITHUB_SHA ?? null;
 const generatedAt = new Date().toISOString().slice(0, 19) + 'Z';
 const stamp = `${generatedAt.slice(0, 10)}T${generatedAt.slice(11, 19).replaceAll(':', '')}Z`;
 
+const thresholdsPath = join(resultsPath, 'thresholds', 'thresholds.json');
+const thresholds = existsSync(thresholdsPath) ? JSON.parse(readFileSync(thresholdsPath, 'utf8')) : null;
+
 const report = {
   schema: 1,
   kind: 'bench',
@@ -59,7 +62,13 @@ const report = {
   greatPartsCelCommit: commit,
   inputs: { runs: option('--runs') ? Number(option('--runs')) : null, job: option('--job') ?? null, cases: option('--cases') || null },
   runs,
-  files: { summary: 'report.md', verification: 'verify.json', runs: 'runs/<k>/run.json and runs/<k>/summary.md' },
+  thresholds: thresholds ? { job: thresholds.job, verdicts: thresholds.verdicts.map((v) => ({ limit: v.limit, verdict: v.verdict })) } : null,
+  files: {
+    summary: 'report.md',
+    verification: 'verify.json',
+    thresholds: thresholds ? 'thresholds.json' : null,
+    runs: 'runs/<k>/run.json and runs/<k>/summary.md',
+  },
   run,
 };
 
@@ -81,6 +90,7 @@ mkdirSync(join(directory, 'runs'), { recursive: true });
 writeFileSync(join(directory, 'report.json'), JSON.stringify(report, null, 2) + '\n');
 writeFileSync(join(directory, 'report.md'), header + readFileSync(summaryPath, 'utf8'));
 cpSync(verifyPath, join(directory, 'verify.json'));
+if (thresholds) cpSync(thresholdsPath, join(directory, 'thresholds.json'));
 for (const k of runNumbers) {
   const target = join(directory, 'runs', String(k));
   mkdirSync(target, { recursive: true });

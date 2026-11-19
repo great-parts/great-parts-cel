@@ -9,8 +9,15 @@
 //   node bench/run.mjs --cases E1,E5      only these cases
 //   node bench/run.mjs --filter '*Evaluate*'   BenchmarkDotNet filter (default '*')
 //   node bench/run.mjs --summary-only     rebuild the summaries from saved runs
+//   node bench/run.mjs --no-thresholds    without the measurement of the limits of the speed-ups
+//   node bench/run.mjs --thresholds-only  only the measurement of the limits (no verification, no cases of the rig)
 //
-// Results go to bench/results/ (ignored by git): results/runs/<k>/ per run, results/summary.md over all runs.
+// After the runs of the rig the script measures the limits of the speed-ups of the library (bench/ThresholdBench): the search of a
+// substring around 64 code units, the build of the automaton of the pattern E5, distinct and sets around the length 24 of a list.
+// The job (--job) is the one of the rig. The verdicts are in the section "Limits of the speed-ups" of the summary.
+//
+// Results go to bench/results/ (ignored by git): results/runs/<k>/ per run, results/summary.md over all runs,
+// results/thresholds/ (the reports of BenchmarkDotNet, meta.json and thresholds.json with the verdicts).
 // No npm dependencies.
 
 import { spawnSync } from 'node:child_process';
@@ -24,12 +31,23 @@ const results = join(here, 'results');
 const runsDir = join(results, 'runs');
 const verifyJson = join(results, 'verify.json');
 const summaryMd = join(results, 'summary.md');
+const thresholdProject = join('ThresholdBench', 'Great.Parts.Cel.ThresholdBench.csproj');
+const thresholdsDir = join(results, 'thresholds');
+const thresholdsJson = join(thresholdsDir, 'thresholds.json');
 const THRESHOLD = 1.1;
 // A row has at least MIN_RUNS runs; a row whose runs lie on both sides of the threshold is marked at MAX_RUNS runs.
 const MIN_RUNS = 3;
 const MAX_RUNS = 5;
 // The library whose rows get the closing block of the summary. BENCH_SUBJECT names another one, only to check the summary on saved runs.
+// Its variants have short names (BenchmarkDotNet cuts a parameter "library:case" at 20 characters): GreatPartsCel is the variant with
+// bindings, GPCel-Input the input of the environment, GPCel-Simple the simple entry.
 const SUBJECT = process.env.BENCH_SUBJECT ?? 'GreatPartsCel';
+const SUBJECT_VARIANTS = process.env.BENCH_SUBJECT ? [SUBJECT] : [SUBJECT, 'GPCel-Input', 'GPCel-Simple'];
+const isSubject = (library) => SUBJECT_VARIANTS.includes(library);
+// Limits of the speed-ups that the verdicts of the thresholds check.
+const SEARCH_LIMIT = 64;
+const AUTOMATON_LIMIT_NS = 1000;
+const HASH_LIMIT = 24;
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -40,10 +58,16 @@ const option = (name) => {
 
 // ---------- the .NET SDK ----------
 
+// The words that start dotnet: BENCH_DOTNET replaces "dotnet" for a check inside a container that has the SDK, for example
+// BENCH_DOTNET="docker exec -w /repo/bench <container> dotnet". The paths of the arguments are relative to bench/, which the container
+// mounts, so the results appear on the machine; the environment variable BENCH_CASES does not reach the container, so --cases is not
+// for this form. The workflow does not set it.
+const dotnetWords = (process.env.BENCH_DOTNET ?? 'dotnet').split(/\s+/).filter(Boolean);
+
 // Runs dotnet in the directory of the rig; returns the exit code.
 function dotnet(command, env = {}) {
-  console.log(`> dotnet ${command.join(' ')}`);
-  const r = spawnSync('dotnet', command, { stdio: 'inherit', cwd: here, env: { ...process.env, ...env } });
+  console.log(`> ${dotnetWords.join(' ')} ${command.join(' ')}`);
+  const r = spawnSync(dotnetWords[0], [...dotnetWords.slice(1), ...command], { stdio: 'inherit', cwd: here, env: { ...process.env, ...env } });
   if (r.error) {
     console.error(`cannot start dotnet: ${r.error.message}`);
     process.exit(1);
@@ -60,6 +84,7 @@ function dotnetOrExit(command, env = {}) {
 }
 
 const run = (...rest) => ['run', '-c', 'Release', '--no-build', '--project', 'SpeedBench', '-f', 'net10.0', '--', ...rest];
+const runThresholds = (...rest) => ['run', '-c', 'Release', '--no-build', '--project', 'ThresholdBench', '-f', 'net10.0', '--', ...rest];
 
 // ---------- formatting ----------
 
@@ -153,11 +178,12 @@ function measure(bdn, verify) {
           alloc: withText ? r.alloc - (text?.alloc ?? NaN) : r.alloc,
         }));
       if (measured.length === 0) continue;
-      const fastest = Math.min(...measured.map((m) => m.time));
-      const fastestLib = measured.find((m) => m.time === fastest)?.l ?? '?';
+      // A variant of the subject is compared with the other libraries and with itself, not with its own other variants.
       for (const m of measured) {
+        const pool = isSubject(m.l) ? measured.filter((x) => !isSubject(x.l) || x === m) : measured;
+        const fastest = Math.min(...pool.map((x) => x.time));
         m.ratio = m.time / fastest;
-        m.fastestLib = fastestLib;
+        m.fastestLib = pool.find((x) => x.time === fastest)?.l ?? '?';
       }
       operations.push({ method, label, withText, measured });
     }
@@ -182,6 +208,7 @@ function conditionsSection() {
     lines.push(`- Run: ${e.GITHUB_SERVER_URL}/${e.GITHUB_REPOSITORY}/actions/runs/${e.GITHUB_RUN_ID}`);
   }
   lines.push(`- Runner: ${e.RUNNER_OS ?? '?'} ${e.RUNNER_ARCH ?? '?'}, image ${e.ImageOS ?? '?'} ${e.ImageVersion ?? '?'}`);
+  lines.push(`- Great.Parts.Cel: built from the sources of this commit`);
   lines.push(`- Packages: ${packageVersions().join('; ')}\n`);
   return lines.join('\n');
 }
@@ -230,7 +257,7 @@ const runLine = (m) =>
 function runSection(k, bdn, verify) {
   const meta = loadRunMeta(k);
   const lines = [`## Run ${k}: scenario x operation\n`, runLine(meta), ''];
-  lines.push('Median time and allocated memory per operation. The decisive column is "minus text": for compile and full cycle the median of the text creation (the row "text creation") is subtracted, evaluation creates no text. The ratio is to the fastest library with a correct result in this run by the decisive column; "> 1.1" marks a ratio above the threshold in this run. The summary over all runs is in `results/summary.md`.\n');
+  lines.push('Median time and allocated memory per operation. The decisive column is "minus text": for compile and full cycle the median of the text creation (the row "text creation") is subtracted, evaluation creates no text. The ratio is to the fastest library with a correct result in this run by the decisive column (for a variant of ${SUBJECT}: to the fastest other library or to itself); "> 1.1" marks a ratio above the threshold in this run. The summary over all runs is in `results/summary.md`.\n');
   lines.push('| Scenario | Operation | Library | Time minus text | Time | Memory minus text | Memory | Ratio | > 1.1 |');
   lines.push('|---|---|---|--:|--:|--:|--:|--:|---|');
   for (const { s, text, operations } of measure(bdn, verify)) {
@@ -264,7 +291,7 @@ function overRunsSection(runs, verify) {
     }
   }
   const lines = ['## Summary over the runs\n'];
-  lines.push(`The ratio of a row in a run is to the fastest library with a correct result in the same run. R is the median of the ratios over the runs; the column "R > 1.1" is filled when the row has ${MIN_RUNS} runs or more; "both sides" means that the ratio is not above 1.1 in some runs and above it in others.\n`);
+  lines.push(`The ratio of a row in a run is to the fastest library with a correct result in the same run (for a variant of ${SUBJECT}: to the fastest other library or to itself, not to its other variants). R is the median of the ratios over the runs; the column "R > 1.1" is filled when the row has ${MIN_RUNS} runs or more; "both sides" means that the ratio is not above 1.1 in some runs and above it in others.\n`);
   lines.push('| Scenario | Operation | Library | Runs | Ratios by run | R | Spread | Fastest by run | Median time over the runs | R > 1.1 | Both sides of 1.1 |');
   lines.push('|---|---|---|--:|---|--:|--:|---|--:|---|---|');
   const over = [];
@@ -279,7 +306,7 @@ function overRunsSection(runs, verify) {
     const fastest = [...new Set(r.per.map((p) => p.fastestLib))].join(', ');
     const where = `${r.s}, ${r.label}, ${r.l}`;
     if (enough && R > THRESHOLD) over.push(`${where}: ${R.toFixed(2)}`);
-    if (r.l === SUBJECT) {
+    if (isSubject(r.l)) {
       subject.seen = true;
       if (!enough) subject.short.push(`${where} (${ratios.length})`);
       else {
@@ -306,6 +333,132 @@ function overRunsSection(runs, verify) {
   return lines.join('\n');
 }
 
+// ---------- the limits of the speed-ups ----------
+
+// The rows of the full reports of BenchmarkDotNet of ThresholdBench: class, method, parameters, median (ns), allocated bytes.
+function loadThresholdRows() {
+  const dir = join(thresholdsDir, 'bdn', 'results');
+  if (!existsSync(dir)) return null;
+  const rows = [];
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('-report-full.json')) continue;
+    const j = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    for (const b of j.Benchmarks) {
+      const parameters = {};
+      for (const m of (b.Parameters ?? '').matchAll(/(\w+)=([^,]+)/g)) parameters[m[1]] = m[2].trim();
+      rows.push({ type: b.Type, method: b.Method, parameters, median: b.Statistics?.Median, alloc: b.Memory?.BytesAllocatedPerOperation });
+    }
+  }
+  return rows;
+}
+
+function loadThresholdMeta() {
+  const f = join(thresholdsDir, 'meta.json');
+  return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : { job: 'Default' };
+}
+
+const times = (x) => (x === undefined || x === null || !(x > 0) ? undefined : x);
+
+// The three limits, each with its measurement, its rule and its verdict. A Dry job has no measurement and no verdict.
+function thresholdVerdicts(rows, meta) {
+  const dry = meta.job === 'Dry';
+  const at = (type, method, key, value) => times(rows.find((r) => r.type === type && r.method === method && r.parameters[key] === String(value))?.median);
+  const verdicts = [];
+
+  const search = { limit: `hybrid search of a substring, ${SEARCH_LIMIT} code units`, rule: `.NET at M = ${SEARCH_LIMIT} is not slower than Knuth-Morris-Pratt; otherwise the limit is 32`, rows: [] };
+  for (const m of [48, 64, 65, 80]) {
+    search.rows.push({ m, kmp: at('SubstringBenchmarks', 'Kmp', 'M', m), net: at('SubstringBenchmarks', 'Net', 'M', m), hybrid: at('SubstringBenchmarks', 'Hybrid', 'M', m) });
+  }
+  const s64 = search.rows.find((r) => r.m === 64);
+  search.verdict = dry ? 'not measured (Dry)' : s64?.kmp === undefined || s64?.net === undefined ? 'no result' : s64.net <= s64.kmp ? `holds: ${SEARCH_LIMIT}` : 'does not hold: 32';
+  verdicts.push(search);
+
+  const automaton = { limit: 'build of the automaton of the pattern E5', rule: `the median of the build is at most ${AUTOMATON_LIMIT_NS} ns`, rows: [] };
+  for (const name of ['E5', 'UUID']) {
+    automaton.rows.push({ name, program: at('AutomatonBenchmarks', 'ParseAndBuildProgram', 'Name', name), automaton: at('AutomatonBenchmarks', 'BuildAutomaton', 'Name', name) });
+  }
+  const e5 = automaton.rows.find((r) => r.name === 'E5');
+  automaton.verdict = dry ? 'not measured (Dry)' : e5?.automaton === undefined ? 'no result' : e5.automaton <= AUTOMATON_LIMIT_NS ? `holds: ${e5.automaton.toFixed(0)} ns` : `does not hold: ${e5.automaton.toFixed(0)} ns`;
+  verdicts.push(automaton);
+
+  const hashing = { limit: `index of the values of a list (distinct, sets), ${HASH_LIMIT} values`, rule: `the scan (the library's index at N up to ${HASH_LIMIT}) is not slower than the buckets at N = 8, 16 and ${HASH_LIMIT}, for distinct and for sets.contains`, rows: [], evaluation: [] };
+  for (const n of [8, 16, 24, 32, 48]) {
+    hashing.rows.push({
+      n,
+      distinct: { library: at('HashingBenchmarks', 'DistinctDefault', 'N', n), buckets: at('HashingBenchmarks', 'DistinctBuckets', 'N', n), constantHash: at('HashingBenchmarks', 'DistinctConstantHash', 'N', n), pairwise: at('HashingBenchmarks', 'DistinctPairwise', 'N', n) },
+      contains: { library: at('HashingBenchmarks', 'ContainsDefault', 'N', n), buckets: at('HashingBenchmarks', 'ContainsBuckets', 'N', n), constantHash: at('HashingBenchmarks', 'ContainsConstantHash', 'N', n), pairwise: at('HashingBenchmarks', 'ContainsPairwise', 'N', n) },
+    });
+  }
+  for (const n of [16, 24, 25, 32, 48]) {
+    hashing.evaluation.push({ n, distinct: at('HashingEvaluationBenchmarks', 'Distinct', 'N', n), contains: at('HashingEvaluationBenchmarks', 'SetsContains', 'N', n) });
+  }
+  const scanRows = hashing.rows.filter((r) => r.n <= HASH_LIMIT);
+  const slower = [];
+  let missing = false;
+  for (const r of scanRows) {
+    for (const op of ['distinct', 'contains']) {
+      const { library, buckets } = r[op];
+      if (library === undefined || buckets === undefined) missing = true;
+      else if (library > buckets) slower.push(`${op} N = ${r.n}: ${(library / buckets).toFixed(2)}`);
+    }
+  }
+  hashing.verdict = dry ? 'not measured (Dry)' : missing ? 'no result' : slower.length === 0 ? `holds: ${HASH_LIMIT}` : `does not hold, the scan is slower than the buckets (ratio scan / buckets): ${slower.join('; ')}`;
+  verdicts.push(hashing);
+  return verdicts;
+}
+
+function thresholdsSection() {
+  const rows = loadThresholdRows();
+  if (!rows) return null;
+  const meta = loadThresholdMeta();
+  const verdicts = thresholdVerdicts(rows, meta);
+  const [search, automaton, hashing] = verdicts;
+  const ratio = (a, b) => (a === undefined || b === undefined ? '-' : (a / b).toFixed(2));
+  const lines = ['## Limits of the speed-ups\n'];
+  lines.push(`Job: ${meta.job ?? 'Default'}; started ${meta.started ?? '?'}, finished ${meta.finished ?? '?'}. Medians of BenchmarkDotNet on the code of this commit; the reports are in \`results/thresholds/bdn/results\`.\n`);
+  lines.push('| Limit | Rule | Verdict |');
+  lines.push('|---|---|---|');
+  for (const v of verdicts) lines.push(`| ${v.limit} | ${v.rule} | ${v.verdict} |`);
+  lines.push('');
+
+  lines.push(`### Search of a substring, the text (ab)^5000\n`);
+  lines.push('M is the length of the pattern, the slowest case for the search of .NET. "Library" is the search as it runs: .NET up to the limit, Knuth-Morris-Pratt above. Net / KMP below 1 means .NET is faster.\n');
+  lines.push('| M | KMP | .NET | Library | Net / KMP |');
+  lines.push('|--:|--:|--:|--:|--:|');
+  for (const r of search.rows) lines.push(`| ${r.m} | ${fmtTime(r.kmp)} | ${fmtTime(r.net)} | ${fmtTime(r.hybrid)} | ${ratio(r.net, r.kmp)} |`);
+  lines.push('');
+
+  lines.push('### Build of the automaton\n');
+  lines.push('| Pattern | Parse and program | Automaton |');
+  lines.push('|---|--:|--:|');
+  for (const r of automaton.rows) lines.push(`| ${r.name} | ${fmtTime(r.program)} | ${fmtTime(r.automaton)} |`);
+  lines.push('');
+
+  lines.push('### Index of the values: the lists of N integers\n');
+  lines.push('"Library" is the index as the library makes it (the scan up to 24 values, the buckets above); "buckets" forces the buckets at any N; "one hash" gives every value the same hash; "pairwise" are integers of 2^53 and more, compared with each other in order. Scan / buckets below 1 means the scan is faster; at N above 24 the library and the buckets are the same index.\n');
+  lines.push('| Operation | N | Library | Buckets | One hash | Pairwise | Scan / buckets |');
+  lines.push('|---|--:|--:|--:|--:|--:|--:|');
+  for (const op of ['distinct', 'contains']) {
+    for (const r of hashing.rows) {
+      const x = r[op];
+      lines.push(`| ${op === 'distinct' ? 'distinct' : 'sets.contains'} | ${r.n} | ${fmtTime(x.library)} | ${fmtTime(x.buckets)} | ${fmtTime(x.constantHash)} | ${fmtTime(x.pairwise)} | ${r.n <= HASH_LIMIT ? ratio(x.library, x.buckets) : '-'} |`);
+    }
+  }
+  lines.push('');
+
+  lines.push('### distinct and sets.contains through the public API\n');
+  lines.push('The evaluation of the program on a list of N integers; the time per element shows a jump at the limit, if there is one.\n');
+  lines.push('| N | distinct | per element | sets.contains | per element |');
+  lines.push('|--:|--:|--:|--:|--:|');
+  const perElement = (x, n) => (x === undefined ? '-' : fmtTime(x / n));
+  for (const r of hashing.evaluation) lines.push(`| ${r.n} | ${fmtTime(r.distinct)} | ${perElement(r.distinct, r.n)} | ${fmtTime(r.contains)} | ${perElement(r.contains, r.n)} |`);
+  lines.push('');
+
+  mkdirSync(thresholdsDir, { recursive: true });
+  writeFileSync(thresholdsJson, `${JSON.stringify({ job: meta.job ?? 'Default', verdicts }, null, 2)}\n`);
+  return lines.join('\n');
+}
+
 function writeSummary() {
   const verify = loadVerify();
   const runs = runNumbers()
@@ -321,6 +474,8 @@ function writeSummary() {
     parts.push(['## Runs\n', ...runs.map(({ k }) => runLine(loadRunMeta(k))), '', 'The table of each run is `results/runs/<k>/summary.md`.\n'].join('\n'));
     parts.push(overRunsSection(runs, verify));
   }
+  const thresholds = thresholdsSection();
+  if (thresholds) parts.push(thresholds);
   const text = parts.join('\n');
   mkdirSync(results, { recursive: true });
   writeFileSync(summaryMd, text);
@@ -335,6 +490,7 @@ if (flag('--summary-only')) {
   process.exit(0);
 }
 
+const thresholdsOnly = flag('--thresholds-only');
 const runsOption = option('--runs') ?? '1';
 if (!/^[1-9]\d*$/.test(runsOption)) {
   console.error(`--runs needs a positive integer, got '${runsOption}'`);
@@ -342,11 +498,13 @@ if (!/^[1-9]\d*$/.test(runsOption)) {
 }
 
 mkdirSync(results, { recursive: true });
-dotnetOrExit(['build', project, '-c', 'Release', '-f', 'net10.0', '--nologo', '-v', 'q']);
-dotnetOrExit(run('verify', 'results/verify.json'));
+if (!thresholdsOnly) {
+  dotnetOrExit(['build', project, '-c', 'Release', '-f', 'net10.0', '--nologo', '-v', 'q']);
+  dotnetOrExit(run('verify', 'results/verify.json'));
+}
 
 let failure = 0;
-if (!flag('--verify-only')) {
+if (!flag('--verify-only') && !thresholdsOnly) {
   if (existsSync(runsDir)) rmSync(runsDir, { recursive: true, force: true });
   for (let k = 1; k <= Number(runsOption) && failure === 0; k++) {
     const dir = join(runsDir, String(k));
@@ -358,6 +516,20 @@ if (!flag('--verify-only')) {
     meta.finished = new Date().toISOString();
     writeFileSync(join(dir, 'run.json'), `${JSON.stringify(meta, null, 2)}\n`);
   }
+}
+
+// The limits of the speed-ups: after the runs of the rig, in the same job, on the same machine. A failed run of the rig does not skip them.
+if (!flag('--verify-only') && !flag('--no-thresholds')) {
+  if (existsSync(thresholdsDir)) rmSync(thresholdsDir, { recursive: true, force: true });
+  mkdirSync(thresholdsDir, { recursive: true });
+  dotnetOrExit(['build', thresholdProject, '-c', 'Release', '-f', 'net10.0', '--nologo', '-v', 'q']);
+  const meta = { job: option('--job') ?? 'Default', started: new Date().toISOString() };
+  const bdnArgs = ['--filter', '*', '--artifacts', 'results/thresholds/bdn'];
+  if (option('--job')) bdnArgs.push('--job', option('--job'));
+  const status = dotnet(runThresholds(...bdnArgs));
+  meta.finished = new Date().toISOString();
+  writeFileSync(join(thresholdsDir, 'meta.json'), `${JSON.stringify(meta, null, 2)}\n`);
+  failure = failure || status;
 }
 
 // The summary is written after a failed run too: the runs that ended are in it.

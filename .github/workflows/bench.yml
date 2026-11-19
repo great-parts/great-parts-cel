@@ -1,8 +1,11 @@
 # The benchmark rig (docs/design/eng-bench.md): the speed comparison with other CEL libraries for .NET, on request. It runs on a
 # GitHub-hosted runner only, by hand: no trigger but the manual one, and no measurement on a developer machine. The runs of one
-# measurement go one after another in one job, so on one virtual machine.
-# The result is the artifact bench-results (the summary, the verification, the table and the BenchmarkDotNet reports of every run)
-# and the step summary. The workflow has no secrets and reads the repository only. It sets no timeout-minutes: the protection
+# measurement go one after another in one job, so on one virtual machine. The rig measures Great.Parts.Cel built from the sources of
+# the commit. After the runs, in the same job, the script measures the limits of the speed-ups of the library (the search of a
+# substring around 64 code units, the build of the automaton of the pattern E5, distinct and sets around the length 24 of a list) and
+# writes the verdicts into the summary.
+# The result is the artifact bench-results (the summary, the verification, the table and the BenchmarkDotNet reports of every run, the
+# verdicts and the reports of the limits) and the step summary. The workflow has no secrets and reads the repository only. It sets no timeout-minutes: the protection
 # against a hung job is the default limit of GitHub Actions, 6 hours.
 # The publication of a result (U-6): the job `bench` makes the report (report.json, report.md, the verification and the table of each run:
 # the date and the time in UTC, the commit of this repository, the run) and keeps it as the artifact bench-report; the job `publish`,
@@ -29,6 +32,10 @@ on:
         description: "The cases to run, ids separated by commas, for example E1,E5 or E2/10. Without it: every case."
         type: string
         required: false
+      thresholds:
+        description: "Measure the limits of the speed-ups of the library after the runs of the rig, in the same job (the job above applies to them too)."
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -57,13 +64,15 @@ jobs:
       - name: Restore (locked)
         run: dotnet restore bench/SpeedBench/SpeedBench.csproj --locked-mode
 
-      # run.mjs builds the rig, verifies every library on every case, then measures; the summary is written even after a failed run.
+      # run.mjs builds the rig, verifies every library on every case, then measures, then measures the limits of the speed-ups (it builds
+      # bench/ThresholdBench, which restores its packages itself); the summary is written even after a failed run.
       - name: Measurement (bench/run.mjs)
         env:
           # The values reach the script only through the environment, never through the text of the script.
           RUNS: ${{ inputs.runs }}
           BENCH_JOB: ${{ inputs.job }}
           BENCH_CASES_INPUT: ${{ inputs.cases }}
+          BENCH_THRESHOLDS: ${{ inputs.thresholds }}
         run: |
           set -u
           if ! [[ "$RUNS" =~ ^[1-9][0-9]?$ ]]; then
@@ -84,6 +93,9 @@ jobs:
               exit 2
             fi
             arguments+=(--cases "$BENCH_CASES_INPUT")
+          fi
+          if [ "$BENCH_THRESHOLDS" != "true" ]; then
+            arguments+=(--no-thresholds)
           fi
           node bench/run.mjs "${arguments[@]}"
 
@@ -117,6 +129,10 @@ jobs:
             bench/results/runs/*/summary.md
             bench/results/runs/*/bdn/results
             bench/results/runs/*/bdn/*.log
+            bench/results/thresholds/meta.json
+            bench/results/thresholds/thresholds.json
+            bench/results/thresholds/bdn/results
+            bench/results/thresholds/bdn/*.log
           if-no-files-found: warn
 
       - name: Report (artifact)

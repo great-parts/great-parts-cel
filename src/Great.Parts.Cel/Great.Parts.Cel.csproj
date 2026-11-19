@@ -54,11 +54,15 @@
     <AdditionalFiles Include="PublicAPI/net11.0/PublicAPI.Unshipped.txt" />
   </ItemGroup>
 
-  <!-- Internal members are visible to the unit tests, the property tests and the suite runner only (docs/design/tests.md). -->
+  <!--
+    Internal members are visible to the unit tests, the property tests, the suite runner and the benchmarks of the limits of the
+    speed-ups (bench/ThresholdBench) only (docs/design/tests.md).
+  -->
   <ItemGroup>
     <InternalsVisibleTo Include="Great.Parts.Cel.Tests" />
     <InternalsVisibleTo Include="Great.Parts.Cel.Properties" />
     <InternalsVisibleTo Include="Great.Parts.Cel.Conformance" />
+    <InternalsVisibleTo Include="Great.Parts.Cel.ThresholdBench" />
   </ItemGroup>
 
   <!--

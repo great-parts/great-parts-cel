@@ -15,8 +15,6 @@
     <PackageVersion Include="DotnetCel" Version="1.0.7" />
     <PackageVersion Include="Cel.NET" Version="2.3.1" />
     <PackageVersion Include="Cel" Version="0.3.3" />
-    <!-- The published package of this repository from nuget.org: the first comparison runs on the version 1.0. -->
-    <PackageVersion Include="Great.Parts.Cel" Version="1.0.1" />
     <!-- protoc for Proto/order.proto, a build tool only. -->
     <PackageVersion Include="Grpc.Tools" Version="2.85.0" />
   </ItemGroup>

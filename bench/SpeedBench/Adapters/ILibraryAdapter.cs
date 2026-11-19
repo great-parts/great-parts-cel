@@ -9,6 +9,18 @@ public interface ILibraryAdapter
     /// <summary>Library name in tables and in benchmark parameters.</summary>
     string Name { get; }
 
+    /// <summary>
+    /// Whether the library has a compilation of its own that the rig measures. A library without it (the simple entry of
+    /// Great.Parts.Cel) has the operations evaluation and full cycle only.
+    /// </summary>
+    bool HasCompile => true;
+
+    /// <summary>
+    /// The text of a scenario as this library reads it. The same text unless the way of passing the data changes the names
+    /// (the fields of the order as variables of the top level). The text of the scenario stays the one that the rows show.
+    /// </summary>
+    string Rewrite(string expression) => expression;
+
     /// <summary>Compilation: all calls of the library from the text to an object ready for evaluation.</summary>
     object Compile(string text);
 
@@ -35,6 +47,8 @@ public static class Libraries
         new CelNetAdapter(),
         new TelusCelAdapter(),
         new GreatPartsCelAdapter(),
+        new GreatPartsCelInputAdapter(),
+        new GreatPartsCelSimpleAdapter(),
     ];
 
     public static ILibraryAdapter Get(string name) =>

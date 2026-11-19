@@ -63,12 +63,6 @@
           "DotnetCel.Runtime": "1.0.7"
         }
       },
-      "Great.Parts.Cel": {
-        "type": "Direct",
-        "requested": "[1.0.1, )",
-        "resolved": "1.0.1",
-        "contentHash": "czSiNaU7vMpO5JRQ/7Gjd8nEv8yPf+0HMRlyru8AQnZPDbMDMRt+KREjyCcgJXw8j3zDchQ7pN2ef0Sh2YrE7w=="
-      },
       "Grpc.Tools": {
         "type": "Direct",
         "requested": "[2.85.0, )",
@@ -289,6 +283,9 @@
         "type": "Transitive",
         "resolved": "7.0.0",
         "contentHash": "sFbY65N/5GdsHx7nkdHFHUG+5Ar4W0w6Aks7Y2X+Q4NOTw6XyX2Il7jm+4tPkc//4mA3nG0RdxI8gKgoJitdLw=="
+      },
+      "great.parts.cel": {
+        "type": "Project"
       }
     }
   }

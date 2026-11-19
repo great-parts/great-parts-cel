@@ -14,8 +14,19 @@
     <PackageReference Include="Cel.NET" />
     <!-- TELUS Cel: its namespace Cel is also the namespace of Cel.NET. -->
     <PackageReference Include="Cel" Aliases="TelusCel" />
-    <PackageReference Include="Great.Parts.Cel" />
     <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!--
+    Great.Parts.Cel is the library of this repository, built from the sources: the rig measures the code of the commit it runs on.
+    The source generator runs in the compiler of the rig as an analyzer (the type context BenchTypes, the anonymous objects of the
+    simple entry) and is not a reference of the assembly.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

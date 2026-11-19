@@ -3,6 +3,7 @@ using BenchmarkDotNet.Columns;
 using BenchmarkDotNet.Configs;
 using BenchmarkDotNet.Diagnosers;
 using BenchmarkDotNet.Exporters.Json;
+using BenchmarkDotNet.Filters;
 using SpeedBench.Adapters;
 
 namespace SpeedBench;
@@ -15,6 +16,10 @@ public sealed class BenchConfig : ManualConfig
         AddDiagnoser(MemoryDiagnoser.Default);
         AddColumn(StatisticColumn.Median);
         AddExporter(JsonExporter.Full);
+        // A library without a compilation of its own has no row of the operation Compile.
+        AddFilter(new SimpleFilter(benchmark =>
+            benchmark.Descriptor.WorkloadMethod.Name != nameof(OperationBench.Compile)
+            || Verification.ParseTarget(benchmark.Parameters.Items.First(p => p.Name == nameof(OperationBench.Target)).Value.ToString()!).Library.HasCompile));
     }
 }
 
@@ -37,7 +42,7 @@ public class OperationBench
     public void Setup()
     {
         (_library, var scenario) = Verification.ParseTarget(Target);
-        _expression = scenario.Expression;
+        _expression = _library.Rewrite(scenario.Expression);
         _order = Scenarios.Order(scenario.Lines);
         _now = Scenarios.Now;
         _compiled = _library.Compile(_expression);

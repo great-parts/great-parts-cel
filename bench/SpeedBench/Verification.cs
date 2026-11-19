@@ -31,14 +31,15 @@ public static class Verification
     {
         var expected = Scenarios.Expected(s);
         var order = Scenarios.Order(s.Lines);
+        var text = library.Rewrite(s.Expression);
         var variants = new List<VariantResult>
         {
             Variant("original text: compile, evaluate", expected, library, () =>
-                library.Evaluate(library.Compile(s.Expression), order, Scenarios.Now)),
+                library.Evaluate(library.Compile(text), order, Scenarios.Now)),
             Variant("text with tail: compile, evaluate", expected, library, () =>
-                library.Evaluate(library.Compile(ExpressionText.Next(s.Expression)), order, Scenarios.Now)),
+                library.Evaluate(library.Compile(ExpressionText.Next(text)), order, Scenarios.Now)),
             Variant("text with tail: full cycle", expected, library, () =>
-                library.FullCycle(ExpressionText.Next(s.Expression), order, Scenarios.Now)),
+                library.FullCycle(ExpressionText.Next(text), order, Scenarios.Now)),
         };
         return new VerifyRow(library.Name, s.Id, s.Expression, s.Lines, expected, variants, variants.All(v => v.Correct));
     }
