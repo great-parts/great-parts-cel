@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using System.Collections.Immutable;
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Types;
@@ -14,7 +13,7 @@ internal sealed class DecimalDefinition(
     string source,
     ImmutableArray<OverloadBinding> overloads,
     ImmutableArray<AbstractTypeDeclaration> abstractTypes)
-    : ExtensionDefinition(name, version, source, overloads, abstractTypes);
+    : ExtensionDefinition(name, version, source, FunctionDescriptions.Describe(overloads), abstractTypes);
 
 // The table of the set decimal, version 1, in the order of its page: the four operators and the negation, the four orderings and the
 // nine conversions. A call is 1 unit; decimal(double) is 4, since it reads the shortest text of a double and lays it out; the
@@ -78,4 +77,3 @@ internal static class DecimalExtension
         CelCostFunction? argumentCost = null) =>
         new(function, new CelOverloadDecl(overloadId, false, parameterTypes, resultType), implementation, fixedCost, argumentCost, Source);
 }
-#endif

@@ -102,18 +102,17 @@ The environment keeps the declaration set it was built from. `ToBuilder` returns
 
 ## `decimal` without the set and the literal option
 
-On `net11.0` a type of the kind `Decimal` is declared by the set [decimal](extension-decimal.md) and by nothing else; on `net10.0` there is no such kind and no set, and `System.Decimal` is a .NET type with no row.
+A type of the kind `Decimal` is declared by the set [decimal](extension-decimal.md) and by nothing else, on both targets ([decimal-net10](decimal-net10.md)).
 
-**Variables, parameters and results.** `DeclarationChecks.Undeclared(CelType)` takes the kind `Decimal`, at any depth of a type, as undeclared unless a surviving set declares the name `decimal` (`_setTypes` has the key). So `AddVariable<Decimal128>("x")`, `AddVariable<decimal>("x")`, `AddVariable("x", CelType.Decimal)`, a variable of the type `list(decimal)`, and an overload of `AddFunction` or a typed implementation with such a parameter or result are `TypeNotDeclared` (4008) at `Build`, with `{declarationKind}` `variable` or `overload` and `{type}` the text of the type: `variable 'x' has type 'decimal', which no type source or extension of the environment declares; add the extension set 'decimal'`. With the set they build. A description in JSON names the type `decimal`, which the reader gives as `CelType.ObjectNamed("decimal")`, as it gives `net.IP`: `Build` replaces it by the abstract type of the set when there is one, and without one it is the same error, at the position of the variable. A provider that describes an object type named `decimal` is `DuplicateType` (4001) when the set is there.
+**Variables, parameters and results.** `DeclarationChecks.Undeclared(CelType)` takes the kind `Decimal`, at any depth of a type, as undeclared unless a surviving set declares the name `decimal` (`_setTypes` has the key). So `AddVariable<decimal>("x")`, on `net11.0` `AddVariable<Decimal128>("x")`, `AddVariable("x", CelType.Decimal)`, a variable of the type `list(decimal)`, and an overload of `AddFunction` or a typed implementation with such a parameter or result are `TypeNotDeclared` (4008) at `Build`, with `{declarationKind}` `variable` or `overload` and `{type}` the text of the type: `variable 'x' has type 'decimal', which no type source or extension of the environment declares; add the extension set 'decimal'`. With the set they build. A description in JSON names the type `decimal`, which the reader gives as `CelType.ObjectNamed("decimal")`, as it gives `net.IP`: `Build` replaces it by the abstract type of the set when there is one, and without one it is the same error, at the position of the variable. A provider that describes an object type named `decimal` is `DuplicateType` (4001) when the set is there.
 
-**On `net10.0`.** `ConversionRules.InputType<System.Decimal>()` is `null`, so `AddVariable<decimal>` and the delegate forms of `AddFunction` keep the declaration as an `UnmappedDeclaration`, and the two places of `DeclarationChecks` that report an unmapped variable and an unmapped overload give 4008 with the type `System.Decimal` and the hint of the table below. The `TypeNotDeclared` of any other unmapped .NET type has no hint; `System.Decimal` is the one case that gets one.
+**On `net10.0`.** Since version 2.0 `ConversionRules.InputType<System.Decimal>()` is the type `decimal` on both targets, so `System.Decimal` is never an unmapped declaration and takes the rule above.
 
-**The hint.** `HintOf` has two cases beside the catalog lookup, and neither asks `ExtensionCatalog.SetOfAbstractType`, which has no row for this set:
+**The hint.** The hint of the kind `Decimal` is a case beside the catalog lookup, which does not ask `ExtensionCatalog.SetOfAbstractType`, since the catalog has no row for this set; it is the same on both targets:
 
-| Type | `net11.0` | `net10.0` |
-| :- | :- | :- |
-| the kind `Decimal` at any depth, or the object name `decimal` of a description | `; add the extension set 'decimal'` | the object name only: `; the extension set 'decimal' exists only on .NET 11` |
-| the .NET type `System.Decimal`, unmapped | not reached: it has a row | `; the extension set 'decimal' exists only on .NET 11` |
+| Type | Hint |
+| :- | :- |
+| the kind `Decimal` at any depth, or the object name `decimal` of a description | `; add the extension set 'decimal'` |
 
 **Fields.** `CheckFieldTypes` does not report a field whose type mentions the kind `Decimal`: a description of an object type with a field `price` of the type `decimal` is valid in every environment of `net11.0`, with the set or without it, and the field is refused where an expression selects it, as `FieldNotAccessible` (2007) ([checking](checking.md#decimal-without-the-set)). The skip is only for the kind `Decimal`: another undeclared type in the same field, an object type that no source describes, is still `TypeNotDeclared`, so the check takes a flag that treats `Decimal` as declared. This is the one place where the type of a field and the type of a variable differ.
 
@@ -127,6 +126,6 @@ On `net11.0` a type of the kind `Decimal` is declared by the set [decimal](exten
 | :- | :- | :- | :- | :- |
 | 5 | `MissingExtensionDependency` (4005) | `DecimalLiterals` and no remaining set named `decimal` | `the decimal literal option requires extension 'decimal', which is not added to the environment` | nothing |
 
-It has no place in an expression and no position, being an error of the builder and not of a set. A set `decimal` whose version does not exist — `Decimal(2)` — is out after step 1, so the option with it gives 4004 and 4005, each once. The option does not exist on `net10.0`. Without the option a literal is `SyntaxNotEnabled`, a parse error: the two errors have two stages and never meet.
+It has no place in an expression and no position, being an error of the builder and not of a set. A set `decimal` whose version does not exist — `Decimal(2)` — is out after step 1, so the option with it gives 4004 and 4005, each once. The option exists on both targets. Without the option a literal is `SyntaxNotEnabled`, a parse error: the two errors have two stages and never meet.
 
 Related pages: [checking](checking.md), [types](types.md), [values](values.md), [facade](facade.md), [library](library.md), [evaluation](evaluation.md).

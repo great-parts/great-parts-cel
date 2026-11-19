@@ -2,3 +2,95 @@
 Great.Parts.Cel.Values.CelDuration.CelDuration(long seconds, int nanoseconds) -> void
 Great.Parts.Cel.Values.CelDuration.Nanoseconds.get -> int
 Great.Parts.Cel.Values.CelDuration.Seconds.get -> long
+const Great.Parts.Cel.CelCompilationCache.DefaultMaxEntryCount = 80000 -> int
+const Great.Parts.Cel.CelCompilationCache.DefaultMaxTotalTextLength = 900000 -> int
+const Great.Parts.Cel.CelExpression.DefaultCostLimit = 1000000 -> ulong
+Great.Parts.Cel.CelAnonymousData
+Great.Parts.Cel.CelBindings.Clear() -> void
+Great.Parts.Cel.CelBindings.GetEnumerator() -> System.Collections.Generic.IEnumerator<System.Collections.Generic.KeyValuePair<string!, Great.Parts.Cel.Values.CelValue>>!
+Great.Parts.Cel.CelBindings.this[string! name].get -> object?
+Great.Parts.Cel.CelBindings.this[string! name].set -> void
+Great.Parts.Cel.CelCompilationCache.CelCompilationCache(Great.Parts.Cel.CelEnvironment! environment) -> void
+Great.Parts.Cel.CelCompilationCache.Clear() -> void
+Great.Parts.Cel.CelCompilationCache.Count.get -> int
+Great.Parts.Cel.CelCompilationCache.EvaluateInput<T>(string! expression, object! input, Great.Parts.Cel.CelBindings? bindings = null, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.CelCompilationCache.TryRemove(string! expression) -> bool
+Great.Parts.Cel.CelEnvironment.DefaultCostLimit.get -> ulong?
+Great.Parts.Cel.CelEnvironment.EnumTypes.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelEnumType!>
+Great.Parts.Cel.CelEnvironment.EvaluateInput<T>(string! expression, object! input, Great.Parts.Cel.CelBindings? bindings = null, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.CelEnvironment.Functions.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Declarations.CelFunctionDecl!>
+Great.Parts.Cel.CelEnvironment.InputType.get -> Great.Parts.Cel.Values.CelObjectType?
+Great.Parts.Cel.CelEnvironment.ObjectTypes.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelObjectType!>
+Great.Parts.Cel.CelEnvironment.Validate(string! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelValidationResult!
+Great.Parts.Cel.CelEnvironment.Validate<T>(string! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelValidationResult!
+Great.Parts.Cel.CelEnvironment.Variables.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Declarations.CelVariableDecl!>
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<T1, T2, T3, T4, TResult>(string! name, System.Func<T1, T2, T3, T4, TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<T1, T2, T3, TResult>(string! name, System.Func<T1, T2, T3, TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<T1, T2, TResult>(string! name, System.Func<T1, T2, TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<T1, TResult>(string! name, System.Func<T1, TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddFunction<TResult>(string! name, System.Func<TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddMethod<TReceiver, T1, T2, T3, TResult>(string! name, System.Func<TReceiver, T1, T2, T3, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddMethod<TReceiver, T1, T2, T3, TResult>(string! name, System.Func<TReceiver, T1, T2, T3, TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddMethod<TReceiver, T1, T2, TResult>(string! name, System.Func<TReceiver, T1, T2, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddMethod<TReceiver, T1, T2, TResult>(string! name, System.Func<TReceiver, T1, T2, TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddMethod<TReceiver, T1, TResult>(string! name, System.Func<TReceiver, T1, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddMethod<TReceiver, T1, TResult>(string! name, System.Func<TReceiver, T1, TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddMethod<TReceiver, TResult>(string! name, System.Func<TReceiver, TResult>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddMethod<TReceiver, TResult>(string! name, System.Func<TReceiver, TResult>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.CelEnvironmentBuilder() -> void
+Great.Parts.Cel.CelEnvironmentBuilder.SetDefaultCostLimit(ulong costLimit) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.UseInput<TInput>() -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEvalResult<T>.Cost.get -> ulong?
+Great.Parts.Cel.CelExpression
+Great.Parts.Cel.CelProgram<T>.EvaluateInput<TInput>(TInput input, Great.Parts.Cel.CelBindings? bindings = null, Great.Parts.Cel.CelEvalOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.CelSyntax
+Great.Parts.Cel.CelValidationResult
+Great.Parts.Cel.CelValidationResult.Errors.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelError!>
+Great.Parts.Cel.CelValidationResult.IsValid.get -> bool
+Great.Parts.Cel.CelValidationResult.ReferencedFunctions.get -> System.Collections.Immutable.ImmutableArray<string!>
+Great.Parts.Cel.CelValidationResult.ReferencedVariables.get -> System.Collections.Immutable.ImmutableArray<string!>
+Great.Parts.Cel.CelValidationResult.ResultType.get -> Great.Parts.Cel.Types.CelType?
+Great.Parts.Cel.Declarations.CelFunctionOptions
+Great.Parts.Cel.Declarations.CelFunctionOptions.CelFunctionOptions() -> void
+Great.Parts.Cel.Declarations.CelFunctionOptions.Cost.get -> Great.Parts.Cel.Declarations.CelCostFunction?
+Great.Parts.Cel.Declarations.CelFunctionOptions.Cost.init -> void
+Great.Parts.Cel.Declarations.CelFunctionOptions.Description.get -> string?
+Great.Parts.Cel.Declarations.CelFunctionOptions.Description.init -> void
+Great.Parts.Cel.Declarations.CelFunctionOptions.OverloadId.get -> string?
+Great.Parts.Cel.Declarations.CelFunctionOptions.OverloadId.init -> void
+Great.Parts.Cel.Declarations.CelOverloadDecl.Description.get -> string?
+Great.Parts.Cel.Declarations.CelOverloadDecl.WithDescription(string! description) -> Great.Parts.Cel.Declarations.CelOverloadDecl!
+Great.Parts.Cel.Diagnostics.CelError.ActualType.get -> Great.Parts.Cel.Types.CelType?
+Great.Parts.Cel.Diagnostics.CelError.ExpectedType.get -> Great.Parts.Cel.Types.CelType?
+Great.Parts.Cel.Diagnostics.CelError.Span.get -> Great.Parts.Cel.Diagnostics.CelSourceSpan
+Great.Parts.Cel.Diagnostics.CelError.Subject.get -> string?
+Great.Parts.Cel.Diagnostics.CelError.ToDisplayString(string! expression) -> string!
+Great.Parts.Cel.Diagnostics.CelErrorCode.InputConflict = 4019 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelSourceSpan
+Great.Parts.Cel.Diagnostics.CelSourceSpan.CelSourceSpan() -> void
+Great.Parts.Cel.Diagnostics.CelSourceSpan.Equals(Great.Parts.Cel.Diagnostics.CelSourceSpan other) -> bool
+Great.Parts.Cel.Diagnostics.CelSourceSpan.Length.get -> int
+Great.Parts.Cel.Diagnostics.CelSourceSpan.Start.get -> Great.Parts.Cel.Diagnostics.CelSourceLocation
+Great.Parts.Cel.Values.CelObjectType<TInstance>
+Great.Parts.Cel.Values.CelObjectType<TInstance>.CelObjectType(string! name, System.ReadOnlySpan<Great.Parts.Cel.Values.CelObjectField!> fields) -> void
+Great.Parts.Cel.Values.CelValue.TryGetDecimal(out decimal value) -> bool
+abstract Great.Parts.Cel.Values.CelObjectType<TInstance>.GetField(in TInstance instance, int number) -> Great.Parts.Cel.Values.CelValue
+override Great.Parts.Cel.Diagnostics.CelError.ToString() -> string!
+override Great.Parts.Cel.Diagnostics.CelSourceLocation.ToString() -> string!
+override Great.Parts.Cel.Diagnostics.CelSourceSpan.Equals(object? obj) -> bool
+override Great.Parts.Cel.Diagnostics.CelSourceSpan.GetHashCode() -> int
+override Great.Parts.Cel.Values.CelValue.ToString() -> string!
+override sealed Great.Parts.Cel.Values.CelObjectType<TInstance>.FieldReadCost(object! instance, int number) -> long
+override sealed Great.Parts.Cel.Values.CelObjectType<TInstance>.GetField(object! instance, int number) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.CelAnonymousData.Register<TData>(TData! example, System.Action<Great.Parts.Cel.CelEnvironmentBuilder!>! declare, System.Action<TData!, Great.Parts.Cel.CelBindings!>! bind) -> void
+static Great.Parts.Cel.CelEnvironment.Create(Great.Parts.Cel.CelStandardLibrary! standardLibrary, System.Action<Great.Parts.Cel.CelEnvironmentBuilder!>! configure) -> Great.Parts.Cel.CelEnvironment!
+static Great.Parts.Cel.CelEnvironment.Create(System.Action<Great.Parts.Cel.CelEnvironmentBuilder!>! configure) -> Great.Parts.Cel.CelEnvironment!
+static Great.Parts.Cel.CelExpression.Evaluate<T>(string! expression, object! data, ulong costLimit = 1000000, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> T
+static Great.Parts.Cel.CelExpression.Evaluate<T>(string! expression, System.Collections.Generic.IReadOnlyDictionary<string!, object?>? variables = null, ulong costLimit = 1000000, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> T
+static Great.Parts.Cel.CelSyntax.IsIdentifier(string! value) -> bool
+static Great.Parts.Cel.CelSyntax.QuoteString(string! value) -> string!
+static Great.Parts.Cel.Diagnostics.CelSourceSpan.operator !=(Great.Parts.Cel.Diagnostics.CelSourceSpan left, Great.Parts.Cel.Diagnostics.CelSourceSpan right) -> bool
+static Great.Parts.Cel.Diagnostics.CelSourceSpan.operator ==(Great.Parts.Cel.Diagnostics.CelSourceSpan left, Great.Parts.Cel.Diagnostics.CelSourceSpan right) -> bool
+static Great.Parts.Cel.Values.CelTimeZoneDatabase.FromSystem() -> Great.Parts.Cel.Values.CelTimeZoneDatabase!
+static Great.Parts.Cel.Values.CelValue.FromDecimal(decimal value) -> Great.Parts.Cel.Values.CelValue
+virtual Great.Parts.Cel.Values.CelObjectType<TInstance>.FieldReadCost(in TInstance instance, int number) -> long

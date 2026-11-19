@@ -16,21 +16,24 @@ internal static class TimeReceivers
     private const long NanosecondsPerMillisecond = 1_000_000;
 
     // The zone string is the first part and the database, or null without one, the second.
-    private static readonly Func<CelError, string> NotFoundText = static error =>
-    {
-        string text = "time zone '" + (string)error.First! + "' is not found";
-        if (error.Second is not CelTimeZoneDatabase database)
+    private static readonly ErrorTemplate NotFoundText = new(
+        static error =>
         {
-            return text + ": the environment has no time zone database";
-        }
+            string text = "time zone '" + (string)error.First! + "' is not found";
+            if (error.Second is not CelTimeZoneDatabase database)
+            {
+                return text + ": the environment has no time zone database";
+            }
 
-        text += " in the time zone database of the environment";
-        return database.Version is { } version ? text + " (version " + version + ")" : text;
-    };
+            text += " in the time zone database of the environment";
+            return database.Version is { } version ? text + " (version " + version + ")" : text;
+        },
+        subject: static error => (string)error.First!);
 
     // The zone string is the first part.
-    private static readonly Func<CelError, string> InvalidText = static error =>
-        "invalid time zone '" + (string)error.First! + "': expected 'UTC', an IANA time zone identifier or a fixed offset [+-]HH:MM";
+    private static readonly ErrorTemplate InvalidText = new(
+        static error => "invalid time zone '" + (string)error.First! + "': expected 'UTC', an IANA time zone identifier or a fixed offset [+-]HH:MM",
+        subject: static error => (string)error.First!);
 
     // The field of a timestamp that a receiver reads.
     internal enum Field
@@ -115,7 +118,7 @@ internal static class TimeReceivers
                 return site.NoMatchingOverload(arguments);
             }
 
-            TimeZoneResolution resolution = TimeZoneRules.Resolve(site.TimeZones, zone);
+            TimeZoneResolution resolution = TimeZoneRules.Resolve(site.TimeZones, zone, site.Meter);
             return resolution.Kind switch
             {
                 TimeZoneResolutionKind.NotFound => site.Error(CelErrorCode.TimeZoneNotFound, NotFoundText, zone, site.TimeZones),

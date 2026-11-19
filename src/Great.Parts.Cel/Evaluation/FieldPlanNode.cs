@@ -81,4 +81,31 @@ internal sealed class FieldPlanNode : PlanNode
 
         return EvaluationErrors.Placed(value, frame.Lines, offset);
     }
+
+    // The read of a field of the input that a frame holds as a structure: the same steps as Read for a selection that is not a
+    // presence test, with the instance passed by reference, so the structure is not boxed.
+    internal static CelValue ReadTyped<TInstance>(Frame frame, CelObjectType<TInstance> owner, in TInstance instance, int number, int offset)
+    {
+        CelValue value;
+        try
+        {
+            if (frame.Metered)
+            {
+                long units = owner.FieldReadCost(in instance, number);
+                if (units > 0)
+                {
+                    frame.Charge((ulong)units);
+                }
+            }
+
+            frame.Event();
+            value = ObjectRules.ReadField(owner, in instance, number, frame.Types);
+        }
+        catch (Exception exception) when (frame.IsApplicationException(exception))
+        {
+            return EvaluationErrors.FieldException(exception, owner, number, false, frame.Lines, offset);
+        }
+
+        return EvaluationErrors.Placed(value, frame.Lines, offset);
+    }
 }

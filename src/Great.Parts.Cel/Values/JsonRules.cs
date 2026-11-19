@@ -4,6 +4,7 @@ using System.Text;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel.Values;
 
@@ -261,7 +262,7 @@ internal static class JsonRules
             case JsonValueKind.Number:
                 return element.TryGetDouble(out double number) && double.IsFinite(number)
                     ? CelValue.FromDouble(number)
-                    : Error(CelErrorCode.ConversionRange, element.GetRawText() + " is out of the range of double");
+                    : CelValue.FromError(new CelError(CelErrorCode.ConversionRange, NumberOutOfRangeText, null, 0, element.GetRawText() + " is out of the range of double"));
             case JsonValueKind.String:
                 if (!charged)
                 {
@@ -275,11 +276,24 @@ internal static class JsonRules
             case JsonValueKind.Object:
                 return CelValue.FromMap(new JsonObjectMap(element));
             default:
-                return Error(
+                return CelValue.FromError(new CelError(
                     CelErrorCode.InvalidArgument,
-                    name is null ? "undefined JSON element" : "invalid argument to '" + name + "': undefined JSON element");
+                    NamedText,
+                    null,
+                    0,
+                    name is null ? "undefined JSON element" : "invalid argument to '" + name + "': undefined JSON element",
+                    name));
         }
     }
+
+    // The message is the first part; a number of JSON that is no finite double is out of the range of double.
+    private static readonly ErrorTemplate NumberOutOfRangeText = new(
+        static error => (string)error.First!,
+        expectedType: static _ => CelType.Double,
+        actualType: static _ => CelType.Double);
+
+    // The message is the first part and the name it speaks of, if any, the second.
+    private static readonly ErrorTemplate NamedText = new(static error => (string)error.First!, subject: static error => (string?)error.Second);
 
     private static CelValue DuplicateKey(string key) => Error(CelErrorCode.DuplicateMapKey, "duplicate map key: " + Literal(key));
 

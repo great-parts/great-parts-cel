@@ -42,11 +42,7 @@ internal static partial class ConversionRules
             var memoryRow = new PrimitiveRow<ReadOnlyMemory<byte>>(CelType.Bytes, narrowing: false, takesNull: false);
             var arrayRow = new PrimitiveRow<byte[]>(CelType.Bytes, narrowing: false, takesNull: true);
             var keys = new KeyRows(longRow, intRow, ulongRow, uintRow, boolRow, stringRow);
-#if NET11_0_OR_GREATER
             ClrRow[] decimalRows = DecimalRows.Create();
-#else
-            ClrRow[] decimalRows = [];
-#endif
             ClrRow[] leaves =
             [
                 boolRow, longRow, intRow, ulongRow, uintRow, doubleRow, stringRow, memoryRow, arrayRow,
@@ -288,11 +284,9 @@ internal static partial class ConversionRules
             {
                 case CelValueKind.Timestamp or CelValueKind.Duration:
                     return TryBoxTime(value, out result);
-#if NET11_0_OR_GREATER
-                case CelValueKind.Decimal when value.TryGetDecimal(out System.Numerics.Decimal128 number):
+                case CelValueKind.Decimal when value.TryGetPlatformDecimal(out PlatformDecimal number):
                     result = number;
                     return true;
-#endif
                 case CelValueKind.Object when value.TryGetObject(out object? instance):
                     result = instance;
                     return true;

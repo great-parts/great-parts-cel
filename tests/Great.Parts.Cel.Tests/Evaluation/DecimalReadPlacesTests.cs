@@ -106,7 +106,7 @@ public sealed class DecimalReadPlacesTests
 
         CelValue value = Planner.PlanWithoutTypeCheck(parsed.Expression, environment.Declarations).EvaluateOn(new Dictionary<string, CelValue>());
 
-        Assert.True(value.TryGetDecimal(out Decimal128 number));
+        Assert.True(value.TryGetDecimal128(out Decimal128 number));
         Assert.Equal((true, (System.UInt128)150, -2), DecimalExample.Parts(number));
     }
 #endif

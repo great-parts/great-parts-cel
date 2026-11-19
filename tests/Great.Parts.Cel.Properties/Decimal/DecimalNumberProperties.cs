@@ -1,6 +1,4 @@
-#if NET11_0_OR_GREATER
 using System.Globalization;
-using System.Numerics;
 using Great.Parts.Cel.Diagnostics;
 using Xunit;
 
@@ -10,7 +8,8 @@ namespace Great.Parts.Cel.Properties.Decimals;
 // truncated value is out of the range; decimal(i) and decimal(u) are exact over the whole range of both; double() is the nearest
 // double, half to even, and ConversionRange exactly when it is infinite; decimal(d) is the shortest digits of the double in the
 // layout of the %g verb of Go, equals decimal(string(d)), and is ConversionRange for a NaN and an infinity; and System.Decimal
-// goes in exactly and comes out rounded half to even to 28 places and 96 bits, ResultConversion exactly when it does not fit.
+// goes in exactly and, on net11.0, comes out rounded half to even to 28 places and 96 bits, ResultConversion exactly when it does
+// not fit; on net10.0 the value is a System.Decimal and goes in and out as it is.
 public sealed class DecimalNumberProperties
 {
     private const ulong IntegerSeed = 20261221;
@@ -22,13 +21,15 @@ public sealed class DecimalNumberProperties
 
     private static readonly CelProgram<long> ToInt = DecimalHarness.Program<long>("int(a)");
     private static readonly CelProgram<ulong> ToUint = DecimalHarness.Program<ulong>("uint(a)");
-    private static readonly CelProgram<Decimal128> FromInt = DecimalHarness.Program<Decimal128>("decimal(i)");
-    private static readonly CelProgram<Decimal128> FromUint = DecimalHarness.Program<Decimal128>("decimal(u)");
+    private static readonly CelProgram<PlatformDecimal> FromInt = DecimalHarness.Program<PlatformDecimal>("decimal(i)");
+    private static readonly CelProgram<PlatformDecimal> FromUint = DecimalHarness.Program<PlatformDecimal>("decimal(u)");
     private static readonly CelProgram<double> ToDouble = DecimalHarness.Program<double>("double(a)");
-    private static readonly CelProgram<Decimal128> FromDouble = DecimalHarness.Program<Decimal128>("decimal(d)");
-    private static readonly CelProgram<Decimal128> FromDoubleText = DecimalHarness.Program<Decimal128>("decimal(string(d))");
-    private static readonly CelProgram<Decimal128> FromSystem = DecimalHarness.Program<Decimal128>("m");
+    private static readonly CelProgram<PlatformDecimal> FromDouble = DecimalHarness.Program<PlatformDecimal>("decimal(d)");
+    private static readonly CelProgram<PlatformDecimal> FromDoubleText = DecimalHarness.Program<PlatformDecimal>("decimal(string(d))");
+    private static readonly CelProgram<PlatformDecimal> FromSystem = DecimalHarness.Program<PlatformDecimal>("m");
+#if NET11_0_OR_GREATER
     private static readonly CelProgram<decimal> ToSystem = DecimalHarness.Program<decimal>("a");
+#endif
 
     [Fact]
     [Trait("Requirement", "F-5")]
@@ -90,6 +91,7 @@ public sealed class DecimalNumberProperties
     public void SystemDecimalGoingInOnTheBoundaries_IsExact() =>
         DecimalHarness.CheckAll(nameof(SystemDecimalGoingInOnTheBoundaries_IsExact), DecimalGenerators.SystemDecimalEdges, FromSystemViolation, ShowSystem);
 
+#if NET11_0_OR_GREATER
     [Fact]
     [Trait("Requirement", "F-5")]
     public void SystemDecimalComingOut_IsTheRoundingOfTheReference() =>
@@ -99,6 +101,7 @@ public sealed class DecimalNumberProperties
     [Trait("Requirement", "F-5")]
     public void SystemDecimalComingOutOnTheBoundaries_IsTheRoundingOfTheReference() =>
         DecimalHarness.CheckAll(nameof(SystemDecimalComingOutOnTheBoundaries_IsTheRoundingOfTheReference), DecimalGenerators.SystemRangeEdges, ToSystemViolation, value => value.ToString());
+#endif
 
     private static string? TruncationViolation(RefDecimal value)
     {
@@ -136,8 +139,11 @@ public sealed class DecimalNumberProperties
     private static string? FromDoubleViolation(double value)
     {
         bool finite = double.IsFinite(value);
-        string expected = finite
-            ? ReferenceDecimalText.FromDouble(value).ToString()
+
+        // The shortest digits of the double, rounded once into the format of the target: out of the range of System.Decimal on net10.0
+        // a double of 1e300 is ConversionRange, and one of 1e-30 is a zero with the exponent -28.
+        string expected = finite && ReferenceDecimal.Round(ReferenceDecimalText.FromDouble(value)) is { } rounded
+            ? rounded.ToString()
             : DecimalHarness.ExpectedError(CelErrorCode.ConversionRange);
         CelBindings bindings = new CelBindings().Add("d", value);
         string? direct = DecimalHarness.Differs("decimal(d)", expected, DecimalHarness.Observe(FromDouble.Evaluate(bindings), DecimalHarness.Parts));
@@ -150,10 +156,11 @@ public sealed class DecimalNumberProperties
 
     private static string? FromSystemViolation(decimal value) =>
         DecimalHarness.Differs(
-            "m as Decimal128",
+            "m as the platform decimal",
             ReferenceDecimalNumbers.FromSystemDecimal(value).ToString(),
             DecimalHarness.Observe(FromSystem.Evaluate(new CelBindings().Add("m", value)), DecimalHarness.Parts));
 
+#if NET11_0_OR_GREATER
     private static string? ToSystemViolation(RefDecimal value)
     {
         string expected = ReferenceDecimalNumbers.ToSystemDecimal(value) is { } parts
@@ -162,10 +169,10 @@ public sealed class DecimalNumberProperties
         string actual = DecimalHarness.Observe(ToSystem.Evaluate(DecimalHarness.Bind("a", value)), static number => ReferenceDecimalNumbers.FromSystemDecimal(number).ToString());
         return DecimalHarness.Differs("a as System.Decimal", expected, actual);
     }
+#endif
 
     private static string ShowDouble(double value) =>
         value.ToString("R", CultureInfo.InvariantCulture) + " (bits " + DecimalHarness.DoubleBits(value) + ")";
 
     private static string ShowSystem(decimal value) => ReferenceDecimalNumbers.FromSystemDecimal(value).ToString();
 }
-#endif

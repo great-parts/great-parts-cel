@@ -30,26 +30,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Pt : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Pt : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Pt>
         {
             internal static readonly Type_Acme_Pt Description = new();
 
             private Type_Acme_Pt()
                 : base(
                     "Acme.Pt",
-                    typeof(global::Acme.Pt),
                     [
                         new(0, "x", global::Great.Parts.Cel.Types.CelType.Int),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Pt instance, int number)
             {
-                var value = (global::Acme.Pt)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.X);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.X);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -65,14 +63,13 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Row : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Row : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Row>
         {
             internal static readonly Type_Acme_Row Description = new();
 
             private Type_Acme_Row()
                 : base(
                     "Acme.Row",
-                    typeof(global::Acme.Row),
                     [
                         new(0, "any", global::Great.Parts.Cel.Types.CelType.Dyn),
                         new(1, "b", global::Great.Parts.Cel.Types.CelType.Bool),
@@ -118,107 +115,106 @@ namespace Acme
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Row instance, int number)
             {
-                var value = (global::Acme.Row)instance;
                 switch (number)
                 {
                     case 0:
                     {
-                        var v = value.Any;
+                        var v = instance.Any;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : FromDynamic(0, v);
                     }
-                    case 1: return global::Great.Parts.Cel.Values.CelValue.FromBoolean(value.B);
-                    case 2: return FromEnum(2, value.Big);
-                    case 3: return FromEnum(3, value.Bits);
+                    case 1: return global::Great.Parts.Cel.Values.CelValue.FromBoolean(instance.B);
+                    case 2: return FromEnum(2, instance.Big);
+                    case 3: return FromEnum(3, instance.Bits);
                     case 4:
                     {
-                        var v = value.Blob;
+                        var v = instance.Blob;
                         return v is null ? FieldError(4, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromBytes(v);
                     }
-                    case 5: return FromEnum(5, value.Color);
-                    case 6: return global::Great.Parts.Cel.Values.CelValue.FromDouble((double)value.D);
-                    case 7: return FromTimeSpan(7, value.Elapsed);
-                    case 8: return global::Great.Parts.Cel.Values.CelValue.FromDouble((double)value.F);
-                    case 9: return global::Great.Parts.Cel.Values.CelValue.FromDouble((double)value.H);
-                    case 10: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.I16);
-                    case 11: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.I32);
-                    case 12: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.I64);
-                    case 13: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.I8);
-                    case 14: return global::Great.Parts.Cel.Values.CelValue.FromString(value.Id.ToString("D"));
-                    case 15: return FromDateTime(15, value.Instant);
+                    case 5: return FromEnum(5, instance.Color);
+                    case 6: return global::Great.Parts.Cel.Values.CelValue.FromDouble((double)instance.D);
+                    case 7: return FromTimeSpan(7, instance.Elapsed);
+                    case 8: return global::Great.Parts.Cel.Values.CelValue.FromDouble((double)instance.F);
+                    case 9: return global::Great.Parts.Cel.Values.CelValue.FromDouble((double)instance.H);
+                    case 10: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.I16);
+                    case 11: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.I32);
+                    case 12: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.I64);
+                    case 13: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.I8);
+                    case 14: return global::Great.Parts.Cel.Values.CelValue.FromString(instance.Id.ToString("D"));
+                    case 15: return FromDateTime(15, instance.Instant);
                     case 16:
                     {
-                        var v = value.Items;
+                        var v = instance.Items;
                         return v is null ? FieldError(16, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(v);
                     }
-                    case 17: return FromDynamic(17, value.Json);
-                    case 18: return global::Great.Parts.Cel.Values.CelValue.FromDuration(value.Lapse);
-                    case 19: return global::Great.Parts.Cel.Values.CelValue.FromBytes(value.Memory);
-                    case 20: return global::Great.Parts.Cel.Values.CelValue.FromTimestamp(global::Great.Parts.Cel.Values.CelTimestamp.FromDateTimeOffset(value.Moment));
+                    case 17: return FromDynamic(17, instance.Json);
+                    case 18: return global::Great.Parts.Cel.Values.CelValue.FromDuration(instance.Lapse);
+                    case 19: return global::Great.Parts.Cel.Values.CelValue.FromBytes(instance.Memory);
+                    case 20: return global::Great.Parts.Cel.Values.CelValue.FromTimestamp(global::Great.Parts.Cel.Values.CelTimestamp.FromDateTimeOffset(instance.Moment));
                     case 21:
                     {
-                        var v = value.Must;
+                        var v = instance.Must;
                         return v is null ? FieldError(21, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromDynamic(21, v);
                     }
-                    case 22: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Native);
-                    case 23: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(value.NativeU);
+                    case 22: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Native);
+                    case 23: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(instance.NativeU);
                     case 24:
                     {
-                        var v = value.Note;
+                        var v = instance.Note;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
                     case 25:
                     {
-                        var v = value.OptBlob;
+                        var v = instance.OptBlob;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : global::Great.Parts.Cel.Values.CelValue.FromBytes(v);
                     }
                     case 26:
                     {
-                        var v = value.OptColor;
+                        var v = instance.OptColor;
                         return v.HasValue ? FromEnum(26, v.Value) : global::Great.Parts.Cel.Values.CelValue.Null;
                     }
                     case 27:
                     {
-                        var v = value.OptElapsed;
+                        var v = instance.OptElapsed;
                         return v.HasValue ? FromTimeSpan(27, v.Value) : FieldError(27, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null);
                     }
                     case 28:
                     {
-                        var v = value.OptId;
+                        var v = instance.OptId;
                         return v.HasValue ? global::Great.Parts.Cel.Values.CelValue.FromString(v.Value.ToString("D")) : global::Great.Parts.Cel.Values.CelValue.Null;
                     }
                     case 29:
                     {
-                        var v = value.OptInt;
+                        var v = instance.OptInt;
                         return v.HasValue ? global::Great.Parts.Cel.Values.CelValue.FromInt64(v.Value) : global::Great.Parts.Cel.Values.CelValue.Null;
                     }
                     case 30:
                     {
-                        var v = value.OptMoment;
+                        var v = instance.OptMoment;
                         return v.HasValue ? global::Great.Parts.Cel.Values.CelValue.FromTimestamp(global::Great.Parts.Cel.Values.CelTimestamp.FromDateTimeOffset(v.Value)) : FieldError(30, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null);
                     }
                     case 31:
                     {
-                        var v = value.OptPt;
+                        var v = instance.OptPt;
                         return v.HasValue ? FromInstance((object)v.Value) : global::Great.Parts.Cel.Values.CelValue.Null;
                     }
-                    case 32: return global::Great.Parts.Cel.Values.CelValue.FromTimestamp(value.Stamp);
+                    case 32: return global::Great.Parts.Cel.Values.CelValue.FromTimestamp(instance.Stamp);
                     case 33:
                     {
-                        var v = value.Table;
+                        var v = instance.Table;
                         return v is null ? FieldError(33, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(v);
                     }
                     case 34:
                     {
-                        var v = value.Text;
+                        var v = instance.Text;
                         return v is null ? FieldError(34, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
-                    case 35: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(value.U16);
-                    case 36: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(value.U32);
-                    case 37: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(value.U64);
-                    case 38: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(value.U8);
-                    case 39: return value.Value;
+                    case 35: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(instance.U16);
+                    case 36: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(instance.U32);
+                    case 37: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(instance.U64);
+                    case 38: return global::Great.Parts.Cel.Values.CelValue.FromUInt64(instance.U8);
+                    case 39: return instance.Value;
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -252,13 +248,12 @@ namespace Acme
                 }
             }
 
-            protected override long FieldReadCost(object instance, int number)
+            protected override long FieldReadCost(in global::Acme.Row instance, int number)
             {
-                var value = (global::Acme.Row)instance;
                 switch (number)
                 {
                     case 17: return 2L;
-                    case 31: return value.OptPt.HasValue ? 2L : 0;
+                    case 31: return instance.OptPt.HasValue ? 2L : 0;
                     default: return 0;
                 }
             }

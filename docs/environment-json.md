@@ -242,7 +242,7 @@ These are set in code, next to `Apply`. A key for them is an unknown key and an 
 | the time zone database | `CelTimeZoneDatabase` and `UseTimeZones` of the builder; a variable of the type `timestamp` and a receiver with a zone work in an environment from JSON as in code, see [Time zone database](recipes/time-zone-database.md) |
 | the implementations of functions | `AddFunctionImplementation(id, delegate)`, before or after `Apply`: they are bound to the overloads by the identifier at `Build`, and the order of the calls does not change the environment |
 | the types of .NET from type contexts, and the protobuf provider | `AddTypes` |
-| the flag of the `decimal` literal | a method of the builder, on `net11.0` only |
+| the flag of the `decimal` literal | `EnableDecimalLiterals()` of the builder, on both targets |
 
 ## Differences from cel-go v0.33.4
 

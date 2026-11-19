@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using System;
 using System.Globalization;
 
@@ -12,11 +11,16 @@ internal enum DecimalParseResult
     // The text is not of the grammar.
     NotANumber,
 
-    // More than 34 significant digits, in the exact mode.
+    // More significant digits than the platform holds, in the exact mode: more than 34 for a decimal128, more than 29 or a
+    // coefficient of 2^96 and more for a System.Decimal.
     TooManyDigits,
 
-    // After the rounding to 34 digits the exponent is outside −6176 to 6111; a zero is not an exception.
+    // The exponent is outside the range of the platform: after the rounding to 34 digits outside −6176 to 6111 (a zero is not an
+    // exception), or below −28 for a System.Decimal; of a text that is read by rounding, the value that does not fit 96 bits.
     ExponentOutOfRange,
+
+    // A System.Decimal literal with a positive exponent whose value is 2^96 or more.
+    ValueOutOfRange,
 }
 
 // The text of a decimal: the reading of a literal and of a string, the text of a value, and the conversions to and from double. The
@@ -44,8 +48,8 @@ internal static class DecimalTextRules
 
     // Reads [+|-] (digits [. [digits]] | . digits) [(e|E) [+|-] digits], the whole text: ASCII digits only, no space, no separator,
     // no Infinity or NaN and no hexadecimal form. A literal passes the text of its token without the suffix and the sign, and gives
-    // the sign itself. With exact, more than 34 significant digits are TooManyDigits; without it the digits are rounded to 34 half to
-    // even. The cohort of 34 digits or fewer is kept as written.
+    // the sign itself. With exact, a value that the platform does not hold exactly is an error, not a rounded value; without it the
+    // digits are rounded once, half to even, to the precision of the platform. The cohort that the platform holds is kept as written.
     internal static DecimalParseResult TryParse(ReadOnlySpan<char> text, bool exact, out DecimalParts value)
     {
         value = default;
@@ -58,12 +62,20 @@ internal static class DecimalTextRules
         digits.Add(integer);
         digits.Add(fraction);
         int dropped = Math.Max(digits.Significant - DecimalParts.MaxDigits, 0);
+        return Finish(negative, in digits, written - fraction.Length + dropped, exact, out value);
+    }
+
+#if NET11_0_OR_GREATER
+    // decimal128: 34 digits, rounded half to even; the exponent from −6176 to 6111.
+    private static DecimalParseResult Finish(bool negative, in DigitReader digits, long exponent, bool exact, out DecimalParts value)
+    {
+        value = default;
+        int dropped = Math.Max(digits.Significant - DecimalParts.MaxDigits, 0);
         if (exact && dropped > 0)
         {
             return DecimalParseResult.TooManyDigits;
         }
 
-        long exponent = written - fraction.Length + dropped;
         UInt128 coefficient = digits.Rounded(dropped, ref exponent);
         if (exponent is < DecimalParts.MinExponent or > DecimalParts.MaxExponent)
         {
@@ -73,6 +85,59 @@ internal static class DecimalTextRules
         value = new DecimalParts(negative, coefficient, (int)exponent);
         return DecimalParseResult.Parsed;
     }
+#else
+    // System.Decimal: a coefficient of 96 bits and the exponent from −28 to 0. A literal that does not fit is an error; a string is
+    // rounded once from the original digits (the 34 kept digits are cut, not rounded, and Sticky tells that more digits followed),
+    // so there is no double rounding, and a value below the exponent −28 rounds and can be a zero.
+    private static DecimalParseResult Finish(bool negative, in DigitReader digits, long exponent, bool exact, out DecimalParts value)
+    {
+        value = default;
+        UInt128 coefficient = digits.Coefficient;
+        if (!exact)
+        {
+            var cut = new DecimalParts(negative, coefficient, (int)Math.Clamp(exponent, -100, 1_000));
+            if (!DecimalNumberRules.ToSystemDecimal(cut, digits.Sticky, out decimal rounded))
+            {
+                return DecimalParseResult.ExponentOutOfRange;
+            }
+
+            value = DecimalNumberRules.FromSystemDecimal(rounded);
+            return DecimalParseResult.Parsed;
+        }
+
+        if (digits.Significant > DecimalPlatform.MaxDigits || coefficient > DecimalNumberRules.MaxSystemCoefficient)
+        {
+            return DecimalParseResult.TooManyDigits;
+        }
+
+        if (exponent < DecimalPlatform.MinExponent)
+        {
+            return DecimalParseResult.ExponentOutOfRange;
+        }
+
+        if (exponent > 0)
+        {
+            if (coefficient != UInt128.Zero)
+            {
+                if (exponent + digits.Significant > DecimalPlatform.MaxDigits)
+                {
+                    return DecimalParseResult.ValueOutOfRange;
+                }
+
+                coefficient *= DecimalParts.Powers[(int)exponent];
+                if (coefficient > DecimalNumberRules.MaxSystemCoefficient)
+                {
+                    return DecimalParseResult.ValueOutOfRange;
+                }
+            }
+
+            exponent = 0;
+        }
+
+        value = new DecimalParts(negative, coefficient, (int)exponent);
+        return DecimalParseResult.Parsed;
+    }
+#endif
 
     // The grammar: the sign, the digits of the integer part and of the fraction, and the written exponent, which is 0 when there is
     // none. False when the text is not a number of it.
@@ -341,6 +406,9 @@ internal static class DecimalTextRules
         // The count of the digits from the first that is not zero, all of them, the dropped ones too.
         internal int Significant;
 
+        // Whether a digit that is not zero followed the 34 kept ones.
+        internal readonly bool Sticky => _firstDropped != 0 || _laterNonZero;
+
         private int _firstDropped;
 
         private bool _laterNonZero;
@@ -392,4 +460,3 @@ internal static class DecimalTextRules
         }
     }
 }
-#endif

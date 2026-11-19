@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using System;
 
 namespace Great.Parts.Cel.Values;
@@ -9,7 +8,7 @@ namespace Great.Parts.Cel.Values;
 internal static class DecimalNumberRules
 {
     // A coefficient of System.Decimal is 96 bits.
-    private static readonly UInt128 MaxSystemCoefficient = (UInt128.One << 96) - UInt128.One;
+    internal static readonly UInt128 MaxSystemCoefficient = (UInt128.One << 96) - UInt128.One;
 
     // The most digits and the largest scale of System.Decimal.
     private const int SystemDigits = 29;
@@ -71,7 +70,11 @@ internal static class DecimalNumberRules
 
     // The System.Decimal of the value: exact when it fits, otherwise rounded half to even to a scale of at most 28 and a coefficient of
     // 96 bits; false when even the integer part does not fit. A negative zero and the scale of a zero are kept.
-    internal static bool ToSystemDecimal(DecimalParts value, out decimal result)
+    internal static bool ToSystemDecimal(DecimalParts value, out decimal result) => ToSystemDecimal(value, false, out result);
+
+    // The same for the digits of a text that had more digits than the parts hold: the parts are cut, not rounded, and more is set when a
+    // digit that is not zero was cut, so that a tie is not a tie. The rounding is then once, from the original digits.
+    internal static bool ToSystemDecimal(DecimalParts value, bool more, out decimal result)
     {
         result = 0m;
         UInt128 coefficient = value.Coefficient;
@@ -88,7 +91,7 @@ internal static class DecimalNumberRules
                 coefficient *= DecimalParts.Powers[value.Exponent];
             }
         }
-        else if (!TryScale(value, out coefficient, out scale))
+        else if (!TryScale(value, more, out coefficient, out scale))
         {
             return false;
         }
@@ -98,14 +101,18 @@ internal static class DecimalNumberRules
             return false;
         }
 
-        result = new decimal(
+        result = MakeSystemDecimal(value.Negative, coefficient, scale);
+        return true;
+    }
+
+    // The System.Decimal of a coefficient of at most 96 bits and a scale of at most 28.
+    internal static decimal MakeSystemDecimal(bool negative, UInt128 coefficient, int scale) =>
+        new(
             unchecked((int)(uint)coefficient),
             unchecked((int)(uint)(coefficient >> 32)),
             unchecked((int)(uint)(coefficient >> 64)),
-            value.Negative,
+            negative,
             (byte)scale);
-        return true;
-    }
 
     // The magnitude of the value without its fraction; false when it is at least 10^20, far above the range of both integers.
     private static bool TryTruncate(DecimalParts value, out UInt128 magnitude)
@@ -140,11 +147,11 @@ internal static class DecimalNumberRules
     // The coefficient and the scale of a System.Decimal for a negative exponent: the digits beyond a scale of 28 go, rounded, and while
     // the coefficient is above 96 bits one more digit goes, rounded from the original coefficient; when more digits would go than the
     // scale has, the integer part is too large.
-    private static bool TryScale(DecimalParts value, out UInt128 coefficient, out int scale)
+    private static bool TryScale(DecimalParts value, bool more, out UInt128 coefficient, out int scale)
     {
         int source = -value.Exponent;
         int dropped = Math.Max(source - SystemScale, 0);
-        coefficient = dropped == 0 ? value.Coefficient : DecimalParts.DropDigits(value.Coefficient, dropped);
+        coefficient = dropped == 0 ? value.Coefficient : DecimalParts.DropDigits(value.Coefficient, dropped, more);
         while (coefficient > MaxSystemCoefficient)
         {
             if (++dropped > source)
@@ -153,11 +160,10 @@ internal static class DecimalNumberRules
                 return false;
             }
 
-            coefficient = DecimalParts.DropDigits(value.Coefficient, dropped);
+            coefficient = DecimalParts.DropDigits(value.Coefficient, dropped, more);
         }
 
         scale = source - dropped;
         return true;
     }
 }
-#endif

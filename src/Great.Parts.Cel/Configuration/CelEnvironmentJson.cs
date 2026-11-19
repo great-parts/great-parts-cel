@@ -225,5 +225,6 @@ public static class CelEnvironmentJson
             $"invalid environment description at line {location.Line}, column {location.Column}: {error.Detail}"),
         default,
         location,
-        null);
+        null,
+        subject: error.Key);
 }

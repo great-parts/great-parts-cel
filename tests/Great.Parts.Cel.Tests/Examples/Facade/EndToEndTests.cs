@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -75,7 +74,7 @@ public sealed class EndToEndTests
         CelCompileResult<long> compiled = environment.Compile<long>("x +\n  (1");
 
         Assert.False(compiled.IsSuccess);
-        Assert.Throws<InvalidOperationException>(() => compiled.Program);
+        Assert.Throws<CelException>(() => compiled.Program);
         CelError error = compiled.Errors[0];
         Assert.Equal(CelErrorCode.SyntaxError, error.Code);
         Assert.Equal(CelErrorStage.Parse, error.Stage);

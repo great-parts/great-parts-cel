@@ -9,7 +9,7 @@ namespace Great.Parts.Cel.Generator;
 // The transform of the pipeline: everything about one context is read here, into values. The result holds no symbol and no
 // syntax node, so the steps after it compare it by value. The order of the reading, so that every diagnostic that applies is
 // reported: the declaration (GPCEL006), the language version (GPCEL008), the options, the roots (GPCEL001, GPCEL004, GPCEL005),
-// the closure over the members (GPCEL002, GPCEL003, GPCEL005, GPCEL007, GPCEL009) and the check of the names of the whole (GPCEL004).
+// the closure over the members (GPCEL002, GPCEL003, GPCEL005, GPCEL009) and the check of the names of the whole (GPCEL004).
 internal static class ContextReader
 {
     internal static ContextReadResult Read(GeneratorAttributeSyntaxContext context, CancellationToken cancellationToken)
@@ -29,14 +29,14 @@ internal static class ContextReader
             return new ContextReadResult(null, sink.ToArray());
         }
 
-        CompilationFacts facts = CompilationFacts.From(context.SemanticModel.Compilation, declaration.SyntaxTree);
+        CompilationFacts facts = CompilationFacts.From(declaration.SyntaxTree);
         bool supported = facts.Language >= CompilationFacts.MinimumLanguage;
         if (!supported)
         {
             sink.Report(DiagnosticIds.LanguageVersion, place, symbol.Name, facts.LanguageText);
         }
 
-        TypeRegistry registry = Walk(symbol, facts, place, sink, cancellationToken);
+        TypeRegistry registry = Walk(symbol, place, sink, cancellationToken);
         if (registry.LimitExceeded)
         {
             sink.Report(DiagnosticIds.ContextTooLarge, place, symbol.Name, TypeRegistry.Limit.ToString(CultureInfo.InvariantCulture));
@@ -48,10 +48,10 @@ internal static class ContextReader
 
     // The closure: the roots, then each root's walk over the members of the types it reaches, with an explicit stack so that a
     // deep graph cannot overflow the stack of the compiler. A type that two walks reach belongs to the first by the order of the roots.
-    private static TypeRegistry Walk(INamedTypeSymbol symbol, CompilationFacts facts, LocationInfo place, DiagnosticSink sink, CancellationToken cancellationToken)
+    private static TypeRegistry Walk(INamedTypeSymbol symbol, LocationInfo place, DiagnosticSink sink, CancellationToken cancellationToken)
     {
         var registry = new TypeRegistry();
-        var classifier = new TypeClassifier(facts, registry);
+        var classifier = new TypeClassifier(registry);
         var roots = new RootReader(symbol.Name, classifier, registry, sink);
         List<RootInfo> accepted = roots.Read(RootAttributes(symbol), place, cancellationToken);
         var members = new MemberReader(classifier, ContextOptions.Read(symbol), sink, symbol.ContainingAssembly);

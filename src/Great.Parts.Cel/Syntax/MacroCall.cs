@@ -9,17 +9,31 @@ namespace Great.Parts.Cel.Syntax;
 /// </summary>
 internal sealed class MacroCall
 {
-    internal MacroCall(string function, ExprNode? target, ImmutableArray<ExprNode> arguments)
+    internal MacroCall(string function, ExprNode? target, ImmutableArray<ExprNode> arguments, string? @namespace = null, bool isWritten = true)
     {
         Function = function;
         Target = target;
         Arguments = arguments;
+        QualifiedName = @namespace is null ? function : @namespace + "." + function;
+        IsWritten = isWritten;
     }
+
+    /// <summary>
+    /// Whether the text writes the call. A call that the expansion of another macro records for its own part, such as the
+    /// <c>map</c> inside <c>sortBy</c>, is not written.
+    /// </summary>
+    internal bool IsWritten { get; }
 
     /// <summary>
     /// The name of the macro.
     /// </summary>
     internal string Function { get; }
+
+    /// <summary>
+    /// The name that the text calls the macro by: <see cref="Function"/>, and for a macro of a namespace, such as
+    /// <c>math.greatest</c>, the namespace and the name joined by a dot.
+    /// </summary>
+    internal string QualifiedName { get; }
 
     /// <summary>
     /// The receiver of a macro in the member form <c>target.all(v, p)</c>, or <see langword="null"/> for a global one

@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using System.Globalization;
 using System.Numerics;
 
@@ -21,4 +20,3 @@ internal readonly record struct RefPair(RefDecimal First, RefDecimal Second)
     public override string ToString() =>
         string.Create(CultureInfo.InvariantCulture, $"{First} and {Second}");
 }
-#endif

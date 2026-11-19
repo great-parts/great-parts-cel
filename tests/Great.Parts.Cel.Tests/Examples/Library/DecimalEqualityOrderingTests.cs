@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Library;
@@ -42,7 +41,7 @@ public sealed class DecimalEqualityOrderingTests
         1.5m in [1.50m, 2.5m] => true
         """;
 
-    private const string Order = $$"""
+    private const string Order = """
         1.5m < 2.5m => true
         1.5m < 1.50m => false
         1.5m <= 1.50m => true
@@ -57,11 +56,23 @@ public sealed class DecimalEqualityOrderingTests
         0m >= -0m => true
         1e2m > 99m => true
         1e2m > 100m => false
+        0.1m + 0.2m > 0.3m => false
+        """;
+
+    // The ends of the range of the platform: the exponents -6176 and 6111 of decimal128, the scale 28 and 2^96 - 1 of System.Decimal.
+#if NET11_0_OR_GREATER
+    private const string OrderRange = $$"""
         1e-6176m > 0m => true
         {{DecimalExample.Max34}}e6111m > 1e6111m => true
         -{{DecimalExample.Max34}}e6111m < -1e6111m => true
-        0.1m + 0.2m > 0.3m => false
         """;
+#else
+    private const string OrderRange = """
+        0.0000000000000000000000000001m > 0m => true
+        79228162514264337593543950335m > 10000000000000000000000000000m => true
+        -79228162514264337593543950335m < -10000000000000000000000000000m => true
+        """;
+#endif
 
     // A decimal is not a number of the other kinds under dyn: not equal, without an error; not ordered, with the error.
     private const string DynEquality = """
@@ -161,7 +172,7 @@ public sealed class DecimalEqualityOrderingTests
     public void TwoDecimals_AreEqualWhenTheyAreTheSameNumber() => Assert.Empty(ExtensionRows.CheckValues(environment, Equality));
 
     [Fact]
-    public void TwoDecimals_AreOrderedByTheNumber() => Assert.Empty(ExtensionRows.CheckValues(environment, Order));
+    public void TwoDecimals_AreOrderedByTheNumber() => Assert.Empty(ExtensionRows.CheckValues(environment, Order + "\n" + OrderRange));
 
     [Fact]
     [Trait("Requirement", "F-8")]
@@ -192,4 +203,3 @@ public sealed class DecimalEqualityOrderingTests
     public void MacrosOverDecimalsUnderDyn_AreEvalNoMatchingOverloadAtTheParenOfTheMacroCall() =>
         Assert.Empty(ExtensionRows.CheckErrors(withMath, MacrosUnderDyn));
 }
-#endif

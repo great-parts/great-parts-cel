@@ -17,13 +17,14 @@ internal static partial class StringFunctions
     private const char ReplacementCharacter = (char)0xFFFD;
 
     // The text of an index error: the index is the number of the error.
-    private static readonly Func<CelError, string> IndexOutOfRangeText = static error =>
-        "index out of range: " + error.Number.ToString(CultureInfo.InvariantCulture);
+    private static readonly ErrorTemplate IndexOutOfRangeText = new(static error =>
+        "index out of range: " + error.Number.ToString(CultureInfo.InvariantCulture));
 
     // The function name is the first part and the start, the number: a detail names one number of the arguments.
-    private static readonly Func<CelError, string> SubstringRangeText = static error =>
-        "invalid argument to '" + (string)error.First! + "': invalid substring range: start index " + error.Number.ToString(CultureInfo.InvariantCulture)
-        + " must be less than or equal to the end index";
+    private static readonly ErrorTemplate SubstringRangeText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': invalid substring range: start index " + error.Number.ToString(CultureInfo.InvariantCulture)
+            + " must be less than or equal to the end index",
+        subject: static error => (string)error.First!);
 
     // string_char_at_int, string.charAt(int) -> string: the code point at the index; the index equal to the length gives "".
     internal static CelValue CharAt(ReadOnlySpan<CelValue> arguments, in CallSite site)

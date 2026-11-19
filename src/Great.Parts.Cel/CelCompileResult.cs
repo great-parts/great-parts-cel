@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Great.Parts.Cel.Diagnostics;
@@ -47,9 +46,15 @@ public sealed class CelCompileResult<T>
     /// <summary>
     /// The compiled program. Read it only when <see cref="IsSuccess"/> is <see langword="true"/>.
     /// </summary>
-    /// <exception cref="InvalidOperationException"><see cref="IsSuccess"/> is <see langword="false"/>.</exception>
+    /// <exception cref="CelException">
+    /// <see cref="IsSuccess"/> is <see langword="false"/>; <see cref="CelException.Errors"/> holds the compilation errors.
+    /// </exception>
+    [SuppressMessage(
+        "Design",
+        "CA1065:Do not raise exceptions in unexpected locations",
+        Justification = "Reading the program of an unsuccessful result throws CelException with all its errors.")]
     public CelProgram<T>? Program =>
-        _program ?? throw new InvalidOperationException("The program was not compiled: the result has compilation errors.");
+        _program ?? throw CelException.FromErrors(Errors);
 
     /// <summary>
     /// All compilation errors found; empty when <see cref="IsSuccess"/> is <see langword="true"/>.
@@ -67,5 +72,5 @@ public sealed class CelCompileResult<T>
         "Design",
         "CA1024:Use properties where appropriate",
         Justification = "The method throws for an unsuccessful result; a property getter must not throw, and the name tells the caller that it can.")]
-    public CelProgram<T> GetProgramOrThrow() => _program ?? throw new CelException(Errors);
+    public CelProgram<T> GetProgramOrThrow() => _program ?? throw CelException.FromErrors(Errors);
 }

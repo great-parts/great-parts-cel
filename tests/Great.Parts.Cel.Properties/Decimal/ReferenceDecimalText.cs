@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using System;
 using System.Globalization;
 using System.Numerics;
@@ -15,8 +14,9 @@ internal enum ParseOutcome
 internal readonly record struct ParsedDecimal(ParseOutcome Outcome, RefDecimal Value);
 
 // The text of a decimal value, written from the rules and not from the library: the to-scientific-string of the decimal
-// arithmetic specification, the reading of a string by the grammar with the rounding to 34 digits and the range of the exponent,
-// and the layout of a double (the shortest digits, placed as the %g verb of Go places them).
+// arithmetic specification, the reading of a string by the grammar with the rounding to the precision of the target (34 digits on
+// net11.0, 96 bits of coefficient and the exponents -28 to 0 on net10.0) and the range of the exponent, and the layout of a double
+// (the shortest digits, placed as the %g verb of Go places them).
 internal static class ReferenceDecimalText
 {
     // A written exponent beyond this magnitude is out of range whatever the digits are, so it stops growing.
@@ -121,6 +121,9 @@ internal static class ReferenceDecimalText
     private static ParsedDecimal Round(bool negative, string digits, long exponent)
     {
         BigInteger coefficient = FromDigits(digits);
+#if !NET11_0_OR_GREATER
+        return RoundToSystemDecimal(negative, coefficient, exponent);
+#else
         int excess = ReferenceDecimal.DigitCount(coefficient) - ReferenceDecimal.Digits;
         if (excess > 0)
         {
@@ -136,7 +139,38 @@ internal static class ReferenceDecimalText
         return exponent < ReferenceDecimal.MinExponent || exponent > ReferenceDecimal.MaxExponent
             ? new ParsedDecimal(ParseOutcome.ExponentOutOfRange, default)
             : new ParsedDecimal(ParseOutcome.Parsed, new RefDecimal(negative, coefficient, (int)exponent));
+#endif
     }
+
+#if !NET11_0_OR_GREATER
+    // System.Decimal: the value is rounded once from the exact digits, half to even, to the smallest exponent from -28 up where the
+    // coefficient fits 96 bits; a value below that exponent rounds and can be a zero; a value whose integer part does not fit is out
+    // of the range. A value of 30 or more places before the point is certainly out, and one of 30 or more zeros after it is a zero.
+    private static ParsedDecimal RoundToSystemDecimal(bool negative, BigInteger coefficient, long exponent)
+    {
+        if (coefficient.IsZero)
+        {
+            return Parsed(new RefDecimal(negative, BigInteger.Zero, (int)Math.Clamp(exponent, ReferenceDecimal.MinExponent, ReferenceDecimal.MaxExponent)));
+        }
+
+        long magnitude = ReferenceDecimal.DigitCount(coefficient) + exponent;
+        if (magnitude > ReferenceDecimal.Digits)
+        {
+            return new ParsedDecimal(ParseOutcome.ExponentOutOfRange, default);
+        }
+
+        if (magnitude < ReferenceDecimal.MinExponent - 2)
+        {
+            return Parsed(new RefDecimal(negative, BigInteger.Zero, ReferenceDecimal.MinExponent));
+        }
+
+        return ReferenceDecimal.Finish(negative, coefficient, (int)exponent) is { } rounded
+            ? Parsed(rounded)
+            : new ParsedDecimal(ParseOutcome.ExponentOutOfRange, default);
+    }
+
+    private static ParsedDecimal Parsed(RefDecimal value) => new(ParseOutcome.Parsed, value);
+#endif
 
     internal static BigInteger FromDigits(string digits)
     {
@@ -191,4 +225,3 @@ internal static class ReferenceDecimalText
         return (digits, scale);
     }
 }
-#endif

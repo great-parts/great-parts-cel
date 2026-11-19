@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Great.Parts.Cel.Diagnostics;
@@ -51,9 +50,15 @@ public sealed class CelBuildResult
     /// <summary>
     /// The built environment. Read it only when <see cref="IsSuccess"/> is <see langword="true"/>.
     /// </summary>
-    /// <exception cref="InvalidOperationException"><see cref="IsSuccess"/> is <see langword="false"/>.</exception>
+    /// <exception cref="CelException">
+    /// <see cref="IsSuccess"/> is <see langword="false"/>; <see cref="CelException.Errors"/> holds the build errors.
+    /// </exception>
+    [SuppressMessage(
+        "Design",
+        "CA1065:Do not raise exceptions in unexpected locations",
+        Justification = "Reading the environment of an unsuccessful result throws CelException with all its errors.")]
     public CelEnvironment? Environment =>
-        _environment ?? throw new InvalidOperationException("The environment was not built: the result has build errors.");
+        _environment ?? throw CelException.FromErrors(Errors);
 
     /// <summary>
     /// All build errors found; empty when <see cref="IsSuccess"/> is <see langword="true"/>.
@@ -71,5 +76,5 @@ public sealed class CelBuildResult
         "Design",
         "CA1024:Use properties where appropriate",
         Justification = "The method throws for an unsuccessful result; a property getter must not throw, and the name tells the caller that it can.")]
-    public CelEnvironment GetEnvironmentOrThrow() => _environment ?? throw new CelException(Errors);
+    public CelEnvironment GetEnvironmentOrThrow() => _environment ?? throw CelException.FromErrors(Errors);
 }

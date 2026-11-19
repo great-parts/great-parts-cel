@@ -1,6 +1,7 @@
-#if NET11_0_OR_GREATER
 using System.Collections.Generic;
+#if NET11_0_OR_GREATER
 using System.Numerics;
+#endif
 using Great.Parts.Cel.Tests.Examples.Library;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -16,8 +17,9 @@ namespace Great.Parts.Cel.Tests.Examples.Checking;
 // the "." of the selection and at the "(" of has(), with the text "field '<field>' of type '<type>' is not available to expressions:
 // the CEL type decimal needs the extension set 'decimal'"; it is so for a field of the type decimal and for a field of a list or a map
 // of decimals, and for the field of a type that is itself a field of another. With the set the field is read as a decimal. The
-// type is described here by hand with CelObjectTypeBuilder; a member of the .NET type Decimal128 or System.Decimal of a type that
-// the generator described is the same field (GeneratedDecimalTests). Rows are those of ExtensionRows; order is a variable of the type
+// type is described here by hand with CelObjectTypeBuilder, with System.Decimal carriers on both targets and one more field of the
+// .NET type Decimal128 on net11.0; a member of either type of a type that the generator described is the same field
+// (GeneratedDecimalTests). Rows are those of ExtensionRows; order is a variable of the type
 // acme.sales.Order, whose fields are price (decimal), prices (list(decimal)), rates (map(string, decimal)), title (string) and line (the type
 // acme.sales.Line with the field price).
 [Trait("Requirement", "F-2")]
@@ -32,7 +34,7 @@ public sealed class DecimalFieldCheckTests
 
     private static readonly CelObjectType Order = new CelObjectTypeBuilder<OrderCarrier>("acme.sales.Order")
         .AddField("price", CelType.Decimal, carrier => CelValue.FromDecimal(carrier.Price))
-        .AddField("prices", CelType.ListOf(CelType.Decimal), carrier => CelValue.FromList(CelList.Create(CelValue.FromDecimal(carrier.Price), CelValue.FromDecimal(DecimalExample.Make(25, -1)))))
+        .AddField("prices", CelType.ListOf(CelType.Decimal), carrier => CelValue.FromList(CelList.Create(CelValue.FromDecimal(carrier.Price), CelValue.FromDecimal(2.50m))))
         .AddField("rates", CelType.MapOf(CelType.String, CelType.Decimal), carrier => CelValue.FromMap(CelMap.Create([new KeyValuePair<CelValue, CelValue>(CelValue.FromString("a"), CelValue.FromDecimal(carrier.Price))])))
         .AddField("title", CelType.String, carrier => CelValue.FromString(carrier.Title))
         .AddField("line", Line.Type, carrier => CelValue.FromObject(Line, new LineCarrier { Price = carrier.Price }))
@@ -66,7 +68,7 @@ public sealed class DecimalFieldCheckTests
 
     private readonly CelTypeProvider provider = CelTypeProvider.Create("sales", Order, Line);
 
-    private readonly CelBindings bindings = new CelBindings().Add("order", new OrderCarrier { Price = DecimalExample.Make(150, -2), Title = "a" });
+    private readonly CelBindings bindings = new CelBindings().Add("order", new OrderCarrier { Price = 1.50m, Title = "a" });
 
     // A description with a decimal field builds without the set, and its other fields compile.
     [Fact]
@@ -97,14 +99,37 @@ public sealed class DecimalFieldCheckTests
 
     private sealed class OrderCarrier
     {
-        public Decimal128 Price { get; init; }
+        public decimal Price { get; init; }
 
         public string Title { get; init; } = string.Empty;
     }
 
     private sealed class LineCarrier
     {
+        public decimal Price { get; init; }
+    }
+
+#if NET11_0_OR_GREATER
+    // A field of the .NET type Decimal128 is the same CEL type, with its digits and exponent kept: net11.0 only.
+    [Fact]
+    public void Decimal128Field_IsReadAsADecimal_WithItsCohort()
+    {
+        CelObjectType exact = new CelObjectTypeBuilder<ExactCarrier>("acme.sales.Exact")
+            .AddField("price", CelType.Decimal, carrier => CelValue.FromDecimal128(carrier.Price))
+            .Build();
+        CelEnvironment environment = DecimalExample.Builder()
+            .AddTypes(CelTypeProvider.Create("exact", exact))
+            .AddVariable("exact", exact.Type)
+            .Build()
+            .GetEnvironmentOrThrow();
+        var data = new CelBindings().Add("exact", new ExactCarrier { Price = DecimalExample.Make(1_234_567, -10) });
+
+        Assert.Empty(ExtensionRows.CheckValues(environment, "string(exact.price) => '0.0001234567'", data));
+    }
+
+    private sealed class ExactCarrier
+    {
         public Decimal128 Price { get; init; }
     }
-}
 #endif
+}

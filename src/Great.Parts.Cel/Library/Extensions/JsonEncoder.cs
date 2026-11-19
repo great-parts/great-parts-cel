@@ -28,8 +28,9 @@ internal static class JsonEncoder
     private const string StackMessage = "insufficient execution stack to continue encoding";
 
     // invalid argument to 'json.encode': detail. The function name is the first part, the kind of a key that is not a string the number.
-    private static readonly Func<CelError, string> ErrorText = static error =>
-        "invalid argument to '" + (string)error.First! + "': " + Detail(error);
+    private static readonly ErrorTemplate ErrorText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': " + Detail(error),
+        subject: static error => (string)error.First!);
 
     private enum JsonFailure : byte
     {

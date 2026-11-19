@@ -17,7 +17,7 @@ The library targets `net10.0` and `net11.0`. Add the package to a project:
 dotnet add package Great.Parts.Cel
 ```
 
-Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](docs/protobuf.md). The type `decimal` is available on `net11.0` only; see [Decimal](docs/decimal.md).
+Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](docs/protobuf.md). The type `decimal` is available on both targets, with a smaller range on `net10.0`; see [Decimal](docs/decimal.md).
 
 ## Quick start
 
@@ -59,8 +59,8 @@ The environment declares what an expression may use: here the standard library a
 
 ## What it covers
 
-- **The language.** The complete CEL syntax, the type checking of the CEL language definition and the standard library, [version 1](docs/standard-library.md): arithmetic, comparisons, strings, lists, maps, `timestamp` and `duration` with time zones from a database that the application supplies, the standard macros, and `matches` with the syntax of RE2, found in time linear in the length of the string.
-- **Extension sets.** The sets of cel-go, each added with an explicit version: `strings`, `math`, `lists`, `sets`, `encoders`, `bindings`, `two-var-comprehensions`, `network`, `optional` with its syntax, and `protos`; and `decimal`, a set of this library, on `net11.0`. See [Extension sets](docs/extensions.md).
+- **The language.** The complete CEL syntax, the type checking of the CEL language definition and the standard library, [version 1](docs/standard-library.md): arithmetic, comparisons, strings, lists, maps, `timestamp` and `duration` with time zones from a database that the application supplies or from the operating system, the standard macros, and `matches` with the syntax of RE2, found in time linear in the length of the string.
+- **Extension sets.** The sets of cel-go, each added with an explicit version: `strings`, `math`, `lists`, `sets`, `encoders`, `bindings`, `two-var-comprehensions`, `network`, `optional` with its syntax, and `protos`; and `decimal`, a set of this library, on both targets. See [Extension sets](docs/extensions.md).
 - **Data of the application.** Variables and results of .NET types — numbers, strings, time, enumerations, collections, `JsonElement`; objects of the application, described by a source generator at build time, with no reflection, so they work under Native AOT and trimming ([Type mapping](docs/type-mapping.md)), or described at run time ([Types described at run time](docs/runtime-types.md)); messages of protobuf, with `Any`, in the package `Great.Parts.Cel.Protobuf`. An environment can also be described in [JSON](docs/environment-json.md), and an application can add functions of its own, with the implementations and the costs it declares ([Application functions](docs/recipes/application-functions.md)).
 - **Untrusted expressions.** The length and the nesting of the text are limited, an evaluation can have a cost limit and can be cancelled, and the cost of every operation is a published number ([Limits](docs/limits.md), [Cost](docs/cost.md)). The library sets no cost limit by default.
 - **Errors.** A parse, type or evaluation error is a result with a code of `CelErrorCode`, a stage and a place in the expression, never an exception for a wrong expression ([Error codes](docs/error-codes.md)).
@@ -103,12 +103,12 @@ The documentation of a release is the content of this repository at the tag of t
 - [Type mapping](docs/type-mapping.md): how .NET values, collections, objects and `JsonElement` become CEL values and back.
 - [Types described at run time](docs/runtime-types.md): object types that an application describes when it builds the environment.
 - [Protobuf messages](docs/protobuf.md): the package `Great.Parts.Cel.Protobuf`.
-- [Decimal](docs/decimal.md): the type `decimal` and its extension set, on `net11.0`.
+- [Decimal](docs/decimal.md): the type `decimal` and its extension set, on both targets.
 - [Environment description in JSON](docs/environment-json.md): the keys and the type records of the JSON form of an environment.
 - [Cost](docs/cost.md): the units of every operation.
 - [Limits](docs/limits.md): the sizes past which the library reports an error.
 - [Error codes](docs/error-codes.md): every code of `CelErrorCode`, its stage and when it occurs.
-- [Source generator diagnostics](docs/generator-diagnostics.md): `GPCEL001` to `GPCEL009`.
+- [Source generator diagnostics](docs/generator-diagnostics.md): `GPCEL001` to `GPCEL011`, without `GPCEL007`.
 - [Application functions](docs/recipes/application-functions.md): how to give the functions of an application the data they need.
 - [Time zone database](docs/recipes/time-zone-database.md): how to give an environment the time zones that `getHours('Europe/Moscow')` needs.
 - [Conformance](docs/conformance.md): the result of the cel-spec suite.

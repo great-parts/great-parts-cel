@@ -88,11 +88,9 @@ public sealed class LibrarySnapshotTests
     [Fact]
     public static void OptionalV2() => SetSnapshot("optional", 2);
 
-#if NET11_0_OR_GREATER
     // The set decimal is not a row of the catalog, so the writer takes its extension from CelExtensions.
     [Fact]
     public static void DecimalV1() => SetSnapshot("decimal", 1, CelExtensions.Decimal(1));
-#endif
 
     // The declarations of a version of a set against the file that records them (docs/design/tests.md, "Snapshots of the extension
     // sets"): the lines that differ are named with both texts, in the order of the table of the set. A set that the catalog does not
@@ -158,9 +156,7 @@ public sealed class LibrarySnapshotTests
     {
         CelTypeKind.Int => CelValue.FromInt64(size),
         CelTypeKind.Double => CelValue.FromDouble(1),
-#if NET11_0_OR_GREATER
-        CelTypeKind.Decimal => Decimals.DecimalEnvironment.Make(15, -1),
-#endif
+        CelTypeKind.Decimal => CelValue.FromDecimal(1.5m),
         CelTypeKind.Abstract when type.Name == Great.Parts.Cel.Library.Extensions.Network.NetworkTypes.IpName =>
             Great.Parts.Cel.Library.Extensions.Network.NetworkFunctions.StringToIp([CelValue.FromString("10.0.0.1")], NetworkSite()),
         CelTypeKind.Abstract =>

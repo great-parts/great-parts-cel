@@ -35,7 +35,7 @@ The job `coverage`, on `ubuntu-latest`, runs the steps of the JIT cells of [ci.y
 | `tests/Great.Parts.Cel.Properties` | `net11.0` | `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf` |
 | `tests/Great.Parts.Cel.Generator.Tests` | `net10.0` | `Great.Parts.Cel.Generator` |
 
-- The library is measured on `net11.0`, whose code is a superset of the code of `net10.0` (the `decimal` code compiles only for `net11.0`). `Great.Parts.Cel.Generator.Tests` has the one target `net10.0`, and its build of the library is another build than the one of `net11.0`: the run measures the generator only, a library of `netstandard2.0` that the tests run in process.
+- The library is measured on `net11.0`, whose code is a superset of the code of `net10.0` (the code of `Decimal128` compiles only for `net11.0`; the code of `System.Decimal` that replaces it on `net10.0` is not measured). `Great.Parts.Cel.Generator.Tests` has the one target `net10.0`, and its build of the library is another build than the one of `net11.0`: the run measures the generator only, a library of `netstandard2.0` that the tests run in process.
 - The test projects, `eng/` and `bench/` are not measured: only the code of `src/` is the subject of the criterion. The generated code of `obj/` is excluded.
 - The measure of the criterion is the line coverage of Coverlet. The branch coverage is in the summary for information. Native AOT is not measured: it runs the same tests on the same code, and the published executables are not instrumented.
 

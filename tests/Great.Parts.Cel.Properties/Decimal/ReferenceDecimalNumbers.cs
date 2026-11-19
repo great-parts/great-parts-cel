@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using System;
 using System.Numerics;
 
@@ -118,4 +117,3 @@ internal static class ReferenceDecimalNumbers
     private static BigInteger Rounded(BigInteger coefficient, int droppedDigits) =>
         ReferenceDecimal.RoundDivide(coefficient, ReferenceDecimal.Pow10(droppedDigits));
 }
-#endif

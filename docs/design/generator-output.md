@@ -64,10 +64,10 @@ namespace Acme.Sales
 
 ## A description class
 
-For each object type, one nested `sealed` class that derives from `CelObjectType`:
+For each object type, one nested `sealed` class that derives from `CelObjectType<T>`, `T` the .NET type it describes, so that the library reads an instance by reference, a structure included, without a box ([facade-2.0](facade-2.0.md), "The input of an environment"):
 
 ```text
-private sealed class Type_Acme_Sales_Order : global::Great.Parts.Cel.Values.CelObjectType
+private sealed class Type_Acme_Sales_Order : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Sales.Order>
 {
     internal static readonly Type_Acme_Sales_Order Description = new();
 
@@ -77,7 +77,6 @@ private sealed class Type_Acme_Sales_Order : global::Great.Parts.Cel.Values.CelO
     private Type_Acme_Sales_Order()
         : base(
             "Acme.Sales.Order",
-            typeof(global::Acme.Sales.Order),
             [
                 new(0, "currency", global::Great.Parts.Cel.Types.CelType.String),
                 new(1, "lines", global::Great.Parts.Cel.Types.CelType.ListOf(global::Great.Parts.Cel.Types.CelType.ObjectNamed("Acme.Sales.OrderLine"))),
@@ -87,9 +86,8 @@ private sealed class Type_Acme_Sales_Order : global::Great.Parts.Cel.Values.CelO
         _convert3 = e => FromEnum(3, e);
     }
 
-    protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+    protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Sales.Order instance, int number)
     {
-        var value = (global::Acme.Sales.Order)instance;
         switch (number)
         {
             case 0: return ...;
@@ -105,13 +103,13 @@ private sealed class Type_Acme_Sales_Order : global::Great.Parts.Cel.Values.CelO
 ```
 
 - **`Description`** is the one instance, a `static readonly` field of the class. The descriptions refer to each other by the CEL name in the types of fields (`CelType.ObjectNamed`) and by the field `Description` where a description is needed at run time ("Collections"), so no description needs another at construction and the static initializers cannot form a cycle.
-- **Base constructor.** Name, `typeof` of the type written with `global::`, and the fields as a collection expression of `new(number, name, type)`, in the order of "Order"; the number of a field is its position. `CelObjectField` is the target type of `new(...)`. The checks of the constructor — name, numbers, distinct names — hold by construction.
-- **`GetField`.** The instance is cast once, before the `switch`: a class or an interface by a reference cast, a structure by unboxing (a copy of the value; a `readonly struct` is not changed by it). A `case` for each field, in the order of the numbers, returns the value by the row of "Reading a member". The `default` branch throws `ArgumentOutOfRangeException`; the library calls the method with the number of one of the fields only. The method has no loop, no lookup by name, no LINQ, no closure created at the call and no `try`: an exception of the application's getter is turned into an error by the evaluation.
-- **`HasField`.** The same `switch`; the instance is cast once, and only when a `case` reads the member (a type whose members are all value types and objects that are never `null` casts nothing). Each case returns the presence of the member by "Presence", and the cases that return `true` are written together, `case 1: case 2: return true;`. The `default` branch throws as above.
+- **Base constructor.** Name and the fields as a collection expression of `new(number, name, type)`, in the order of "Order"; the number of a field is its position. The .NET type is the type argument of the base class, which gives `ClrType`; no `typeof` is written. `CelObjectField` is the target type of `new(...)`. The checks of the constructor — name, numbers, distinct names — hold by construction.
+- **`GetField`.** `GetField(in T instance, int number)`, the typed member of `CelObjectType<T>`: the instance comes by reference, so nothing is cast and a structure is not copied; the member of the base that takes `object` is sealed and unboxes or casts once before it calls this one. A `case` for each field, in the order of the numbers, returns the value by the row of "Reading a member". The `default` branch throws `ArgumentOutOfRangeException`; the library calls the method with the number of one of the fields only. The method has no loop, no lookup by name, no LINQ, no closure created at the call and no `try`: an exception of the application's getter is turned into an error by the evaluation.
+- **`HasField`.** `HasField(object instance, int number)`, as in version 1: the same `switch`; the instance is cast once, and only when a `case` reads the member (a type whose members are all value types and objects that are never `null` casts nothing). Each case returns the presence of the member by "Presence", and the cases that return `true` are written together, `case 1: case 2: return true;`. The `default` branch throws as above.
 - **`GetExcludedFieldReason`.** A `switch` on the field name with a `case "name": return "reason";` for each excluded member, in the order of the names, ordinal, and `default: return null;`. A type without an excluded member does not override the method. Hidden members are not named here.
-- **`FieldReadCost`.** `protected override long FieldReadCost(object instance, int number)`, written only for a type that has a member whose read does work that grows with the data or with the size of a structure ("Charges of a read"); the other types keep the default, 0. The same `switch` by the number, `case` only for those members, `default: return 0;`; the instance is cast once, as in `GetField`, and only when a `case` needs it.
+- **`FieldReadCost`.** `protected override long FieldReadCost(in T instance, int number)`, the typed member, written only for a type that has a member whose read does work that grows with the data or with the size of a structure ("Charges of a read"); the other types keep the default, 0. The same `switch` by the number, `case` only for those members, `default: return 0;`; the instance comes by reference, as in `GetField`.
 - **Not overridden.** `CelEquals` (the default compares the fields by their numbers with CEL equality, which is the rule the application's types need, and writing it again would only add code), `IsConstructible` and `CreateInstance` (an expression does not create an object of a .NET type: `TypeNotConstructible`, 2008), and `EqualityCost` (the default).
-- **A type with no fields** (every member excluded or hidden) still has a description: `base(name, typeof(T), [])`, and a `GetField` that throws as its `default`.
+- **A type with no fields** (every member excluded or hidden) still has a description: `base(name, [])`, and a `GetField` that throws as its `default`.
 
 ## Order
 
@@ -138,8 +136,8 @@ The value of a member `v` (`value.Name`) becomes a `CelValue` by the row of its 
 | `DateTimeOffset` | `timestamp` | `CelValue.FromTimestamp(CelTimestamp.FromDateTimeOffset(v))` | none |
 | `DateTime` | `timestamp` | `FromDateTime(n, v)`; a kind other than `Utc` is `InvalidArgument` | none |
 | `TimeSpan` | `duration` | `FromTimeSpan(n, v)`; out of range is `ConversionRange` | none |
-| `Decimal128` (a compilation that has it) | `decimal` | `FromDecimal(n, v)`; NaN and infinity are `ConversionRange` | none |
-| `System.Decimal` (the same) | `decimal` | `FromDecimal(v)` | none |
+| `Decimal128` (a compilation that has it) | `decimal` | `FromDecimal128(n, v)`; NaN and infinity are `ConversionRange` | none |
+| `System.Decimal` (every compilation) | `decimal` | `FromDecimal(v)` | none |
 | `Nullable<T>` where the CEL type of `T` has a wrapper (`bool`, `bytes`, `double`, `int`, `uint`, `string`; an enumeration, `Guid` and `Half` by their CEL types) | `wrapper(…)` | `v.HasValue ? <row of T applied to v.Value> : Null` | as the row of `T` |
 | `Nullable<T>` otherwise (`DateTimeOffset?`, `DateTime?`, `TimeSpan?`, `Decimal128?`, `System.Decimal?`, `CelTimestamp?`, `CelDuration?`) | the CEL type of `T` | `v.HasValue ? <row of T> : Unexpected` | as the row of `T` |
 | `Nullable<T>`, `T` a structure of the context | the object type | `v.HasValue ? FromInstance((object)v.Value) : Null` | one box |
@@ -153,9 +151,9 @@ The value of a member `v` (`value.Name`) becomes a `CelValue` by the row of its 
 | a message of protobuf | the type of the message | as a class | none |
 | a collection or a dictionary | `list(E)`, `map(K, V)` | "Collections" | "Collections" |
 
-`FromInstance`, `FromEnum`, `FromDateTime`, `FromTimeSpan`, `FromDecimal`, `FromDynamic` and `FieldError` are the protected members of `CelObjectType`; the rest are the public factories of `CelValue`, `CelList` and `CelMap`. `DateTime` follows the input table of `docs/type-mapping.md` ("Input: a .NET type to a CEL type") and the `DateTime` and `TimeSpan` error values name the type and the field, as the helpers do. `decimal` shapes exist only for a compilation that has `Decimal128`: in another compilation the member is excluded with `GPCEL007` and its reason is `the CEL type decimal requires .NET 11 (System.Numerics.Decimal128)`. The `CelType.Decimal` expression is written without `#if`: the generator writes it only for a compilation that has the type.
+`FromInstance`, `FromEnum`, `FromDateTime`, `FromTimeSpan`, `FromDecimal`, `FromDecimal128`, `FromDynamic` and `FieldError` are the protected members of `CelObjectType`; the rest are the public factories of `CelValue`, `CelList` and `CelMap`. `DateTime` follows the input table of `docs/type-mapping.md` ("Input: a .NET type to a CEL type") and the `DateTime` and `TimeSpan` error values name the type and the field, as the helpers do. A `System.Decimal` member is a field `decimal` in every compilation, since the type `decimal` exists on both targets; a `Decimal128` member exists only in a compilation that has the type. The `CelType.Decimal` expression and the reads are written without `#if`.
 
-**Where the decimal members end.** The generator writes everything that is in the generator for `System.Decimal` and `Decimal128`: the field type `CelType.Decimal`, the reads `FromDecimal(number, value)` and `FromDecimal(value)` and their `Nullable<>` forms in the rows above, the finding of `System.Numerics.Decimal128` in the compilation ([generator](generator.md), "Pipeline"), the exclusion of the member with `GPCEL007` and the text of `GetExcludedFieldReason` when the type is not there (`net10.0`), and the snapshots of the text. What the created code calls and what meets it in the environment belongs to the set `decimal` of the library ([extension-decimal](extension-decimal.md)) and is not written here: the bodies of the two `FromDecimal` of `CelObjectType` and of `CelValue.FromDecimal`; the refusal of a decimal field in an environment without the extension set `decimal`, `FieldNotAccessible` (2007) at the selection, which the type checker gives whoever described the type; and error 3012 for a boxed decimal in the place of `dyn`, so an `object` member that holds a `decimal` is read by the `object` row and the library decides. The generator's descriptions and the checker use one function, `CheckErrors.FieldNotAccessible(field, type, reason, location)`, whose text is `field '{field}' of type '{type}' is not available to expressions: {reason}`; for a member that the generator excluded, `{reason}` is the text of `GetExcludedFieldReason`. The test that reads a decimal member of a sample type is in `Great.Parts.Cel.Generator.Samples` under `#if NET11_0_OR_GREATER`.
+**Where the decimal members end.** The generator writes everything that is in the generator for `System.Decimal` and `Decimal128`: the field type `CelType.Decimal`, the reads `FromDecimal128(number, value)` and `FromDecimal(value)` and their `Nullable<>` forms in the rows above, the finding of `System.Numerics.Decimal128` in the compilation ([generator](generator.md), "Pipeline"), and the snapshots of the text. What the created code calls and what meets it in the environment belongs to the set `decimal` of the library ([extension-decimal](extension-decimal.md)) and is not written here: the bodies of `FromDecimal` and `FromDecimal128` of `CelObjectType` and of `CelValue.FromDecimal`; the refusal of a decimal field in an environment without the extension set `decimal`, `FieldNotAccessible` (2007) at the selection, which the type checker gives whoever described the type; and error 3012 for a boxed decimal in the place of `dyn`, so an `object` member that holds a `decimal` is read by the `object` row and the library decides. The generator's descriptions and the checker use one function, `CheckErrors.FieldNotAccessible(field, type, reason, location)`, whose text is `field '{field}' of type '{type}' is not available to expressions: {reason}`; for a member that the generator excluded, `{reason}` is the text of `GetExcludedFieldReason`. The sample type with decimal members is in `Great.Parts.Cel.Generator.Samples` on both targets, with its `Decimal128` member under `#if NET11_0_OR_GREATER`.
 
 A reference-type object read this way is the bare instance; the evaluation pairs it with the description of the declared type when that is needed ([objects](objects.md), "Place rule"): the created code does nothing for it. A message of protobuf and a structure follow the same rule.
 

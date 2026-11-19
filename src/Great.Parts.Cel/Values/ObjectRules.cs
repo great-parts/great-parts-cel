@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Generic;
-#if NET11_0_OR_GREATER
-using System.Numerics;
-#endif
 using System.Runtime.CompilerServices;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
@@ -16,31 +13,82 @@ namespace Great.Parts.Cel.Values;
 /// </summary>
 internal static class ObjectRules
 {
-    private static readonly Func<CelError, string> NotAccessibleText =
-        static error => ".NET type '" + error.First + "' is not available to expressions: no type source of the environment describes it";
+    private static readonly ErrorTemplate NotAccessibleText = new(
+        static error => ".NET type '" + error.First + "' is not available to expressions: no type source of the environment describes it",
+        subject: static error => error.First?.ToString());
 
-    private static readonly Func<CelError, string> FieldNotSetText =
-        static error => "field '" + FieldOf(error).Name + "' of type '" + ((CelObjectType)error.First!).Name + "' has no value";
+    private static readonly ErrorTemplate FieldNotSetText = new(
+        static error => "field '" + FieldOf(error).Name + "' of type '" + ((CelObjectType)error.First!).Name + "' has no value",
+        subject: static error => FieldOf(error).Name,
+        actualType: static error => CelType.ObjectNamed(((CelObjectType)error.First!).Name));
 
     // The template of the code of the error table and nothing else: the field and the type stand only where the template
     // names them, and the detail fills the free part; the position of the selection names the field.
-    private static readonly Func<CelError, string> FieldErrorText = static error => error.Code switch
+    // The second part is the free part of the text, or for a conversion that the type mapping rejected the error itself, whose text
+    // and parts the field error takes.
+    private static readonly ErrorTemplate FieldErrorText = new(
+        static error => error.Code switch
+        {
+            CelErrorCode.UnexpectedNull =>
+                "member '" + FieldOf(error).Name + "' of type '" + ((CelObjectType)error.First!).Name + "' is null, but its CEL type does not allow null",
+            CelErrorCode.InvalidArgument =>
+                "invalid argument to '" + ((CelObjectType)error.First!).Name + "." + FieldOf(error).Name + "': " + error.Second,
+            CelErrorCode.TypeNotAccessible =>
+                ".NET type '" + error.Second + "' is not available to expressions: no type source of the environment describes it",
+            _ => error.Second is CelError inner ? inner.Message : error.Second as string ?? string.Empty,
+        },
+        static error => error.Code switch
+        {
+            CelErrorCode.UnexpectedNull => FieldOf(error).Name,
+            CelErrorCode.InvalidArgument => ((CelObjectType)error.First!).Name + "." + FieldOf(error).Name,
+            CelErrorCode.TypeNotAccessible => error.Second as string,
+            CelErrorCode.ConversionRange => (error.Second as CelError)?.Subject,
+            CelErrorCode.InvalidAny => TypeUrlOf(error.Second as string),
+            _ => null,
+        },
+        // A range error that the application reports with a text only has no source value to take a type from: both parts are the
+        // declared CEL type of the field, as a value that does not fit the field has the type of the field.
+        static error => error.Second is CelError inner ? inner.ExpectedType : DeclaredTypeOfRange(error),
+        static error => error.Code switch
+        {
+            CelErrorCode.UnexpectedNull => CelType.ObjectNamed(((CelObjectType)error.First!).Name),
+            _ => error.Second is CelError inner ? inner.ActualType : DeclaredTypeOfRange(error),
+        });
+
+    private static CelType? DeclaredTypeOfRange(CelError error) =>
+        error.Code == CelErrorCode.ConversionRange ? FieldOf(error).Type : null;
+
+    // The address of the type in the whole text of InvalidAny, which the package of protobuf gives as the detail:
+    // "cannot unpack google.protobuf.Any with type URL '{typeUrl}': {detail}", from the first quote to the first quote that is
+    // followed by a colon and a space; null for a text of another form.
+    private static string? TypeUrlOf(string? text)
     {
-        CelErrorCode.UnexpectedNull =>
-            "member '" + FieldOf(error).Name + "' of type '" + ((CelObjectType)error.First!).Name + "' is null, but its CEL type does not allow null",
-        CelErrorCode.InvalidArgument =>
-            "invalid argument to '" + ((CelObjectType)error.First!).Name + "." + FieldOf(error).Name + "': " + error.Second,
-        CelErrorCode.TypeNotAccessible =>
-            ".NET type '" + error.Second + "' is not available to expressions: no type source of the environment describes it",
-        _ => error.Second as string ?? string.Empty,
-    };
+        int start = text?.IndexOf('\'', StringComparison.Ordinal) ?? -1;
+        if (text is null || start < 0)
+        {
+            return null;
+        }
 
-    private static readonly Func<CelError, string> InternalErrorText =
-        static _ => "internal error during evaluation; the original exception is in CelError.Exception";
+        for (int end = start + 1; end + 2 < text.Length; end++)
+        {
+            if (text[end] == '\'' && text[end + 1] == ':' && text[end + 2] == ' ')
+            {
+                return text[(start + 1)..end];
+            }
+        }
 
-    private static readonly Func<CelError, string> FieldTypeMismatchText =
+        return null;
+    }
+
+    private static readonly ErrorTemplate InternalErrorText =
+        new(static _ => "internal error during evaluation; the original exception is in CelError.Exception");
+
+    private static readonly ErrorTemplate FieldTypeMismatchText = new(
         static error => "field '" + FieldOf(error).Name + "' of type '" + ((CelObjectType)error.First!).Name + "' has a value of type '"
-            + error.Second + "', expected '" + FieldOf(error).Type + "'";
+            + error.Second + "', expected '" + FieldOf(error).Type + "'",
+        subject: static error => FieldOf(error).Name,
+        expectedType: static error => FieldOf(error).Type,
+        actualType: static error => error.Second is string name ? ValueTypeRules.TypeOfName(name) : CelType.ObjectNamed(error.Second!.ToString()!));
 
     /// <summary>
     /// The description of an object value: the description of a pair, else the description of the instance in the type
@@ -202,6 +250,19 @@ internal static class ObjectRules
         Place(owner, number, owner.GetField(instance, number), types);
 
     /// <summary>
+    /// Reads a field of an instance that is passed by reference, as <see cref="ReadField(CelObjectType, object, int, TypeIndex)"/>
+    /// does, without boxing a structure.
+    /// </summary>
+    /// <typeparam name="TInstance">The .NET type of the instances of the description.</typeparam>
+    /// <param name="owner">The description of the instance.</param>
+    /// <param name="instance">An instance that belongs to the description.</param>
+    /// <param name="number">The number of one of the fields.</param>
+    /// <param name="types">The type index of the environment, or <see langword="null"/> outside an evaluation.</param>
+    /// <returns>The value of the field, possibly an error value.</returns>
+    internal static CelValue ReadField<TInstance>(CelObjectType<TInstance> owner, in TInstance instance, int number, TypeIndex? types) =>
+        Place(owner, number, owner.GetField(in instance, number), types);
+
+    /// <summary>
     /// Steps 1 and 3 of reading a field of a type described at run time over a carrier with a read delegate: presence by
     /// the presence delegate, or else by a value that is not <c>null</c>, taken once; then the value against the declared
     /// type.
@@ -281,6 +342,17 @@ internal static class ObjectRules
     /// <returns>The error value.</returns>
     internal static CelValue FieldError(CelObjectType owner, int number, CelErrorCode code, string? detail) =>
         CelValue.FromError(new CelError(code, FieldErrorText, null, 0, owner, detail, number));
+
+    /// <summary>
+    /// The error value of a field whose value a row of the type mapping rejected: the text and the parts are those of that error, and
+    /// the position of the field selection names the field.
+    /// </summary>
+    /// <param name="owner">The description.</param>
+    /// <param name="number">The number of the field.</param>
+    /// <param name="rejected">The error that the row gave, whose code is the code of the field error.</param>
+    /// <returns>The error value.</returns>
+    internal static CelValue FieldError(CelObjectType owner, int number, CelError rejected) =>
+        CelValue.FromError(new CelError(rejected.Code, FieldErrorText, null, 0, owner, rejected, number));
 
     /// <summary>
     /// The error value <c>FieldNotSet</c> of a field, without a place.
@@ -563,22 +635,18 @@ internal static class ObjectRules
     }
 
     /// <summary>
-    /// Whether a value of this kind can be a decimal that an environment cannot have: a <c>Decimal</c> on .NET 11, and an object on
-    /// either target, which can be a bare <see cref="decimal"/>. Any other kind is not.
+    /// Whether a value of this kind can be a decimal that an environment cannot have: a <c>Decimal</c>, and an object, which can be a
+    /// bare <see cref="decimal"/>. Any other kind is not.
     /// </summary>
     /// <param name="kind">The kind of the value.</param>
     /// <returns><see langword="true"/> when <see cref="TryRejectDecimal"/> has to look at the value.</returns>
     internal static bool MayBeDecimal(CelValueKind kind) =>
-#if NET11_0_OR_GREATER
         kind is CelValueKind.Decimal or CelValueKind.Object;
-#else
-        kind == CelValueKind.Object;
-#endif
 
     /// <summary>
     /// The refusal of a decimal that the environment cannot have, by a node that reads a value of the application — the identifier,
     /// the value of a field, the result of a call: a value of the kind <c>Decimal</c> when the type index says the environment has no
-    /// set <c>decimal</c> (on .NET 11), and a bare <see cref="decimal"/> instance, which is no decimal on either target. The error
+    /// set <c>decimal</c>, and a bare <see cref="decimal"/> instance, which is no decimal on either target. The error
     /// names the .NET type, <c>System.Decimal</c> for a value that a <see cref="decimal"/> made and <c>System.Numerics.Decimal128</c>
     /// for any other.
     /// </summary>
@@ -590,7 +658,6 @@ internal static class ObjectRules
     {
         // The nodes that read many values ask MayBeDecimal first, so the common value costs one comparison.
         error = default;
-#if NET11_0_OR_GREATER
         if (value.Kind == CelValueKind.Decimal)
         {
             if (types is null || types.DecimalDeclared)
@@ -598,10 +665,10 @@ internal static class ObjectRules
                 return false;
             }
 
-            error = NotAccessible(value.IsFromSystemDecimal ? typeof(decimal) : typeof(Decimal128));
+            error = NotAccessible(value.IsFromSystemDecimal ? typeof(decimal) : DecimalPlatform.ClrType);
             return true;
         }
-#endif
+
         if (value.Kind == CelValueKind.Object && value.PairedType is null && value.TryGetObject(out object? instance) && instance is decimal)
         {
             error = NotAccessible(typeof(decimal));

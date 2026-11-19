@@ -1,23 +1,17 @@
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Tests.Examples.Configuration;
-using Xunit;
-#if NET11_0_OR_GREATER
 using Great.Parts.Cel.Values;
-#endif
+using Xunit;
 
 namespace Great.Parts.Cel.Tests.Configuration;
 
 // The type decimal in the parameters and the result of a function of an environment description, where the examples of the description
 // have the type of a variable: the name is a type name like any other, and an environment without the set that declares the type
-// refuses the overload as TypeNotDeclared, whole type as written, with the hint of the target — the set to add on .NET 11, and on
-// .NET 10 that the set exists only on .NET 11. The description has no way to add the set, so the set comes from code.
+// refuses the overload as TypeNotDeclared, whole type as written, with the hint — the set to add — on both targets. The description
+// has no way to add the set, so the set comes from code.
 public sealed class DecimalInDescriptionTests
 {
-#if NET11_0_OR_GREATER
     private const string Hint = "; add the extension set 'decimal'";
-#else
-    private const string Hint = "; the extension set 'decimal' exists only on .NET 11";
-#endif
 
     [Theory]
     [InlineData("\"args\": [\"decimal\"], \"return\": \"int\"", "decimal")]
@@ -37,7 +31,6 @@ public sealed class DecimalInDescriptionTests
             "overload 'price_of' has type '" + type + "', which no type source or extension of the environment declares" + Hint);
     }
 
-#if NET11_0_OR_GREATER
     // The same description with the set added in code builds: the overload is declared with the type, and its implementation is the one
     // that the code registers by the identifier.
     [Fact]
@@ -50,5 +43,4 @@ public sealed class DecimalInDescriptionTests
 
         Assert.True(builder.AddFunctionImplementation("price_of", static _ => CelValue.Null).Build().IsSuccess);
     }
-#endif
 }

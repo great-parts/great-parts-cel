@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Values;
 
@@ -28,4 +27,3 @@ internal static class DecimalCosts
     // ⌈x/10⌉.
     internal static ulong Tenths(ulong length) => (length + 9) / 10;
 }
-#endif

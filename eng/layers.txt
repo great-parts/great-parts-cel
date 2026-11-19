@@ -2,8 +2,8 @@
 # A namespace of the assembly that has no line here is an error.
 
 [Great.Parts.Cel]
-Great.Parts.Cel.Diagnostics ->
-Great.Parts.Cel.Types -> Great.Parts.Cel.Diagnostics
+Great.Parts.Cel.Types ->
+Great.Parts.Cel.Diagnostics -> Great.Parts.Cel.Types
 Great.Parts.Cel.Values -> Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Declarations -> Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Syntax -> Great.Parts.Cel.Values, Great.Parts.Cel.Diagnostics

@@ -20,8 +20,8 @@ The set adds two abstract types, `net.IP` and `net.CIDR`, and 21 overloads over 
 **The public enumerations have one member each.** The kind of a type and of a value cannot be `Object`: `Object` means a type with fields, described by a source, and a program reads `CelType.Kind` to learn that; `optional_type` and `decimal` have kinds of their own for the same reason, and `checked.proto`, which the kinds follow, has `abstract_type`. A new kind is a non-breaking change that the documentation of both enumerations already announces:
 
 ```text
-CelTypeKind.Abstract = 19     // numbers 17 and 18 are Optional and, on .NET 11 only, Decimal
-CelValueKind.Abstract = 16    // 12 is Optional, 15 is Decimal on .NET 11 only
+CelTypeKind.Abstract = 19     // numbers 17 and 18 are Optional and Decimal
+CelValueKind.Abstract = 16    // 12 is Optional, 15 is Decimal
 ```
 
 Both are in `PublicAPI/PublicAPI.Shipped.txt`, the file common to both targets, not in the file of `net11.0`:

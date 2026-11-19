@@ -18,14 +18,13 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Holder : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Holder : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Holder>
         {
             internal static readonly Type_Acme_Holder Description = new();
 
             private Type_Acme_Holder()
                 : base(
                     "Acme.Holder",
-                    typeof(global::Acme.Holder),
                     [
                         new(0, "abstract", global::Great.Parts.Cel.Types.CelType.ObjectNamed("Acme.Shape")),
                         new(1, "c", global::Great.Parts.Cel.Types.CelType.ObjectNamed("Acme.PlainClass")),
@@ -41,53 +40,52 @@ namespace Acme
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Holder instance, int number)
             {
-                var value = (global::Acme.Holder)instance;
                 switch (number)
                 {
                     case 0:
                     {
-                        var v = value.Abstract;
+                        var v = instance.Abstract;
                         return v is null ? FieldError(0, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(v);
                     }
                     case 1:
                     {
-                        var v = value.C;
+                        var v = instance.C;
                         return v is null ? FieldError(1, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(v);
                     }
                     case 2:
                     {
-                        var v = value.F;
+                        var v = instance.F;
                         return v is null ? FieldError(2, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(v);
                     }
                     case 3:
                     {
-                        var v = value.I;
+                        var v = instance.I;
                         return v is null ? FieldError(3, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(v);
                     }
                     case 4:
                     {
-                        var v = value.N;
+                        var v = instance.N;
                         return v is null ? FieldError(4, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(v);
                     }
                     case 5:
                     {
-                        var v = value.OptS;
+                        var v = instance.OptS;
                         return v.HasValue ? FromInstance((object)v.Value) : global::Great.Parts.Cel.Values.CelValue.Null;
                     }
                     case 6:
                     {
-                        var v = value.P;
+                        var v = instance.P;
                         return v is null ? FieldError(6, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(v);
                     }
                     case 7:
                     {
-                        var v = value.R;
+                        var v = instance.R;
                         return v is null ? FieldError(7, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(v);
                     }
-                    case 8: return FromInstance((object)value.Rs);
-                    case 9: return FromInstance((object)value.S);
+                    case 8: return FromInstance((object)instance.Rs);
+                    case 9: return FromInstance((object)instance.S);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -110,12 +108,11 @@ namespace Acme
                 }
             }
 
-            protected override long FieldReadCost(object instance, int number)
+            protected override long FieldReadCost(in global::Acme.Holder instance, int number)
             {
-                var value = (global::Acme.Holder)instance;
                 switch (number)
                 {
-                    case 5: return value.OptS.HasValue ? 2L : 0;
+                    case 5: return instance.OptS.HasValue ? 2L : 0;
                     case 8: return 2L;
                     case 9: return 2L;
                     default: return 0;
@@ -124,14 +121,13 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_IDerived : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_IDerived : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.IDerived>
         {
             internal static readonly Type_Acme_IDerived Description = new();
 
             private Type_Acme_IDerived()
                 : base(
                     "Acme.IDerived",
-                    typeof(global::Acme.IDerived),
                     [
                         new(0, "id", global::Great.Parts.Cel.Types.CelType.Int),
                         new(1, "label", global::Great.Parts.Cel.Types.CelType.String),
@@ -139,15 +135,14 @@ namespace Acme
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.IDerived instance, int number)
             {
-                var value = (global::Acme.IDerived)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Id);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Id);
                     case 1:
                     {
-                        var v = value.Label;
+                        var v = instance.Label;
                         return v is null ? FieldError(1, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
@@ -167,26 +162,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Outer_Inner : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Outer_Inner : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Outer.Inner>
         {
             internal static readonly Type_Acme_Outer_Inner Description = new();
 
             private Type_Acme_Outer_Inner()
                 : base(
                     "Acme.Outer.Inner",
-                    typeof(global::Acme.Outer.Inner),
                     [
                         new(0, "depth", global::Great.Parts.Cel.Types.CelType.Int),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Outer.Inner instance, int number)
             {
-                var value = (global::Acme.Outer.Inner)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Depth);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Depth);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -202,7 +195,7 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Page_Acme_PlainClass : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Page_Acme_PlainClass : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Page<global::Acme.PlainClass>>
         {
             internal static readonly Type_Acme_Page_Acme_PlainClass Description = new();
 
@@ -211,7 +204,6 @@ namespace Acme
             private Type_Acme_Page_Acme_PlainClass()
                 : base(
                     "Acme.Page_Acme_PlainClass",
-                    typeof(global::Acme.Page<global::Acme.PlainClass>),
                     [
                         new(0, "rows", global::Great.Parts.Cel.Types.CelType.ListOf(global::Great.Parts.Cel.Types.CelType.ObjectNamed("Acme.PlainClass"))),
                     ])
@@ -219,14 +211,13 @@ namespace Acme
                 _convert0 = e0 => e0 is null ? FieldError(0, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : e0.GetType() == typeof(global::Acme.PlainClass) ? FromInstance(e0) : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_PlainClass.Description, e0);
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Page<global::Acme.PlainClass> instance, int number)
             {
-                var value = (global::Acme.Page<global::Acme.PlainClass>)instance;
                 switch (number)
                 {
                     case 0:
                     {
-                        var v = value.Rows;
+                        var v = instance.Rows;
                         return v is null ? FieldError(0, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<global::Acme.PlainClass>(v, _convert0));
                     }
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
@@ -245,26 +236,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_PlainClass : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_PlainClass : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.PlainClass>
         {
             internal static readonly Type_Acme_PlainClass Description = new();
 
             private Type_Acme_PlainClass()
                 : base(
                     "Acme.PlainClass",
-                    typeof(global::Acme.PlainClass),
                     [
                         new(0, "a", global::Great.Parts.Cel.Types.CelType.Int),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.PlainClass instance, int number)
             {
-                var value = (global::Acme.PlainClass)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.A);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.A);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -280,14 +269,13 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_PlainRecord : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_PlainRecord : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.PlainRecord>
         {
             internal static readonly Type_Acme_PlainRecord Description = new();
 
             private Type_Acme_PlainRecord()
                 : base(
                     "Acme.PlainRecord",
-                    typeof(global::Acme.PlainRecord),
                     [
                         new(0, "a", global::Great.Parts.Cel.Types.CelType.Int),
                         new(1, "b", global::Great.Parts.Cel.Types.CelType.String),
@@ -295,15 +283,14 @@ namespace Acme
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.PlainRecord instance, int number)
             {
-                var value = (global::Acme.PlainRecord)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.A);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.A);
                     case 1:
                     {
-                        var v = value.B;
+                        var v = instance.B;
                         return v is null ? FieldError(1, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
@@ -323,26 +310,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_PlainRecordStruct : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_PlainRecordStruct : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.PlainRecordStruct>
         {
             internal static readonly Type_Acme_PlainRecordStruct Description = new();
 
             private Type_Acme_PlainRecordStruct()
                 : base(
                     "Acme.PlainRecordStruct",
-                    typeof(global::Acme.PlainRecordStruct),
                     [
                         new(0, "a", global::Great.Parts.Cel.Types.CelType.Int),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.PlainRecordStruct instance, int number)
             {
-                var value = (global::Acme.PlainRecordStruct)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.A);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.A);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -358,26 +343,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_PlainStruct : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_PlainStruct : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.PlainStruct>
         {
             internal static readonly Type_Acme_PlainStruct Description = new();
 
             private Type_Acme_PlainStruct()
                 : base(
                     "Acme.PlainStruct",
-                    typeof(global::Acme.PlainStruct),
                     [
                         new(0, "a", global::Great.Parts.Cel.Types.CelType.Int),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.PlainStruct instance, int number)
             {
-                var value = (global::Acme.PlainStruct)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.A);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.A);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -393,26 +376,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Shape : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Shape : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Shape>
         {
             internal static readonly Type_Acme_Shape Description = new();
 
             private Type_Acme_Shape()
                 : base(
                     "Acme.Shape",
-                    typeof(global::Acme.Shape),
                     [
                         new(0, "area", global::Great.Parts.Cel.Types.CelType.Double),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Shape instance, int number)
             {
-                var value = (global::Acme.Shape)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromDouble((double)value.Area);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromDouble((double)instance.Area);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -428,14 +409,13 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Other_Foreign : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Other_Foreign : global::Great.Parts.Cel.Values.CelObjectType<global::Other.Foreign>
         {
             internal static readonly Type_Other_Foreign Description = new();
 
             private Type_Other_Foreign()
                 : base(
                     "Other.Foreign",
-                    typeof(global::Other.Foreign),
                     [
                         new(0, "name", global::Great.Parts.Cel.Types.CelType.String),
                         new(1, "size", global::Great.Parts.Cel.Types.CelType.Int),
@@ -443,17 +423,16 @@ namespace Acme
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Other.Foreign instance, int number)
             {
-                var value = (global::Other.Foreign)instance;
                 switch (number)
                 {
                     case 0:
                     {
-                        var v = value.Name;
+                        var v = instance.Name;
                         return v is null ? FieldError(0, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
-                    case 1: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Size);
+                    case 1: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Size);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }

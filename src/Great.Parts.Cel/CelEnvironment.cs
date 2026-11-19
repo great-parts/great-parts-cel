@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
@@ -22,7 +23,9 @@ namespace Great.Parts.Cel;
 /// <para>
 /// One environment compiles any number of expressions. Compilation parses the expression, checks its types
 /// and plans it, and returns a program that is evaluated any number of times on different bindings.
-/// <see cref="Evaluate{T}"/> does both steps in one call.
+/// <see cref="Evaluate{T}(string, CelBindings, CelCompileOptions, CelEvalOptions, CancellationToken)"/> does both steps in
+/// one call, <see cref="Validate{T}(string, CelCompileOptions)"/> checks an expression without creating a program, and
+/// <see cref="Create(Action{CelEnvironmentBuilder})"/> builds an environment in one call.
 /// </para>
 /// <para>
 /// The environment does not change: no member changes its behavior. <see cref="ToBuilder"/> gives a
@@ -35,10 +38,16 @@ namespace Great.Parts.Cel;
 /// </remarks>
 public sealed class CelEnvironment
 {
+    // The references of a compilation that stopped before the check.
+    private static readonly IReadOnlyDictionary<int, Reference> EmptyReferences = ImmutableDictionary<int, Reference>.Empty;
+
     private readonly CelStandardLibrary _standardLibrary;
 
     // The declarations the environment was built from, for ToBuilder.
     private readonly DeclarationSet _declarationSet;
+
+    // The read-only description for the introspection members; null until the first read.
+    private EnvironmentDescription? _description;
 
     internal CelEnvironment(CelStandardLibrary standardLibrary, DeclarationSet declarationSet, DeclarationIndex declarations, SyntaxOptions syntax, PatternCache patternCache)
     {
@@ -97,26 +106,40 @@ public sealed class CelEnvironment
         // The expected type is derived before the text is read, so the same T and options throw for every text.
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
         CelSourceLocation? start = options?.SourceLocation;
+        Compilation compiled = CompileSteps(expression, expectedType, start);
+        return compiled is { Plan: { } plan, Check.Expression: { } checkedExpression }
+            ? new CelCompileResult<T>(new CelProgram<T>(plan, checkedExpression.ResultType, start, DefaultCostLimit, InputType))
+            : new CelCompileResult<T>(compiled.Errors);
+    }
+
+    // The steps that Compile and Validate share, so that both give the same errors: parse, check and planning. The plan exists
+    // only when all three succeeded; the check result holds the references resolved before an error of the check.
+    private Compilation CompileSteps(string expression, CelType expectedType, CelSourceLocation? start)
+    {
         ParseResult parsed = Parse(expression);
         if (!parsed.IsSuccess)
         {
-            return new CelCompileResult<T>(InDocument(parsed.Errors, start));
+            return new Compilation(InDocument(parsed.Errors, start), null, null, default);
         }
 
+        ImmutableArray<MacroCall> macroCalls = parsed.Expression.MacroCalls;
         CheckResult checkedResult = Check(parsed.Expression, expectedType);
         if (!checkedResult.IsSuccess)
         {
-            return new CelCompileResult<T>(InDocument(checkedResult.Errors, start));
+            return new Compilation(InDocument(checkedResult.Errors, start), null, checkedResult, macroCalls);
         }
 
-        CheckedExpression checkedExpression = checkedResult.Expression;
-        if (!TryPlanWithinBoundary(Planner.For(checkedExpression, Declarations, TimeZones), static planner => planner.Run(), out Plan? plan, out CelError? planningError))
+        if (!TryPlanWithinBoundary(Planner.For(checkedResult.Expression, Declarations, TimeZones), static planner => planner.Run(), out Plan? plan, out CelError? planningError))
         {
-            return new CelCompileResult<T>(InDocument([planningError], start));
+            return new Compilation(InDocument([planningError], start), null, checkedResult, macroCalls);
         }
 
-        return new CelCompileResult<T>(new CelProgram<T>(plan, checkedExpression.ResultType, start));
+        return new Compilation([], plan, checkedResult, macroCalls);
     }
+
+    // The outcome of CompileSteps: the errors, and the plan, the check result and the macro calls of the text that exist when the
+    // steps got that far.
+    private readonly record struct Compilation(ImmutableArray<CelError> Errors, Plan? Plan, CheckResult? Check, ImmutableArray<MacroCall> MacroCalls);
 
     /// <summary>
     /// The compilation boundary of planning: runs a planning step of the planner, and turns an unexpected exception other than
@@ -150,14 +173,16 @@ public sealed class CelEnvironment
 
     /// <summary>
     /// Compiles an expression and evaluates it on the bindings in one call, with the same result and the
-    /// same errors as <see cref="Compile{T}"/> followed by <see cref="CelProgram{T}.Evaluate"/>.
+    /// same errors as <see cref="Compile{T}"/> followed by
+    /// <see cref="CelProgram{T}.Evaluate(CelBindings, CelEvalOptions, CancellationToken)"/>.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Both steps run the same code as the separate calls, so the result is the same by construction. The
     /// result holds either the compilation errors or the one evaluation error;
     /// <see cref="CelError.Stage"/> tells which step failed. The token is checked before compilation and
-    /// between compilation and evaluation, and during evaluation as <see cref="CelProgram{T}.Evaluate"/>
+    /// between compilation and evaluation, and during evaluation as
+    /// <see cref="CelProgram{T}.Evaluate(CelBindings, CelEvalOptions, CancellationToken)"/>
     /// describes.
     /// </para>
     /// <para>
@@ -349,4 +374,249 @@ public sealed class CelEnvironment
         ArgumentNullException.ThrowIfNull(bindings);
         return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations, TimeZones), CelType.Dyn, bindings, null, null, CancellationToken.None);
     }
+
+    /// <summary>
+    /// Builds an environment with the standard library version 1 in one call: creates a builder, lets
+    /// <paramref name="configure"/> declare variables, functions, types and extension sets, and builds the environment;
+    /// build errors are thrown.
+    /// </summary>
+    /// <remarks>
+    /// <c>CelEnvironment.Create(b =&gt; b.AddVariable&lt;long&gt;("x"))</c> is
+    /// <c>new CelEnvironmentBuilder().AddVariable&lt;long&gt;("x").Build().GetEnvironmentOrThrow()</c>. Use it where a build
+    /// error is a programming mistake, such as an environment declared once at startup; to receive build errors as a
+    /// result, use <see cref="CelEnvironmentBuilder.Build"/>. An exception thrown by <paramref name="configure"/> reaches the
+    /// caller unchanged.
+    /// </remarks>
+    /// <param name="configure">Declares the contents of the environment on the builder.</param>
+    /// <returns>The environment.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="configure"/> is <see langword="null"/>.</exception>
+    /// <exception cref="CelException">The environment has build errors; <see cref="CelException.Errors"/> holds them all.</exception>
+    public static CelEnvironment Create(Action<CelEnvironmentBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        return Create(CelStandardLibrary.V1, configure);
+    }
+
+    /// <summary>
+    /// Builds an environment with the given version of the standard library in one call, as
+    /// <see cref="Create(Action{CelEnvironmentBuilder})"/> does; build errors are thrown.
+    /// </summary>
+    /// <param name="standardLibrary">The version of the standard library, such as <see cref="CelStandardLibrary.V1"/>.</param>
+    /// <param name="configure">Declares the contents of the environment on the builder.</param>
+    /// <returns>The environment.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="standardLibrary"/> or <paramref name="configure"/> is <see langword="null"/>.</exception>
+    /// <exception cref="CelException">The environment has build errors; <see cref="CelException.Errors"/> holds them all.</exception>
+    public static CelEnvironment Create(CelStandardLibrary standardLibrary, Action<CelEnvironmentBuilder> configure)
+    {
+        ArgumentNullException.ThrowIfNull(standardLibrary);
+        ArgumentNullException.ThrowIfNull(configure);
+        var builder = new CelEnvironmentBuilder(standardLibrary);
+        configure(builder);
+        return builder.Build().GetEnvironmentOrThrow();
+    }
+
+    /// <summary>
+    /// Compiles an expression and evaluates it on an instance of the input type of the environment and on the bindings of
+    /// other variables in one call, with the same result and the same errors as <see cref="Compile{T}"/> followed by
+    /// <see cref="CelProgram{T}.EvaluateInput{TInput}(TInput, CelBindings, CelEvalOptions, CancellationToken)"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The fields of the input are read from <paramref name="input"/> only, never from the bindings. The input is a parameter
+    /// of the type <see cref="object"/> because <typeparamref name="T"/> is given explicitly and C# does not infer the rest of
+    /// the type arguments; a structure is boxed. The path without boxing is a program compiled once and evaluated with
+    /// <see cref="CelProgram{T}.EvaluateInput{TInput}(TInput, CelBindings, CelEvalOptions, CancellationToken)"/>. In an
+    /// environment without an input type, use
+    /// <see cref="Evaluate{T}(string, CelBindings, CelCompileOptions, CelEvalOptions, CancellationToken)"/>.
+    /// </para>
+    /// <para>
+    /// The result holds either the compilation errors or the one evaluation error; <see cref="CelError.Stage"/> tells which
+    /// step failed. The token is checked before compilation and between compilation and evaluation, and during evaluation as
+    /// the evaluation of a program describes. Each call compiles the text again; to evaluate the same texts repeatedly, keep
+    /// the programs or use a <see cref="CelCompilationCache"/>.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="T">The .NET type in which the result is returned, as for <see cref="Compile{T}"/>.</typeparam>
+    /// <param name="expression">The text of the expression.</param>
+    /// <param name="input">The instance of <see cref="InputType"/>.</param>
+    /// <param name="bindings">The values of the other variables, or <see langword="null"/> for none.</param>
+    /// <param name="compileOptions">The compilation options, or <see langword="null"/> for none.</param>
+    /// <param name="evalOptions">The evaluation options, such as the cost limit, or <see langword="null"/> for none.</param>
+    /// <param name="cancellationToken">The token that cancels the call.</param>
+    /// <returns>The result converted to <typeparamref name="T"/>, or the errors.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> or <paramref name="input"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The environment has no input type, <paramref name="input"/> is not an instance of the input type,
+    /// <typeparamref name="T"/> is not in the result column of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// or the expected type of <paramref name="compileOptions"/> cannot be converted to <typeparamref name="T"/>.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
+    public CelEvalResult<T> EvaluateInput<T>(
+        string expression,
+        object input,
+        CelBindings? bindings = null,
+        CelCompileOptions? compileOptions = null,
+        CelEvalOptions? evalOptions = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        ArgumentNullException.ThrowIfNull(input);
+        CheckInput(InputType, input);
+        cancellationToken.ThrowIfCancellationRequested();
+        return EvaluateInputCompiled(Compile<T>(expression, compileOptions), input, bindings, evalOptions, cancellationToken);
+    }
+
+    // The steps of the one-step call with an input after the compilation: the errors of a failed compilation are the result; otherwise
+    // the token is checked again and the program evaluated on the input.
+    internal static CelEvalResult<T> EvaluateInputCompiled<T>(
+        CelCompileResult<T> compiled,
+        object input,
+        CelBindings? bindings,
+        CelEvalOptions? evalOptions,
+        CancellationToken cancellationToken)
+    {
+        if (!compiled.IsSuccess)
+        {
+            return new CelEvalResult<T>(compiled.Errors);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return compiled.Program.EvaluateInput(input, bindings, evalOptions, cancellationToken);
+    }
+
+    // The checks of an input that a call passes: the environment has an input type, and the instance belongs to it — an instance of
+    // the .NET type of its description, or of the carrier class of a type described at run time. The parameter is named input.
+    internal static void CheckInput(CelObjectType? inputType, object input)
+    {
+        if (inputType is null)
+        {
+            throw new ArgumentException("The environment has no input type: declare one with UseInput<TInput>().", nameof(input));
+        }
+
+        if (!inputType.Belongs(input))
+        {
+            throw NotTheInputType(inputType, input.GetType());
+        }
+    }
+
+    // The same check for a structure, by its type: a structure of the input type, or one that implements an input interface. A type
+    // described at run time has a class for its carrier, so no structure belongs to it. The parameter is named input, the name of the
+    // argument that the exception names.
+    internal static void CheckInputType(CelObjectType? inputType, Type input)
+    {
+        if (inputType is null)
+        {
+            throw new ArgumentException("The environment has no input type: declare one with UseInput<TInput>().", nameof(input));
+        }
+
+        if (inputType.ClrType?.IsAssignableFrom(input) != true)
+        {
+            throw NotTheInputType(inputType, input);
+        }
+    }
+
+    private static ArgumentException NotTheInputType(CelObjectType inputType, Type input) =>
+        new("The input of the type '" + input + "' is not an instance of the input type '" + (inputType.ClrType?.ToString() ?? inputType.Name) + "'.", nameof(input));
+
+    /// <summary>
+    /// Validates an expression without creating a program: compiles it as <see cref="Compile{T}"/> does and returns all
+    /// errors, the CEL type of the result and the names of the variables and functions the expression refers to.
+    /// </summary>
+    /// <remarks>
+    /// The expected type comes from <typeparamref name="T"/> as in <see cref="Compile{T}"/>, so <c>Validate&lt;bool&gt;</c>
+    /// reports an expression whose type is not <c>bool</c> as the error <see cref="CelErrorCode.ExpectedTypeMismatch"/>.
+    /// Errors are returned, not thrown, and the work is bounded by the limits of compilation, as for
+    /// <see cref="Compile{T}"/>.
+    /// </remarks>
+    /// <typeparam name="T">The .NET type in which the expression would return its result, as for <see cref="Compile{T}"/>.</typeparam>
+    /// <param name="expression">The text of the expression.</param>
+    /// <param name="options">The compilation options, or <see langword="null"/> for none.</param>
+    /// <returns>The result of the validation.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// <typeparamref name="T"/> is not in the result column of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// or the expected type of <paramref name="options"/> cannot be converted to <typeparamref name="T"/>.
+    /// </exception>
+    [SuppressMessage(
+        "ApiDesign",
+        "RS0026:Do not add multiple public overloads with optional parameters",
+        Justification = "The generic and the non-generic validation take the same optional options; they differ by the expected type, not by the arguments.")]
+    public CelValidationResult Validate<T>(string expression, CelCompileOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+
+        CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
+        Compilation compiled = CompileSteps(expression, expectedType, options?.SourceLocation);
+        ReferencedNames.Collect(compiled.Check?.References ?? EmptyReferences, compiled.MacroCalls, out ImmutableArray<string> variables, out ImmutableArray<string> functions);
+        CelType? resultType = compiled is { Plan: not null, Check.Expression: { } checkedExpression } ? checkedExpression.ResultType : null;
+        return new CelValidationResult(compiled.Errors, resultType, variables, functions);
+    }
+
+    /// <summary>
+    /// Validates an expression without creating a program and without an expected type of the result, as
+    /// <see cref="Validate{T}(string, CelCompileOptions)"/> does with <see cref="CelValue"/>: any result type is accepted
+    /// unless <see cref="CelCompileOptions.ExpectedType"/> sets one.
+    /// </summary>
+    /// <param name="expression">The text of the expression.</param>
+    /// <param name="options">The compilation options, or <see langword="null"/> for none.</param>
+    /// <returns>The result of the validation.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    [SuppressMessage(
+        "ApiDesign",
+        "RS0026:Do not add multiple public overloads with optional parameters",
+        Justification = "The generic and the non-generic validation take the same optional options; they differ by the expected type, not by the arguments.")]
+    public CelValidationResult Validate(string expression, CelCompileOptions? options = null) =>
+        Validate<CelValue>(expression, options);
+
+    /// <summary>
+    /// The variables of the environment with their CEL types, including the fields of the input type, in the order of
+    /// <see cref="string.CompareOrdinal(string, string)"/> by name.
+    /// </summary>
+    /// <remarks>The declarations are immutable; reading them does not change the environment.</remarks>
+    public ImmutableArray<CelVariableDecl> Variables => Description.Variables;
+
+    /// <summary>
+    /// The functions of the environment with their overloads — of the standard library version, of the extension sets and of
+    /// the application — that an expression calls by name, in the order of <see cref="string.CompareOrdinal(string, string)"/>
+    /// by name. Operators of the language definition and internal functions, such as <c>_+_</c> and <c>@in</c>, are not
+    /// included, as in <see cref="CelValidationResult.ReferencedFunctions"/>.
+    /// </summary>
+    /// <remarks>
+    /// Each overload has its identifier, call style, parameter and result types and its
+    /// <see cref="CelOverloadDecl.Description"/>: the description the application gave in <see cref="CelFunctionOptions"/>,
+    /// or the one sentence that describes a function of the standard library or of an extension set.
+    /// </remarks>
+    public ImmutableArray<CelFunctionDecl> Functions => Description.Functions;
+
+    /// <summary>
+    /// The object types that the type sources of the environment describe, with their fields, in the order of
+    /// <see cref="string.CompareOrdinal(string, string)"/> by CEL name.
+    /// </summary>
+    public ImmutableArray<CelObjectType> ObjectTypes => Description.ObjectTypes;
+
+    /// <summary>
+    /// The enumeration types that the type sources of the environment describe, in the order of
+    /// <see cref="string.CompareOrdinal(string, string)"/> by CEL name.
+    /// </summary>
+    public ImmutableArray<CelEnumType> EnumTypes => Description.EnumTypes;
+
+    // The description, made at the first read and once: an environment that nobody introspects pays nothing. Two threads can make
+    // it at the same time; the first one published stays, and both are equal.
+    private EnvironmentDescription Description =>
+        _description ?? Interlocked.CompareExchange(ref _description, EnvironmentDescription.Create(Declarations), null) ?? _description!;
+
+    /// <summary>
+    /// The description of the input type declared with <see cref="CelEnvironmentBuilder.UseInput{TInput}"/>, or
+    /// <see langword="null"/> when the environment has no input type.
+    /// </summary>
+    public CelObjectType? InputType => Declarations.InputType;
+
+    /// <summary>
+    /// The cost limit of evaluations that pass no limit of their own, set with
+    /// <see cref="CelEnvironmentBuilder.SetDefaultCostLimit(ulong)"/>, in cost units; <see langword="null"/> when the
+    /// environment has none, and then an evaluation without its own limit counts no cost.
+    /// </summary>
+    public ulong? DefaultCostLimit => _declarationSet.DefaultCostLimit;
 }

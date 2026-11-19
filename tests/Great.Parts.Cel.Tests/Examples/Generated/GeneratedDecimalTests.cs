@@ -1,22 +1,24 @@
 #if NET11_0_OR_GREATER
 using System.Numerics;
+#endif
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Generator.Samples.Rows;
+#if NET11_0_OR_GREATER
 using Great.Parts.Cel.Tests.Examples.Library;
+#endif
 using Xunit;
 using static Great.Parts.Cel.Tests.Examples.Generated.GeneratedExample;
 
 namespace Great.Parts.Cel.Tests.Examples.Generated;
 
-// The members of the .NET types Decimal128 and System.Decimal of a type that the generator described (the sample class DecimalValues of
-// the samples of the generator, members Exact, Money and OptMoney, whose names are the camel-case names of the default policy). Such
-// a member is a field of the CEL type decimal. With the set decimal in the environment the field is read exactly — the digits, the exponent
-// and the sign of a zero of a Decimal128, the scale of a System.Decimal — and a nullable member is the type of the value, null being
+// The members of the .NET types System.Decimal and, on net11.0, Decimal128 of a type that the generator described (the sample class
+// DecimalValues of the samples of the generator, members Money and OptMoney, and on net11.0 Exact, whose names are the camel-case
+// names of the default policy). Such a member is a field of the CEL type decimal. With the set decimal in the environment the field is
+// read exactly — the digits, the exponent and the sign of a zero of a Decimal128, the scale of a System.Decimal — and a nullable member is the type of the value, null being
 // UnexpectedNull at the selection and has() false. Without the set the field is not available to the expression: FieldNotAccessible
 // (2007) at the check, at the "." of the selection and at the "(" of has(), with the text "the CEL type decimal needs the extension set
 // 'decimal'", although the type and the variable of it build. A Decimal128 member that is a NaN or an infinity is the error ConversionRange at the
-// selection, "NaN is out of the range of decimal", "+Inf ...", "-Inf ...". The members of the .NET type System.Decimal that the
-// generator excludes in net10.0 (a warning of the generator) are in the examples of the generator.
+// selection, "NaN is out of the range of decimal", "+Inf ...", "-Inf ...". The generator describes a System.Decimal member on both targets.
 [Trait("Requirement", "F-2")]
 [Trait("Requirement", "F-5")]
 public sealed class GeneratedDecimalTests
@@ -36,19 +38,30 @@ public sealed class GeneratedDecimalTests
         .GetEnvironmentOrThrow();
 
     [Fact]
-    public void MembersOfDecimal128AndSystemDecimal_AreReadAsDecimalFields()
+    public void MembersOfSystemDecimal_AreReadAsDecimalFields()
+    {
+        var values = new DecimalValues { Money = 2.50m, OptMoney = 3.5m };
+        CelBindings bindings = new CelBindings().Add("v", values);
+
+        Assert.Equal("2.50", Evaluate<string>(WithTheSet, "string(v.money)", bindings));
+        Assert.Equal("3.5", Evaluate<string>(WithTheSet, "string(v.optMoney)", bindings));
+        Assert.True(Evaluate<bool>(WithTheSet, "v.money == 2.5m && v.optMoney == 3.5m && v.money < v.optMoney", bindings));
+        Assert.True(Evaluate<bool>(WithTheSet, "type(v.money) == decimal && type(v.optMoney) == decimal", bindings));
+        Assert.True(Evaluate<bool>(WithTheSet, "has(v.money) && has(v.optMoney)", bindings));
+    }
+
+#if NET11_0_OR_GREATER
+    [Fact]
+    public void MemberOfDecimal128_IsReadAsADecimalField()
     {
         var values = new DecimalValues { Exact = DecimalExample.Make(150, -2), Money = 2.50m, OptMoney = 3.5m };
         CelBindings bindings = new CelBindings().Add("v", values);
 
         Assert.Equal("1.50", Evaluate<string>(WithTheSet, "string(v.exact)", bindings));
-        Assert.Equal("2.50", Evaluate<string>(WithTheSet, "string(v.money)", bindings));
-        Assert.Equal("3.5", Evaluate<string>(WithTheSet, "string(v.optMoney)", bindings));
-        Assert.True(Evaluate<bool>(WithTheSet, "v.exact == 1.5m && v.money == 2.5m && v.optMoney == 3.5m && v.exact < v.money", bindings));
-        Assert.True(Evaluate<bool>(WithTheSet, "type(v.exact) == decimal && type(v.money) == decimal && type(v.optMoney) == decimal", bindings));
-        Assert.True(Evaluate<bool>(WithTheSet, "has(v.exact) && has(v.money) && has(v.optMoney)", bindings));
+        Assert.True(Evaluate<bool>(WithTheSet, "v.exact == 1.5m && v.exact < v.money && type(v.exact) == decimal && has(v.exact)", bindings));
         Assert.Equal("-0", Evaluate<string>(WithTheSet, "string(v.exact)", new CelBindings().Add("v", new DecimalValues { Exact = DecimalExample.Make(0, 0, negative: true) })));
     }
+#endif
 
     [Fact]
     [Trait("Requirement", "F-4")]
@@ -62,10 +75,8 @@ public sealed class GeneratedDecimalTests
 
     [Theory]
     [Trait("Requirement", "F-4")]
-    [InlineData("v.exact", "exact", 1)]
     [InlineData("v.money", "money", 1)]
     [InlineData("v.optMoney", "optMoney", 1)]
-    [InlineData("has(v.exact)", "exact", 3)]
     [InlineData("has(v.money)", "money", 3)]
     public void SelectionWithoutTheSet_IsFieldNotAccessibleAtTheSelection(string text, string field, int offset)
     {
@@ -75,6 +86,7 @@ public sealed class GeneratedDecimalTests
         Assert.Equal(CelErrorStage.Check, error.Stage);
     }
 
+#if NET11_0_OR_GREATER
     [Theory]
     [Trait("Requirement", "F-4")]
     [InlineData("NaN")]
@@ -93,5 +105,5 @@ public sealed class GeneratedDecimalTests
 
         AssertError(error, CelErrorCode.ConversionRange, 1, text + " is out of the range of decimal");
     }
-}
 #endif
+}

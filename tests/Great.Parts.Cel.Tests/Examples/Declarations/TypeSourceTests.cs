@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -177,7 +176,7 @@ public sealed class TypeSourceTests
         CelBuildResult result = builder.Build();
 
         Assert.False(result.IsSuccess);
-        Assert.Throws<InvalidOperationException>(() => result.Environment);
+        Assert.Throws<CelException>(() => result.Environment);
         return Assert.Single(result.Errors);
     }
 

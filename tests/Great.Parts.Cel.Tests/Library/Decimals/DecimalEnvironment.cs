@@ -37,7 +37,7 @@ internal static class DecimalEnvironment
     // bit 127, the exponent plus 6176 in bits 113 to 126, the coefficient in bits 0 to 112). A coefficient that does not fit 34 digits
     // is a pattern that Decimal128 reads as a zero.
     internal static CelValue Make(UInt128 coefficient, int exponent, bool negative = false) =>
-        CelValue.FromDecimal(
+        CelValue.FromDecimal128(
             Decimal128.DecodeBinary((negative ? UInt128.One << 127 : UInt128.Zero) | ((UInt128)(uint)(exponent + 6176) << 113) | coefficient));
 }
 #endif

@@ -99,15 +99,13 @@ public sealed class CelType : IEquatable<CelType>
     /// </summary>
     public static CelType Any { get; } = new(CelTypeKind.Any, "google.protobuf.Any", []);
 
-#if NET11_0_OR_GREATER
     /// <summary>
-    /// <c>decimal</c>, an IEEE 754 decimal128 number with 34 significant digits; on .NET,
-    /// <see cref="System.Numerics.Decimal128"/>. Only on .NET 11. An environment knows the type only
-    /// when the <c>decimal</c> extension is added to it; otherwise a declaration that uses it is a build
-    /// error <see cref="Diagnostics.CelErrorCode.TypeNotDeclared"/>.
+    /// <c>decimal</c>, a decimal number; on .NET 11 an IEEE 754 decimal128 number with 34 significant digits,
+    /// <c>System.Numerics.Decimal128</c>, and on .NET 10 a <see cref="decimal"/> with 28–29 significant digits. An
+    /// environment knows the type only when the <c>decimal</c> extension is added to it; otherwise a declaration that uses
+    /// it is a build error <see cref="Diagnostics.CelErrorCode.TypeNotDeclared"/>.
     /// </summary>
     public static CelType Decimal { get; } = new(CelTypeKind.Decimal, "decimal", []);
-#endif
 
     /// <summary>
     /// Which family the type belongs to, and so how to read <see cref="Name"/> and
@@ -126,8 +124,8 @@ public sealed class CelType : IEquatable<CelType>
     /// <see cref="Name"/> is the name of the parameter within its overload.
     /// </para>
     /// <para>
-    /// On .NET 11 the kind can be <c>Decimal</c>, including in code compiled for .NET 10 that runs on
-    /// .NET 11; a <see langword="switch"/> over the kind needs a default branch.
+    /// New kinds can appear in a minor version, as <c>Decimal</c> did; a <see langword="switch"/> over the kind needs a
+    /// default branch.
     /// </para>
     /// </remarks>
     public CelTypeKind Kind { get; }

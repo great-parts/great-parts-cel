@@ -31,8 +31,9 @@ internal static class ListFunctions
 
     // invalid argument to 'function': detail. The function name is the first part; the number of the error is the one number
     // of the arguments; UnequalSizes names the two lists in the first and the second part, and EndAboveLength the list in the second.
-    private static readonly Func<CelError, string> ErrorText = static error =>
-        "invalid argument to '" + ((error.First as string) ?? "@sortByAssociatedKeys") + "': " + Detail(error);
+    private static readonly ErrorTemplate ErrorText = new(
+        static error => "invalid argument to '" + ((error.First as string) ?? "@sortByAssociatedKeys") + "': " + Detail(error),
+        subject: static error => (error.First as string) ?? "@sortByAssociatedKeys");
 
     // slice(list, int, int): the elements from the first index up to the second, which is excluded.
     internal static CelValue Slice(ReadOnlySpan<CelValue> arguments, in CallSite site)

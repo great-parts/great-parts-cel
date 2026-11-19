@@ -44,6 +44,10 @@ internal static class DeclarationNames
         }
     }
 
+    // One IDENT of the language definition: a word that is neither a keyword nor a reserved word. The one table of these words is
+    // the table of the lexer, which this class reads for the declarations.
+    internal static bool IsIdentifier(string name) => IsWord(name) && !Keywords.Contains(name) && !ReservedWords.Contains(name);
+
     // The name of a field of an object type: a word, a keyword and a reserved word included, which an expression
     // writes in backquotes; with dots, the full name of a protobuf extension field.
     internal static bool IsFieldName(string name)

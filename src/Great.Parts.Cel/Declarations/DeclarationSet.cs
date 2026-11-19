@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using Great.Parts.Cel.Values;
 
@@ -18,8 +19,12 @@ internal sealed class DeclarationSet
         ImmutableArray<SourcedDeclaration<CelExtension>> extensions = default,
         CelTimeZoneDatabase? timeZones = null,
         bool timeZoneConflict = false,
-        bool decimalLiterals = false)
+        bool decimalLiterals = false,
+        ImmutableArray<Type> inputTypes = default,
+        ulong? defaultCostLimit = null)
     {
+        InputTypes = inputTypes.IsDefault ? [] : inputTypes;
+        DefaultCostLimit = defaultCostLimit;
         Variables = variables;
         Functions = functions;
         Implementations = implementations;
@@ -57,4 +62,10 @@ internal sealed class DeclarationSet
 
     // Whether the builder enabled decimal literals; always false on .NET 10, whose builder has no such method.
     internal bool DecimalLiterals { get; }
+
+    // The .NET types that UseInput declared, each once, in the order of the calls; more than one is the build error InputConflict.
+    internal ImmutableArray<Type> InputTypes { get; }
+
+    // The cost limit of evaluations without a limit of their own that SetDefaultCostLimit set; null without one.
+    internal ulong? DefaultCostLimit { get; }
 }

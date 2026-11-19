@@ -1,12 +1,9 @@
 using System;
-using Great.Parts.Cel.Diagnostics;
-using Xunit;
-#if NET11_0_OR_GREATER
 using System.Collections.Generic;
 using System.Threading;
-using Great.Parts.Cel.Tests.Examples.Library;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
-#endif
+using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Configuration;
 
@@ -18,8 +15,7 @@ namespace Great.Parts.Cel.Tests.Examples.Configuration;
 // code only (DecimalSetBuildTests). The description has no key for the literal option either: the option is a method of the
 // builder, and a key for it is an unknown key. The type decimal is a type name like any other: "type": "decimal", "list<decimal>"
 // and "map<string, decimal>" are read, and Build declares them when the code added the set and refuses them otherwise —
-// TypeNotDeclared (4008) at the "{" of the variable, with the hint that names the set, or in net10.0 the hint that says the set
-// exists only on .NET 11. In the marked documents each '|' is the place of one expected error (see JsonExample).
+// TypeNotDeclared (4008) at the "{" of the variable, with the hint that names the set, on both targets. In the marked documents each '|' is the place of one expected error (see JsonExample).
 [Trait("Requirement", "F-7")]
 [Trait("Requirement", "F-5")]
 public sealed class EnvironmentJsonDecimalTests
@@ -62,11 +58,7 @@ public sealed class EnvironmentJsonDecimalTests
         string json = "{\"name\": \"m\", \"variables\": [{\"name\": \"price\", \"type\": \"" + record + "\"}]}";
         var builder = JsonExample.NewBuilder();
         Assert.Empty(JsonExample.Apply(builder, json));
-#if NET11_0_OR_GREATER
         const string Hint = "; add the extension set 'decimal'";
-#else
-        const string Hint = "; the extension set 'decimal' exists only on .NET 11";
-#endif
 
         JsonExample.AssertBuildErrorAt(
             JsonExample.BuildError(builder),
@@ -76,7 +68,6 @@ public sealed class EnvironmentJsonDecimalTests
             json.IndexOf("{\"name\": \"price\"", StringComparison.Ordinal));
     }
 
-#if NET11_0_OR_GREATER
     // With the set added in code — before or after the description — the record is the type decimal, and the variable works as one.
     [Theory]
     [InlineData(false)]
@@ -98,14 +89,13 @@ public sealed class EnvironmentJsonDecimalTests
 
         CelEnvironment environment = builder.Build().GetEnvironmentOrThrow();
         CelBindings bindings = new CelBindings()
-            .Add("price", CelValue.FromDecimal(DecimalExample.Make(25, -1)))
-            .Add("prices", CelValue.FromList(CelList.Create(CelValue.FromDecimal(DecimalExample.Make(15, -1)))))
-            .Add("rates", CelValue.FromMap(CelMap.Create([new KeyValuePair<CelValue, CelValue>(CelValue.FromString("a"), CelValue.FromDecimal(DecimalExample.Make(250, -2)))])));
+            .Add("price", CelValue.FromDecimal(2.5m))
+            .Add("prices", CelValue.FromList(CelList.Create(CelValue.FromDecimal(1.5m))))
+            .Add("rates", CelValue.FromMap(CelMap.Create([new KeyValuePair<CelValue, CelValue>(CelValue.FromString("a"), CelValue.FromDecimal(2.50m))])));
 
         CelValue value = environment.Compile<CelValue>("price > 1m && prices[0] < price && rates['a'] == price && type(price) == decimal").GetProgramOrThrow()
             .Evaluate(bindings, cancellationToken: CancellationToken.None).GetValueOrThrow();
 
         Assert.True(value.TryGetBoolean(out bool truth) && truth);
     }
-#endif
 }

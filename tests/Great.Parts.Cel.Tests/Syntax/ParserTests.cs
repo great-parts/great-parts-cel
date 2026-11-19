@@ -11,12 +11,8 @@ namespace Great.Parts.Cel.Tests.Syntax;
 
 public sealed class ParserTests
 {
-#if NET11_0_OR_GREATER
     private const string DecimalNotEnabled =
         "decimal literal is not enabled: enable decimal literals in the environment builder";
-#else
-    private const string DecimalNotEnabled = "decimal literal is not enabled: decimal requires .NET 11";
-#endif
 
     private const string OptionalNotEnabled = " is not enabled: add the extension set optional";
 

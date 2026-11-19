@@ -2,8 +2,9 @@ using System.Collections.Generic;
 
 namespace Great.Parts.Cel.Generator;
 
-// One nested sealed class that derives from CelObjectType for an object type: the constructor with the fields, the reading of a
-// field by a switch on its number, the presence, and the reasons of the excluded members.
+// One nested sealed class that derives from CelObjectType<T> for an object type of the .NET type T: the constructor with the fields,
+// the reading of a field by a switch on its number from the instance passed by reference (so a structure is not boxed), the presence,
+// and the reasons of the excluded members.
 internal static class DescriptionWriter
 {
     private const string Values = "global::Great.Parts.Cel.Values.";
@@ -32,7 +33,7 @@ internal static class DescriptionWriter
         }
 
         w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"Great.Parts.Cel.Generator\", " + Literals.Quote(version) + ")]");
-        w.Open("private sealed class " + type.ClassName + " : " + Values + "CelObjectType");
+        w.Open("private sealed class " + type.ClassName + " : " + Values + "CelObjectType<" + type.ClrName + ">");
         w.Line("internal static readonly " + type.ClassName + " Description = new();");
         foreach (HoistedConverter converter in converters)
         {
@@ -63,7 +64,6 @@ internal static class DescriptionWriter
         w.Line(": base(");
         w.Indent();
         w.Line(Literals.Quote(type.CelName) + ",");
-        w.Line("typeof(" + type.ClrName + "),");
         if (type.Fields.Length == 0)
         {
             w.Line("[])");
@@ -95,16 +95,11 @@ internal static class DescriptionWriter
 
     private static void WriteGetField(CodeWriter w, ObjectTypeModel type, List<FieldCode> codes)
     {
-        w.Open("protected override " + Values + "CelValue GetField(object instance, int number)");
-        if (codes.Count > 0)
-        {
-            w.Line("var value = (" + type.ClrName + ")instance;");
-        }
-
+        w.Open("protected override " + Values + "CelValue GetField(in " + type.ClrName + " instance, int number)");
         w.Open("switch (number)");
         foreach (FieldCode code in codes)
         {
-            WriteCase(w, code.Field, code.Read, code.ReadUses);
+            WriteCase(w, code.Field, code.Read, code.ReadUses, "instance");
         }
 
         w.Line("default: throw new global::System.ArgumentOutOfRangeException(nameof(number));");
@@ -139,7 +134,7 @@ internal static class DescriptionWriter
             }
 
             FlushLabels(w, labels);
-            WriteCase(w, code.Field, code.Presence, code.PresenceUses);
+            WriteCase(w, code.Field, code.Presence, code.PresenceUses, "value");
         }
 
         FlushLabels(w, labels);
@@ -160,11 +155,11 @@ internal static class DescriptionWriter
     }
 
     // A case that returns the expression: on one line when the expression names the member once, otherwise after a local that reads
-    // the member once.
-    private static void WriteCase(CodeWriter w, FieldModel field, string expression, int uses)
+    // the member once. The member is read from the instance, which is the parameter of the method or the local that the cast made.
+    private static void WriteCase(CodeWriter w, FieldModel field, string expression, int uses, string instance)
     {
         string label = "case " + Literals.Int(field.Number) + ":";
-        string member = "value." + field.Access;
+        string member = instance + "." + field.Access;
         if (uses <= 1)
         {
             w.Line(label + " return " + expression.Replace(Self, member) + ";");

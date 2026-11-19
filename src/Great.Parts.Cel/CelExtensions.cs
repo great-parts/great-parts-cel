@@ -1,12 +1,8 @@
 using System.Collections.Frozen;
-#if NET11_0_OR_GREATER
 using System.Diagnostics.CodeAnalysis;
-#endif
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
-#if NET11_0_OR_GREATER
 using Great.Parts.Cel.Library.Decimals;
-#endif
 using Great.Parts.Cel.Library.Extensions;
 
 namespace Great.Parts.Cel;
@@ -19,7 +15,7 @@ namespace Great.Parts.Cel;
 /// <para>
 /// The catalog has the extension sets that the conformance tests of the CEL specification use —
 /// <c>strings</c>, <c>math</c>, <c>lists</c>, <c>sets</c>, <c>encoders</c>, <c>bindings</c>,
-/// <c>optional</c>, the two-variable comprehensions, <c>network</c> and <c>protos</c> — and, on .NET 11,
+/// <c>optional</c>, the two-variable comprehensions, <c>network</c> and <c>protos</c> — and
 /// the <c>decimal</c> set of this library. Each set has the version number of the same set in cel-go, the
 /// CEL implementation in Go, and its functions are those of that version in cel-go; <c>decimal</c>, which
 /// cel-go does not have, has its own number. The functions of a version never change: updating the
@@ -152,24 +148,31 @@ public static class CelExtensions
     /// <returns>The extension set.</returns>
     public static CelExtension Protos(uint version) => ExtensionCatalog.Default.Get("protos", version);
 
-#if NET11_0_OR_GREATER
     /// <summary>
-    /// The <c>decimal</c> extension set: the CEL type <c>decimal</c>, an IEEE 754 decimal128 number with 34
-    /// significant digits, with arithmetic, comparison and conversions. Version 1. Only on .NET 11; cel-go
-    /// has no such set.
+    /// The <c>decimal</c> extension set: the CEL type <c>decimal</c>, a decimal number with decimal arithmetic, comparison
+    /// and conversions. Version 1, on .NET 10 and .NET 11; cel-go has no such set.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Version 1 has the operators <c>+</c>, <c>-</c>, <c>*</c>, <c>/</c>, unary minus and the comparisons
     /// between two decimals, and the conversions <c>decimal()</c> from <c>int</c>, <c>uint</c>, <c>double</c>,
     /// <c>string</c> and <c>decimal</c>, <c>int()</c>, <c>uint()</c>, <c>double()</c> and <c>string()</c> of a
-    /// decimal: 18 overloads. Results are rounded to 34 digits, half to even; values are finite, so overflow
-    /// and division by zero are errors. A decimal equals and orders only with a decimal: <c>price &gt; 0</c>
-    /// is a type checking error, write <c>price &gt; 0m</c> or <c>price &gt; decimal(0)</c>.
+    /// decimal: 18 overloads on both target frameworks. Values are finite, so overflow and division by zero are errors. A
+    /// decimal equals and orders only with a decimal: <c>price &gt; 0</c> is a type checking error, write
+    /// <c>price &gt; 0m</c> or <c>price &gt; decimal(0)</c>.
     /// </para>
     /// <para>
-    /// The set also makes members of the .NET types <see cref="decimal"/> and
-    /// <see cref="System.Numerics.Decimal128"/> available to expressions. Decimal literals such as
+    /// The precision depends on the target framework. On .NET 11 a value is an IEEE 754 decimal128 number,
+    /// <c>System.Numerics.Decimal128</c>, with 34 significant digits; on .NET 10 it is a <see cref="decimal"/>, with
+    /// 28–29 significant digits and an exponent from −28 to 0. An inexact result is rounded to the precision of the
+    /// platform, half to even; a literal or a result out of the precision or range of the platform is an error, not a
+    /// rounded or infinite value. Equal values compare equal on both, but their text can differ: <c>string(1e2m)</c> is
+    /// <c>"1E+2"</c> on .NET 11 and <c>"100"</c> on .NET 10. The page
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/decimal.md">decimal</see> gives the rules.
+    /// </para>
+    /// <para>
+    /// The set also makes members of the .NET type <see cref="decimal"/> and, on .NET 11,
+    /// <c>System.Numerics.Decimal128</c> available to expressions. Decimal literals such as
     /// <c>12.34m</c> need the option <see cref="CelEnvironmentBuilder.EnableDecimalLiterals"/> as well. The set
     /// cannot be named in an environment description in JSON; add it in code.
     /// </para>
@@ -181,5 +184,4 @@ public static class CelExtensions
         "CA1720:Identifier contains type name",
         Justification = "The method is named after the CEL type decimal that the extension set adds.")]
     public static CelExtension Decimal(uint version) => DecimalExtension.Get(version);
-#endif
 }

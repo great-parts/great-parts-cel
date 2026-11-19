@@ -7,7 +7,7 @@
 [![CI status](https://img.shields.io/github/actions/workflow/status/great-parts/great-parts-cel/ci.yml?branch=main&label=ci)](https://github.com/great-parts/great-parts-cel/actions/workflows/ci.yml)
 [![OpenSSF Best Practices](https://img.shields.io/cii/level/16897)](https://www.bestpractices.dev/projects/16897)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/great-parts/great-parts-cel?label=openssf%20scorecard&style=flat)](https://scorecard.dev/viewer/?uri=github.com/great-parts/great-parts-cel)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/great-parts/great-parts-cel/blob/main/LICENSE)
 
 CEL (Common Expression Language) for .NET / C#.
 
@@ -21,7 +21,7 @@ The library targets `net10.0` and `net11.0`. Add the package to a project:
 dotnet add package Great.Parts.Cel
 ```
 
-Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/protobuf.md). The type `decimal` is available on `net11.0` only; see [Decimal](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/decimal.md).
+Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](https://github.com/great-parts/great-parts-cel/blob/main/docs/protobuf.md). The type `decimal` is available on both targets, with a smaller range on `net10.0`; see [Decimal](https://github.com/great-parts/great-parts-cel/blob/main/docs/decimal.md).
 
 ## Quick start
 
@@ -47,11 +47,11 @@ The environment declares what an expression may use: here the standard library a
 
 ## What it covers
 
-- **The language.** The complete CEL syntax, the type checking of the CEL language definition and the standard library, [version 1](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/standard-library.md): arithmetic, comparisons, strings, lists, maps, `timestamp` and `duration` with time zones from a database that the application supplies, the standard macros, and `matches` with the syntax of RE2, found in time linear in the length of the string.
-- **Extension sets.** The sets of cel-go, each added with an explicit version, and `decimal`, a set of this library, on `net11.0`. See [Extension sets](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/extensions.md).
-- **Data of the application.** Variables and results of .NET types, and objects of the application, described by a source generator at build time, with no reflection, so they work under Native AOT and trimming ([Type mapping](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/type-mapping.md)); messages of protobuf, in the package `Great.Parts.Cel.Protobuf`.
-- **Untrusted expressions.** The length and the nesting of the text are limited, an evaluation can have a cost limit and can be cancelled ([Limits](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/limits.md), [Cost](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/cost.md)).
-- **Errors.** A parse, type or evaluation error is a result with a code of `CelErrorCode`, a stage and a place in the expression, never an exception for a wrong expression ([Error codes](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/error-codes.md)).
+- **The language.** The complete CEL syntax, the type checking of the CEL language definition and the standard library, [version 1](https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md): arithmetic, comparisons, strings, lists, maps, `timestamp` and `duration` with time zones from a database that the application supplies or from the operating system, the standard macros, and `matches` with the syntax of RE2, found in time linear in the length of the string.
+- **Extension sets.** The sets of cel-go, each added with an explicit version, and `decimal`, a set of this library, on both targets. See [Extension sets](https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md).
+- **Data of the application.** Variables and results of .NET types, and objects of the application, described by a source generator at build time, with no reflection, so they work under Native AOT and trimming ([Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)); messages of protobuf, in the package `Great.Parts.Cel.Protobuf`.
+- **Untrusted expressions.** The length and the nesting of the text are limited, an evaluation can have a cost limit and can be cancelled ([Limits](https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md), [Cost](https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md)).
+- **Errors.** A parse, type or evaluation error is a result with a code of `CelErrorCode`, a stage and a place in the expression, never an exception for a wrong expression ([Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)).
 
 ## For AI coding assistants
 
@@ -59,17 +59,17 @@ The package carries a file `AGENTS.md` in its root: what the library is for and 
 
 ## Documentation
 
-The documentation of a release is the content of the repository at the tag of the release; the links on this page point to the tag `v1.0.1`.
+The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
 
-- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/README.md)
-- [Standard library](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/standard-library.md)
-- [Extension sets](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/extensions.md)
-- [API concepts](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/api-concepts.md)
-- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/type-mapping.md)
-- [Conformance](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/conformance.md)
-- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/docs/versioning.md)
-- [Changelog](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/CHANGELOG.md)
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
+- [Standard library](https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md)
+- [Extension sets](https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md)
+- [API concepts](https://github.com/great-parts/great-parts-cel/blob/main/docs/api-concepts.md)
+- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)
+- [Conformance](https://github.com/great-parts/great-parts-cel/blob/main/docs/conformance.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)
 
 ## License
 
-[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/v1.0.1/LICENSE).
+[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/main/LICENSE).

@@ -14,32 +14,40 @@ internal readonly struct CallSite
     // The kinds of the arguments of NoMatchingOverload, 4 bits each, fit a long up to this count.
     private const int PackedKinds = 16;
 
-    // The message of an error without a place that the call gives its place.
-    private static readonly Func<CelError, string> AtCallText = static error => ((CelError)error.First!).Message;
+    // The message of an error without a place that the call gives its place, with its parts; the function is the second part, the
+    // subject of the codes whose subject is a function when the error did not name one itself.
+    private static readonly ErrorTemplate AtCallText = new(
+        static error => ((CelError)error.First!).Message,
+        static error => ((CelError)error.First!).Subject
+            ?? (error.Code is CelErrorCode.InvalidArgument or CelErrorCode.EvalNoMatchingOverload ? (string?)error.Second : null),
+        static error => ((CelError)error.First!).ExpectedType,
+        static error => ((CelError)error.First!).ActualType);
 
     // The function name is the first part; the kinds are packed in the number with their count in the byte, or for
     // more than 16 arguments are an array of one byte per argument, the second part. An object argument is named by
     // its description or its .NET type, an abstract one by the name of its type, kept in an array of names as the second part.
-    private static readonly Func<CelError, string> NoMatchingOverloadText = static error =>
-    {
-        var message = new StringBuilder("no such overload: ").Append((string)error.First!).Append('(');
-        byte[]? kinds = error.Second as byte[];
-        object?[]? objects = error.Second as object?[];
-        int count = kinds?.Length ?? error.Small;
-        for (int i = 0; i < count; i++)
+    private static readonly ErrorTemplate NoMatchingOverloadText = new(
+        static error =>
         {
-            if (i > 0)
+            var message = new StringBuilder("no such overload: ").Append((string)error.First!).Append('(');
+            byte[]? kinds = error.Second as byte[];
+            object?[]? objects = error.Second as object?[];
+            int count = kinds?.Length ?? error.Small;
+            for (int i = 0; i < count; i++)
             {
-                message.Append(", ");
+                if (i > 0)
+                {
+                    message.Append(", ");
+                }
+
+                var kind = (CelValueKind)(kinds is null ? (error.Number >> (4 * i)) & 0xF : kinds[i]);
+                object? name = objects?[i];
+                message.Append(name is null ? KindName(kind) : name is CelObjectType description ? description.Name : name.ToString());
             }
 
-            var kind = (CelValueKind)(kinds is null ? (error.Number >> (4 * i)) & 0xF : kinds[i]);
-            object? name = objects?[i];
-            message.Append(name is null ? KindName(kind) : name is CelObjectType description ? description.Name : name.ToString());
-        }
-
-        return message.Append(')').ToString();
-    };
+            return message.Append(')').ToString();
+        },
+        subject: static error => (string)error.First!);
 
     private readonly int _offset;
     private readonly LineTable _lines;
@@ -108,18 +116,18 @@ internal readonly struct CallSite
 
     // An error value of the stage Evaluate at the position of the call, whose message the format forms from its parts
     // when it is read: a part of unbounded length, such as a key, is not written during evaluation.
-    internal CelValue Error(CelErrorCode code, Func<CelError, string> format, object? first, object? second = null, long number = 0, byte small = 0) =>
+    internal CelValue Error(CelErrorCode code, ErrorTemplate format, object? first, object? second = null, long number = 0, byte small = 0) =>
         CelValue.FromError(new CelError(code, format, _lines, _offset, first, second, number, small));
 
     // An error value of the stage Evaluate at the position of the call whose message names the value
     // (ErrorValueParts).
-    internal CelValue ErrorWithValue(CelErrorCode code, Func<CelError, string> format, object? first, CelValue value) =>
+    internal CelValue ErrorWithValue(CelErrorCode code, ErrorTemplate format, object? first, CelValue value) =>
         CelValue.FromError(ErrorValueParts.Create(code, format, _lines, _offset, first, value));
 
     // A value that an operation read: an error value without a place gets the place of the call.
     internal CelValue Placed(CelValue value) =>
         value.TryGetError(out CelError? error) && error.Location.Line == 0
-            ? CelValue.FromError(new CelError(error.Code, AtCallText, _lines, _offset, error))
+            ? CelValue.FromError(new CelError(error.Code, AtCallText, _lines, _offset, error, Function))
             : value;
 
     // EvalNoMatchingOverload: no overload of the function takes the kinds of these argument values. An

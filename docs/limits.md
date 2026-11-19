@@ -67,13 +67,15 @@ A cache that is over its capacity is not an error: it evicts entries when one is
 
 ### Compilation cache
 
-`CelCompilationCache` keeps the results of compilations of one environment. The application creates it with two capacities, which are required parameters without defaults: the number of entries and the total length of the expression texts in UTF-16 code units.
+`CelCompilationCache` keeps the results of compilations of one environment. The application creates it with the default capacities, `new CelCompilationCache(environment)`, or with two capacities of its own: the number of entries and the total length of the expression texts in UTF-16 code units. `CelCompilationCache.DefaultMaxEntryCount` and `CelCompilationCache.DefaultMaxTotalTextLength` are the defaults.
 
 | Limit | Value | How it is counted | Error |
 | :- | :- | :- | :- |
-| Capacity of the cache of compilations: entries and total length of the texts | set by the application; recommended 80,000 entries and 900,000 code units of total text length | An entry keeps the program of its text, so it takes about 400 bytes and about 33.6 bytes for each code unit of its text (measured by `GC.GetTotalMemory(true)` before and after a cache is filled with 1,000 programs of texts of 20, 200 and 2,000 code units, `net10.0`). The recommended values keep a full cache within 64 MiB: the number of entries is at most 32 MiB / 400 bytes and the total length of the texts at most 32 MiB / 33.6 bytes, each rounded down to one significant digit. Unsuccessful compilations are cached too; when an insertion takes the cache over a capacity, entries are evicted | not an error: entries are evicted |
+| Capacity of the cache of compilations: entries and total length of the texts | default 80,000 entries and 900,000 code units of total text length (`DefaultMaxEntryCount`, `DefaultMaxTotalTextLength`); the application can set its own | An entry keeps the program of its text, so it takes about 400 bytes and about 33.6 bytes for each code unit of its text (measured by `GC.GetTotalMemory(true)` before and after a cache is filled with 1,000 programs of texts of 20, 200 and 2,000 code units, `net10.0`). The recommended values keep a full cache within 64 MiB: the number of entries is at most 32 MiB / 400 bytes and the total length of the texts at most 32 MiB / 33.6 bytes, each rounded down to one significant digit. Unsuccessful compilations are cached too; when an insertion takes the cache over a capacity, entries are evicted | not an error: entries are evicted |
 
 A text longer than the capacity of the total length is compiled and returned but not kept. The result of an expression and its cost do not depend on the cache.
+
+`Count` is the number of the entries now; an entry is a text with its result type and options, so one text compiled for two result types is two entries. `Clear()` removes all entries, and `TryRemove(text)` removes the entries of a text, whatever their result types and options, and tells whether it removed any; it compares the text by ordinal comparison and takes time proportional to the number of entries. A program that the cache returned before stays valid. All three can be called while other threads read and insert.
 
 ### Cache of patterns of `matches`
 
@@ -87,6 +89,44 @@ The programs of the patterns of `matches` that are not string literals are kept 
 **Calibration of the capacities.** The memory of an entry was measured by `GC.GetTotalMemory(true)` before and after environments were filled with distinct patterns of the sizes 2, 10, 100, 1,000 and 10,000, each size in a process of its own, `net10.0`, JIT. An entry takes about 194 bytes, plus the key, the text of the pattern, which is a string of 22 + 2 · L bytes for L code units, plus 16 bytes for each unit of its size m: 250 bytes for a pattern of the size 2 and a text of 1 character, 1,826 for the size 100 and a text of 5, 16,234 for the size 1,000 and a text of 6, and 160,332 for the size 10,000 and a text of 69. The 16 bytes for each unit is the same number that the build of the program is charged for (⌈m/4⌉ units of at most 64 bytes). The capacities keep a cache full to both of them within 4 MiB: the sum of the sizes is at most 3 MiB / 16 bytes = 196,608, which rounds down to one digit as 100,000, and the number of patterns is at most 1 MiB / (194 + 22 + 2 · 4,096) bytes, the entry with the longest key that is kept, which is 124 and has the same first digit as 128. So a cache full to both capacities takes about 1.6 MiB with the short keys of practice (100,000 · 16 bytes and 128 · 194 bytes, and the keys), and at most 2.6 MiB when every key is 4,096 code units long.
 
 Bytes for a unit of cost at n = 0, in the steady state of the process: a pattern that is a literal and a pattern from data found in the cache allocate nothing beyond the call, 0 bytes for a unit; a pattern from data that is not in the cache, so that its program is built and kept, allocates 45.6 bytes for a unit at most, for the sizes 10 to 100,000. The first evaluation of a size in a process, when the arrays of the engine are taken from the pool of arrays for the first time, allocates them once: up to 318 bytes for a unit for a literal and 189 for a pattern from data, which is a one-time allocation of that size and not a rate. The two numbers of the steady state are below the 64 bytes of the page [Cost](cost.md#calibration).
+
+## Simple entry
+
+`CelExpression.Evaluate<T>` evaluates a text on a dictionary or an anonymous object in one call. It keeps hidden environments and programs in a cache of the process. Going over a capacity of the cache is not an error: the cache evicts entries when one is inserted, with no threads and no timers, and neither the result nor the cost of a call depends on the capacities. The simple entry has no members that control the cache; an application that needs control uses a [`CelCompilationCache`](#compilation-cache).
+
+| Limit | Value | How it is counted | Error |
+| :- | :- | :- | :- |
+| Cost limit of a call | 1,000,000 cost units (`CelExpression.DefaultCostLimit`) | It applies unless the call passes its own `costLimit`, which can be any value, `ulong.MaxValue` included; the cost is always counted, so it cannot be turned off. It acts as the cost limit of the hidden environment, see [Cost](cost.md). A unit takes at most 64 bytes, so a call within the default limit allocates at most about 64 MB. The limit is at least 100 times the cost of each scenario of the performance set of the library (orders of 10 and 100 lines, rules over fields, lists, strings, `matches` and time). Changing the number is a change of the major version | `CostLimitExceeded` (3013) in a `CelException` |
+| Hidden environments in the cache | 64 | One environment for each shape of data: the type of an anonymous object, or the names and CEL types of the variables of a dictionary, sorted by ordinal comparison. When a new shape does not fit, the clock algorithm evicts an environment together with its programs, so at most 64 hidden environments are alive. A shape whose environment fails to build is not kept | not an error: entries are evicted |
+| Programs in the cache | 1,024 | A program is kept by its environment, its text and the result type `T`. A compilation that failed is kept as its errors, so a text with an error is not compiled again and again | not an error: entries are evicted |
+| Total length of the kept texts | 100,000 UTF-16 code units | The sum of the lengths of the texts of the kept programs. A text longer than that is compiled and used but not kept; the limit of the length of an expression is lower, 65,536 bytes, so such a text is the error `ExpressionTooLong` first | not an error: entries are evicted |
+| Registry of anonymous types | no limit | The registry maps an anonymous type to its declarations and its reader. Only the code that the source generator writes for the call sites of the application adds to it, once for each anonymous type, when the module loads, so its size is the number of anonymous types in those calls, not a quantity that depends on the data or the texts at run time. Registering a type again changes nothing | not an error |
+
+A read of the cache takes no lock; an insertion takes one lock, checks again, evicts and adds. Two threads that miss the same key can both compile; the first insertion stays.
+
+**Calibration of the memory.** A full cache is 64 shapes of 16 variables each and 1,024 programs, 16 on each shape, with texts of about 90 UTF-16 code units. The memory is the growth of `GC.GetTotalMemory(true)` before and after the fill, the way the cache of compilations was measured. A cache with 64 environments, 1,024 programs and 85,350 code units of text grew the memory by 3,878,504 bytes (3.70 MiB), `net11.0`, JIT. The target is at most 8 MiB, which the numbers above keep. Each scenario of the performance set costs at most 854 units (E4 on 100 lines), so the default limit of 1,000,000 is more than 1,000 times the largest of them.
+
+## Time zones of the operating system
+
+The database of `CelTimeZoneDatabase.FromSystem()` reads a zone through `TimeZoneInfo.FindSystemTimeZoneById`. The name of a zone in an expression is untrusted input, so the platform gets only a name that passed the check below. `UTC` and fixed offsets are settled before the database, as for any database.
+
+| Limit | Value | How it is counted | Error |
+| :- | :- | :- | :- |
+| Length of the name of a zone | from 1 to 64 UTF-16 code units | The length is checked first. Then the form: parts separated by `/`, each part not empty and made of Latin letters, digits, `_`, `-` and `+`; the first part is neither `posix` nor `right`, the directories of the variants of the tz database. A found zone is accepted only when it has an IANA identifier: a Windows identifier is refused on every operating system | `TimeZoneNotFound` (3022), with the name |
+| Zones that were found | no limit of its own: at most the zones of the operating system | A zone that the platform found is kept until the process ends. A miss is not kept, so the memory does not grow with the names of untrusted expressions | not an error |
+
+The cost of the access to the database is on the page [Cost](cost.md#time-zones-of-the-operating-system).
+
+## Text of a value
+
+`CelValue.ToString()` writes a value in the syntax of CEL for logs and messages. The text is not a contract and is not meant to be parsed back.
+
+| Limit | Value | How it is counted | Error |
+| :- | :- | :- | :- |
+| Depth of the text | 32 levels | A list, a map, an optional or an object nested deeper than 32 levels is written as `…`; the top-level value is level 0 | none |
+| Length of the text | not limited | The text grows with the value; an application that logs values of untrusted size cuts the text itself | none |
+
+An object of the application is written by reading its present fields through its description, so a getter of the application runs and its exception reaches the caller of `ToString()`.
 
 ## Values
 

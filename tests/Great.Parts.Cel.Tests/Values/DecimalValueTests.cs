@@ -16,7 +16,7 @@ namespace Great.Parts.Cel.Tests.Values;
 // the extension set check the same values through expressions, so nothing here needs an environment or the set.
 public sealed class DecimalValueTests
 {
-    private static readonly CelValue OneAndHalf = CelValue.FromDecimal(Make(15, -1));
+    private static readonly CelValue OneAndHalf = CelValue.FromDecimal128(Make(15, -1));
 
     private static readonly byte[] OneByte = [1];
 
@@ -25,7 +25,7 @@ public sealed class DecimalValueTests
     {
         foreach (Decimal128 value in new[] { Decimal128.NaN, Decimal128.PositiveInfinity, Decimal128.NegativeInfinity })
         {
-            ArgumentException exception = Assert.Throws<ArgumentException>(() => CelValue.FromDecimal(value));
+            ArgumentException exception = Assert.Throws<ArgumentException>(() => CelValue.FromDecimal128(value));
 
             Assert.Contains("A decimal must be finite: a NaN and an infinity are not values of CEL.", exception.Message, StringComparison.Ordinal);
         }
@@ -53,11 +53,11 @@ public sealed class DecimalValueTests
 
         foreach (CelValue value in others)
         {
-            Assert.False(value.TryGetDecimal(out Decimal128 number));
+            Assert.False(value.TryGetDecimal128(out Decimal128 number));
             Assert.Equal(default(Decimal128), number);
         }
 
-        Assert.True(OneAndHalf.TryGetDecimal(out Decimal128 found));
+        Assert.True(OneAndHalf.TryGetDecimal128(out Decimal128 found));
         Assert.Equal(CelValueKind.Decimal, OneAndHalf.Kind);
         Assert.Equal(new DecimalParts(false, 15UL, -1), DecimalParts.From(found));
     }
@@ -82,7 +82,7 @@ public sealed class DecimalValueTests
 
         foreach (DecimalParts parts in cases)
         {
-            Assert.Equal(parts, Parts(CelValue.FromDecimal(parts.ToDecimal128())));
+            Assert.Equal(parts, Parts(CelValue.FromDecimal128(parts.ToDecimal128())));
         }
     }
 
@@ -91,9 +91,9 @@ public sealed class DecimalValueTests
     {
         CelValue[][] same =
         [
-            [CelValue.FromDecimal(Make(150, -2)), CelValue.FromDecimal(Make(15, -1)), CelValue.FromDecimal(Make(1500, -3))],
-            [CelValue.FromDecimal(Make(1, 2)), CelValue.FromDecimal(Make(100, 0)), CelValue.FromDecimal(Make(10, 1))],
-            [CelValue.FromDecimal(Make(0, 0)), CelValue.FromDecimal(Make(0, 0, negative: true)), CelValue.FromDecimal(Make(0, -4)), CelValue.FromDecimal(Make(0, 6111))],
+            [CelValue.FromDecimal128(Make(150, -2)), CelValue.FromDecimal128(Make(15, -1)), CelValue.FromDecimal128(Make(1500, -3))],
+            [CelValue.FromDecimal128(Make(1, 2)), CelValue.FromDecimal128(Make(100, 0)), CelValue.FromDecimal128(Make(10, 1))],
+            [CelValue.FromDecimal128(Make(0, 0)), CelValue.FromDecimal128(Make(0, 0, negative: true)), CelValue.FromDecimal128(Make(0, -4)), CelValue.FromDecimal128(Make(0, 6111))],
         ];
 
         foreach (CelValue[] cohorts in same)
@@ -110,15 +110,15 @@ public sealed class DecimalValueTests
             }
         }
 
-        Assert.True(CelValue.FromDecimal(Make(15, -1)) != CelValue.FromDecimal(Make(25, -1)));
-        Assert.False(CelValue.FromDecimal(Make(15, -1)).Equals(CelValue.FromDecimal(Make(15, -1, negative: true))));
-        Assert.True(CelValue.FromDecimal(Make(1, 0)) != CelValue.FromDecimal(Make(1, 1)));
+        Assert.True(CelValue.FromDecimal128(Make(15, -1)) != CelValue.FromDecimal128(Make(25, -1)));
+        Assert.False(CelValue.FromDecimal128(Make(15, -1)).Equals(CelValue.FromDecimal128(Make(15, -1, negative: true))));
+        Assert.True(CelValue.FromDecimal128(Make(1, 0)) != CelValue.FromDecimal128(Make(1, 1)));
     }
 
     [Fact]
     public static void NetEquality_OfADecimalAndAValueOfAnotherKind_IsFalse()
     {
-        CelValue one = CelValue.FromDecimal(Make(1, 0));
+        CelValue one = CelValue.FromDecimal128(Make(1, 0));
 
         Assert.False(one.Equals(CelValue.FromInt64(1)));
         Assert.False(one.Equals(CelValue.FromUInt64(1)));
@@ -135,7 +135,7 @@ public sealed class DecimalValueTests
     public static void TheMarkOfSystemDecimal_IsIgnoredByEqualityTheHashAndTheReading()
     {
         CelValue marked = CelValue.FromSystemDecimalOrigin(Make(150, -2));
-        CelValue plain = CelValue.FromDecimal(Make(150, -2));
+        CelValue plain = CelValue.FromDecimal128(Make(150, -2));
 
         Assert.True(marked.IsFromSystemDecimal);
         Assert.False(plain.IsFromSystemDecimal);
@@ -163,7 +163,7 @@ public sealed class DecimalValueTests
     [Fact]
     public static void TypeAndNameOfADecimal_AreDecimal_ForEveryCohort()
     {
-        foreach (CelValue value in new[] { OneAndHalf, CelValue.FromDecimal(Make(0, 0, negative: true)) })
+        foreach (CelValue value in new[] { OneAndHalf, CelValue.FromDecimal128(Make(0, 0, negative: true)) })
         {
             Assert.Equal(CelType.Decimal, ValueTypeRules.TypeOf(value));
             Assert.Equal("decimal", ValueTypeRules.NameOf(value, null));
@@ -212,20 +212,20 @@ public sealed class DecimalValueTests
     {
         (CelValue Left, CelValue Right, ValueOrdering Expected)[] cases =
         [
-            (CelValue.FromDecimal(Make(150, -2)), CelValue.FromDecimal(Make(15, -1)), ValueOrdering.Equal),
-            (CelValue.FromDecimal(Make(0, 0, negative: true)), CelValue.FromDecimal(Make(0, 0)), ValueOrdering.Equal),
-            (CelValue.FromDecimal(Make(0, 5)), CelValue.FromDecimal(Make(0, -5, negative: true)), ValueOrdering.Equal),
-            (CelValue.FromDecimal(Make(1, 0)), CelValue.FromDecimal(Make(2, 0)), ValueOrdering.Less),
-            (CelValue.FromDecimal(Make(2, 0)), CelValue.FromDecimal(Make(1, 0)), ValueOrdering.Greater),
-            (CelValue.FromDecimal(Make(1, 2)), CelValue.FromDecimal(Make(99, 0)), ValueOrdering.Greater),
-            (CelValue.FromDecimal(Make(5, -1, negative: true)), CelValue.FromDecimal(Make(1, -6176)), ValueOrdering.Less),
-            (CelValue.FromDecimal(Make(1, -6176)), CelValue.FromDecimal(Make(0, 0)), ValueOrdering.Greater),
-            (CelValue.FromDecimal(Make(1, 0)), CelValue.FromInt64(1), ValueOrdering.None),
-            (CelValue.FromInt64(1), CelValue.FromDecimal(Make(1, 0)), ValueOrdering.None),
-            (CelValue.FromDecimal(Make(1, 0)), CelValue.FromUInt64(1), ValueOrdering.None),
-            (CelValue.FromDecimal(Make(1, 0)), CelValue.FromDouble(1), ValueOrdering.None),
-            (CelValue.FromDecimal(Make(1, 0)), CelValue.FromString("1"), ValueOrdering.None),
-            (CelValue.FromDecimal(Make(1, 0)), CelValue.Null, ValueOrdering.None),
+            (CelValue.FromDecimal128(Make(150, -2)), CelValue.FromDecimal128(Make(15, -1)), ValueOrdering.Equal),
+            (CelValue.FromDecimal128(Make(0, 0, negative: true)), CelValue.FromDecimal128(Make(0, 0)), ValueOrdering.Equal),
+            (CelValue.FromDecimal128(Make(0, 5)), CelValue.FromDecimal128(Make(0, -5, negative: true)), ValueOrdering.Equal),
+            (CelValue.FromDecimal128(Make(1, 0)), CelValue.FromDecimal128(Make(2, 0)), ValueOrdering.Less),
+            (CelValue.FromDecimal128(Make(2, 0)), CelValue.FromDecimal128(Make(1, 0)), ValueOrdering.Greater),
+            (CelValue.FromDecimal128(Make(1, 2)), CelValue.FromDecimal128(Make(99, 0)), ValueOrdering.Greater),
+            (CelValue.FromDecimal128(Make(5, -1, negative: true)), CelValue.FromDecimal128(Make(1, -6176)), ValueOrdering.Less),
+            (CelValue.FromDecimal128(Make(1, -6176)), CelValue.FromDecimal128(Make(0, 0)), ValueOrdering.Greater),
+            (CelValue.FromDecimal128(Make(1, 0)), CelValue.FromInt64(1), ValueOrdering.None),
+            (CelValue.FromInt64(1), CelValue.FromDecimal128(Make(1, 0)), ValueOrdering.None),
+            (CelValue.FromDecimal128(Make(1, 0)), CelValue.FromUInt64(1), ValueOrdering.None),
+            (CelValue.FromDecimal128(Make(1, 0)), CelValue.FromDouble(1), ValueOrdering.None),
+            (CelValue.FromDecimal128(Make(1, 0)), CelValue.FromString("1"), ValueOrdering.None),
+            (CelValue.FromDecimal128(Make(1, 0)), CelValue.Null, ValueOrdering.None),
         ];
 
         foreach ((CelValue left, CelValue right, ValueOrdering expected) in cases)
@@ -244,13 +244,13 @@ public sealed class DecimalValueTests
         Assert.False(KeyHashRules.TryGetHash(OneAndHalf, out int hash));
         Assert.Equal(0, hash);
         Assert.False(EqualityRules.KeysEqual(OneAndHalf, OneAndHalf));
-        Assert.False(EqualityRules.KeysEqual(CelValue.FromInt64(1), CelValue.FromDecimal(Make(1, 0))));
-        Assert.False(EqualityRules.KeysEqual(CelValue.FromDecimal(Make(1, 0)), CelValue.FromInt64(1)));
+        Assert.False(EqualityRules.KeysEqual(CelValue.FromInt64(1), CelValue.FromDecimal128(Make(1, 0))));
+        Assert.False(EqualityRules.KeysEqual(CelValue.FromDecimal128(Make(1, 0)), CelValue.FromInt64(1)));
         Assert.Throws<ArgumentException>(() => CelMap.Create([new KeyValuePair<CelValue, CelValue>(OneAndHalf, CelValue.FromInt64(1))]));
 
         CelMap map = CelMap.Create([new KeyValuePair<CelValue, CelValue>(CelValue.FromInt64(1), CelValue.FromInt64(1))]);
 
-        Assert.False(map.TryGetValue(CelValue.FromDecimal(Make(1, 0)), out _));
+        Assert.False(map.TryGetValue(CelValue.FromDecimal128(Make(1, 0)), out _));
     }
 
     [Fact]
@@ -321,7 +321,7 @@ public sealed class DecimalValueTests
     [Fact]
     public static void ParameterRows_RefuseAValueOutsideTheRangeOfSystemDecimal_AndTakeDecimal128AsItIs()
     {
-        CelValue tooLarge = CelValue.FromDecimal(Make(1, 29));
+        CelValue tooLarge = CelValue.FromDecimal128(Make(1, 29));
 
         Assert.False(ConversionRules.TryToParameter(tooLarge, null, out decimal _));
         Assert.True(ConversionRules.TryToParameter(tooLarge, null, out Decimal128 exact));
@@ -358,7 +358,7 @@ public sealed class DecimalValueTests
 
     private static DecimalParts Parts(CelValue value)
     {
-        Assert.True(value.TryGetDecimal(out Decimal128 number));
+        Assert.True(value.TryGetDecimal128(out Decimal128 number));
         return DecimalParts.From(number);
     }
 
@@ -373,7 +373,7 @@ public sealed class DecimalValueTests
     {
         internal static CelValue Scaled(decimal value) => FromDecimal(value);
 
-        internal CelValue Exact(int number, Decimal128 value) => FromDecimal(number, value);
+        internal CelValue Exact(int number, Decimal128 value) => FromDecimal128(number, value);
 
         protected internal override CelValue GetField(object instance, int number) => default;
 

@@ -78,7 +78,7 @@ internal sealed class ValueReader
         ScalarKind.DateTimeOffset => Factory("FromTimestamp", Values + "CelTimestamp.FromDateTimeOffset(" + v.Use() + ")"),
         ScalarKind.DateTime => Helper("FromDateTime", v),
         ScalarKind.TimeSpan => Helper("FromTimeSpan", v),
-        ScalarKind.Decimal128 => Helper("FromDecimal", v),
+        ScalarKind.Decimal128 => Helper("FromDecimal128", v),
         ScalarKind.Decimal => "FromDecimal(" + v.Use() + ")",
         ScalarKind.CelValue => v.Use(),
         ScalarKind.Object => Checked(v, shape.Nullability, Helper("FromDynamic", v)),

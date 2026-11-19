@@ -18,14 +18,13 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Names : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Names : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Names>
         {
             internal static readonly Type_Acme_Names Description = new();
 
             private Type_Acme_Names()
                 : base(
                     "Acme.Names",
-                    typeof(global::Acme.Names),
                     [
                         new(0, "as", global::Great.Parts.Cel.Types.CelType.Int),
                         new(1, "conditional", global::Great.Parts.Cel.Types.CelType.WrapperOf(global::Great.Parts.Cel.Types.CelType.String)),
@@ -42,26 +41,25 @@ namespace Acme
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Names instance, int number)
             {
-                var value = (global::Acme.Names)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.As);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.As);
                     case 1:
                     {
-                        var v = value.Conditional;
+                        var v = instance.Conditional;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
-                    case 2: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Both);
-                    case 3: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.HTTPServer);
-                    case 4: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.ID);
-                    case 5: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.In);
-                    case 6: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Order2Line);
-                    case 7: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Original);
-                    case 8: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.TotalAmount);
-                    case 9: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.URLPath);
-                    case 10: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Wire);
+                    case 2: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Both);
+                    case 3: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.HTTPServer);
+                    case 4: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.ID);
+                    case 5: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.In);
+                    case 6: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Order2Line);
+                    case 7: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Original);
+                    case 8: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.TotalAmount);
+                    case 9: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.URLPath);
+                    case 10: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Wire);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }

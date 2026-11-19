@@ -13,14 +13,17 @@ namespace Great.Parts.Cel.Library.Extensions;
 internal static class MathFunctions
 {
     private const string IntegerOverflow = "integer overflow";
+    private const string MaxName = "math.@max";
+    private const string MinName = "math.@min";
     private const string MaxNaN = "invalid argument to 'math.@max': NaN values cannot be ordered";
     private const string MinNaN = "invalid argument to 'math.@min': NaN values cannot be ordered";
     private const string MaxEmpty = "invalid argument to 'math.@max': math.@max(list) argument must not be empty";
     private const string MinEmpty = "invalid argument to 'math.@min': math.@min(list) argument must not be empty";
 
     // The function name is the first part and the offset is the number: math.bitShiftLeft() negative offset: -1.
-    private static readonly Func<CelError, string> NegativeOffsetText = static error =>
-        (string)error.First! + "() negative offset: " + error.Number.ToString(CultureInfo.InvariantCulture);
+    private static readonly ErrorTemplate NegativeOffsetText = new(
+        static error => (string)error.First! + "() negative offset: " + error.Number.ToString(CultureInfo.InvariantCulture),
+        subject: static error => (string)error.First!);
 
     // math.@max, math_@max_<kind>, math_@max_<kind>_<kind> and math_@max_list_<kind>: the argument itself, the larger of two
     // numbers, or the largest element of a list.
@@ -224,7 +227,7 @@ internal static class MathFunctions
     {
         if (list.Count == 0)
         {
-            return site.Error(CelErrorCode.InvalidArgument, isMax ? MaxEmpty : MinEmpty);
+            return site.Error(CelErrorCode.InvalidArgument, CelError.NamedMessage, isMax ? MaxEmpty : MinEmpty, isMax ? MaxName : MinName);
         }
 
         CelValue best = default;
@@ -258,7 +261,7 @@ internal static class MathFunctions
         ValueOrdering order = OrderingRules.CompareNumbers(first, second);
         if (order == ValueOrdering.Unordered)
         {
-            return site.Error(CelErrorCode.InvalidArgument, isMax ? MaxNaN : MinNaN);
+            return site.Error(CelErrorCode.InvalidArgument, CelError.NamedMessage, isMax ? MaxNaN : MinNaN, isMax ? MaxName : MinName);
         }
 
         return (isMax ? order == ValueOrdering.Less : order == ValueOrdering.Greater) ? second : first;

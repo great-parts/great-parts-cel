@@ -31,9 +31,7 @@ internal static class ValueTypeNames
         CelValueKind.Duration => "duration",
         CelValueKind.Optional => "optional_type",
         CelValueKind.Error => "error",
-#if NET11_0_OR_GREATER
         CelValueKind.Decimal => "decimal",
-#endif
         _ => throw new UnreachableException("The kind has no name of its own: an object or an abstract value is named by its type."),
     };
 }

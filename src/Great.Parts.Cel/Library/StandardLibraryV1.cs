@@ -174,7 +174,7 @@ internal static class StandardLibraryV1
         // The receivers of timestamp and duration.
         TimeOverloads.AddReceivers(table, Source);
 
-        return table.DrainToImmutable();
+        return FunctionDescriptions.Describe(table.DrainToImmutable());
     }
 
     // The overloads of one relation, then those of timestamp and duration, which come after bytes in cel-go; all of them run the

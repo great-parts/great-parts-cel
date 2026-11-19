@@ -75,14 +75,17 @@ Any code added to `Values` follows the same rule: logic that computes the value 
 | `src/Great.Parts.Cel/Values/TimeTextRules.cs` | RFC 3339 and duration text: reading, printing, the length of the printed text | `timestamp(string)`, `duration(string)`, `string()` of time |
 | `src/Great.Parts.Cel/Values/CalendarRules.cs` | the proleptic Gregorian calendar: days and dates, weekday, day of the year | the receivers of `timestamp`, the grammar of RFC 3339 |
 | `src/Great.Parts.Cel/Values/TimeZoneRules.cs`, `TimeZoneRules.Tzif.cs`, `TimeZoneRules.Posix.cs` | the resolution of a zone name; reading TZif; the POSIX TZ rule; the offset of a zone at an instant ([time zones](time-zones.md)) | `UseTimeZones`, the receivers with a zone |
+| `src/Great.Parts.Cel/Values/TimeZoneNameRules.cs`, `SystemZoneSource.cs` | the check of a zone name by the IANA grammar; the zones of the operating system through `TimeZoneInfo` and the constant of their cost ([time-zones-system](time-zones-system.md)) | `CelTimeZoneDatabase.FromSystem()`, the receivers with a zone |
+| `src/Great.Parts.Cel/SimpleEntry/SimpleValues.cs` | a value of the simple entry to its CEL type and its binding ([simple-entry](simple-entry.md)) | `CelExpression.Evaluate` |
 
 ## Rule files of `decimal`
 
-The set [decimal](extension-decimal.md) has three files in `Values/` and a directory in `Library/`, all under `#if NET11_0_OR_GREATER` as a whole; the core paths below cover the two files that hold rules and the directory.
+The set [decimal](extension-decimal.md) has its files in `Values/` and a directory in `Library/`, compiled for both targets; the core paths below cover the files that hold rules, the platform files and the directory.
 
 | File | Rules | Core |
 | :- | :- | :- |
-| `src/Great.Parts.Cel/Values/DecimalTextRules.cs` | the reading of a literal and of a string, the rounding to 34 digits, the text of a value, `double` to a decimal and back ([decimal-text](decimal-text.md)) | yes: `Values/*Rules.cs` |
+| `src/Great.Parts.Cel/Values/DecimalTextRules.cs` | the reading of a literal and of a string, the rounding to the precision of the target, the text of a value, `double` to a decimal and back ([decimal-text](decimal-text.md)) | yes: `Values/*Rules.cs` |
+| `src/Great.Parts.Cel/Values/DecimalPlatform.Decimal128.cs`, `DecimalPlatform.SystemDecimal.cs` | the arithmetic and the cohort of the platform type of the target: the ideal exponent of a quotient and the zeros of IEEE on `net10.0` ([decimal-net10](decimal-net10.md)) | yes: a path below |
 | `src/Great.Parts.Cel/Values/DecimalNumberRules.cs` | `int`, `uint` and `System.Decimal` to and from a value | yes: `Values/*Rules.cs` |
 | `src/Great.Parts.Cel/Values/DecimalParts.cs` | the struct of sign, coefficient and exponent, and the BID bits; no rule of the language | no: it is the model of the rules, as `CelTimestamp` is the model of the rules of time |
 | `src/Great.Parts.Cel/Library/Decimals/**` | the set: the table of overloads, the implementations, the cost functions | yes: `Library/**` |
@@ -109,6 +112,9 @@ src/Great.Parts.Cel/Types/*Rules.cs
 src/Great.Parts.Cel/Types/*Rules.*.cs
 src/Great.Parts.Cel/Values/*Rules.cs
 src/Great.Parts.Cel/Values/*Rules.*.cs
+src/Great.Parts.Cel/Values/DecimalPlatform.*.cs
+src/Great.Parts.Cel/Values/SystemZoneSource.cs
+src/Great.Parts.Cel/SimpleEntry/SimpleValues.cs
 ```
 
 A change is a core change when at least one path printed by the following command matches a pattern:

@@ -382,7 +382,7 @@ internal static class ExtensionMacros
 
         // The map of the keys is recorded as the standard macro map, which the planner charges as it charges that macro: 1 for the empty
         // list, 1 for each step with the expression of the key, and 1 for each key added.
-        nodes.RecordMacroCall(keys, new MacroCall("map", keysRange, arguments));
+        nodes.RecordMacroCall(keys, new MacroCall("map", keysRange, arguments, isWritten: false));
         CallNode result = nodes.Call(SortByFunction, receiver, [keys], offset);
         return nodes.Comprehension(UnusedVariable, range, SortByInput, target, condition, step, result, offset);
     }

@@ -1,1 +1,7 @@
 #nullable enable
+*REMOVED*Great.Parts.Cel.Values.CelObjectType.FromDecimal(int number, System.Numerics.Decimal128 value) -> Great.Parts.Cel.Values.CelValue
+*REMOVED*Great.Parts.Cel.Values.CelValue.TryGetDecimal(out System.Numerics.Decimal128 value) -> bool
+*REMOVED*static Great.Parts.Cel.Values.CelValue.FromDecimal(System.Numerics.Decimal128 value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.FromDecimal128(int number, System.Numerics.Decimal128 value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelValue.TryGetDecimal128(out System.Numerics.Decimal128 value) -> bool
+static Great.Parts.Cel.Values.CelValue.FromDecimal128(System.Numerics.Decimal128 value) -> Great.Parts.Cel.Values.CelValue

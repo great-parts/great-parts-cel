@@ -24,12 +24,12 @@ internal static class TwoVarComprehensionsExtension
     private const string Source = "extension two-var-comprehensions v0";
 
     // The key is kept by ErrorValueParts and written as a CEL literal, as the duplicate keys of a map literal are.
-    private static readonly Func<CelError, string> DuplicateMapKeyText = static error =>
+    private static readonly ErrorTemplate DuplicateMapKeyText = new(static error =>
     {
         var text = new StringBuilder("duplicate map key: ");
         Printer.AppendConstant(text, ErrorValueParts.ValueOf(error));
         return text.ToString();
-    };
+    });
 
     // The definition of the version, or null for a version the set does not have. The set brings the seven macros.
     internal static CatalogExtension? Create(uint version) =>
@@ -164,7 +164,11 @@ internal static class TwoVarComprehensionsExtension
     {
         if (!KeyHashRules.IsKeyKind(key.Kind))
         {
-            return site.Error(CelErrorCode.UnsupportedMapKeyType, "unsupported map key type '" + ValueTypeRules.NameOf(key, site.Types) + "'");
+            return site.Error(
+                CelErrorCode.UnsupportedMapKeyType,
+                CelError.MessageOfType,
+                "unsupported map key type '" + ValueTypeRules.NameOf(key, site.Types) + "'",
+                ValueTypeRules.TypeOfValue(key, site.Types));
         }
 
         site.Charge(key.TryGetString(out string? text) ? 2 + Costs.Tenths((ulong)text.Length) : 2);

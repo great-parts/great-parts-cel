@@ -64,7 +64,7 @@ Great.Parts.Cel.Library.Extensions -> Great.Parts.Cel.Library.Extensions.Strings
 
 The catalog is `FrozenDictionary<string, ExtensionFamily>` by the short name, ordinal; a family has the table of its versions — in this release one row — and the factory `Func<uint, ExtensionDefinition?>`: the definition of that version, or `null`. `ExtensionCatalog.Names` is the frozen set of names that an environment description accepts ([configuration](configuration.md#extension-sets)), and `CelExtensions` and the reader of descriptions both read it. The counts are those of the tables of the documentation; a test compares the identifiers of each set with those tables, and the number of overloads, macros and abstract types with the counts above.
 
-The sets of the catalog exist in both targets, `net10.0` and `net11.0`, with the same declarations, and a definition has no target of its own; only `decimal` is for `net11.0` alone and is compiled under `#if NET11_0_OR_GREATER`.
+The sets of the catalog exist in both targets, `net10.0` and `net11.0`, with the same declarations, and a definition has no target of its own; so does `decimal`, whose platform type differs by target ([decimal-net10](decimal-net10.md)).
 
 `CelExtensions.<Set>(version)` calls the catalog and wraps the result, whatever the number: a version outside the table of the family is the missing definition. The XML documentation names the version of each set.
 

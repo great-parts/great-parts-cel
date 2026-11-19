@@ -37,7 +37,6 @@ internal static class CostWriter
     {
         var charged = new List<(FieldModel Field, Charge Charge)>();
         bool sets = false;
-        bool needsValue = false;
         foreach (FieldModel field in type.Fields.Items)
         {
             Charge? charge = Of(field.Shape);
@@ -48,7 +47,6 @@ internal static class CostWriter
 
             charged.Add((field, charge));
             sets |= charge.Collection is { Family: CollectionFamily.Set };
-            needsValue |= charge.Wrapper || charge.Collection is not null;
         }
 
         if (charged.Count == 0)
@@ -57,12 +55,7 @@ internal static class CostWriter
         }
 
         w.EmptyLine();
-        w.Open("protected override long FieldReadCost(object instance, int number)");
-        if (needsValue)
-        {
-            w.Line("var value = (" + type.ClrName + ")instance;");
-        }
-
+        w.Open("protected override long FieldReadCost(in " + type.ClrName + " instance, int number)");
         w.Open("switch (number)");
         foreach ((FieldModel field, Charge charge) in charged)
         {
@@ -82,7 +75,7 @@ internal static class CostWriter
     private static void WriteCase(CodeWriter w, FieldModel field, Charge charge)
     {
         string label = "case " + Literals.Int(field.Number) + ":";
-        string member = "value." + field.Access;
+        string member = "instance." + field.Access;
         if (charge.Collection is null)
         {
             // The box of a structure: a constant; a Nullable<T> that has no value reads as null and costs 0.

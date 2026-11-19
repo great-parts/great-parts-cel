@@ -14,16 +14,17 @@ namespace Great.Parts.Cel.Library;
 internal static class Collections
 {
     // The list is the first part, whose size is read with the message; the index is kept by ErrorValueParts.
-    private static readonly Func<CelError, string> OutOfRangeText = static error =>
-        "index " + IndexText(ErrorValueParts.ValueOf(error)) + " out of range [0, " + ((CelList)error.First!).Count.ToString(CultureInfo.InvariantCulture) + ")";
+    private static readonly ErrorTemplate OutOfRangeText = new(static error =>
+        "index " + IndexText(ErrorValueParts.ValueOf(error)) + " out of range [0, " + ((CelList)error.First!).Count.ToString(CultureInfo.InvariantCulture) + ")");
 
     // The function name is the first part, the bits of the index the number.
-    internal static readonly Func<CelError, string> NotAnIntegerText = static error =>
-        "invalid argument to '" + (string)error.First! + "': index " + NumberText.FormatDouble(BitConverter.Int64BitsToDouble(error.Number))
-        + " is not an integer";
+    internal static readonly ErrorTemplate NotAnIntegerText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': index " + NumberText.FormatDouble(BitConverter.Int64BitsToDouble(error.Number))
+            + " is not an integer",
+        subject: static error => (string)error.First!);
 
     // The key is kept by ErrorValueParts: its content for the kinds of keys and double, otherwise its kind.
-    private static readonly Func<CelError, string> NoSuchKeyText = static error => "no such key: " + KeyText(ErrorValueParts.KindOf(error), ErrorValueParts.ValueOf(error));
+    private static readonly ErrorTemplate NoSuchKeyText = new(static error => "no such key: " + KeyText(ErrorValueParts.KindOf(error), ErrorValueParts.ValueOf(error)));
 
     // index_list, (list(A), int) -> A; with dyn the index may also be a uint, or a double with an integral
     // value, which stands for that integer.

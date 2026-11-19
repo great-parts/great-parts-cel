@@ -136,7 +136,10 @@ internal sealed class Planner
     // The error of a plan that an unexpected exception interrupted: InternalError at the node being planned, or at the root
     // before the first node.
     internal CelError Interrupted(Exception exception) =>
-        CheckErrors.InternalErrorWhilePlanning(exception, _parsed.Lines.GetLocation(_current >= 0 ? _current : _parsed.GetOffset(_parsed.Root.Id)));
+        CheckErrors.InternalErrorWhilePlanning(exception, PlaceOf(_current >= 0 ? _current : _parsed.GetOffset(_parsed.Root.Id)));
+
+    // The fragment of the node whose place is an offset.
+    private CelSourceSpan PlaceOf(int offset) => new(_parsed.Lines.GetLocation(offset), _parsed.Lines.GetEnd(offset) - offset);
 
     // The node of a syntax node, and the most argument values on the stack at one time while it is
     // evaluated.
@@ -269,6 +272,12 @@ internal sealed class Planner
 
         if (reference.Variable is { } variable)
         {
+            // A field of the input of the environment is read from the input of the frame, not from the bindings.
+            if (_declarations.InputType is { } input && _declarations.TryGetInputField(variable.Name, out CelObjectField? field))
+            {
+                return new InputFieldPlanNode(offset, input, field.Number, field.Name, _added ? 0UL : 1UL);
+            }
+
             return new VariablePlanNode(offset, VariableSlot(variable.Name), variable.Name, variable.Type, _declarations.Types, _added ? 0UL : 1UL);
         }
 

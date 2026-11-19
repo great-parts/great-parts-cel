@@ -33,12 +33,13 @@ new CelEnvironmentBuilder(CelStandardLibrary.V1)
 | `network` | `network` | `Network(version)` | 1 | none |
 | `protos` | `protos` | `Protos(version)` | 0 | none |
 | `optional` | `optional` | `Optional(version)` | 2 | none |
-| `decimal`, only on `net11.0` | none: a description cannot add it | `Decimal(version)` | 1 | none |
+| `decimal` | none: a description cannot add it | `Decimal(version)` | 1 | none |
 
 - **Versions are those of cel-go.** The number of a version is the number of the same set in cel-go, the CEL implementation in Go, and a version has the declarations that cel-go gives it; `decimal`, which cel-go does not have, has a number of its own. This release has one version of each set. A version that the table does not have is not a number to try: it is the build error `UnknownExtensionVersion`.
 - **The functions of a version never change.** A function that cel-go adds in a later version comes as that version, and an environment that names the versions it was built with means the same after the library is updated. A fix of the behavior of a function applies to the version that has it.
+- **Each function of a set has a description.** One English sentence from the documentation of the set, the same for each overload of the function, shown by `CelEnvironment.Functions` as `CelOverloadDecl.Description`. The description is not part of the signature: type checking and evaluation do not read it, and two declarations of one overload that differ only by the description are one declaration.
 - **The sets do not depend on each other.** None of the sets above needs another, so the build error `MissingExtensionDependency` can only come from a set of the application.
-- **All sets are in both targets.** `net10.0` and `net11.0` have the same sets with the same declarations; the `decimal` set of this library is only on `net11.0`.
+- **All sets are in both targets.** `net10.0` and `net11.0` have the same sets with the same declarations; the `decimal` set of this library is on both, with the range of the platform type (see [Decimal](decimal.md)).
 
 ## What the build checks
 
@@ -394,7 +395,7 @@ optional.unwrap([optional.of(1), optional.none(), optional.of(3)])    // [1, 3]
 
 ## Set `decimal`, version 1
 
-The type `decimal`, a decimal128 number of 34 significant digits, with `+`, `-`, `*`, `/`, the negation, the four orderings and nine conversions: 18 overloads. The set exists only on `net11.0`, whose `System.Numerics.Decimal128` it uses; on `net10.0` there is no `decimal`, no set and no member of the public API for it. The whole contract, the literal `12.34m` and its option, the grammar and the text, equality and order are on the page [Decimal](decimal.md); the units are on the page [Cost](cost.md#set-decimal).
+The type `decimal`, a decimal128 number of 34 significant digits, with `+`, `-`, `*`, `/`, the negation, the four orderings and nine conversions: 18 overloads. The set exists on both targets: on `net11.0` it uses `System.Numerics.Decimal128` with 34 significant digits, on `net10.0` `System.Decimal` with a 96-bit coefficient and an exponent from -28 to 0 (the numbers above are those of `net11.0`). The whole contract, the literal `12.34m` and its option, the grammar and the text, equality and order are on the page [Decimal](decimal.md); the units are on the page [Cost](cost.md#set-decimal).
 
 - **Not in a description.** The set is added in code, `CelExtensions.Decimal(1)`. It has no name in the catalog of an [environment description in JSON](environment-json.md): the name `decimal` there is `InvalidConfiguration` (4009), `'decimal' is not the name of an extension set of the library`.
 - **The type.** The set declares the type identifier `decimal`; without the set `decimal('1')` and `type(x) == decimal` are `UndeclaredReference` (2000).

@@ -43,8 +43,6 @@ internal static class Reasons
 
     internal const string SetElement = "set elements must be numbers, bool, string, bytes, timestamp, duration or decimal, which CEL orders";
 
-    internal const string DecimalUnavailable = "the CEL type decimal requires .NET 11 (System.Numerics.Decimal128)";
-
     internal static string NoSize(string type) => type + " has no size and no index; use an array, a list or a collection with a size";
 
     internal static string DateTimeType(string type) => type + " is not supported; use DateTimeOffset or string";

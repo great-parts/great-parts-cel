@@ -18,76 +18,107 @@ internal static class EvaluationErrors
 {
     private const string InsufficientStackText = "insufficient execution stack to continue evaluation";
 
-    private static readonly Func<CelError, string> UnboundText =
-        static error => "no value is bound to variable '" + (string)error.First! + "'";
+    private static readonly ErrorTemplate UnboundText = new(
+        static error => "no value is bound to variable '" + (string)error.First! + "'",
+        subject: static error => (string)error.First!);
 
     // The variable node gives the name and the declared type; the value is kept by ErrorValueParts.
-    private static readonly Func<CelError, string> BindingTypeMismatchText = static error =>
-    {
-        var variable = (VariablePlanNode)error.First!;
-        return "value of variable '" + variable.Name + "' has type '" + MismatchType(error, variable.DeclaredType!, variable.Types)
-            + "', which does not match the declared type '" + variable.DeclaredType + "'";
-    };
+    private static readonly ErrorTemplate BindingTypeMismatchText = new(
+        static error =>
+        {
+            var variable = (VariablePlanNode)error.First!;
+            return "value of variable '" + variable.Name + "' has type '" + MismatchType(error, variable.DeclaredType!, variable.Types)
+                + "', which does not match the declared type '" + variable.DeclaredType + "'";
+        },
+        subject: static error => ((VariablePlanNode)error.First!).Name,
+        expectedType: static error => ((VariablePlanNode)error.First!).DeclaredType,
+        actualType: static error =>
+        {
+            var variable = (VariablePlanNode)error.First!;
+            return MismatchCelType(error, variable.DeclaredType!, variable.Types);
+        });
 
     // The message of the error without a place that the read gives a place.
-    private static readonly Func<CelError, string> AtReadText = static error => ((CelError)error.First!).Message;
+    private static readonly ErrorTemplate AtReadText = new(
+        static error => ((CelError)error.First!).Message,
+        static error => ((CelError)error.First!).Subject,
+        static error => ((CelError)error.First!).ExpectedType,
+        static error => ((CelError)error.First!).ActualType);
 
-    private static readonly Func<CelError, string> CostLimitExceededText = static error =>
-        "evaluation cost limit of " + ((ulong)error.Number).ToString(CultureInfo.InvariantCulture) + " exceeded";
+    private static readonly ErrorTemplate CostLimitExceededText = new(static error =>
+        "evaluation cost limit of " + ((ulong)error.Number).ToString(CultureInfo.InvariantCulture) + " exceeded");
 
     // The exception is the first part, the overload the second, and the byte tells whether the cost function threw.
-    private static readonly Func<CelError, string> ApplicationExceptionText = static error =>
-    {
-        var overload = (OverloadBinding)error.Second!;
-        string callee = "overload '" + overload.Declaration.OverloadId + "' of function '" + overload.Function + "'";
-        return "application code threw " + error.First!.GetType() + " in " + (error.Small != 0 ? "the cost function of " + callee : callee);
-    };
+    private static readonly ErrorTemplate ApplicationExceptionText = new(
+        static error =>
+        {
+            var overload = (OverloadBinding)error.Second!;
+            string callee = "overload '" + overload.Declaration.OverloadId + "' of function '" + overload.Function + "'";
+            return "application code threw " + error.First!.GetType() + " in " + (error.Small != 0 ? "the cost function of " + callee : callee);
+        },
+        subject: static error => ((OverloadBinding)error.Second!).Declaration.OverloadId);
 
     // The overload gives the declared result type; the result is kept by ErrorValueParts.
-    private static readonly Func<CelError, string> ImplementationResultMismatchText = static error =>
-    {
-        var overload = (OverloadBinding)error.First!;
-        CelType resultType = overload.Declaration.ResultType;
-        return "implementation of overload '" + overload.Declaration.OverloadId + "' of function '" + overload.Function
-            + "' returned a value of type '" + MismatchType(error, resultType, null) + "', expected '" + resultType + "'";
-    };
+    private static readonly ErrorTemplate ImplementationResultMismatchText = new(
+        static error =>
+        {
+            var overload = (OverloadBinding)error.First!;
+            CelType resultType = overload.Declaration.ResultType;
+            return "implementation of overload '" + overload.Declaration.OverloadId + "' of function '" + overload.Function
+                + "' returned a value of type '" + MismatchType(error, resultType, null) + "', expected '" + resultType + "'";
+        },
+        subject: static error => ((OverloadBinding)error.First!).Declaration.OverloadId,
+        expectedType: static error => ((OverloadBinding)error.First!).Declaration.ResultType,
+        actualType: static error => MismatchCelType(error, ((OverloadBinding)error.First!).Declaration.ResultType, null));
 
     // The exception is the first part, the description the second, the field number the number, and the byte tells
     // whether the presence test threw.
-    private static readonly Func<CelError, string> FieldExceptionText = static error =>
-    {
-        var owner = (CelObjectType)error.Second!;
-        string callee = "field '" + owner.Fields[(int)error.Number].Name + "' of type '" + owner.Name + "'";
-        return "application code threw " + error.First!.GetType() + " in " + (error.Small != 0 ? "the presence test of " + callee : callee);
-    };
+    private static readonly ErrorTemplate FieldExceptionText = new(
+        static error =>
+        {
+            var owner = (CelObjectType)error.Second!;
+            string callee = "field '" + owner.Fields[(int)error.Number].Name + "' of type '" + owner.Name + "'";
+            return "application code threw " + error.First!.GetType() + " in " + (error.Small != 0 ? "the presence test of " + callee : callee);
+        },
+        subject: static error => ((CelObjectType)error.Second!).Fields[(int)error.Number].Name);
 
     // The exception is the first part and the description the second.
-    private static readonly Func<CelError, string> EqualityExceptionText = static error =>
-        "application code threw " + error.First!.GetType() + " in the equality of objects of type '" + ((CelObjectType)error.Second!).Name + "'";
+    private static readonly ErrorTemplate EqualityExceptionText = new(
+        static error => "application code threw " + error.First!.GetType() + " in the equality of objects of type '" + ((CelObjectType)error.Second!).Name + "'",
+        subject: static error => ((CelObjectType)error.Second!).Name);
 
-    private static readonly Func<CelError, string> CreationExceptionText = static error =>
-        "application code threw " + error.First!.GetType() + " in the creation of an object of type '" + ((CelObjectType)error.Second!).Name + "'";
+    private static readonly ErrorTemplate CreationExceptionText = new(
+        static error => "application code threw " + error.First!.GetType() + " in the creation of an object of type '" + ((CelObjectType)error.Second!).Name + "'",
+        subject: static error => ((CelObjectType)error.Second!).Name);
 
     // The field is the first part, the description of the object the second.
-    private static readonly Func<CelError, string> NoSuchObjectFieldText =
-        static error => "no such field '" + (string)error.First! + "' in " + ((CelObjectType)error.Second!).Name;
+    private static readonly ErrorTemplate NoSuchObjectFieldText = new(
+        static error => "no such field '" + (string)error.First! + "' in " + ((CelObjectType)error.Second!).Name,
+        subject: static error => (string)error.First!,
+        actualType: static error => CelType.ObjectNamed(((CelObjectType)error.Second!).Name));
 
-    private static readonly Func<CelError, string> NoSuchFieldText =
-        static error => "no such field '" + (string)error.First! + "' in " + KindName(error);
+    private static readonly ErrorTemplate NoSuchFieldText = new(
+        static error => "no such field '" + (string)error.First! + "' in " + KindName(error),
+        subject: static error => (string)error.First!,
+        actualType: KindType);
 
-    private static readonly Func<CelError, string> FieldSelectionNotSupportedText = static error =>
-        "value of type '" + KindName(error) + "' does not support field selection of '" + (string)error.First! + "'";
+    private static readonly ErrorTemplate FieldSelectionNotSupportedText = new(
+        static error => "value of type '" + KindName(error) + "' does not support field selection of '" + (string)error.First! + "'",
+        subject: static error => (string)error.First!,
+        actualType: KindType);
 
-    private static readonly Func<CelError, string> InvalidComprehensionRangeText = static error =>
-        "value of type '" + KindName(error) + "' cannot be the range of a comprehension (must be list or map)";
+    private static readonly ErrorTemplate InvalidComprehensionRangeText = new(
+        static error => "value of type '" + KindName(error) + "' cannot be the range of a comprehension (must be list or map)",
+        actualType: KindType);
 
-    private static readonly Func<CelError, string> DuplicateMapKeyText = static error => "duplicate map key: " + KeyText(ErrorValueParts.ValueOf(error));
+    private static readonly ErrorTemplate DuplicateMapKeyText = new(static error => "duplicate map key: " + KeyText(ErrorValueParts.ValueOf(error)));
 
-    private static readonly Func<CelError, string> UnsupportedMapKeyTypeText =
-        static error => "unsupported map key type '" + KindName(error) + "'";
+    private static readonly ErrorTemplate UnsupportedMapKeyTypeText = new(
+        static error => "unsupported map key type '" + KindName(error) + "'",
+        actualType: KindType);
 
-    private static readonly Func<CelError, string> InternalErrorText =
-        static _ => "internal error during evaluation; the original exception is in CelError.Exception";
+    private static readonly ErrorTemplate InternalErrorText =
+        new(static _ => "internal error during evaluation; the original exception is in CelError.Exception");
 
     // Unbound (3009): a variable without a value in the bindings, at its identifier.
     internal static CelValue Unbound(string name, LineTable lines, int offset) =>
@@ -209,7 +240,7 @@ internal static class EvaluationErrors
         Create(CelErrorCode.InternalError, InternalErrorText, lines, offset, exception);
 
     // An error whose parts are the first and a kind.
-    private static CelValue Create(CelErrorCode code, Func<CelError, string> format, LineTable lines, int offset, object? first, CelValueKind kind = default) =>
+    private static CelValue Create(CelErrorCode code, ErrorTemplate format, LineTable lines, int offset, object? first, CelValueKind kind = default) =>
         CelValue.FromError(new CelError(code, format, lines, offset, first, small: (byte)kind));
 
     // The actual type of a value that does not fit the type, as ValueTypeRules.MismatchType names it: a list or a map
@@ -222,7 +253,7 @@ internal static class EvaluationErrors
 
     // An error whose message names a value: ErrorValueParts keeps it, and an object value is kept as the name of its
     // type, its description or the .NET type of an instance without one, resolved when the error is created.
-    private static CelError WithValue(CelErrorCode code, Func<CelError, string> format, LineTable lines, int offset, object first, CelValue value, TypeIndex? types) =>
+    private static CelError WithValue(CelErrorCode code, ErrorTemplate format, LineTable lines, int offset, object first, CelValue value, TypeIndex? types) =>
         value.Kind == CelValueKind.Object
             ? new CelError(code, format, lines, offset, first, ObjectName(value, types), small: (byte)CelValueKind.Object)
             : ErrorValueParts.Create(code, format, lines, offset, first, value);
@@ -244,6 +275,15 @@ internal static class EvaluationErrors
         _ = value.TryGetObject(out object? instance);
         return (object?)ObjectRules.Describe(value, types) ?? instance!.GetType();
     }
+
+    // The CEL type of the value of an error by its kind, with the name kept in the second part for an object or an abstract value.
+    private static CelType KindType(CelError error) => ValueTypeRules.TypeOfKind(ErrorValueParts.KindOf(error), error.Second);
+
+    // The actual type that the parts name for a value that does not fit the type, as MismatchType names it in text.
+    private static CelType MismatchCelType(CelError error, CelType type, TypeIndex? types) =>
+        ErrorValueParts.KindOf(error) is CelValueKind.List or CelValueKind.Map
+            ? ValueTypeRules.MismatchCelType(ErrorValueParts.ValueOf(error), type, false, types) ?? KindType(error)
+            : KindType(error);
 
     // The name of the type of the value of an error by its kind; for an object value, the name kept in the second part.
     private static string KindName(CelError error) => ErrorValueParts.KindOf(error) switch

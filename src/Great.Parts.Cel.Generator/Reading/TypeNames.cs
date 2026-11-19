@@ -167,6 +167,10 @@ internal static class TypeNames
         return true;
     }
 
+    // An IDENT of the language definition: a word that is neither a keyword nor a reserved word. It is the rule of
+    // CelSyntax.IsIdentifier, written here again because the generator references no library.
+    internal static bool IsIdentifier(string name) => IsWord(name) && !Keywords.Contains(name) && !ReservedWords.Contains(name);
+
     private static bool IsAsciiDigit(char c) => c is >= '0' and <= '9';
 
     private static bool IsAsciiLetter(char c) => c is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z');

@@ -2,7 +2,7 @@ using Microsoft.CodeAnalysis;
 
 namespace Great.Parts.Cel.Generator;
 
-// The codes of the nine diagnostics. A code is never removed or renumbered.
+// The codes of the diagnostics. A code is never renumbered: GPCEL007 is no longer reported and its number is not used again.
 internal static class DiagnosticIds
 {
     internal const string UnsupportedType = "GPCEL001";
@@ -11,9 +11,10 @@ internal static class DiagnosticIds
     internal const string DuplicateType = "GPCEL004";
     internal const string InvalidName = "GPCEL005";
     internal const string InvalidContext = "GPCEL006";
-    internal const string DecimalMember = "GPCEL007";
     internal const string LanguageVersion = "GPCEL008";
     internal const string ContextTooLarge = "GPCEL009";
+    internal const string SimpleEntryDataType = "GPCEL010";
+    internal const string SimpleEntryPropertyType = "GPCEL011";
 }
 
 // The descriptors of the diagnostics: the identifier, the severity, the title and the message are those of the page
@@ -79,15 +80,6 @@ internal static class Descriptors
         isEnabledByDefault: true,
         helpLinkUri: HelpPage + "#gpcel006");
 
-    internal static readonly DiagnosticDescriptor DecimalMember = new(
-        DiagnosticIds.DecimalMember,
-        "Decimal member excluded from CEL type",
-        "Member '{0}' of type '{1}' is excluded from the CEL type: the CEL type decimal requires .NET 11 (System.Numerics.Decimal128)",
-        Category,
-        DiagnosticSeverity.Warning,
-        isEnabledByDefault: true,
-        helpLinkUri: HelpPage + "#gpcel007");
-
     internal static readonly DiagnosticDescriptor LanguageVersion = new(
         DiagnosticIds.LanguageVersion,
         "C# language version not supported",
@@ -106,6 +98,24 @@ internal static class Descriptors
         isEnabledByDefault: true,
         helpLinkUri: HelpPage + "#gpcel009");
 
+    internal static readonly DiagnosticDescriptor SimpleEntryDataType = new(
+        DiagnosticIds.SimpleEntryDataType,
+        "CEL simple entry cannot see the data type",
+        "The static type '{0}' of the data argument of CelExpression.Evaluate is not an anonymous type or a supported dictionary; the call fails at run time unless the value is one of them: {1}",
+        Category,
+        DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        helpLinkUri: HelpPage + "#gpcel010");
+
+    internal static readonly DiagnosticDescriptor SimpleEntryPropertyType = new(
+        DiagnosticIds.SimpleEntryPropertyType,
+        "Property type not supported by the CEL simple entry",
+        "Property '{0}' of the anonymous data has type '{1}', which the CEL simple entry cannot read: {2}",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        helpLinkUri: HelpPage + "#gpcel011");
+
     internal static DiagnosticDescriptor Find(string id) => id switch
     {
         DiagnosticIds.UnsupportedType => UnsupportedType,
@@ -114,8 +124,9 @@ internal static class Descriptors
         DiagnosticIds.DuplicateType => DuplicateType,
         DiagnosticIds.InvalidName => InvalidName,
         DiagnosticIds.InvalidContext => InvalidContext,
-        DiagnosticIds.DecimalMember => DecimalMember,
         DiagnosticIds.LanguageVersion => LanguageVersion,
-        _ => ContextTooLarge,
+        DiagnosticIds.ContextTooLarge => ContextTooLarge,
+        DiagnosticIds.SimpleEntryDataType => SimpleEntryDataType,
+        _ => SimpleEntryPropertyType,
     };
 }

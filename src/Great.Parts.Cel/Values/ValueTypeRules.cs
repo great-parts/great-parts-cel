@@ -9,7 +9,7 @@ namespace Great.Parts.Cel.Values;
 /// <summary>
 /// The runtime type of a value, and whether a value fits a declared type at any depth.
 /// </summary>
-internal static class ValueTypeRules
+internal static partial class ValueTypeRules
 {
     private static readonly CelType ListType = CelType.ListOf(CelType.Dyn);
     private static readonly CelType MapType = CelType.MapOf(CelType.Dyn, CelType.Dyn);
@@ -38,9 +38,7 @@ internal static class ValueTypeRules
         CelValueKind.Timestamp => CelType.Timestamp,
         CelValueKind.Duration => CelType.Duration,
         CelValueKind.Optional => OptionalType,
-#if NET11_0_OR_GREATER
         CelValueKind.Decimal => CelType.Decimal,
-#endif
 
         // Objects come with their part.
         _ => throw new UnreachableException("The caller handles object values."),
@@ -382,11 +380,9 @@ internal static class ValueTypeRules
             CelTypeKind.Timestamp => kind == CelValueKind.Timestamp,
             CelTypeKind.Duration => kind == CelValueKind.Duration,
             CelTypeKind.Optional => kind == CelValueKind.Optional,
-#if NET11_0_OR_GREATER
 
             // A decimal fits only decimal, not null: the static null is assignable to the type, a null value is not a decimal.
             CelTypeKind.Decimal => kind == CelValueKind.Decimal,
-#endif
 
             // Every kind of type has its arm above.
             _ => throw new UnreachableException("Every kind of type has its arm above."),

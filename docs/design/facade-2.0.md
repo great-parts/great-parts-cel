@@ -1,0 +1,46 @@
+# Facade 2.0: exceptions, validation, the short environment, the input, bindings and the environment limit
+
+What version 2.0 adds to the path "builder → environment → program → result". The members and their documentation are in the XML documentation of the public API; the rules of the values are in `docs/type-mapping.md` ("The input of an environment", "Bindings by the run-time type"), the limits in `docs/limits.md`, the cost in `docs/cost.md` ("The limit of an environment and the reported cost"). This page says how the pieces sit on the existing facade ([facade](facade.md)).
+
+## Exceptions
+
+One internal helper, `CelException.FromErrors(ImmutableArray<CelError>)`, builds the exception of a failed result: `Errors` is the list, `InnerException` is the `Exception` of the first error of the list that has one, or `null`. It is the only way the library makes a `CelException`, so every member of the closed list gives the same exception for the same errors: `CelBuildResult.Environment`, `CelCompileResult<T>.Program`, `CelEvalResult<T>.Value` of a failed result, the three `Get…OrThrow`, `CelEnvironment.Create` and `CelExpression.Evaluate`.
+
+`CelEvalResult<T>` stays a `readonly struct` of three fields and grows by the `ulong?` of `Cost`. A value made by a call of the library always has a non-default `ImmutableArray` of errors (empty on success), so `default(CelEvalResult<T>)` is told by a default array: `IsSuccess` is `false`, `Errors` returns `ImmutableArray<CelError>.Empty`, and `Value`, `GetValueOrThrow()` and `Cost` throw `InvalidOperationException` (`the result was not returned by an evaluation`). `CelObjectType.CreateInstance` throws `InvalidOperationException` by default.
+
+## Validation
+
+`Validate<T>` and `Validate` run the compilation of `Compile<T>` (parse, macros, check, planning of constants) and return its errors, the result type and two name lists; the program is dropped. The lists are collected after the check (`Checking/ReferencedNames.cs`), from the references the checker resolved and from the macro calls the parser recorded:
+
+- a variable: a reference resolved to a variable declaration of the environment, after the container (langdef "Name Resolution"); a field of the input counts as the variable it is; a local variable of a comprehension, `cel.bind` and `cel.@block` is not a declaration of the environment and does not count;
+- a function: the function name of a call resolved to a function of the environment whose name is an identifier or a qualified name (`size`, `matches`, `isKpp`); operators (`_+_`, `_[_]`, `!_`, `@in`, `_?_:_`) and internal names with `@` do not count; a function that a macro expansion calls counts by the same rule (`hasValue` of `optMap`), an internal one does not (`math.@max` of `math.greatest`, `@sortByAssociatedKeys` of `sortBy`);
+- a macro: the name of every macro call that the text writes, as the text writes it (`all`, `exists`, `has`, `map`, `math.greatest`, `math.least`, `sortBy`, `cel.bind`, `optMap`), with its namespace, goes to the list of functions: for the reader of a rule a macro is called by name like a function, and `math.greatest` must not vanish behind its internal expansion; a call that an expansion makes itself (the `map` inside `sortBy`) is not written by the text and does not count;
+- both lists are distinct and sorted by `string.CompareOrdinal`; with errors, the lists hold what the check resolved before it stopped, and a reference that failed (2000) is not in them.
+
+`Validate` without `T` is `Validate<CelValue>` with the expected type of the options, if any.
+
+## The short environment
+
+`new CelEnvironmentBuilder()` is `new CelEnvironmentBuilder(CelStandardLibrary.V1)`. `CelEnvironment.Create(configure)` and `Create(standardLibrary, configure)` create the builder, call `configure` (an exception of the delegate is not caught), build, and throw `CelException.FromErrors` for build errors.
+
+## The input of an environment
+
+`UseInput<TInput>()` records `typeof(TInput)` in the builder; a second, different type is `InputConflict` (4019) at `Build`, the same type again is nothing. At `Build`, after the type sources are known, the description of `TInput` is looked up as for `AddVariable<TInput>` (`TypeNotDeclared` 4008 with the kind `input` when no source describes it), and each CEL field of the description becomes a variable declaration of the environment with the type of the field and the source `input {full name of TInput}`. These declarations go through the same duplicate check as any variable (4000 with both sources); a field of the input and a variable of the same name and type are two declarations, not one repeated. `ToBuilder()` keeps the input type and the limit.
+
+The planner plans a reference to an input field as a field read of the input value, not as a variable read (`Evaluation/InputFieldPlanNode.cs`): the node asks the frame for the field, and the frame reads it through the description, lazily, as `order.total` would. A field that has no value in the input is the same case as for the selection of that field (`has()` and `null` as for a selection). `EvaluateInput<TInput>(input, bindings, …)` checks the argument (`ArgumentNullException`; `ArgumentException` when the environment has no input or `input` is not an instance of the input type or a type derived from it), puts the input into the frame and the bindings beside it; a binding whose name is a field of the input is not read. `Evaluate(bindings, …)` on a program of an environment with an input leaves the input empty: the first read of an input field is `Unbound` (3009), at the identifier.
+
+**A structure without a box.** The descriptions of the source generator and of `CelObjectTypeBuilder<TCarrier>` derive from `CelObjectType<TInstance>`, whose typed members `GetField(in TInstance, int)` and `FieldReadCost(in TInstance, int)` read the instance by reference; the members that take `object` are sealed there and unbox and call them. `CelProgram<T>.EvaluateInput<TInput>` with a structure whose description is a `CelObjectType<TInput>` creates an `InputFrame<TInput>` (`Evaluation/InputFrame.cs`), a frame that holds the structure in a field of its own type; `Frame.TryReadInputField` is virtual, and the frame of a structure reads the field from that field by reference (`ObjectRules.ReadField<TInstance>`). So the evaluation allocates its frame and nothing for the input. A description of the application on `CelObjectType` alone, and an input that is an interface, are read through `GetField(object, int)`: the structure is boxed once for the evaluation, in `Frame.Input`. A class is never boxed. The one-step calls `EvaluateInput<T>(expression, object input, …)` of the environment and of the cache take `object`, so the caller boxes a structure.
+
+## Bindings by the run-time type
+
+The indexer setter of `CelBindings` converts the value by its run-time type through `ConversionRules.FromRuntimeValue`: the `object` row of the input table and the rows of the lists and the dictionaries of the simple entry, one `switch` over a closed list of `is` checks, the same function that the simple entry uses for a dictionary value. It replaces the value of an existing name and adds a new one, unlike `Add<T>`, which refuses a repeated name. What `Add<T>` refuses, the setter refuses with the same exception. The getter returns the value as the result conversion with `T = object` gives it; a missing name is `ArgumentException`. `Clear()` removes all values and keeps the capacity, so a loop that fills the same bindings allocates for the values only. The collection initializer calls `Add<T>`, and the enumerator (needed by the initializer) lists the pairs in the order of addition.
+
+## The limit of an environment and the reported cost
+
+`SetDefaultCostLimit(ulong)` stores the limit in the builder (a later call replaces it; it is not a conflict); `Build` puts it in the environment (`DefaultCostLimit`), and `ToBuilder()` carries it. At the start of an evaluation the limit is `options?.CostLimit ?? environment.DefaultCostLimit`; when it is `null` the meter of the frame stays off, as now, and `Cost` is `null`. When there is a limit the meter counts as now, and the result takes the counter: on success and on any evaluation error the sum charged so far, and for `CostLimitExceeded` the sum before the refused charge. The one-step calls report the cost of the evaluation only; a compilation error gives `Cost` `null`.
+
+## Tests
+
+The examples (`Examples/Facade/ExceptionTests.cs`, `ValidateTests.cs`, `ShortEnvironmentTests.cs`, `InputTests.cs`, `Examples/Evaluation/BindingIndexerTests.cs`, `EnvironmentCostLimitTests.cs`) cover each part with named rows; the developer tests cover the rest: argument checks, the allocation of `EvaluateInput<TInput>` with a structure (the frame and nothing more) and of `Clear()` in a loop, the read of a structure by reference, the enumerator of `CelBindings`, `ToBuilder()` with the input and the limit, the lists of `Validate` on every macro and `cel.@block`.
+
+Related pages: [facade](facade.md), [declarations](declarations.md), [evaluation](evaluation.md), [error-parts](error-parts.md), [simple-entry](simple-entry.md).

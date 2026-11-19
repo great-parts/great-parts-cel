@@ -76,9 +76,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// error of the evaluation result.
     /// </para>
     /// <para>
-    /// Code compiled for .NET 10 can meet a kind it does not know, <c>Decimal</c>, when it runs on
-    /// .NET 11; a <see langword="switch"/> over the kind needs a default branch. The same holds for
-    /// <see cref="CelValueKind.Abstract"/>, the kind of a value of an abstract type of an extension set.
+    /// New kinds can appear in a minor version; a <see langword="switch"/> over the kind needs a default branch.
+    /// <see cref="CelValueKind.Abstract"/> is the kind of a value of an abstract type of an extension set.
     /// </para>
     /// </remarks>
     public CelValueKind Kind => _kind;
@@ -266,16 +265,24 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     // The optional that holds the value, which is not an error value: one box.
     internal static CelValue OptionalOfValue(CelValue held) => new(CelValueKind.Optional, new OptionalBox(held), 0, 0);
 
+    // The value of a finite platform decimal: a Decimal128 on .NET 11, a System.Decimal on .NET 10; the bits are the payload.
+    internal static CelValue FromPlatformDecimal(PlatformDecimal value)
+    {
+        DecimalPlatform.ToWords(value, out ulong low, out ulong high);
+        return new CelValue(CelValueKind.Decimal, null, low, high);
+    }
+
 #if NET11_0_OR_GREATER
     /// <summary>
-    /// Creates a <c>decimal</c> value. The value keeps its digits and exponent, so <c>1.50</c> and
-    /// <c>1.5</c> are equal but convert to different strings, and <c>-0</c> stays negative zero.
-    /// Only on .NET 11; expressions use the value only in environments with the <c>decimal</c> extension.
+    /// Creates a <c>decimal</c> value from a <see cref="Decimal128"/>. The value keeps its digits and exponent, so
+    /// <c>1.50</c> and <c>1.5</c> are equal but convert to different strings, and <c>-0</c> stays negative zero.
+    /// Only on .NET 11; expressions use the value only in environments with the <c>decimal</c> extension. A
+    /// <see cref="decimal"/> is converted with <see cref="FromDecimal(decimal)"/>.
     /// </summary>
     /// <param name="value">The value; only finite values are valid CEL decimals.</param>
     /// <returns>The CEL value; no memory is allocated.</returns>
     /// <exception cref="ArgumentException"><paramref name="value"/> is a NaN or an infinity.</exception>
-    public static CelValue FromDecimal(Decimal128 value)
+    public static CelValue FromDecimal128(Decimal128 value)
     {
         return FromDecimalBits(null, value);
     }
@@ -478,18 +485,16 @@ public readonly partial struct CelValue : IEquatable<CelValue>
 
 #if NET11_0_OR_GREATER
     /// <summary>
-    /// Reads a <c>decimal</c> value exactly, with its digits and exponent. Only on .NET 11.
+    /// Reads a <c>decimal</c> value as a <see cref="Decimal128"/>, exactly, with its digits and exponent. Only on .NET 11;
+    /// <see cref="TryGetDecimal(out decimal)"/> reads the value as a <see cref="decimal"/> on both target frameworks.
     /// </summary>
     /// <param name="value">The value when the method returns <see langword="true"/>; otherwise zero.</param>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Decimal"/>.</returns>
-    public bool TryGetDecimal(out Decimal128 value)
+    public bool TryGetDecimal128(out Decimal128 value)
     {
         value = _kind == CelValueKind.Decimal ? DecimalOf(this) : default;
         return _kind == CelValueKind.Decimal;
     }
-
-    // The Decimal128 of a value of the kind Decimal, from its bits.
-    private static Decimal128 DecimalOf(CelValue value) => Decimal128.DecodeBinary(new UInt128(value._p1, value._p0));
 #endif
 
     /// <summary>
@@ -555,11 +560,9 @@ public readonly partial struct CelValue : IEquatable<CelValue>
         CelValueKind.Object => ObjectEquals(other),
         CelValueKind.Abstract => ((AbstractValue)_ref!).ContentEquals((AbstractValue)other._ref!),
         CelValueKind.Optional => OptionalEquals(other),
-#if NET11_0_OR_GREATER
 
         // By value, not by cohort: 1.50 equals 1.5 and -0 equals 0.
         CelValueKind.Decimal => DecimalOf(this) == DecimalOf(other),
-#endif
         _ => false,
     };
 
@@ -602,11 +605,9 @@ public readonly partial struct CelValue : IEquatable<CelValue>
             : RuntimeHelpers.GetHashCode(_ref),
         CelValueKind.Abstract => ((AbstractValue)_ref!).ContentHash(),
         CelValueKind.Optional => _ref is OptionalBox box ? box.Value.GetHashCode() : 0,
-#if NET11_0_OR_GREATER
 
         // The same for the cohorts of a value and for both zeros, as the equality requires.
         CelValueKind.Decimal => DecimalOf(this).GetHashCode(),
-#endif
         _ => 0,
     };
 
@@ -662,4 +663,80 @@ public readonly partial struct CelValue : IEquatable<CelValue>
         hash.AddBytes(bytes);
         return hash.ToHashCode();
     }
+
+    /// <summary>
+    /// Returns the value written in CEL syntax, for logs and messages: <c>"abc"</c>, <c>1u</c>, <c>2.5</c>,
+    /// <c>b"\x00"</c>, <c>[1, 2]</c>, <c>{"a": 1}</c>, <c>timestamp("2026-01-01T00:00:00Z")</c>, <c>duration("1.5s")</c>,
+    /// <c>12.34m</c>, an object as <c>TypeName{field: value}</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The text does not depend on the culture of the process. Values nested deeper than 32 levels are written as
+    /// <c>…</c>; the length of the text is not limited. An object of the application is written by reading its present
+    /// fields through its description; an exception thrown by a getter of the application while the text is written reaches
+    /// the caller unchanged, because this call is not an evaluation.
+    /// </para>
+    /// <para>
+    /// The text is for people and is not part of the compatibility contract: it is not guaranteed to parse back into the
+    /// value, and it can be refined in a minor version.
+    /// </para>
+    /// </remarks>
+    /// <returns>The text.</returns>
+    public override string ToString()
+    {
+        return ValueText.Of(this);
+    }
+
+    /// <summary>
+    /// Creates a <c>decimal</c> value from a <see cref="decimal"/>, exactly: its digits and scale are kept, so
+    /// <c>1.50m</c> and <c>1.5m</c> are equal values with different texts.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On .NET 10 the value is held as a <see cref="decimal"/>, with 28–29 significant digits and an exponent from −28 to 0;
+    /// on .NET 11 it is held as a <c>System.Numerics.Decimal128</c> with 34 significant digits, and every
+    /// <see cref="decimal"/> converts to it exactly; a <c>Decimal128</c> is converted there with <c>FromDecimal128</c>. The
+    /// rules of each target are on the page
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/decimal.md">decimal</see>.
+    /// </para>
+    /// <para>Expressions use the value only in environments with the <c>decimal</c> extension set.</para>
+    /// </remarks>
+    /// <param name="value">The value.</param>
+    /// <returns>The CEL value; no memory is allocated.</returns>
+    public static CelValue FromDecimal(decimal value) => FromPlatformDecimal(DecimalPlatform.FromSystemDecimal(value));
+
+    /// <summary>
+    /// Reads a <c>decimal</c> value as a <see cref="decimal"/>, exactly.
+    /// </summary>
+    /// <remarks>
+    /// On .NET 10 every <c>decimal</c> value is a <see cref="decimal"/>, so the method returns <see langword="true"/> for
+    /// every value of the kind <see cref="CelValueKind.Decimal"/>. On .NET 11 a value has up to 34 digits and a wider range:
+    /// the method returns <see langword="true"/> only when the value equals a <see cref="decimal"/> exactly, and
+    /// <see langword="false"/> otherwise; such a value is read as a <c>System.Numerics.Decimal128</c> with
+    /// <c>TryGetDecimal128</c>, which exists only on .NET 11.
+    /// </remarks>
+    /// <param name="value">The value when the method returns <see langword="true"/>; otherwise zero.</param>
+    /// <returns>
+    /// <see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Decimal"/> and the value is a
+    /// <see cref="decimal"/> exactly.
+    /// </returns>
+    public bool TryGetDecimal(out decimal value)
+    {
+        value = 0m;
+        return _kind == CelValueKind.Decimal && DecimalPlatform.TryToSystemDecimalExact(DecimalOf(this), out value);
+    }
+
+    // The platform decimal of a value of the kind Decimal, from its bits.
+    internal bool TryGetPlatformDecimal(out PlatformDecimal value)
+    {
+        value = _kind == CelValueKind.Decimal ? DecimalOf(this) : default;
+        return _kind == CelValueKind.Decimal;
+    }
+
+    private static PlatformDecimal DecimalOf(CelValue value) => DecimalPlatform.FromWords(value._p0, value._p1);
+
+#if !NET11_0_OR_GREATER
+    // A value of the kind Decimal on .NET 10 is always a System.Decimal.
+    internal bool IsFromSystemDecimal => _kind == CelValueKind.Decimal;
+#endif
 }

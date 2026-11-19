@@ -18,12 +18,11 @@ internal sealed class DeclarationChecks
 {
     internal const string ApplicationSource = "application";
 
-    // The hint of TypeNotDeclared for the type decimal: the set to add, and on .NET 10 that the set exists only on .NET 11.
-#if NET11_0_OR_GREATER
+    // The source of the variables that are the fields of the input, followed by the full name of its .NET type.
+    private const string InputSourcePrefix = "input ";
+
+    // The hint of TypeNotDeclared for the type decimal: the set to add.
     private const string DecimalHint = "; add the extension set 'decimal'";
-#else
-    private const string DecimalHint = "; the extension set 'decimal' exists only on .NET 11";
-#endif
 
     // The declarations to check: the set of the builder, with the declarations of the types of the application that the type
     // index describes resolved (ResolveUnmapped).
@@ -63,8 +62,12 @@ internal sealed class DeclarationChecks
     // type. A type of the kind Decimal in a variable or an overload is declared only then.
     private bool DecimalDeclared { get; set; }
 
+    // The .NET types that UseInput declared, which ExpandInput checks.
+    private readonly ImmutableArray<Type> _inputTypes;
+
     private DeclarationChecks(DeclarationSet set, LibraryDeclarations library, Func<string, string?>? abstractTypeSets)
     {
+        _inputTypes = set.InputTypes;
         _set = set;
         _library = library;
         _abstractTypeSets = abstractTypeSets;
@@ -81,6 +84,7 @@ internal sealed class DeclarationChecks
         out string container,
         out TypeIndex types,
         out ImmutableArray<ExtensionDefinition> extensions,
+        out CelObjectType? inputType,
         Func<string, string?>? abstractTypeSets = null)
     {
         var checks = new DeclarationChecks(set, library, abstractTypeSets);
@@ -93,11 +97,10 @@ internal sealed class DeclarationChecks
         }
 
         types = checks.CheckTypes();
-#if NET11_0_OR_GREATER
         types = types.WithDecimalDeclared(checks.DecimalDeclared);
-#endif
         checks.ResolveUnmapped(types);
         checks.ResolveImplementations(types);
+        inputType = checks.ExpandInput(types);
         variables = checks.CheckVariables();
         checks.CheckContainers();
         checks.CheckFunctions();
@@ -118,9 +121,7 @@ internal sealed class DeclarationChecks
         {
             foreach (AbstractTypeDeclaration declaration in set.AbstractTypes)
             {
-#if NET11_0_OR_GREATER
                 DecimalDeclared |= declaration.Type.Kind == CelTypeKind.Decimal;
-#endif
                 if (_library.ReservedNames.Contains(declaration.Name))
                 {
                     _errors.Add(BuildErrors.DuplicateType(declaration.Name, StandardLibrarySource, set.Source, null));
@@ -432,6 +433,60 @@ internal sealed class DeclarationChecks
         }
     }
 
+    // The input of the environment (UseInput): the description that a type source gives the .NET type, whose fields join the variables
+    // with the source "input {type}", so that the duplicate check of variables names both sources. A second, different type is
+    // InputConflict for the first type by string.CompareOrdinal against each other one, and a type no source describes is
+    // TypeNotDeclared of the kind input; in both cases there is no input and no field variable. Null without an input or with an error.
+    private CelObjectType? ExpandInput(TypeIndex types)
+    {
+        if (_inputTypes.IsEmpty)
+        {
+            return null;
+        }
+
+        string[] names = new string[_inputTypes.Length];
+        for (int i = 0; i < names.Length; i++)
+        {
+            names[i] = _inputTypes[i].ToString();
+        }
+
+        Array.Sort(names, string.CompareOrdinal);
+        if (names.Length > 1)
+        {
+            for (int i = 1; i < names.Length; i++)
+            {
+                _errors.Add(BuildErrors.InputConflict(names[0], names[i]));
+            }
+
+            return null;
+        }
+
+        Type input = _inputTypes[0];
+        if (!types.TryGetByClrType(input, out CelObjectType? described))
+        {
+            _errors.Add(BuildErrors.TypeNotDeclared("input", names[0], names[0]));
+            return null;
+        }
+
+        string source = InputSourcePrefix + names[0];
+        ImmutableArray<SourcedDeclaration<CelVariableDecl>>.Builder fields = ImmutableArray.CreateBuilder<SourcedDeclaration<CelVariableDecl>>(described.Fields.Length);
+        foreach (CelObjectField field in described.Fields)
+        {
+            fields.Add(new SourcedDeclaration<CelVariableDecl>(new CelVariableDecl(field.Name, field.Type), source, null));
+        }
+
+        _set = new DeclarationSet(
+            [.. _set.Variables, .. fields.MoveToImmutable()],
+            _set.Functions,
+            _set.Implementations,
+            _set.Containers,
+            _set.Unmapped,
+            _set.TypeSources,
+            _set.Extensions,
+            decimalLiterals: _set.DecimalLiterals);
+        return described;
+    }
+
     private static ImmutableArray<SourcedDeclaration<T>> InApplication<T>(List<T>? declarations)
         where T : notnull
     {
@@ -492,10 +547,12 @@ internal sealed class DeclarationChecks
             }
         }
 
+        ImmutableArray<CelEnumType>.Builder enumTypes = ImmutableArray.CreateBuilder<CelEnumType>();
         foreach (List<TypeDeclaration> declarations in byName.Values)
         {
             if (declarations[0].Description is CelEnumType enumType)
             {
+                enumTypes.Add(enumType);
                 foreach (KeyValuePair<string, long> constant in enumType.Constants)
                 {
                     enumConstants.TryAdd(enumType.Name + "." + constant.Key, constant.Value);
@@ -503,7 +560,7 @@ internal sealed class DeclarationChecks
             }
         }
 
-        return new TypeIndex(index, enumConstants, describedClrTypes, aliases);
+        return new TypeIndex(index, enumConstants, describedClrTypes, aliases, enumTypes.ToImmutable());
     }
 
     // Descriptions of one name or one .NET type: the first in the order of sources against each other one.
@@ -606,7 +663,7 @@ internal sealed class DeclarationChecks
             }
 
             _errors.Add(DeclarationNames.IsQualifiedIdentifier(unmapped.Name)
-                ? BuildErrors.TypeNotDeclared("variable", unmapped.Name, unmapped.ClrType.ToString(), hint: HintOf(unmapped.ClrType))
+                ? BuildErrors.TypeNotDeclared("variable", unmapped.Name, unmapped.ClrType.ToString())
                 : BuildErrors.InvalidVariableName(unmapped.Name, ApplicationSource));
         }
 
@@ -626,12 +683,18 @@ internal sealed class DeclarationChecks
         for (int i = 1; i < sameName.Count; i++)
         {
             SourcedDeclaration<CelVariableDecl> other = sameName[i];
-            if (!first.Value.SameAs(other.Value))
+            // A field of the input is never the same declaration as a variable that has its name: the input reads it from the instance,
+            // and a binding of that name is not used, so the two are a conflict even when their types are equal.
+            if (!first.Value.SameAs(other.Value) || IsFromInput(first) || IsFromInput(other))
             {
                 _errors.Add(BuildErrors.DuplicateVariable(first.Value.Name, first.Source, other.Source, first.Position ?? other.Position));
             }
         }
     }
+
+    // Whether a variable is a field of the input: its source is "input {type}".
+    private static bool IsFromInput(SourcedDeclaration<CelVariableDecl> declaration) =>
+        declaration.Source.StartsWith(InputSourcePrefix, StringComparison.Ordinal);
 
     // Two different non-empty containers: the first by source and container against each other one.
     private void CheckContainers()
@@ -684,7 +747,7 @@ internal sealed class DeclarationChecks
 
             _declaredIds.Add(unmapped.Name);
             _errors.Add(DeclarationNames.IsQualifiedIdentifier(function)
-                ? BuildErrors.TypeNotDeclared("overload", unmapped.Name, unmapped.ClrType.ToString(), hint: HintOf(unmapped.ClrType))
+                ? BuildErrors.TypeNotDeclared("overload", unmapped.Name, unmapped.ClrType.ToString())
                 : BuildErrors.InvalidFunctionName(function, ApplicationSource));
         }
 
@@ -887,6 +950,13 @@ internal sealed class DeclarationChecks
 
         foreach ((string id, List<ImplementationEntry> sameId) in _implementations)
         {
+            if (_byId.TryGetValue(id, out List<OverloadEntry>? declaredTwice) && declaredTwice.Count > 1)
+            {
+                // Two different overloads share the identifier: CheckOverloadIds reported it, and the implementations that
+                // follow from it are not a second mistake.
+                continue;
+            }
+
             if (sameId.Count > 1 || _library.ById.ContainsKey(id) || _setIds.Contains(id))
             {
                 _errors.Add(BuildErrors.DuplicateImplementation(id));
@@ -897,7 +967,7 @@ internal sealed class DeclarationChecks
             }
             else if (sameId[0].Unresolved is Type unresolved)
             {
-                _errors.Add(BuildErrors.TypeNotDeclared("overload", id, unresolved.ToString(), hint: HintOf(unresolved)));
+                _errors.Add(BuildErrors.TypeNotDeclared("overload", id, unresolved.ToString()));
             }
             else if (_unique.TryGetValue(id, out OverloadEntry? declared)
                 && sameId[0].IsTyped
@@ -1143,9 +1213,7 @@ internal sealed class DeclarationChecks
         if ((type.Kind == CelTypeKind.Object && !_typeNames.Contains(type.Name) && !_setTypes.ContainsKey(type.Name))
             || (type.Kind == CelTypeKind.Any && !_typeNames.Contains(type.Name))
             || (type.Kind == CelTypeKind.Optional && !_setTypes.ContainsKey(type.Name))
-#if NET11_0_OR_GREATER
             || (type.Kind == CelTypeKind.Decimal && !decimalDeclared)
-#endif
             )
         {
             return type;
@@ -1215,13 +1283,13 @@ internal sealed class DeclarationChecks
 
         CelType result = Resolve(overload.ResultType);
         return changed || !ReferenceEquals(result, overload.ResultType)
-            ? new CelOverloadDecl(overload.OverloadId, overload.IsReceiverStyle, parameters.MoveToImmutable(), result, overload.Cost)
+            ? new CelOverloadDecl(overload.OverloadId, overload.IsReceiverStyle, parameters.MoveToImmutable(), result, overload.Cost, overload.Description)
             : overload;
     }
 
     // The hint of TypeNotDeclared for an object type or an optional type whose name the catalog gives to a type of a set that the
     // environment does not have: the set to add; for the type decimal, which the set decimal declares and the catalog does not list,
-    // the same, and on .NET 10 the remark that the set exists only on .NET 11; empty for any other type.
+    // the same; empty for any other type.
     private string HintOf(CelType type)
     {
         if (MentionsDecimal(type))
@@ -1234,16 +1302,9 @@ internal sealed class DeclarationChecks
             : string.Empty;
     }
 
-    // The hint for a .NET type that maps to no CEL type: System.Decimal on .NET 10, which has no decimal; no other type has one. On
-    // .NET 11 System.Decimal maps, so the case does not come up there.
-    private static string HintOf(Type clrType) =>
-        clrType == typeof(decimal) || Nullable.GetUnderlyingType(clrType) == typeof(decimal) ? DecimalHint : string.Empty;
-
     // The type decimal, or the name decimal that a description of an environment gives a variable, a field or an overload.
     private static bool IsDecimal(CelType type) =>
-#if NET11_0_OR_GREATER
         type.Kind == CelTypeKind.Decimal ||
-#endif
         (type.Kind == CelTypeKind.Object && string.Equals(type.Name, "decimal", StringComparison.Ordinal));
 
     // Whether the type is decimal or has it at any depth.

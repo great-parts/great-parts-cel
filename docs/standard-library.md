@@ -12,6 +12,7 @@ The sources are the language definition of CEL (`doc/langdef.md` of cel-spec), c
 - An application can add an overload to a function of the standard library when it does not overlap one of the library. An application does not overload operators: the name of an application function is an identifier or a qualified name, and a name such as `_+_`, `_[_]`, `@in` or `@not_strictly_false` is the build error `InvalidFunctionName` (4015).
 - An overload of the application that coincides with or overlaps an overload of the library after the type parameters are erased, a variable or a type of the application named like a type identifier below, and a function of the application with the name and form of a macro below are the build error `StandardLibraryConflict` (4006), which names both sources.
 - The tables of version 1 are built once per process and are immutable; an environment merges them with the declarations of the application when it is built.
+- Each function of version 1 has a description: one English sentence, taken from the language definition, that the same text gives to each overload of the function. `CelEnvironment.Functions` shows it as `CelOverloadDecl.Description`, next to the overload identifier and the types, so a tool can list the functions of an environment for people without a copy of this page.
 
 ## How to read the tables
 

@@ -21,8 +21,10 @@ internal static partial class ConversionRules
     private static readonly CelType DynMap = CelType.MapOf(CelType.Dyn, CelType.Dyn);
 
     // The value of an enumeration on ulong above the range of int is the number.
-    private static readonly Func<CelError, string> EnumOutOfRangeText =
-        static error => ((ulong)error.Number).ToString(CultureInfo.InvariantCulture) + " is out of the range of int";
+    private static readonly ErrorTemplate EnumOutOfRangeText = new(
+        static error => ((ulong)error.Number).ToString(CultureInfo.InvariantCulture) + " is out of the range of int",
+        expectedType: static _ => CelType.Int,
+        actualType: static _ => CelType.UInt);
 
     /// <summary>
     /// The CEL type of a variable whose values have the .NET type <typeparamref name="T"/>.
@@ -77,9 +79,7 @@ internal static partial class ConversionRules
             || TryFromCelValueOrObject(value, out result)
             || TryFromNullable(value, out result)
             || TryFromNullableTime(value, out result)
-#if NET11_0_OR_GREATER
             || TryFromDecimal(value, out result)
-#endif
             || TryFromJson(value, out result)
             || TryFromOptional(value, out result)
             || TryFromCollection(value, out result);
@@ -154,9 +154,7 @@ internal static partial class ConversionRules
     // The CEL types that have no wrapper: those of time and decimal.
     private static bool HasNoWrapper(CelType type) =>
         type.Kind is CelTypeKind.Timestamp or CelTypeKind.Duration
-#if NET11_0_OR_GREATER
             or CelTypeKind.Decimal
-#endif
         ;
 
     // The rows of numbers, enumerations, bool, string, Guid and bytes.
@@ -192,11 +190,7 @@ internal static partial class ConversionRules
             return CelType.Bytes;
         }
 
-#if NET11_0_OR_GREATER
         return TimeInputType(type) ?? DecimalInputType(type);
-#else
-        return TimeInputType(type);
-#endif
     }
 
     private static bool IsSigned(Type type) =>
@@ -502,6 +496,23 @@ internal static partial class ConversionRules
         return CelValue.FromBareObject(value!);
     }
 
+    /// <summary>
+    /// Converts a value by its run-time type, as the indexer of <see cref="CelBindings"/> does: a value of the row <c>object</c> of
+    /// the input table by its row, a list or a dictionary with string keys of the closed list of the type mapping as a list or a map
+    /// read through a view, any other instance as a bare object, which the node that reads it describes with the type index.
+    /// </summary>
+    /// <param name="value">The value, or <see langword="null"/>.</param>
+    /// <returns>The CEL value, possibly an error value that the row refuses, as for <see cref="TryFromClr{T}"/>.</returns>
+    internal static CelValue FromRuntimeValue(object? value)
+    {
+        if (TryFromObject(value, out CelValue leaf))
+        {
+            return leaf;
+        }
+
+        return Inputs.TryConvertRuntime(value!, out CelValue collection) ? collection : CelValue.FromBareObject(value!);
+    }
+
     // The same, false for a .NET type outside the rows.
     private static bool TryFromObject(object? value, out CelValue result)
     {
@@ -537,11 +548,7 @@ internal static partial class ConversionRules
             JsonElement element => JsonRules.FromElement(element),
             Enum number => FromBoxedEnum(number),
             IOptionalSource optional when optional.TryToCelValue(out CelValue held) => held,
-#if NET11_0_OR_GREATER
             _ => FromBoxedDecimal(value),
-#else
-            _ => null,
-#endif
         };
 
         result = converted.GetValueOrDefault();

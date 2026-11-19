@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using Great.Parts.Cel.Diagnostics;
 using Xunit;
@@ -33,9 +32,9 @@ public sealed class CelBuildResultTests
     {
         CelBuildResult result = new([Error("first")]);
 
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => result.Environment);
+        CelException exception = Assert.Throws<CelException>(() => result.Environment);
 
-        Assert.Equal("The environment was not built: the result has build errors.", exception.Message);
+        Assert.Equal(result.Errors, exception.Errors);
     }
 
     [Fact]

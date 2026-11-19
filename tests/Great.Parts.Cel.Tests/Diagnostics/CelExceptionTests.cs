@@ -7,7 +7,7 @@ namespace Great.Parts.Cel.Tests.Diagnostics;
 public sealed class CelExceptionTests
 {
     [Fact]
-    public void Constructor_KeepsTheErrorsInTheirOrder()
+    public void FromErrors_KeepsTheErrorsInTheirOrder()
     {
         ImmutableArray<CelError> errors =
         [
@@ -15,7 +15,7 @@ public sealed class CelExceptionTests
             new(CelErrorCode.InvalidLiteral, CelErrorStage.Parse, "invalid int literal: a", new CelSourceLocation(0, 1, 1), null, null),
         ];
 
-        CelException exception = new(errors);
+        CelException exception = CelException.FromErrors(errors);
 
         Assert.Equal(errors, exception.Errors);
     }
@@ -29,7 +29,7 @@ public sealed class CelExceptionTests
             new(CelErrorCode.InvalidConfiguration, CelErrorStage.Build, "invalid environment description at line 1, column 2: unknown key", default, new CelSourceLocation("environment JSON", 1, 1, 2), null),
         ];
 
-        CelException exception = new(errors);
+        CelException exception = CelException.FromErrors(errors);
 
         Assert.Equal(
             "The result is not successful:\n"

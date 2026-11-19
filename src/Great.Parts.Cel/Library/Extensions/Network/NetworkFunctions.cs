@@ -22,8 +22,9 @@ internal static class NetworkFunctions
 
     // The message of a failed parse: the function name is the first part, the text the second, the failure the number and whether
     // the text was read as a prefix the byte.
-    private static readonly Func<CelError, string> ParseErrorText = static error =>
-        "invalid argument to '" + (string)error.First! + "': " + AddressText.Describe((ParseFailure)error.Number, error.Small == 1, (string)error.Second!);
+    private static readonly ErrorTemplate ParseErrorText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': " + AddressText.Describe((ParseFailure)error.Number, error.Small == 1, (string)error.Second!),
+        subject: static error => (string)error.First!);
 
     // string_to_ip, ip(string) -> net.IP.
     internal static CelValue StringToIp(ReadOnlySpan<CelValue> arguments, in CallSite site)

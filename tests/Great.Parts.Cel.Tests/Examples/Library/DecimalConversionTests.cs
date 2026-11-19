@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Library;
@@ -22,16 +21,24 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // which uint(-0.5) is not — and the value out of the range is ConversionRange with the text of the decimal and the name of the
 // type; double() is the nearest double, half to even, ConversionRange when it would be infinite and a zero or a subnormal value
 // without an error when it vanishes. Places: the "(" of the call. Rows are those of ExtensionRows.
+//
+// The rows without a directive have the same outcome on both targets (the platform type is Decimal128 on net11.0 and System.Decimal
+// on net10.0). Where it differs, each target has its constant of the same name or a constant of its own: the
+// text of a value with a positive exponent (1E+6 on net11.0, 1000000 on net10.0), the digits that the platform holds (34 on net11.0;
+// 96 bits of coefficient and the exponents -28 to 0 on net10.0, with one rounding of the digits of the text from the original
+// digits) and the range (ConversionRange for an exponent of decimal128, and on net10.0 for a value of 2^96 and more).
 [Trait("Requirement", "F-5")]
 [Trait("Requirement", "F-1")]
 public sealed class DecimalConversionTests
 {
+#if NET11_0_OR_GREATER
     private const string Max34 = DecimalExample.Max34;
     private const string Digits35 = "12345678901234567890123456789012345";
     private const string Digits35Odd = "12345678901234567890123456789012355";
     private const string Digits35Above = "12345678901234567890123456789012346";
     private const string Nines35 = "99999999999999999999999999999999999";
     private const string OneAnd39Zeros = "1000000000000000000000000000000000000000";
+#endif
 
     private const string FromIntegers = """
         string(decimal(5)) => '5'
@@ -52,11 +59,8 @@ public sealed class DecimalConversionTests
     private const string FromDoubles = """
         string(decimal(0.1)) => '0.1'
         string(decimal(100.0)) => '100'
-        string(decimal(1e6)) => '1E+6'
         string(decimal(123456.0)) => '123456'
         string(decimal(123456789.0)) => '123456789'
-        string(decimal(1.5e10)) => '1.5E+10'
-        string(decimal(1e21)) => '1E+21'
         string(decimal(1e-5)) => '0.00001'
         string(decimal(0.001)) => '0.001'
         string(decimal(1.25)) => '1.25'
@@ -73,25 +77,59 @@ public sealed class DecimalConversionTests
         string(decimal(1e-5)) == string(decimal(string(1e-5))) => true
         """;
 
+    // A positive exponent of the digits of a double is kept on net11.0 and not on net10.0, where the value is the integer.
+#if NET11_0_OR_GREATER
+    private const string FromDoublesExponent = """
+        string(decimal(1e6)) => '1E+6'
+        string(decimal(1.5e10)) => '1.5E+10'
+        string(decimal(1e21)) => '1E+21'
+        """;
+#else
+    private const string FromDoublesExponent = """
+        string(decimal(1e6)) => '1000000'
+        string(decimal(1.5e10)) => '15000000000'
+        string(decimal(1e21)) => '1000000000000000000000'
+        string(decimal(1e-30)) => '0E-28'
+        string(decimal(-1e-30)) => '-0E-28'
+        """;
+
+    // A double beyond the range of System.Decimal is ConversionRange; decimal128 holds it.
+    private const string FromDoublesOutOfTheRange = """
+        Evaluate | decimal^(1e300) | ConversionRange | 1E+300 is out of the range of decimal
+        Evaluate | decimal^(-1e30) | ConversionRange | -1E+30 is out of the range of decimal
+        """;
+#endif
+
     private const string NotFinite = """
         Evaluate | decimal^(0.0 / 0.0) | ConversionRange | NaN is out of the range of decimal
         Evaluate | decimal^(1.0 / 0.0) | ConversionRange | +Inf is out of the range of decimal
         Evaluate | decimal^(-1.0 / 0.0) | ConversionRange | -Inf is out of the range of decimal
         """;
 
-    private const string FromStrings = $$"""
+    private const string FromStrings = """
         string(decimal('1.50')) => '1.50'
         string(decimal('0.1')) => '0.1'
         string(decimal('-0')) => '-0'
         string(decimal('-0.0')) => '-0.0'
         string(decimal('0.000')) => '0.000'
         string(decimal('+1.5')) => '1.5'
-        string(decimal('1e3')) => '1E+3'
-        string(decimal('1E+3')) => '1E+3'
         string(decimal('.5')) => '0.5'
         string(decimal('5.')) => '5'
         string(decimal('100')) => '100'
         string(decimal('00012')) => '12'
+        string(decimal(dyn('1.50'))) => '1.50'
+        decimal('1.50') == 1.5m => true
+        """;
+
+    // The digits that the platform holds, rounded once half to even from the original digits of the text, and the exponents of the
+    // platform: 34 digits and the exponents -6176 to 6111 on net11.0; on net10.0 a coefficient of 96 bits and the exponents -28 to 0,
+    // so a positive exponent is not kept and a value below -28 rounds and can be a zero. The last row is the single rounding: the 35
+    // digits of 0.1111111111111111111111111111 and 4999999 round down at 28 places, but 34 digits rounded first would end in a tie
+    // that goes up.
+#if NET11_0_OR_GREATER
+    private const string FromStringsPlatform = $$"""
+        string(decimal('1e3')) => '1E+3'
+        string(decimal('1E+3')) => '1E+3'
         string(decimal('1e-6176')) => '1E-6176'
         string(decimal('1e6111')) => '1E+6111'
         string(decimal('1234567890123456789012345678901234')) => '1234567890123456789012345678901234'
@@ -101,10 +139,24 @@ public sealed class DecimalConversionTests
         string(decimal('{{Nines35}}')) => '1.000000000000000000000000000000000E+35'
         string(decimal('{{OneAnd39Zeros}}')) => '1.000000000000000000000000000000000E+39'
         string(decimal('{{Max34}}e6111')) => '9.999999999999999999999999999999999E+6144'
-        string(decimal(dyn('1.50'))) => '1.50'
-        decimal('1.50') == 1.5m => true
         """;
-
+#else
+    private const string FromStringsPlatform = """
+        string(decimal('1e3')) => '1000'
+        string(decimal('1E+3')) => '1000'
+        string(decimal('1e-6176')) => '0E-28'
+        string(decimal('-1e-6176')) => '-0E-28'
+        string(decimal('0e6111')) => '0'
+        string(decimal('79228162514264337593543950335')) => '79228162514264337593543950335'
+        string(decimal('7.9228162514264337593543950335e28')) => '79228162514264337593543950335'
+        string(decimal('0.1234567890123456789012345678901234')) => '0.1234567890123456789012345679'
+        string(decimal('0.00000000000000000000000000005')) => '0E-28'
+        string(decimal('0.00000000000000000000000000015')) => '2E-28'
+        string(decimal('0.00000000000000000000000000005000000000001')) => '1E-28'
+        string(decimal('7922816251426433759354395033.55')) => '7922816251426433759354395034'
+        string(decimal('0.11111111111111111111111111114999999')) => '0.1111111111111111111111111111'
+        """;
+#endif
     private const string InvalidStrings = """
         Evaluate | decimal^('abc') | InvalidArgument | invalid argument to 'decimal': cannot parse abc as decimal
         Evaluate | decimal^('1e') | InvalidArgument | invalid argument to 'decimal': cannot parse 1e as decimal
@@ -122,7 +174,9 @@ public sealed class DecimalConversionTests
         Evaluate | decimal^('1 ') | InvalidArgument | -
         """;
 
-    // The exponent after the rounding is out of the range: ConversionRange, in a zero as well, with the string as written.
+    // The exponent after the rounding is out of the range: ConversionRange, in a zero as well, with the string as written; on net10.0 a
+    // value whose integer part does not fit 96 bits, a zero and a value below the exponent -28 being values.
+#if NET11_0_OR_GREATER
     private const string StringsOutOfTheRange = """
         Evaluate | decimal^('1e-6200') | ConversionRange | 1e-6200 is out of the range of decimal
         Evaluate | decimal^('1e-6177') | ConversionRange | 1e-6177 is out of the range of decimal
@@ -132,18 +186,39 @@ public sealed class DecimalConversionTests
         Evaluate | decimal^('1e99999999999') | ConversionRange | 1e99999999999 is out of the range of decimal
         Evaluate | decimal^('1e-99999999999') | ConversionRange | 1e-99999999999 is out of the range of decimal
         """;
+#else
+    private const string StringsOutOfTheRange = """
+        Evaluate | decimal^('1e29') | ConversionRange | 1e29 is out of the range of decimal
+        Evaluate | decimal^('-1e29') | ConversionRange | -1e29 is out of the range of decimal
+        Evaluate | decimal^('79228162514264337593543950336') | ConversionRange | 79228162514264337593543950336 is out of the range of decimal
+        Evaluate | decimal^('123456789012345678901234567890') | ConversionRange | 123456789012345678901234567890 is out of the range of decimal
+        Evaluate | decimal^('7922816251426433759354395033.6e1') | ConversionRange | 7922816251426433759354395033.6e1 is out of the range of decimal
+        Evaluate | decimal^('1e99999999999') | ConversionRange | 1e99999999999 is out of the range of decimal
+        """;
+#endif
 
     // decimal(decimal) is the identity: the exponent and the sign of a zero are those of the argument.
-    private const string Identity = $$"""
+    private const string Identity = """
         string(decimal(1.50m)) => '1.50'
         string(decimal(-0.0m)) => '-0.0'
         string(decimal(-0m)) => '-0'
-        string(decimal(1e2m)) => '1E+2'
         string(decimal(0m)) => '0'
-        string(decimal({{Max34}}e6111m)) => '9.999999999999999999999999999999999E+6144'
         string(decimal(dyn(1.50m))) => '1.50'
         decimal(1.5m) == 1.50m => true
+        decimal(1e2m) == 100m => true
         """;
+
+#if NET11_0_OR_GREATER
+    private const string IdentityPlatform = $$"""
+        string(decimal(1e2m)) => '1E+2'
+        string(decimal({{Max34}}e6111m)) => '9.999999999999999999999999999999999E+6144'
+        """;
+#else
+    private const string IdentityPlatform = """
+        string(decimal(1e2m)) => '100'
+        string(decimal(79228162514264337593543950335m)) => '79228162514264337593543950335'
+        """;
+#endif
 
     private const string NoOverload = """
         Evaluate | decimal^(dyn(true)) | EvalNoMatchingOverload | no such overload: decimal(bool)
@@ -162,7 +237,6 @@ public sealed class DecimalConversionTests
         int(100m) => 100
         int(1e2m) => 100
         int(-0m) => 0
-        int(1e-6176m) => 0
         int(9223372036854775807m) => 9223372036854775807
         int(-9223372036854775808m) => -9223372036854775808
         int(9223372036854775807.9m) => 9223372036854775807
@@ -170,14 +244,25 @@ public sealed class DecimalConversionTests
         int(dyn(2.5m)) => 2
         """;
 
-    private const string IntOutOfTheRange = $$"""
+    private const string IntOutOfTheRange = """
         Evaluate | int^(9223372036854775808m) | ConversionRange | 9223372036854775808 is out of the range of int
         Evaluate | int^(-9223372036854775809m) | ConversionRange | -9223372036854775809 is out of the range of int
         Evaluate | int^(9223372036854775808.5m) | ConversionRange | 9223372036854775808.5 is out of the range of int
+        Evaluate | int^(79228162514264337593543950335m) | ConversionRange | 79228162514264337593543950335 is out of the range of int
+        """;
+
+#if NET11_0_OR_GREATER
+    private const string IntOutOfTheRangePlatform = $$"""
         Evaluate | int^(1e19m) | ConversionRange | 1E+19 is out of the range of int
         Evaluate | int^(1e6111m) | ConversionRange | 1E+6111 is out of the range of int
         Evaluate | int^({{Max34}}m) | ConversionRange | {{Max34}} is out of the range of int
         """;
+#else
+    private const string IntOutOfTheRangePlatform = """
+        Evaluate | int^(10000000000000000000m) | ConversionRange | 10000000000000000000 is out of the range of int
+        Evaluate | int^(1e19m) | ConversionRange | 10000000000000000000 is out of the range of int
+        """;
+#endif
 
     // The sign is tested after the truncation: a negative value that truncates to zero is 0u, unlike uint(-0.5) of a double.
     private const string ToUint = """
@@ -197,8 +282,17 @@ public sealed class DecimalConversionTests
         Evaluate | uint^(-1.5m) | ConversionRange | -1.5 is out of the range of uint
         Evaluate | uint^(-1m) | ConversionRange | -1 is out of the range of uint
         Evaluate | uint^(18446744073709551616m) | ConversionRange | 18446744073709551616 is out of the range of uint
+        """;
+
+#if NET11_0_OR_GREATER
+    private const string UintOutOfTheRangePlatform = """
         Evaluate | uint^(1e20m) | ConversionRange | 1E+20 is out of the range of uint
         """;
+#else
+    private const string UintOutOfTheRangePlatform = """
+        Evaluate | uint^(1e20m) | ConversionRange | 100000000000000000000 is out of the range of uint
+        """;
+#endif
 
     private const string ToDouble = """
         double(1.5m) => 1.5
@@ -207,14 +301,20 @@ public sealed class DecimalConversionTests
         double(0.3m) == 0.3 => true
         double(100m) => 100.0
         double(1e2m) => 100.0
-        double(1e308m) == 1e308 => true
-        double(1.7976931348623157e308m) == 1.7976931348623157e308 => true
+        double(0.0000000000000000000000000001m) == 1e-28 => true
         double(9007199254740993m) == 9007199254740992.0 => true
         double(9007199254740995m) == 9007199254740996.0 => true
-        double(1e-400m) == 0.0 => true
         1.0 / double(-0m) < 0.0 => true
         1.0 / double(0m) > 0.0 => true
         double(dyn(1.5m)) => 1.5
+        """;
+
+#if NET11_0_OR_GREATER
+    // The exponents of decimal128 reach beyond the range of double; System.Decimal never does.
+    private const string ToDoubleBeyond = """
+        double(1e308m) == 1e308 => true
+        double(1.7976931348623157e308m) == 1.7976931348623157e308 => true
+        double(1e-400m) == 0.0 => true
         """;
 
     private const string DoubleOutOfTheRange = """
@@ -222,13 +322,24 @@ public sealed class DecimalConversionTests
         Evaluate | double^(-1e309m) | ConversionRange | -1E+309 is out of the range of double
         Evaluate | double^(1e6111m) | ConversionRange | 1E+6111 is out of the range of double
         """;
+#endif
 
     private const string ToStringRows = """
         string(1.5m) => '1.5'
         string(dyn(1.50m)) => '1.50'
         string(-0m) => '-0'
+        """;
+
+    // The text of a quotient that is not exact: 0. and 34 digits on net11.0, 0. and 28 places on net10.0.
+#if NET11_0_OR_GREATER
+    private const string ToStringPlatform = """
         string(decimal(1) / decimal(3)).size() => 36
         """;
+#else
+    private const string ToStringPlatform = """
+        string(decimal(1) / decimal(3)).size() => 30
+        """;
+#endif
 
     private readonly CelEnvironment environment = DecimalExample.Create();
 
@@ -239,12 +350,25 @@ public sealed class DecimalConversionTests
     public void DecimalOfADouble_TakesTheDigitsOfStringOfTheDouble() => Assert.Empty(ExtensionRows.CheckValues(environment, FromDoubles));
 
     [Fact]
+    [Trait("Requirement", "F-18")]
+    public void DecimalOfADouble_KeepsAPositiveExponentOnNet11_AndRoundsIntoTheRangeOnNet10() =>
+        Assert.Empty(ExtensionRows.CheckValues(environment, FromDoublesExponent));
+
+#if !NET11_0_OR_GREATER
+    [Fact]
+    [Trait("Requirement", "F-4")]
+    [Trait("Requirement", "F-18")]
+    public void DecimalOfADoubleBeyondSystemDecimal_IsConversionRange() => Assert.Empty(ExtensionRows.CheckErrors(environment, FromDoublesOutOfTheRange));
+#endif
+
+    [Fact]
     [Trait("Requirement", "F-4")]
     public void DecimalOfANaNOrAnInfinity_IsConversionRange() => Assert.Empty(ExtensionRows.CheckErrors(environment, NotFinite));
 
     [Fact]
     [Trait("Requirement", "R-5")]
-    public void DecimalOfAString_ReadsTheGrammar_AndRoundsMoreThan34Digits() => Assert.Empty(ExtensionRows.CheckValues(environment, FromStrings));
+    public void DecimalOfAString_ReadsTheGrammar_AndRoundsOnceToThePrecisionOfThePlatform() =>
+        Assert.Empty(ExtensionRows.CheckValues(environment, FromStrings + "\n" + FromStringsPlatform));
 
     [Fact]
     [Trait("Requirement", "F-4")]
@@ -257,7 +381,8 @@ public sealed class DecimalConversionTests
         Assert.Empty(ExtensionRows.CheckErrors(environment, StringsOutOfTheRange));
 
     [Fact]
-    public void DecimalOfADecimal_KeepsTheExponentAndTheSignOfTheZero() => Assert.Empty(ExtensionRows.CheckValues(environment, Identity));
+    public void DecimalOfADecimal_KeepsTheExponentAndTheSignOfTheZero() =>
+        Assert.Empty(ExtensionRows.CheckValues(environment, Identity + "\n" + IdentityPlatform));
 
     [Fact]
     [Trait("Requirement", "F-4")]
@@ -269,23 +394,30 @@ public sealed class DecimalConversionTests
 
     [Fact]
     [Trait("Requirement", "F-4")]
-    public void IntOfADecimalOutOfTheRange_IsConversionRange() => Assert.Empty(ExtensionRows.CheckErrors(environment, IntOutOfTheRange));
+    public void IntOfADecimalOutOfTheRange_IsConversionRange() =>
+        Assert.Empty(ExtensionRows.CheckErrors(environment, IntOutOfTheRange + "\n" + IntOutOfTheRangePlatform));
 
     [Fact]
     public void UintOfADecimal_TruncatesFirst_AndChecksTheSignAfterwards() => Assert.Empty(ExtensionRows.CheckValues(environment, ToUint));
 
     [Fact]
     [Trait("Requirement", "F-4")]
-    public void UintOfADecimalOutOfTheRange_IsConversionRange() => Assert.Empty(ExtensionRows.CheckErrors(environment, UintOutOfTheRange));
+    public void UintOfADecimalOutOfTheRange_IsConversionRange() =>
+        Assert.Empty(ExtensionRows.CheckErrors(environment, UintOutOfTheRange + "\n" + UintOutOfTheRangePlatform));
 
     [Fact]
     public void DoubleOfADecimal_IsTheNearestDouble() => Assert.Empty(ExtensionRows.CheckValues(environment, ToDouble));
 
+#if NET11_0_OR_GREATER
     [Fact]
     [Trait("Requirement", "F-4")]
-    public void DoubleOfADecimalBeyondTheRangeOfDouble_IsConversionRange() => Assert.Empty(ExtensionRows.CheckErrors(environment, DoubleOutOfTheRange));
+    public void DoubleOfADecimalBeyondTheRangeOfDouble_IsConversionRange()
+    {
+        Assert.Empty(ExtensionRows.CheckErrors(environment, DoubleOutOfTheRange));
+        Assert.Empty(ExtensionRows.CheckValues(environment, ToDoubleBeyond));
+    }
+#endif
 
     [Fact]
-    public void StringOfADecimal_IsTheScientificText() => Assert.Empty(ExtensionRows.CheckValues(environment, ToStringRows));
+    public void StringOfADecimal_IsTheScientificText() => Assert.Empty(ExtensionRows.CheckValues(environment, ToStringRows + "\n" + ToStringPlatform));
 }
-#endif

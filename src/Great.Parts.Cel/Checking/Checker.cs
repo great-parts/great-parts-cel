@@ -109,7 +109,7 @@ internal sealed class Checker
     // InternalError at the node being checked, ordered by offset.
     internal CheckResult Interrupted(Exception exception)
     {
-        _errors.Add(CheckErrors.InternalError(exception, Location(_current ?? _parsed.Root)));
+        _errors.Add(CheckErrors.InternalError(exception, Place(_current ?? _parsed.Root)));
         return Failed();
     }
 
@@ -209,11 +209,11 @@ internal sealed class Checker
     // The error of a rejected call: the message of its code, at the part that the answer names or at the call.
     private CelError ValidationError(CallNode call, CallValidation answer, CallShape shape)
     {
-        CelSourceLocation location = answer.Offset is int offset ? _parsed.Lines.GetLocation(offset) : Location(call);
+        CelSourceSpan place = answer.Offset is int offset ? Place(offset, _parsed.Lines.GetEnd(offset)) : Place(call);
         switch (answer.Code)
         {
             case CelErrorCode.InvalidFormatString:
-                return CheckErrors.InvalidFormatString(answer.Detail, location);
+                return CheckErrors.InvalidFormatString(answer.Detail, place);
             case CelErrorCode.NoMatchingOverload:
                 int count = shape.Arguments.Length + (shape.Receiver is null ? 0 : 1);
                 var argumentTypes = new CelType[count];
@@ -228,7 +228,7 @@ internal sealed class Checker
                     argumentTypes[next++] = argument.Type;
                 }
 
-                return CheckErrors.NoMatchingOverload(call.Function, argumentTypes, location);
+                return CheckErrors.NoMatchingOverload(call.Function, argumentTypes, place);
             default:
                 throw new UnreachableException("A validator answers InvalidFormatString or NoMatchingOverload.");
         }
@@ -246,7 +246,7 @@ internal sealed class Checker
         }
 
         Array.Sort(keys, errors);
-        return new CheckResult(ImmutableCollectionsMarshal.AsImmutableArray(errors));
+        return new CheckResult(ImmutableCollectionsMarshal.AsImmutableArray(errors), _references);
     }
 
     private void CheckExpectedType(CelType type)
@@ -260,7 +260,7 @@ internal sealed class Checker
         CelType expected = HasTypeParameters(_expectedType) ? Instantiate(_expectedType) : _expectedType;
         if (!AssignabilityRules.IsAssignable(type, expected, _substitution, []))
         {
-            _errors.Add(CheckErrors.ExpectedTypeMismatch(Shown(type), _expectedType, Location(_parsed.Root)));
+            _errors.Add(CheckErrors.ExpectedTypeMismatch(Shown(type), _expectedType, Place(_parsed.Root)));
         }
     }
 
@@ -274,7 +274,7 @@ internal sealed class Checker
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {
             _stopped = true;
-            _errors.Add(CheckErrors.InsufficientStack(Location(node)));
+            _errors.Add(CheckErrors.InsufficientStack(Place(node)));
             return null;
         }
 
@@ -314,9 +314,7 @@ internal sealed class Checker
         CelValueKind.Double => CelType.Double,
         CelValueKind.String => CelType.String,
         CelValueKind.Bytes => CelType.Bytes,
-#if NET11_0_OR_GREATER
         CelValueKind.Decimal => CelType.Decimal,
-#endif
         _ => throw new UnreachableException("A literal has no other kind."),
     };
 
@@ -340,7 +338,7 @@ internal sealed class Checker
             return type;
         }
 
-        _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Location(identifier)));
+        _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Place(identifier)));
         return null;
     }
 
@@ -375,7 +373,7 @@ internal sealed class Checker
 
             if (resolved == 0)
             {
-                _errors.Add(CheckErrors.UndeclaredReference(root.Name, _declarations.Container, Location(root)));
+                _errors.Add(CheckErrors.UndeclaredReference(root.Name, _declarations.Container, Place(root)));
                 break;
             }
 
@@ -422,7 +420,7 @@ internal sealed class Checker
             head = Head(head.Parameters[0]);
         }
 
-        return SelectionType(select.Field, head, optional, select.IsPresenceTest, select, Location(select));
+        return SelectionType(select.Field, head, optional, select.IsPresenceTest, select, Place(select));
     }
 
     // The type of the selection of the field on an operand whose head is given, after an optional operand has been unwrapped once:
@@ -430,7 +428,7 @@ internal sealed class Checker
     // to dyn; any other type has no fields and is NoSuchField at the place. The result of an optional selection is optional_type of
     // it, except for a presence test. The reference map records the field of an object only for a selection whose operand is not
     // optional: for an optional one the description of the value is known at evaluation, and the planner needs no reference to choose its node.
-    private CelType? SelectionType(string field, CelType head, bool optional, bool isPresenceTest, SelectNode? select, CelSourceLocation location)
+    private CelType? SelectionType(string field, CelType head, bool optional, bool isPresenceTest, SelectNode? select, CelSourceSpan place)
     {
         CelType result;
         switch (head.Kind)
@@ -446,7 +444,7 @@ internal sealed class Checker
                 result = CelType.Dyn;
                 break;
             case CelTypeKind.Object:
-                CelType? fieldType = ObjectFieldType(field, head, optional, select, location);
+                CelType? fieldType = ObjectFieldType(field, head, optional, select, place);
                 if (fieldType is null)
                 {
                     return null;
@@ -459,7 +457,7 @@ internal sealed class Checker
                 result = CelType.Dyn;
                 break;
             default:
-                _errors.Add(CheckErrors.NoSuchField(field, Shown(head), location));
+                _errors.Add(CheckErrors.NoSuchField(field, Shown(head), place));
                 return null;
         }
 
@@ -468,26 +466,24 @@ internal sealed class Checker
 
     // The type of a field of an object type, or null with the error added: no such field is NoSuchField with the full name of the
     // type, at the place, and a field that the description excluded from expressions is FieldNotAccessible with the reason it gives.
-    private CelType? ObjectFieldType(string field, CelType head, bool optional, SelectNode? select, CelSourceLocation location)
+    private CelType? ObjectFieldType(string field, CelType head, bool optional, SelectNode? select, CelSourceSpan place)
     {
         if (!_declarations.Types.TryGetObjectType(head.Name, out CelObjectType? description)
             || !description.TryGetField(field, out CelObjectField? declared))
         {
             string? reason = description?.GetExcludedFieldReason(field);
             _errors.Add(reason is null
-                ? CheckErrors.NoSuchField(field, head, location)
-                : CheckErrors.FieldNotAccessible(field, head.Name, reason, location));
+                ? CheckErrors.NoSuchField(field, head, place)
+                : CheckErrors.FieldNotAccessible(field, head.Name, reason, place));
             return null;
         }
 
-#if NET11_0_OR_GREATER
         // A field of the type decimal is usable only where the environment declares the type: the description is valid in
         // every environment, and the selection is where it is refused. The node has no type and no reference.
-        if (RefusesDecimalField(description, declared, location))
+        if (RefusesDecimalField(description, declared, place))
         {
             return null;
         }
-#endif
 
         if (select is not null && !optional)
         {
@@ -497,20 +493,19 @@ internal sealed class Checker
         return declared.Type;
     }
 
-#if NET11_0_OR_GREATER
     // The reason of FieldNotAccessible for a field of the type decimal in an environment without the set decimal.
     private const string DecimalFieldReason = "the CEL type decimal needs the extension set 'decimal'";
 
     // A field whose type mentions decimal, in an environment that has no set decimal, is FieldNotAccessible at the place; true when it
     // was reported.
-    private bool RefusesDecimalField(CelObjectType description, CelObjectField field, CelSourceLocation location)
+    private bool RefusesDecimalField(CelObjectType description, CelObjectField field, CelSourceSpan place)
     {
         if (_declarations.Types.DecimalDeclared || !MentionsDecimal(field.Type))
         {
             return false;
         }
 
-        _errors.Add(CheckErrors.FieldNotAccessible(field.Name, description.Name, DecimalFieldReason, location));
+        _errors.Add(CheckErrors.FieldNotAccessible(field.Name, description.Name, DecimalFieldReason, place));
         return true;
     }
 
@@ -532,7 +527,6 @@ internal sealed class Checker
 
         return false;
     }
-#endif
 
     // optional_type(T).
     private static CelType OptionalType(CelType valueType) => new(CelTypeKind.Optional, OptionalTypeName, [valueType]);
@@ -575,7 +569,7 @@ internal sealed class Checker
         call.Function.AsSpan().CopyTo(NameRoom(call.Function.Length));
         if (!TryResolveFunction(call.Function.Length, false, out string? function))
         {
-            _errors.Add(CheckErrors.UndeclaredReference(call.Function, _declarations.Container, Location(call)));
+            _errors.Add(CheckErrors.UndeclaredReference(call.Function, _declarations.Container, Place(call)));
             return null;
         }
 
@@ -625,7 +619,7 @@ internal sealed class Checker
             head = Head(head.Parameters[0]);
         }
 
-        return SelectionType(field, head, true, false, null, Location(call));
+        return SelectionType(field, head, true, false, null, Place(call));
     }
 
     private CelType? VisitGlobalCall(CallNode call)
@@ -641,7 +635,7 @@ internal sealed class Checker
         written.CopyTo(NameRoom(written.Length));
         if (!TryResolveFunction(written.Length, leadingDot, out string? function))
         {
-            _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Location(call)));
+            _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Place(call)));
             return null;
         }
 
@@ -716,7 +710,7 @@ internal sealed class Checker
                 argumentTypes[i] = Shown(argumentTypes[i]);
             }
 
-            _errors.Add(CheckErrors.NoMatchingOverload(function, argumentTypes, Location(call)));
+            _errors.Add(CheckErrors.NoMatchingOverload(function, argumentTypes, Place(call)));
             return null;
         }
 
@@ -774,7 +768,7 @@ internal sealed class Checker
         ConstantPreparation preparation = constant.Prepare(text, _declarations.PatternCache);
         if (preparation.Error is { } error)
         {
-            _errors.Add(CheckErrors.InvalidRegex(error, Location(node)));
+            _errors.Add(CheckErrors.InvalidRegex(error, Place(node)));
             return null;
         }
 
@@ -989,7 +983,7 @@ internal sealed class Checker
         }
 
         CelType shown = Shown(head);
-        _errors.Add(CheckErrors.TypeMismatch(new CelType(CelTypeKind.Optional, OptionalTypeName, [shown]), shown, Location(node)));
+        _errors.Add(CheckErrors.TypeMismatch(new CelType(CelTypeKind.Optional, OptionalTypeName, [shown]), shown, Place(node)));
         return null;
     }
 
@@ -1024,18 +1018,18 @@ internal sealed class Checker
                     return CheckMessageFields(message, description, valueTypes);
                 }
 
-                _errors.Add(CheckErrors.TypeNotConstructible(description.Name, Location(message)));
+                _errors.Add(CheckErrors.TypeNotConstructible(description.Name, Place(message)));
                 return null;
             }
 
             if (variable || _declarations.TryGetTypeIdentifier(candidate, out _) || _declarations.Types.TryGetEnumConstant(candidate, out _))
             {
-                _errors.Add(CheckErrors.NotAType(candidate.ToString(), Location(message)));
+                _errors.Add(CheckErrors.NotAType(candidate.ToString(), Place(message)));
                 return null;
             }
         }
 
-        _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Location(message)));
+        _errors.Add(CheckErrors.UndeclaredReference(name, _declarations.Container, Place(message)));
         return null;
     }
 
@@ -1051,13 +1045,13 @@ internal sealed class Checker
         {
             StructEntry entry = message.Entries[i];
             string field = entry.FieldName!;
-            CelSourceLocation location = _parsed.Lines.GetLocation(_parsed.GetOffset(entry.Id));
+            CelSourceSpan place = Place(_parsed.GetOffset(entry.Id), _parsed.GetEnd(entry.Id));
             if (!description.TryGetField(field, out CelObjectField? declared))
             {
                 string? reason = description.GetExcludedFieldReason(field);
                 _errors.Add(reason is null
-                    ? CheckErrors.NoSuchField(field, description.Name, location)
-                    : CheckErrors.FieldNotAccessible(field, description.Name, reason, location));
+                    ? CheckErrors.NoSuchField(field, description.Name, place)
+                    : CheckErrors.FieldNotAccessible(field, description.Name, reason, place));
                 continue;
             }
 
@@ -1075,7 +1069,7 @@ internal sealed class Checker
                 || !AssignabilityRules.IsAssignable(valueType, expected, _substitution, []))
             {
                 _substitution.Rollback(mark);
-                _errors.Add(CheckErrors.TypeMismatch(Shown(expected), Shown(valueType), location));
+                _errors.Add(CheckErrors.TypeMismatch(Shown(expected), Shown(valueType), place, field));
             }
         }
 
@@ -1137,7 +1131,7 @@ internal sealed class Checker
                 _ = AssignabilityRules.IsAssignable(CelType.Dyn, head, _substitution, []);
                 return (CelType.Dyn, CelType.Dyn);
             default:
-                _errors.Add(CheckErrors.InvalidComprehensionRange(Shown(head), Location(range)));
+                _errors.Add(CheckErrors.InvalidComprehensionRange(Shown(head), Place(range)));
                 return (null, null);
         }
     }
@@ -1158,7 +1152,7 @@ internal sealed class Checker
         }
 
         _substitution.Rollback(mark);
-        _errors.Add(CheckErrors.TypeMismatch(Shown(expected), Shown(actual), Location(node)));
+        _errors.Add(CheckErrors.TypeMismatch(Shown(expected), Shown(actual), Place(node)));
         return false;
     }
 
@@ -1296,7 +1290,10 @@ internal sealed class Checker
     // The type as messages show it: after the substitution, free variables as dyn.
     private CelType Shown(CelType type) => SubstitutionRules.Apply(_substitution, type, freeToDyn: true);
 
-    private CelSourceLocation Location(ExprNode node) => _parsed.Lines.GetLocation(_parsed.GetOffset(node.Id));
+    // The fragment of a node: from its place to the end of the node.
+    private CelSourceSpan Place(ExprNode node) => Place(_parsed.GetOffset(node.Id), _parsed.GetEnd(node.Id));
+
+    private CelSourceSpan Place(int offset, int end) => new(_parsed.Lines.GetLocation(offset), end - offset);
 
     // The candidates of a name in the container, the longest first (language definition, "Name
     // Resolution"): in the container a.b the name x is a.b.x, a.x, then x; a name with a leading dot only

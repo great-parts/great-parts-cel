@@ -1,12 +1,14 @@
-#if NET11_0_OR_GREATER
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Library;
 
 // The arithmetic of the set decimal, version 1 (the page of the extension set decimal, "The 18 overloads", "What Decimal128 does"):
 // the overloads add_decimal, subtract_decimal, multiply_decimal, divide_decimal and negate_decimal, that is _+_, _-_, _*_, _/_ and
-// -_ on two decimals or one. The result is exact when it has at most 34 digits and rounded to 34 digits half to even when it has
-// more; its exponent (the cohort) is that of IEEE 754-2019: the sum and the difference have the smaller exponent, the product the
+// -_ on two decimals or one. The rows without a directive have the same outcome on both targets; the rows of 34 digits and of the
+// exponents of decimal128 are net11.0 only, and the rows of the precision of System.Decimal are net10.0 only. On net11.0 the result is
+// exact when it has at most 34 digits and rounded to 34 digits half to even when it has more; its exponent (the cohort) is that of
+// IEEE 754-2019 (on net10.0 the same for a sum, a difference and a product, and for a quotient the nearest exponent that
+// System.Decimal holds, DecimalTargetTests): the sum and the difference have the smaller exponent, the product the
 // sum of the exponents, the quotient the exponent nearest to e1 - e2 that keeps it exact (so 6 / 2 is 3 and 1.00 / 4 is 0.25),
 // and 34 digits when it is not exact. A row that shows the exponent is written as string(x). The sign of a zero: a sum or a
 // difference is a negative zero only when both operands of the sum are, a product and a quotient follow the signs, the negation
@@ -20,8 +22,10 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 [Trait("Requirement", "F-1")]
 public sealed class DecimalArithmeticTests
 {
+#if NET11_0_OR_GREATER
     private const string Max34 = DecimalExample.Max34;
 
+#endif
     private const string Add = """
         string(1.50m + 1.5m) => '3.00'
         string(0.1m + 0.2m) => '0.3'
@@ -33,7 +37,6 @@ public sealed class DecimalArithmeticTests
         string(-0m + -0m) => '-0'
         string(-0m + 0m) => '0'
         string(0m + -0m) => '0'
-        string(1e6111m + 1e6111m) => '2E+6111'
         dyn(1.5m) + dyn(2.5m) == 4m => true
         string(dyn(1.5m) + dyn(2.5m)) => '4.0'
         """;
@@ -60,15 +63,20 @@ public sealed class DecimalArithmeticTests
         string(0m * -5m) => '-0'
         string(0m * 5m) => '0'
         string(-0m * -5m) => '0'
-        string(1e2m * 1e3m) => '1E+5'
         """;
 
+    // A positive exponent of a literal is kept on net11.0 and not on net10.0.
+#if NET11_0_OR_GREATER
+    private const string MultiplyExponent = """
+        string(1e2m * 1e3m) => '1E+5'
+        """;
+#else
+    private const string MultiplyExponent = """
+        string(1e2m * 1e3m) => '100000'
+        """;
+#endif
+
     private const string Divide = """
-        string(1m / 3m) => '0.3333333333333333333333333333333333'
-        string(1.0m / 3.0m) => '0.3333333333333333333333333333333333'
-        string(2m / 3m) => '0.6666666666666666666666666666666667'
-        string(-1m / 3m) => '-0.3333333333333333333333333333333333'
-        string(1m / 7m) => '0.1428571428571428571428571428571429'
         string(6m / 2m) => '3'
         string(1.00m / 4m) => '0.25'
         string(10m / 4m) => '2.5'
@@ -77,9 +85,31 @@ public sealed class DecimalArithmeticTests
         string(1m / 8m) => '0.125'
         string(0m / 5m) => '0'
         string(0.00m / 5m) => '0.00'
+        """;
+
+    // The quotient that is not exact has 34 digits on net11.0 and at most 28 places on net10.0, rounded half to even.
+#if NET11_0_OR_GREATER
+    private const string DivideInexact = """
+        string(1m / 3m) => '0.3333333333333333333333333333333333'
+        string(1.0m / 3.0m) => '0.3333333333333333333333333333333333'
+        string(2m / 3m) => '0.6666666666666666666666666666666667'
+        string(-1m / 3m) => '-0.3333333333333333333333333333333333'
+        string(1m / 7m) => '0.1428571428571428571428571428571429'
         string(1e2m / 1e1m) => '1E+1'
         string(10m / 3m * 3m) => '9.999999999999999999999999999999999'
         """;
+#else
+    private const string DivideInexact = """
+        string(1m / 3m) => '0.3333333333333333333333333333'
+        string(1.0m / 3.0m) => '0.3333333333333333333333333333'
+        string(2m / 3m) => '0.6666666666666666666666666667'
+        string(-1m / 3m) => '-0.3333333333333333333333333333'
+        string(1m / 7m) => '0.1428571428571428571428571429'
+        string(1e2m / 1e1m) => '10'
+        string(10m / 3m) => '3.3333333333333333333333333333'
+        string(10m / 3m * 3m) => '10.000000000000000000000000000'
+        """;
+#endif
 
     private const string Negate = """
         string(-(1.50m)) => '-1.50'
@@ -93,7 +123,10 @@ public sealed class DecimalArithmeticTests
         """;
 
     // The results that need more than 34 digits are rounded to 34, half to even: a tie goes to the even digit and a result above the
-    // tie goes up; a carry out of the 34 digits moves the exponent.
+    // tie goes up; a carry out of the 34 digits moves the exponent. On net10.0 a result that needs more than 96 bits loses places
+    // until the coefficient fits, rounded once from the exact value: 2^96 - 1 times 0.11 is 8715097876569077135289834536.85, which does
+    // not fit at the scale 2 or 1 and is 8715097876569077135289834537.
+#if NET11_0_OR_GREATER
     private const string Rounding = $$"""
         string({{Max34}}m + 1m) => '1.000000000000000000000000000000000E+34'
         string(1234567890123456789012345678901234m + 0.5m) => '1234567890123456789012345678901234'
@@ -101,9 +134,20 @@ public sealed class DecimalArithmeticTests
         string(1234567890123456789012345678901234m + 0.51m) => '1234567890123456789012345678901235'
         string(1234567890123456789012345678901234m * 10m) => '1.234567890123456789012345678901234E+34'
         """;
+#else
+    private const string Rounding = """
+        string(7922816251426433759354395033m + 0.55m) => '7922816251426433759354395034'
+        string(79228162514264337593543950335m * 0.1m) => '7922816251426433759354395033.5'
+        string(79228162514264337593543950335m * 0.11m) => '8715097876569077135289834537'
+        string(7922816251426433759354395033m + 0.5m) => '7922816251426433759354395033.5'
+        """;
+#endif
 
-    // The range of the exponent: the clamp above it, the zero and the subnormal value below it, none of them an error.
+    // The range of the exponent: on net11.0 the clamp above it, the zero and the subnormal value below it, none of them an error; on
+    // net10.0 the value below the exponent -28 is rounded to it and can be zero.
+#if NET11_0_OR_GREATER
     private const string Range = """
+        string(1e6111m + 1e6111m) => '2E+6111'
         string(1e6111m * 1e1m) => '1.0E+6112'
         string(1e6111m * 1e2m) => '1.00E+6113'
         string(-1e6111m * 1e1m) => '-1.0E+6112'
@@ -112,7 +156,17 @@ public sealed class DecimalArithmeticTests
         string(5e-6176m * 0.5m) => '2E-6176'
         1e-6176m * 0.1m == 0m => true
         """;
+#else
+    private const string Range = """
+        string(0.0000000000000000000000000001m * 0.1m) => '0E-28'
+        string(0.0000000000000000000000000001m / 10m) => '0E-28'
+        string(0.0000000000000000000000000005m * 0.5m) => '2E-28'
+        string(0.0000000000000000000000000015m * 0.1m) => '2E-28'
+        0.0000000000000000000000000001m * 0.1m == 0m => true
+        """;
+#endif
 
+#if NET11_0_OR_GREATER
     private const string Overflow = $$"""
         Evaluate | {{Max34}}e6111m ^* 10m | Overflow | decimal overflow
         Evaluate | {{Max34}}e6111m ^+ {{Max34}}e6111m | Overflow | decimal overflow
@@ -121,6 +175,16 @@ public sealed class DecimalArithmeticTests
         Evaluate | {{Max34}}e6111m ^/ 0.1m | Overflow | decimal overflow
         Evaluate | 1m + {{Max34}}e6111m ^* 10m | Overflow | decimal overflow
         """;
+#else
+    private const string Overflow = """
+        Evaluate | 79228162514264337593543950335m ^+ 1m | Overflow | decimal overflow
+        Evaluate | 79228162514264337593543950335m ^* 2m | Overflow | decimal overflow
+        Evaluate | -79228162514264337593543950335m ^- 1m | Overflow | decimal overflow
+        Evaluate | -79228162514264337593543950335m ^* 2m | Overflow | decimal overflow
+        Evaluate | 79228162514264337593543950335m ^/ 0.1m | Overflow | decimal overflow
+        Evaluate | 1m + 79228162514264337593543950335m ^* 2m | Overflow | decimal overflow
+        """;
+#endif
 
     private const string DivisionByZero = """
         Evaluate | 1m ^/ 0m | DivisionByZero | division by zero
@@ -152,17 +216,19 @@ public sealed class DecimalArithmeticTests
     public void Subtract_KeepsTheSmallerExponent_AndTheSignOfTheZeroDifference() => Assert.Empty(ExtensionRows.CheckValues(environment, Subtract));
 
     [Fact]
-    public void Multiply_AddsTheExponents_AndFollowsTheSignsOfTheZero() => Assert.Empty(ExtensionRows.CheckValues(environment, Multiply));
+    public void Multiply_AddsTheExponents_AndFollowsTheSignsOfTheZero() =>
+        Assert.Empty(ExtensionRows.CheckValues(environment, Multiply + "\n" + MultiplyExponent));
 
     [Fact]
-    public void Divide_GivesTheNearestExponentWhenExact_AndThe34DigitsOtherwise() => Assert.Empty(ExtensionRows.CheckValues(environment, Divide));
+    public void Divide_GivesTheNearestExponentWhenExact_AndThePrecisionOfThePlatformOtherwise() =>
+        Assert.Empty(ExtensionRows.CheckValues(environment, Divide + "\n" + DivideInexact));
 
     [Fact]
     public void Negate_KeepsTheExponent_AndMakesANegativeZero() => Assert.Empty(ExtensionRows.CheckValues(environment, Negate));
 
     [Fact]
     [Trait("Requirement", "R-5")]
-    public void ResultOfMoreThan34Digits_IsRoundedHalfToEven() => Assert.Empty(ExtensionRows.CheckValues(environment, Rounding));
+    public void ResultOfMoreDigitsThanThePlatformHolds_IsRoundedHalfToEven() => Assert.Empty(ExtensionRows.CheckValues(environment, Rounding));
 
     [Fact]
     [Trait("Requirement", "R-5")]
@@ -181,4 +247,3 @@ public sealed class DecimalArithmeticTests
     [Fact]
     public void Operators_WorkInsideTheMacros() => Assert.Empty(ExtensionRows.CheckValues(environment, Macros));
 }
-#endif

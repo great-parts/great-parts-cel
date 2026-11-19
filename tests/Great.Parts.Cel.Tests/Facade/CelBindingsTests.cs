@@ -78,12 +78,8 @@ public sealed class CelBindingsTests
     {
         var bindings = new CelBindings();
 
-        // A System.Decimal has no row on .NET 10; on .NET 11 it is a row, so the type there is one that is never read.
-#if NET11_0_OR_GREATER
+        // A System.Decimal is a row on both targets, so the type here is one that is never read.
         Assert.Throws<ArgumentException>(() => bindings.Add("d", Int128.One));
-#else
-        Assert.Throws<ArgumentException>(() => bindings.Add("d", 1m));
-#endif
         Assert.Empty(bindings.Values);
     }
 }

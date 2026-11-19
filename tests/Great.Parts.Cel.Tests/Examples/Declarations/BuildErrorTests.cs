@@ -417,7 +417,7 @@ public sealed class BuildErrorTests
         CelBuildResult result = builder.Build();
 
         Assert.False(result.IsSuccess);
-        Assert.Throws<InvalidOperationException>(() => result.Environment);
+        Assert.Throws<CelException>(() => result.Environment);
         return Assert.Single(result.Errors);
     }
 

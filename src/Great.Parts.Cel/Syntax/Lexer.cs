@@ -334,7 +334,8 @@ internal sealed class Lexer
             "syntax error: " + detail,
             _lines.GetLocation(offset),
             sourceLocation: null,
-            exception: null);
+            exception: null,
+            length: _position - offset);
         return TokenKind.Error;
     }
 

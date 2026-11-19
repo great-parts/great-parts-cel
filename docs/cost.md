@@ -16,6 +16,19 @@ The table is a contract: the units of an operation are the same in every version
 - **No overflow.** A total that does not fit the counter is over every limit.
 - **The type of the counter** is `ulong`, both for `CelEvalOptions.CostLimit` and for the value of a `CelCostFunction`.
 
+## The limit of an environment and the reported cost
+
+`CelEnvironmentBuilder.SetDefaultCostLimit(ulong)` sets the limit of every evaluation of the environment that passes no limit of its own, and `CelEnvironment.DefaultCostLimit` tells it; calling the method again replaces the value, and `ToBuilder()` carries it to the new builder. The limit of a call, `CelEvalOptions.CostLimit`, replaces the limit of the environment, a larger one included. With neither of them the cost is not counted.
+
+`CelEvalResult<T>.Cost` is the sum of the units that the evaluation charged, when a limit applied to it, and `null` otherwise:
+
+- for an evaluation that succeeds, the cost of the whole evaluation, so a limit of exactly that value lets it run;
+- for the error `CostLimitExceeded`, the sum before the operation that was refused, so `Cost` is not above the limit;
+- for another evaluation error, the sum up to and including the operation that gave the error;
+- for a one-step call, the cost of the evaluation only; a call that failed to compile has no cost, `null`.
+
+The cost depends on the expression and the data, not on the limit: the same evaluation gives the same `Cost` under any limit that it does not reach. `Cost` of `default(CelEvalResult<T>)` throws `InvalidOperationException`. The counter does not overflow: a total that does not fit `ulong` is over every limit.
+
 ## Notation
 
 | Quantity | Meaning |
@@ -113,6 +126,10 @@ The overloads of time are on the page [Standard library](standard-library.md#tim
 - `string(timestamp)` and `string(duration)` produce at most 30 characters, so their charge is at most 1 + 3 = 4; it is made from the value, before the string is created.
 - A call that the compiler folds, such as `duration('72h')` or `timestamp('2009-02-13T23:31:30Z')`, charges what the call charges at evaluation: folding changes the work of the program, not its cost.
 - A receiver without a zone, the arithmetic, the comparison and the conversions between a time value and an `int` take constant time and no memory that grows with the data.
+
+#### Time zones of the operating system
+
+In an environment whose time zone database is the one of `CelTimeZoneDatabase.FromSystem()`, a receiver of a timestamp with a zone charges 1 + ⌈Lₐ/10⌉ + Z for a name that is not `UTC` and not a fixed offset, where Z = 2,000 units is one constant for every such name. It is the same whether the zone is found, kept from an earlier call, not found, or refused because the name has not the form of an IANA identifier ([Limits](limits.md#time-zones-of-the-operating-system)), so the cost does not depend on what the database has kept or on the calls before. The charge is made before the zone is looked up, and a zone that is a constant is looked up at each evaluation, not at compilation: compiling reads nothing from the operating system, so it is charged in the same way. Z covers a request to the platform that finds nothing. A database from `CelTimeZoneDatabase.Create` or no database charges only 1 + ⌈Lₐ/10⌉.
 
 ## `matches`
 

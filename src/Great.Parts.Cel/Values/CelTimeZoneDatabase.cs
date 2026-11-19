@@ -6,17 +6,19 @@ using System.Runtime.InteropServices;
 namespace Great.Parts.Cel.Values;
 
 /// <summary>
-/// An IANA time zone database built from TZif data that the application supplies, for CEL functions
-/// that take a time zone, such as <c>timestamp.getHours('Europe/Moscow')</c>.
+/// An IANA time zone database for CEL functions that take a time zone, such as
+/// <c>timestamp.getHours('Europe/Moscow')</c>: built from TZif data that the application supplies, or the database of the
+/// operating system that <see cref="FromSystem"/> returns.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The library never reads time zone data itself: not from the operating system, files or environment
-/// variables, and it does not use <c>TimeZoneInfo</c>, whose data and names differ between
-/// operating systems. The application reads TZif files (RFC 9636) that it trusts — on Linux and macOS the
-/// system zoneinfo directory, elsewhere and for reproducible results the files of a pinned tzdata
-/// release shipped with the application — and passes their bytes here. The database is then added to
-/// an environment builder and becomes part of the immutable environment.
+/// A database from <see cref="Create"/> is the data the application gives: the library does not read time zone data from
+/// the operating system, files or environment variables for it. The application reads TZif files (RFC 9636) that it
+/// trusts — on Linux and macOS the system zoneinfo directory, elsewhere and for reproducible results the files of a pinned
+/// tzdata release shipped with the application — and passes their bytes here. The only database whose data the .NET
+/// platform reads, through <c>TimeZoneInfo</c>, is the one of <see cref="FromSystem"/>, by an explicit call of the
+/// application; its results depend on the machine. The database is then added to an environment builder and becomes part
+/// of the immutable environment.
 /// </para>
 /// <para>
 /// Time zone names in expressions resolve as follows: <c>UTC</c> needs no database; <c>[+-]HH:MM</c> is a
@@ -38,17 +40,24 @@ public sealed class CelTimeZoneDatabase
 {
     private static readonly CelTimeZoneDatabase EmptyInstance = new([], [], null);
 
+    // The one database of the zones of the operating system. Making it reads nothing: the platform is asked only for a name.
+    private static readonly CelTimeZoneDatabase SystemInstance = new([], [], null, isSystem: true);
+
     // The identifiers in ordinal order and the zone of each, at the same index.
     private readonly string[] _ids;
     private readonly ZoneData[] _zones;
 
-    private CelTimeZoneDatabase(string[] ids, ZoneData[] zones, string? version)
+    private CelTimeZoneDatabase(string[] ids, ZoneData[] zones, string? version, bool isSystem = false)
     {
         _ids = ids;
         _zones = zones;
         Version = version;
         ZoneIds = ImmutableCollectionsMarshal.AsImmutableArray(ids);
+        IsSystem = isSystem;
     }
+
+    // Whether this is the database of the operating system, whose zones SystemZoneSource finds and which has no data of its own.
+    internal bool IsSystem { get; }
 
     /// <summary>
     /// A database without time zones: only <c>UTC</c> and fixed offsets resolve.
@@ -56,15 +65,16 @@ public sealed class CelTimeZoneDatabase
     public static CelTimeZoneDatabase Empty => EmptyInstance;
 
     /// <summary>
-    /// The version of the data given by the application, for example <c>2026a</c>, or <see langword="null"/>.
-    /// It is informational: the library does not interpret it, and the message of
-    /// <see cref="Diagnostics.CelErrorCode.TimeZoneNotFound"/> shows it.
+    /// The version of the data given by the application, for example <c>2026a</c>, or <see langword="null"/>; always
+    /// <see langword="null"/> for the database of <see cref="FromSystem"/>. It is informational: the library does not
+    /// interpret it, and the message of <see cref="Diagnostics.CelErrorCode.TimeZoneNotFound"/> shows it.
     /// </summary>
     public string? Version { get; }
 
     /// <summary>
     /// The identifiers of the time zones in ordinal order. A link such as <c>US/Central</c> is an identifier
-    /// of its own, with the same data as its target.
+    /// of its own, with the same data as its target. Empty for the database of <see cref="FromSystem"/>: the operating
+    /// system gives no complete list of IANA identifiers, so that database has none.
     /// </summary>
     public ImmutableArray<string> ZoneIds { get; }
 
@@ -143,13 +153,20 @@ public sealed class CelTimeZoneDatabase
     /// <summary>
     /// Tells whether the database has a time zone with this identifier, by ordinal, case-sensitive comparison.
     /// </summary>
+    /// <remarks>
+    /// For the database of <see cref="FromSystem"/> the method checks the name and asks the platform exactly as an
+    /// expression does, so it answers whether an expression would find the zone now.
+    /// </remarks>
     /// <param name="zoneId">The IANA identifier.</param>
-    /// <returns><see langword="true"/> when the identifier is in <see cref="ZoneIds"/>.</returns>
+    /// <returns>
+    /// <see langword="true"/> when the identifier is in <see cref="ZoneIds"/>, or, for the database of
+    /// <see cref="FromSystem"/>, when the platform finds a zone with this IANA identifier.
+    /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="zoneId"/> is <see langword="null"/>.</exception>
     public bool Contains(string zoneId)
     {
         ArgumentNullException.ThrowIfNull(zoneId);
-        return Find(zoneId) is not null;
+        return IsSystem ? SystemZoneSource.Find(zoneId) is not null : Find(zoneId) is not null;
     }
 
     /// <summary>
@@ -204,4 +221,42 @@ public sealed class CelTimeZoneDatabase
         };
         return $"time zone '{id}': the data is not valid TZif: {detail}";
     }
+
+    /// <summary>
+    /// Returns the database of the time zones of the operating system, which the .NET platform reads with
+    /// <c>TimeZoneInfo</c>: an application that adds it to an environment lets expressions use the IANA time zones of the
+    /// machine without shipping TZif files.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The platform reads the data, not the library: on Linux and macOS the zoneinfo directory, <c>/usr/share/zoneinfo</c> or
+    /// the directory in the environment variable <c>TZDIR</c>; on Windows the registry, with IANA identifiers through ICU; in
+    /// a browser the database built into the runtime. The library passes the platform only a name that passed the check of
+    /// IANA names: 1 to 64 UTF-16 code units, parts separated by <c>/</c>, each part not empty and made of Latin letters,
+    /// digits, <c>_</c>, <c>-</c> and <c>+</c>, and a first part other than <c>posix</c> and <c>right</c>. Any other name is
+    /// the evaluation error <see cref="Diagnostics.CelErrorCode.TimeZoneNotFound"/> without a request to the platform.
+    /// </para>
+    /// <para>
+    /// A zone is found only by its IANA identifier: a zone that the platform finds but that has no IANA identifier, such as
+    /// a Windows identifier like <c>Russian Standard Time</c>, is <see cref="Diagnostics.CelErrorCode.TimeZoneNotFound"/> on
+    /// every operating system. On Windows without ICU, such as Windows Server 2019, no IANA identifier is found, so every
+    /// zone name other than <c>UTC</c> and fixed offsets is that error; so is every name in a browser application that
+    /// publishes with invariant time zones. A zone that is not found is never replaced by the local zone or by UTC.
+    /// </para>
+    /// <para>
+    /// Results depend on the time zone data of the machine, unlike with a database from <see cref="Create"/>. A found zone is
+    /// kept by the database, so the answer for a found name does not change until the process ends; a name that was not
+    /// found is not remembered and can be found later if the machine gets the zone. The number of kept zones is bounded by
+    /// the number of zones of the operating system. An access to a zone of this database costs the same constant number of
+    /// cost units whether the zone is kept, found or not found, as the page
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">Cost</see> gives.
+    /// </para>
+    /// <para>
+    /// The database has no list of zones: <see cref="ZoneIds"/> is empty and <see cref="Version"/> is
+    /// <see langword="null"/>. <see cref="Contains(string)"/> checks a name and asks the platform as an expression does. The
+    /// method returns the same instance on every call; the instance can be shared between threads and environments.
+    /// </para>
+    /// </remarks>
+    /// <returns>The database of the operating system.</returns>
+    public static CelTimeZoneDatabase FromSystem() => SystemInstance;
 }

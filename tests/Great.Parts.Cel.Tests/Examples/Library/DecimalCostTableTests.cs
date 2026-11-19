@@ -1,7 +1,5 @@
-#if NET11_0_OR_GREATER
 using System.Collections.Generic;
 using System.Globalization;
-using System.Numerics;
 using System.Threading;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
@@ -24,8 +22,6 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 [Trait("Requirement", "F-5")]
 public sealed class DecimalCostTableTests
 {
-    private const string Max34 = DecimalExample.Max34;
-
     // The operators and the four orderings: 1 each, plus what the operands cost.
     private const string Operators = """
         add_decimal | 1.5m + 2.5m | 1
@@ -60,7 +56,7 @@ public sealed class DecimalCostTableTests
 
     // The text: the string that decimal() reads and the string that string() makes, 1 + the length over 10 rounded up. The edge is at
     // the multiples of 10.
-    private const string Texts = $$"""
+    private const string Texts = """
         string_to_decimal, 3 units | decimal('1.5') | 2
         string_to_decimal, 10 units | decimal('1234567890') | 2
         string_to_decimal, 11 units | decimal('12345678901') | 3
@@ -71,10 +67,21 @@ public sealed class DecimalCostTableTests
         decimal_to_string, a text of 11 | string(12345678.90m) | 3
         decimal_to_string, a scientific text of 4 | string(1e3m) | 2
         decimal_to_string, a negative zero | string(-0m) | 2
-        decimal_to_string, the longest positive text, 41 | string({{Max34}}e6111m) | 6
-        decimal_to_string, the longest text, 42 | string(-{{Max34}}e6111m) | 6
         decimal_to_string, a variable | string(d) | 3
         """;
+
+    // The longest texts of decimal128, 41 and 42 characters, which System.Decimal does not have (28 places and 96 bits at most).
+#if NET11_0_OR_GREATER
+    private const string TextsLongest = $$"""
+        decimal_to_string, the longest positive text, 41 | string({{DecimalExample.Max34}}e6111m) | 6
+        decimal_to_string, the longest text, 42 | string(-{{DecimalExample.Max34}}e6111m) | 6
+        """;
+#else
+    private const string TextsLongest = """
+        decimal_to_string, the longest plain text of System.Decimal, 31 | string(-7.9228162514264337593543950335m) | 5
+        decimal_to_string, the largest value, 29 | string(79228162514264337593543950335m) | 4
+        """;
+#endif
 
     // Table of the comparison class: equality of two decimals, and of kinds that differ, costs 1; in is 1 + the comparisons made.
     private const string Equality = """
@@ -101,7 +108,7 @@ public sealed class DecimalCostTableTests
         .AddVariable<long>("i")
         .AddVariable<ulong>("u")
         .AddVariable<double>("f")
-        .AddVariable<Decimal128>("d")
+        .AddVariable<decimal>("d")
         .AddVariable<string>("t")
         .AddVariable<string>("s26")
         .Build()
@@ -111,7 +118,7 @@ public sealed class DecimalCostTableTests
         .Add("i", 41L)
         .Add("u", 7UL)
         .Add("f", 1.5)
-        .Add("d", DecimalExample.Make(15, -1))
+        .Add("d", 1.5m)
         .Add("t", "123.45")
         .Add("s26", "12345678901234567890123456");
 
@@ -122,7 +129,7 @@ public sealed class DecimalCostTableTests
     public void ConversionRows_CostOneAndFourForADouble() => Assert.Empty(CheckRows(Conversions));
 
     [Fact]
-    public void TextRows_CostOnePlusTheLengthOverTenRoundedUp() => Assert.Empty(CheckRows(Texts));
+    public void TextRows_CostOnePlusTheLengthOverTenRoundedUp() => Assert.Empty(CheckRows(Texts + "\n" + TextsLongest));
 
     [Fact]
     public void EqualityRows_CostWhatTheCostPageSays() => Assert.Empty(CheckRows(Equality));
@@ -167,4 +174,3 @@ public sealed class DecimalCostTableTests
             : "limit " + (cost - 1).ToString(CultureInfo.InvariantCulture) + " is enough";
     }
 }
-#endif

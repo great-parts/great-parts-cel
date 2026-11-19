@@ -182,7 +182,7 @@ public sealed class DecimalExtensionTests
     }
 
     private static CelValue Twice(ReadOnlySpan<CelValue> arguments) =>
-        arguments[0].TryGetDecimal(out Decimal128 value) ? CelValue.FromDecimal(value + value) : CelValue.Null;
+        arguments[0].TryGetDecimal128(out Decimal128 value) ? CelValue.FromDecimal128(value + value) : CelValue.Null;
 
     private static CelEnvironmentBuilder Builder() => new(CelStandardLibrary.V1);
 

@@ -1,7 +1,4 @@
 using System;
-#if NET11_0_OR_GREATER
-using System.Numerics;
-#endif
 
 namespace Great.Parts.Cel.Values;
 
@@ -59,13 +56,11 @@ internal static class OrderingRules
             return Sign(leftDuration.CompareTo(rightDuration));
         }
 
-#if NET11_0_OR_GREATER
-        if (left.TryGetDecimal(out Decimal128 leftDecimal) && right.TryGetDecimal(out Decimal128 rightDecimal))
+        if (left.TryGetPlatformDecimal(out PlatformDecimal leftDecimal) && right.TryGetPlatformDecimal(out PlatformDecimal rightDecimal))
         {
             // By value: two cohorts of one number, and 0 and -0, are equal.
             return leftDecimal < rightDecimal ? ValueOrdering.Less : leftDecimal > rightDecimal ? ValueOrdering.Greater : ValueOrdering.Equal;
         }
-#endif
 
         return ValueOrdering.None;
     }

@@ -1,6 +1,6 @@
 # Time zones: the database, the offset and the calendar
 
-`CelTimeZoneDatabase` holds the time zones that the application gives to an environment as TZif data (RFC 9636). This page covers how the data is read and checked, how a zone name is resolved, how the offset of a zone at an instant is found, and the library's own calendar that turns an instant plus an offset into the fields of a date. The functions that use it are in [library](library.md), the value kinds in [values](values.md), the environment member `UseTimeZones` in [facade](facade.md).
+`CelTimeZoneDatabase` holds the time zones that the application gives to an environment as TZif data (RFC 9636); the database of the operating system, `CelTimeZoneDatabase.FromSystem()`, is on [time-zones-system](time-zones-system.md). This page covers how the data is read and checked, how a zone name is resolved, how the offset of a zone at an instant is found, and the library's own calendar that turns an instant plus an offset into the fields of a date. The functions that use it are in [library](library.md), the value kinds in [values](values.md), the environment member `UseTimeZones` in [facade](facade.md).
 
 | File | Content | Core |
 | :- | :- | :- |
@@ -11,7 +11,7 @@
 | `src/Great.Parts.Cel/Values/TimeZoneRules.Posix.cs` | reading and applying a POSIX TZ rule | yes |
 | `src/Great.Parts.Cel/Values/CalendarRules.cs` | the proleptic Gregorian calendar | yes |
 
-The library never reads the operating system, files or environment variables for a zone, and uses neither `TimeZoneInfo` nor `DateTime`/`DateTimeOffset` members that depend on the clock or the zone of the process: the result of every expression depends on the bytes the application gave and nothing else.
+With a database of this page the library never reads the operating system, files or environment variables for a zone, and uses neither `TimeZoneInfo` nor `DateTime`/`DateTimeOffset` members that depend on the clock or the zone of the process: the result of every expression depends on the bytes the application gave and nothing else. The one exception is the second kind of database, `CelTimeZoneDatabase.FromSystem()`, which the application chooses by an explicit call: it reads the zones of the machine through `TimeZoneInfo`, so its offsets depend on the machine ([time-zones-system](time-zones-system.md)).
 
 ## Create
 

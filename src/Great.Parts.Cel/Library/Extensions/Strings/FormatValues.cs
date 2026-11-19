@@ -31,8 +31,9 @@ internal static class FormatValues
 
     // The message of the error of a clause: the function, the detail of the kind of the failure, with its number and, for a kind of
     // value, its type name — all read from the parts of the error.
-    internal static readonly Func<CelError, string> ErrorText = static error =>
-        "invalid argument to '" + (string)error.First! + "': " + FormatRules.Detail((FormatFailureKind)error.Small, error.Number, (string?)error.Second);
+    internal static readonly ErrorTemplate ErrorText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': " + FormatRules.Detail((FormatFailureKind)error.Small, error.Number, (string?)error.Second),
+        subject: static error => (string)error.First!);
 
     // Appends the text of a clause for the value, or gives the error value of the call. The letter takes the kind of the value
     // first; a kind that it does not take is the error at once, before anything of the clause is written.

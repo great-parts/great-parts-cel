@@ -105,13 +105,11 @@ public enum CelValueKind
     /// </summary>
     Error = 14,
 
-#if NET11_0_OR_GREATER
     /// <summary>
-    /// A <c>decimal</c>, an IEEE 754 decimal128 number; read with
-    /// <see cref="CelValue.TryGetDecimal(out System.Numerics.Decimal128)"/>. Only on .NET 11.
+    /// A <c>decimal</c>; read with <see cref="CelValue.TryGetDecimal(out decimal)"/> and, on .NET 11, with
+    /// <c>CelValue.TryGetDecimal128</c>, which reads every value exactly.
     /// </summary>
     Decimal = 15,
-#endif
 
     /// <summary>
     /// A value of an abstract type of an extension set, such as <c>net.IP</c>. This release has no <c>TryGet…</c>

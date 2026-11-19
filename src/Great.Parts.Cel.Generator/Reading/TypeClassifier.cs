@@ -9,12 +9,10 @@ namespace Great.Parts.Cel.Generator;
 // answered as such; the object type is then registered by the caller, with its name.
 internal sealed class TypeClassifier
 {
-    private readonly CompilationFacts facts;
     private readonly TypeRegistry registry;
 
-    internal TypeClassifier(CompilationFacts facts, TypeRegistry registry)
+    internal TypeClassifier(TypeRegistry registry)
     {
-        this.facts = facts;
         this.registry = registry;
     }
 
@@ -236,11 +234,6 @@ internal sealed class TypeClassifier
         if (root)
         {
             return Classification.Refuse(Reasons.OwnType(TypeNames.Display(named)));
-        }
-
-        if (kind is ScalarKind.Decimal or ScalarKind.Decimal128 && !facts.HasDecimal128)
-        {
-            return Classification.Decimal;
         }
 
         int size = kind == ScalarKind.JsonElement ? StructSizes.Of(named) : 0;

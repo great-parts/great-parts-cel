@@ -1,4 +1,3 @@
-#if NET11_0_OR_GREATER
 using Great.Parts.Cel.Tests.Examples.Library;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -136,4 +135,3 @@ public sealed class DecimalCheckTests
     [Trait("Requirement", "+R-6")]
     public void DecimalWithAnotherType_IsNoMatchingOverloadAtTheOperator() => Assert.Empty(ExtensionRows.CheckErrors(environment, Mistakes));
 }
-#endif

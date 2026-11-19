@@ -18,26 +18,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Item : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Item : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Item>
         {
             internal static readonly Type_Acme_Item Description = new();
 
             private Type_Acme_Item()
                 : base(
                     "Acme.Item",
-                    typeof(global::Acme.Item),
                     [
                         new(0, "v", global::Great.Parts.Cel.Types.CelType.Int),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Item instance, int number)
             {
-                var value = (global::Acme.Item)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.V);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.V);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -53,14 +51,13 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Record : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Record : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Record>
         {
             internal static readonly Type_Acme_Record Description = new();
 
             private Type_Acme_Record()
                 : base(
                     "Acme.Record",
-                    typeof(global::Acme.Record),
                     [
                         new(0, "any", global::Great.Parts.Cel.Types.CelType.Dyn),
                         new(1, "blob", global::Great.Parts.Cel.Types.CelType.WrapperOf(global::Great.Parts.Cel.Types.CelType.Bytes)),
@@ -73,44 +70,43 @@ namespace Acme
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Record instance, int number)
             {
-                var value = (global::Acme.Record)instance;
                 switch (number)
                 {
                     case 0:
                     {
-                        var v = value.Any;
+                        var v = instance.Any;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : FromDynamic(0, v);
                     }
                     case 1:
                     {
-                        var v = value.Blob;
+                        var v = instance.Blob;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : global::Great.Parts.Cel.Values.CelValue.FromBytes(v);
                     }
                     case 2:
                     {
-                        var v = value.ByName;
+                        var v = instance.ByName;
                         return v is null ? FieldError(2, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(global::Great.Parts.Cel.Values.CelMap.CreateView<string, global::Acme.Item>(v, static e0 => e0 is null ? global::Great.Parts.Cel.Values.CelValue.Null : e0.GetType() == typeof(global::Acme.Item) ? FromInstance(e0) : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_Item.Description, e0), false));
                     }
                     case 3:
                     {
-                        var v = value.Item;
+                        var v = instance.Item;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : FromInstance(v);
                     }
                     case 4:
                     {
-                        var v = value.Items;
+                        var v = instance.Items;
                         return v is null ? FieldError(4, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<global::Acme.Item>(v, static e0 => e0 is null ? global::Great.Parts.Cel.Values.CelValue.Null : e0.GetType() == typeof(global::Acme.Item) ? FromInstance(e0) : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_Item.Description, e0)));
                     }
                     case 5:
                     {
-                        var v = value.Text;
+                        var v = instance.Text;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
                     case 6:
                     {
-                        var v = value.Texts;
+                        var v = instance.Texts;
                         return v is null ? FieldError(6, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<string>(v, static e0 => e0 is null ? global::Great.Parts.Cel.Values.CelValue.Null : global::Great.Parts.Cel.Values.CelValue.FromString(e0)));
                     }
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));

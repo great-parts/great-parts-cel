@@ -15,3 +15,6 @@ eng/unicode/reference/go-1.27.3.txt text eol=lf
 # The corpus of RE2 keeps LF in every checkout: the test compares the hash of the bytes of the file that Go ships
 # (tests/Great.Parts.Cel.Tests/Regex/Re2SearchCorpusTests.cs).
 tests/Great.Parts.Cel.Tests/Regex/Data/re2-search.txt text eol=lf
+# The snapshots of the source generator keep LF in every checkout: the test compares the text that the generator writes, which has LF
+# line ends and no carriage return, with the file (tests/Great.Parts.Cel.Generator.Tests/Pipeline/SnapshotTests.cs).
+tests/Great.Parts.Cel.Generator.Tests/Snapshots/*.g.cs text eol=lf

@@ -102,6 +102,9 @@ internal static partial class ConversionRules
         elementError = null;
         if (typeof(T) == typeof(CelValue))
         {
+            // An object that the type index describes leaves as the instance with its description, so that its text and its
+            // fields can be read from the value; the instance itself is still the same one.
+            value = Described(value, types);
             result = Unsafe.As<CelValue, T>(ref value);
             actualType = null;
             return true;
@@ -139,6 +142,16 @@ internal static partial class ConversionRules
         actualType = TypeName(value, types);
         return false;
     }
+
+    // The value paired with its description when it is a bare object instance that the type index describes; any other value as it is.
+    private static CelValue Described(CelValue value, TypeIndex? types) =>
+        value.Kind == CelValueKind.Object
+        && value.PairedType is null
+        && types is not null
+        && value.TryGetObject(out object? instance)
+        && types.Describe(instance) is { } description
+            ? CelValue.FromPair(description, instance)
+            : value;
 
     // Whether T is a class, record, struct or interface outside System and outside the library: a result type of the
     // row of object values.
@@ -271,7 +284,7 @@ internal static partial class ConversionRules
     /// <param name="location">The position of the root of the expression.</param>
     /// <returns>The error of the stage <see cref="CelErrorStage.Evaluate"/>.</returns>
     internal static CelError ResultConversionError<T>(CelValue value, CelSourceLocation location) =>
-        ResultConversionError<T>(ValueTypeRules.NameOf(value, null), location);
+        ResultConversionError<T>(ValueTypeRules.NameOf(value, null), ValueTypeRules.TypeOfValue(value, null), new CelSourceSpan(location, 0));
 
     /// <summary>
     /// Creates the error <see cref="CelErrorCode.ResultConversion"/> naming the given CEL type.
@@ -280,14 +293,52 @@ internal static partial class ConversionRules
     /// <param name="celType">The CEL type that the message names.</param>
     /// <param name="location">The position of the root of the expression.</param>
     /// <returns>The error of the stage <see cref="CelErrorStage.Evaluate"/>.</returns>
-    internal static CelError ResultConversionError<T>(string celType, CelSourceLocation location)
+    internal static CelError ResultConversionError<T>(string celType, CelSourceLocation location) =>
+        ResultConversionError<T>(celType, null, new CelSourceSpan(location, 0));
+
+    /// <summary>
+    /// Creates the error <see cref="CelErrorCode.ResultConversion"/> naming the given CEL type, with the .NET type as its subject
+    /// and the type of the value as its actual type, at the fragment of the root.
+    /// </summary>
+    /// <typeparam name="T">The requested .NET type.</typeparam>
+    /// <param name="celType">The CEL type that the message names.</param>
+    /// <param name="actualType">The CEL type of the value that the part names, as the message names it; <see langword="null"/> when unknown.</param>
+    /// <param name="place">The fragment of the root of the expression.</param>
+    /// <returns>The error of the stage <see cref="CelErrorStage.Evaluate"/>.</returns>
+    internal static CelError ResultConversionError<T>(string celType, CelType? actualType, CelSourceSpan place)
     {
         string clrType = typeof(T) == typeof(ReadOnlyMemory<byte>) ? "System.ReadOnlyMemory<System.Byte>" : typeof(T).ToString();
         string message = string.Create(
             CultureInfo.InvariantCulture,
             $"result of type '{celType}' cannot be converted to .NET type '{clrType}'");
-        return new CelError(CelErrorCode.ResultConversion, CelErrorStage.Evaluate, message, location, null, null);
+        return new CelError(CelErrorCode.ResultConversion, CelErrorStage.Evaluate, message, place.Start, null, null, place.Length, clrType, null, actualType);
     }
+
+    /// <summary>
+    /// The CEL type that the error of a result that does not convert names as the type of the value, as the text of that error
+    /// names it with <see cref="TryToResult"/>: the type that the check before a lazy view found, or the type of the value.
+    /// </summary>
+    /// <typeparam name="T">The requested .NET type.</typeparam>
+    /// <param name="value">The value, not an error value.</param>
+    /// <param name="resultType">The static type of the root.</param>
+    /// <param name="types">The type index of the environment, which names the description of an object value.</param>
+    /// <returns>The type.</returns>
+    internal static CelType ResultActualType<T>(CelValue value, CelType resultType, TypeIndex? types)
+    {
+        if (!IsApplicationType<T>() && RowOf<T>.Row is { } row && row.IsCheckedView(resultType)
+            && ValueTypeRules.MismatchCelType(value, row.ExpectedType, row.NullElements, types) is { } mismatch)
+        {
+            return mismatch;
+        }
+
+        return ValueType(value, types);
+    }
+
+    // The type of a value in the error of ResultConversion: an optional that holds a value is optional_type of the type of the held value.
+    private static CelType ValueType(CelValue value, TypeIndex? types) =>
+        value.TryGetOptional(out CelOptional<CelValue> optional) && optional.HasValue
+            ? CelType.OptionalOf(ValueType(optional.Value, types))
+            : ValueTypeRules.TypeOfValue(value, types);
 
     // The row of a result type, or the exception of the derive step.
     private static ClrRow<T> ResultRow<T>()

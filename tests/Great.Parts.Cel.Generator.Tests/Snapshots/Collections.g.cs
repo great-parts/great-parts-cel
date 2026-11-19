@@ -22,7 +22,7 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Bag : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Bag : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Bag>
         {
             internal static readonly Type_Acme_Bag Description = new();
 
@@ -45,7 +45,6 @@ namespace Acme
             private Type_Acme_Bag()
                 : base(
                     "Acme.Bag",
-                    typeof(global::Acme.Bag),
                     [
                         new(0, "array", global::Great.Parts.Cel.Types.CelType.ListOf(global::Great.Parts.Cel.Types.CelType.Int)),
                         new(1, "asIDictionary", global::Great.Parts.Cel.Types.CelType.MapOf(global::Great.Parts.Cel.Types.CelType.String, global::Great.Parts.Cel.Types.CelType.Int)),
@@ -84,130 +83,129 @@ namespace Acme
                 _convert22 = e0 => e0 is null ? FieldError(22, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromString(e0);
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Bag instance, int number)
             {
-                var value = (global::Acme.Bag)instance;
                 switch (number)
                 {
                     case 0:
                     {
-                        var v = value.Array;
+                        var v = instance.Array;
                         return v is null ? FieldError(0, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 1:
                     {
-                        var v = value.AsIDictionary;
+                        var v = instance.AsIDictionary;
                         return v is null ? FieldError(1, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(global::Great.Parts.Cel.Values.CelMap.CreateView<string, long>((object)v as global::System.Collections.Generic.IReadOnlyDictionary<string, long> ?? new global::System.Collections.ObjectModel.ReadOnlyDictionary<string, long>(v), static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0), false));
                     }
                     case 2:
                     {
-                        var v = value.AsIList;
+                        var v = instance.AsIList;
                         return v is null ? FieldError(2, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>((object)v as global::System.Collections.Generic.IReadOnlyList<long> ?? new global::System.Collections.ObjectModel.ReadOnlyCollection<long>(v), static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 3:
                     {
-                        var v = value.AsSet;
+                        var v = instance.AsSet;
                         return v is null ? FieldError(3, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateSorted<string>((object)v as global::System.Collections.Generic.IReadOnlyCollection<string> ?? new global::System.Collections.Generic.List<string>(v), _convert3));
                     }
                     case 4:
                     {
-                        var v = value.ByColor;
+                        var v = instance.ByColor;
                         return v is null ? FieldError(4, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(global::Great.Parts.Cel.Values.CelMap.CreateView<global::Acme.Color, long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0), false));
                     }
                     case 5:
                     {
-                        var v = value.ByGuid;
+                        var v = instance.ByGuid;
                         return v is null ? FieldError(5, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(global::Great.Parts.Cel.Values.CelMap.CreateView<global::System.Guid, long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0), false));
                     }
-                    case 6: return global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>((global::System.Collections.Generic.IReadOnlyList<long>)value.Fixed, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
+                    case 6: return global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>((global::System.Collections.Generic.IReadOnlyList<long>)instance.Fixed, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     case 7:
                     {
-                        var v = value.Groups;
+                        var v = instance.Groups;
                         return v is null ? FieldError(7, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(global::Great.Parts.Cel.Values.CelMap.CreateView<string, global::System.Collections.Generic.List<global::Acme.Line>>(v, _convert7_2, false));
                     }
                     case 8:
                     {
-                        var v = value.Hash;
+                        var v = instance.Hash;
                         return v is null ? FieldError(8, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateSorted<long>((object)v as global::System.Collections.Generic.IReadOnlyCollection<long> ?? new global::System.Collections.Generic.List<long>(v), static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 9:
                     {
-                        var v = value.Holey;
+                        var v = instance.Holey;
                         return v is null ? FieldError(9, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<global::System.Collections.Generic.List<long>?>(v, _convert9));
                     }
                     case 10:
                     {
-                        var v = value.Immutable;
+                        var v = instance.Immutable;
                         return v.IsDefault ? FieldError(10, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>(global::System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(v)!, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 11:
                     {
-                        var v = value.Index;
+                        var v = instance.Index;
                         return v is null ? FieldError(11, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(global::Great.Parts.Cel.Values.CelMap.CreateView<string, long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0), false));
                     }
                     case 12:
                     {
-                        var v = value.Lines;
+                        var v = instance.Lines;
                         return v is null ? FieldError(12, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<global::Acme.Line>(v, _convert12));
                     }
                     case 13:
                     {
-                        var v = value.Linked;
+                        var v = instance.Linked;
                         return v is null ? FieldError(13, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateCopy<long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 14:
                     {
-                        var v = value.Maybe;
+                        var v = instance.Maybe;
                         return v is null ? FieldError(14, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long?>(v, static e0 => e0.HasValue ? global::Great.Parts.Cel.Values.CelValue.FromInt64(e0.Value) : global::Great.Parts.Cel.Values.CelValue.Null));
                     }
                     case 15:
                     {
-                        var v = value.MustList;
+                        var v = instance.MustList;
                         return v is null ? FieldError(15, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 16:
                     {
-                        var v = value.Mutable;
+                        var v = instance.Mutable;
                         return v is null ? FieldError(16, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 17:
                     {
-                        var v = value.Nested;
+                        var v = instance.Nested;
                         return v is null ? FieldError(17, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<global::System.Collections.Generic.List<long>>(v, _convert17));
                     }
                     case 18:
                     {
-                        var v = value.NoList;
+                        var v = instance.NoList;
                         return v is null ? FieldError(18, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 19:
                     {
-                        var v = value.OptImmutable;
+                        var v = instance.OptImmutable;
                         return v.HasValue ? v.Value.IsDefault ? FieldError(19, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<long>(global::System.Runtime.InteropServices.ImmutableCollectionsMarshal.AsArray(v.Value)!, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0))) : FieldError(19, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null);
                     }
                     case 20:
                     {
-                        var v = value.Queue;
+                        var v = instance.Queue;
                         return v is null ? FieldError(20, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateCopy<long>(v, static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 21:
                     {
-                        var v = value.ReadOnly;
+                        var v = instance.ReadOnly;
                         return v is null ? FieldError(21, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<string>(v, _convert21));
                     }
                     case 22:
                     {
-                        var v = value.ReadOnlyIndex;
+                        var v = instance.ReadOnlyIndex;
                         return v is null ? FieldError(22, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(global::Great.Parts.Cel.Values.CelMap.CreateView<long, string>(v, _convert22, false));
                     }
                     case 23:
                     {
-                        var v = value.ReadOnlySet;
+                        var v = instance.ReadOnlySet;
                         return v is null ? FieldError(23, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateSorted<long>((object)v as global::System.Collections.Generic.IReadOnlyCollection<long> ?? new global::System.Collections.Generic.List<long>(v), static e0 => global::Great.Parts.Cel.Values.CelValue.FromInt64(e0)));
                     }
                     case 24:
                     {
-                        var v = value.Texts;
+                        var v = instance.Texts;
                         return v is null ? FieldError(24, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<string?>(v, static e0 => e0 is null ? global::Great.Parts.Cel.Values.CelValue.Null : global::Great.Parts.Cel.Values.CelValue.FromString(e0)));
                     }
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
@@ -252,14 +250,13 @@ namespace Acme
                 }
             }
 
-            protected override long FieldReadCost(object instance, int number)
+            protected override long FieldReadCost(in global::Acme.Bag instance, int number)
             {
-                var value = (global::Acme.Bag)instance;
                 switch (number)
                 {
                     case 3:
                     {
-                        var v = value.AsSet;
+                        var v = instance.AsSet;
                         if (v is null)
                         {
                             return 0;
@@ -278,7 +275,7 @@ namespace Acme
                     case 6: return 2L;
                     case 8:
                     {
-                        var v = value.Hash;
+                        var v = instance.Hash;
                         if (v is null)
                         {
                             return 0;
@@ -288,7 +285,7 @@ namespace Acme
                     }
                     case 13:
                     {
-                        var v = value.Linked;
+                        var v = instance.Linked;
                         if (v is null)
                         {
                             return 0;
@@ -298,7 +295,7 @@ namespace Acme
                     }
                     case 20:
                     {
-                        var v = value.Queue;
+                        var v = instance.Queue;
                         if (v is null)
                         {
                             return 0;
@@ -308,7 +305,7 @@ namespace Acme
                     }
                     case 23:
                     {
-                        var v = value.ReadOnlySet;
+                        var v = instance.ReadOnlySet;
                         if (v is null)
                         {
                             return 0;
@@ -329,26 +326,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Line : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Line : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Line>
         {
             internal static readonly Type_Acme_Line Description = new();
 
             private Type_Acme_Line()
                 : base(
                     "Acme.Line",
-                    typeof(global::Acme.Line),
                     [
                         new(0, "qty", global::Great.Parts.Cel.Types.CelType.Int),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Line instance, int number)
             {
-                var value = (global::Acme.Line)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Qty);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Qty);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }

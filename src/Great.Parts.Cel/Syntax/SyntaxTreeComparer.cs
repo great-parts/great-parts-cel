@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Immutable;
 using System.Globalization;
-#if NET11_0_OR_GREATER
-using System.Numerics;
-#endif
 using System.Text;
 using Great.Parts.Cel.Values;
 
@@ -149,9 +146,7 @@ internal static class SyntaxTreeComparer
         CelValueKind.Int => AsInt64(left) == AsInt64(right),
         CelValueKind.UInt => AsUInt64(left) == AsUInt64(right),
         CelValueKind.Double => BitConverter.DoubleToInt64Bits(AsDouble(left)) == BitConverter.DoubleToInt64Bits(AsDouble(right)),
-#if NET11_0_OR_GREATER
-        CelValueKind.Decimal => AsDecimalBits(left) == AsDecimalBits(right),
-#endif
+        CelValueKind.Decimal => AsDecimalWords(left) == AsDecimalWords(right),
         CelValueKind.String => string.Equals(AsString(left), AsString(right), StringComparison.Ordinal),
         CelValueKind.Bytes => AsBytes(left).Span.SequenceEqual(AsBytes(right).Span),
         CelValueKind.Bool => AsBoolean(left) == AsBoolean(right),
@@ -164,12 +159,18 @@ internal static class SyntaxTreeComparer
 
     private static double AsDouble(CelValue value) => value.TryGetDouble(out double result) ? result : 0;
 
-#if NET11_0_OR_GREATER
-    // The bits of the encoding, which hold the sign, the coefficient and the exponent: 100m and 1e2m are different trees, as 0.0 and
+    // The bits of the value, which hold the sign, the coefficient and the exponent: 100m and 1e2m are different trees on .NET 11, as 0.0 and
     // -0.0 are.
-    private static UInt128 AsDecimalBits(CelValue value) =>
-        value.TryGetDecimal(out Decimal128 result) ? Decimal128.EncodeBinary(result) : UInt128.Zero;
-#endif
+    private static (ulong Low, ulong High) AsDecimalWords(CelValue value)
+    {
+        if (!value.TryGetPlatformDecimal(out PlatformDecimal result))
+        {
+            return default;
+        }
+
+        DecimalPlatform.ToWords(result, out ulong low, out ulong high);
+        return (low, high);
+    }
 
     private static string? AsString(CelValue value) => value.TryGetString(out string? result) ? result : null;
 

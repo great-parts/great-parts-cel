@@ -8,8 +8,9 @@ namespace Great.Parts.Cel.Evaluation;
 
 // The state of one evaluation: the slots of the variables and of the comprehensions, the argument stack,
 // the meter of the cost limit, the event counter of cancellation, the type index of the environment and the offset of
-// the node whose own operation runs. A frame serves one call of Plan.Run on one thread.
-internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
+// the node whose own operation runs. A frame serves one call of Plan.Run on one thread. The frame of an input that is a structure is
+// the class derived from this one (InputFrame<TInput>), which holds the structure itself.
+internal class Frame : IEvaluationMeter, IApplicationBoundary
 {
     // How many events begin between two checks of the token.
     private const uint EventsPerCheck = 64;
@@ -41,8 +42,9 @@ internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
     private readonly CancellationToken _token;
     private uint _events;
 
-    internal Frame(Plan plan, IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken)
+    internal Frame(Plan plan, IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken, object? input = null)
     {
+        Input = input;
         _bindings = bindings;
         _slots = Allocate<CelValue>(plan.VariableCount);
         _filled = Allocate<bool>(plan.VariableCount);
@@ -63,6 +65,24 @@ internal sealed class Frame : IEvaluationMeter, IApplicationBoundary
 
         _counts = cancellationToken.CanBeCanceled;
         _token = cancellationToken;
+    }
+
+    // The instance of the input type of the environment whose fields the evaluation reads; null when the call passed none, or when
+    // the input is a structure that the frame holds itself and has not boxed.
+    internal object? Input { get; private protected set; }
+
+    // Reads the field of the input that an identifier names, after the unit of the identifier: false when the call passed no input.
+    // The frame of a structure overrides it to read the structure in place.
+    internal virtual bool TryReadInputField(CelObjectType owner, int number, int offset, out CelValue value)
+    {
+        if (Input is { } input)
+        {
+            value = FieldPlanNode.Read(this, owner, input, number, false, offset);
+            return true;
+        }
+
+        value = default;
+        return false;
     }
 
     // The line table of the plan, which turns the offsets of nodes into the positions of errors.

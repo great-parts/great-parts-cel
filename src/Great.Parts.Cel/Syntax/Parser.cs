@@ -40,12 +40,8 @@ internal sealed class Parser
 
     private const string OptionalSyntaxHint = " is not enabled: add the extension set optional";
 
-#if NET11_0_OR_GREATER
     private const string DecimalLiteralNotEnabled =
         "decimal literal is not enabled: enable decimal literals in the environment builder";
-#else
-    private const string DecimalLiteralNotEnabled = "decimal literal is not enabled: decimal requires .NET 11";
-#endif
 
     // The binary levels from the lowest, below the conditional operator and above it the unary operators. The
     // operators of a level associate to the left; those of a balanced level form a balanced tree instead.
@@ -108,6 +104,9 @@ internal sealed class Parser
     // The offset of the first node whose syntax tree is deeper than the limit, or -1.
     private int _deepNodeOffset = -1;
 
+    // The end of that node.
+    private int _deepNodeEnd;
+
     // After a syntax error the parser has skipped to a token at which a construct goes on or ends; until a token is
     // read, the constructs that see it report no error.
     private bool _recovering;
@@ -153,7 +152,9 @@ internal sealed class Parser
         int pastLimit = OffsetPastLengthLimit(_text);
         if (pastLimit >= 0)
         {
-            return new ParseResult([Error(CelErrorCode.ExpressionTooLong, "expression is longer than 65536 UTF-8 bytes", pastLimit)]);
+            // The place is a character: a surrogate pair is one character of two code units.
+            int character = pastLimit + 1 < _text.Length && char.IsHighSurrogate(_text[pastLimit]) && char.IsLowSurrogate(_text[pastLimit + 1]) ? 2 : 1;
+            return new ParseResult([Error(CelErrorCode.ExpressionTooLong, "expression is longer than 65536 UTF-8 bytes", pastLimit, character)]);
         }
 
         _lexer = new Lexer(_text, lines);
@@ -167,7 +168,7 @@ internal sealed class Parser
         // The depth of the syntax tree is checked only when parsing reaches the end of the text, as in cel-go.
         if (_deepNodeOffset >= 0 && !_stopped)
         {
-            Report(CelErrorCode.NestingTooDeep, "syntax tree depth exceeds the limit of 250", _deepNodeOffset);
+            Report(CelErrorCode.NestingTooDeep, "syntax tree depth exceeds the limit of 250", _deepNodeOffset, _deepNodeEnd - _deepNodeOffset);
         }
 
         return _errors.Count == 0 && _stopError is null
@@ -219,7 +220,8 @@ internal sealed class Parser
             "internal error during parsing; the original exception is in CelError.Exception",
             location,
             sourceLocation: null,
-            exception);
+            exception,
+            length: _token.Length);
         return new ParseResult(Errors(error));
     }
 
@@ -271,7 +273,7 @@ internal sealed class Parser
     {
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {
-            Stop(CelErrorCode.InsufficientStack, "insufficient execution stack to continue parsing", _token.Offset);
+            Stop(CelErrorCode.InsufficientStack, "insufficient execution stack to continue parsing", _token.Offset, _token.Length);
             return Placeholder();
         }
 
@@ -286,7 +288,7 @@ internal sealed class Parser
         ExprNode then = ParseLevel(0);
         Expect(TokenKind.Colon, "':'");
         _thirdOperands++;
-        CheckNesting(question);
+        CheckNesting(question, 1);
         ExprNode otherwise = ParseExpression();
         _thirdOperands--;
         return Call("_?_:_", null, [condition, then, otherwise], question, counts: true);
@@ -317,8 +319,9 @@ internal sealed class Parser
         do
         {
             int offset = _token.Offset;
+            int length = _token.Length;
             Advance();
-            ExprNode right = ParseRightOperand(level, relation, offset);
+            ExprNode right = ParseRightOperand(level, relation, offset, length);
             result = Call(function, null, [result, right], offset, counts: true);
             function = binary.FunctionOf(_token.Kind);
         }
@@ -328,11 +331,11 @@ internal sealed class Parser
     }
 
     // The right operand of a left-associative level, which adds to the nesting.
-    private ExprNode ParseRightOperand(int level, bool relation, int operatorOffset)
+    private ExprNode ParseRightOperand(int level, bool relation, int operatorOffset, int operatorLength)
     {
         ref int operands = ref relation ? ref _relationOperands : ref _arithmeticOperands;
         operands++;
-        CheckNesting(operatorOffset);
+        CheckNesting(operatorOffset, operatorLength);
         ExprNode right = ParseLevel(level + 1);
         operands--;
         return right;
@@ -618,13 +621,15 @@ internal sealed class Parser
 
         if (check.IsError)
         {
+            // The place is the node the macro names, or the "(" of the call, whose fragment ends where the call ends.
             int place = check.Place is null ? parenthesis : _nodes.OffsetOf(check.Place);
-            Report(CelErrorCode.InvalidMacroCall, "invalid call of macro '" + macro.Name + "': " + check.Detail, place);
+            int end = check.Place is null ? _nodes.PreviousEnd : _nodes.EndOf(check.Place);
+            Report(CelErrorCode.InvalidMacroCall, "invalid call of macro '" + macro.Name + "': " + check.Detail, place, end - place, macro.Name);
             return Call(macro.Name, target, arguments, parenthesis, counts);
         }
 
         ExprNode expansion = macro.Expand(_nodes, target, arguments, parenthesis);
-        _nodes.RecordMacroCall(expansion, new MacroCall(macro.Name, target, arguments));
+        _nodes.RecordMacroCall(expansion, new MacroCall(macro.Name, target, arguments, macro.Namespace));
         return Record(expansion, ChildDepth(target, arguments), counts, parenthesis);
     }
 
@@ -683,7 +688,6 @@ internal sealed class Parser
     // .NET 10, which has no decimal, it is recognized and refused, and its node only lets parsing go on.
     private CelValue ParseDecimalLiteral(Token token, int? minus)
     {
-#if NET11_0_OR_GREATER
         if (_syntax.DecimalLiterals)
         {
             if (!Literals.TryConvertDecimal(_text, token, minus, _lines!, out CelValue value, out CelError? error))
@@ -693,8 +697,7 @@ internal sealed class Parser
 
             return value;
         }
-#endif
-        Report(CelErrorCode.SyntaxNotEnabled, DecimalLiteralNotEnabled, minus ?? token.Offset);
+        Report(CelErrorCode.SyntaxNotEnabled, DecimalLiteralNotEnabled, minus ?? token.Offset, token.Offset + token.Length - (minus ?? token.Offset));
         return CelValue.Null;
     }
 
@@ -853,7 +856,7 @@ internal sealed class Parser
 
         if (!_syntax.OptionalSyntax)
         {
-            Report(CelErrorCode.SyntaxNotEnabled, syntax + OptionalSyntaxHint, _token.Offset);
+            Report(CelErrorCode.SyntaxNotEnabled, syntax + OptionalSyntaxHint, _token.Offset, _token.Length);
         }
 
         Advance();
@@ -865,7 +868,7 @@ internal sealed class Parser
     {
         if (ReservedWords.Contains(_text.AsSpan(identifier.Offset, identifier.Length)))
         {
-            Report(CelErrorCode.ReservedIdentifier, "reserved identifier '" + Text(identifier) + "'", identifier.Offset);
+            Report(CelErrorCode.ReservedIdentifier, "reserved identifier '" + Text(identifier) + "'", identifier.Offset, identifier.Length, Text(identifier));
         }
     }
 
@@ -922,6 +925,7 @@ internal sealed class Parser
         if (depth > MaxDepth && _deepNodeOffset < 0)
         {
             _deepNodeOffset = offset;
+            _deepNodeEnd = _nodes.EndOf(node);
         }
 
         return node;
@@ -931,19 +935,19 @@ internal sealed class Parser
     private void Open(TokenKind close, bool items, int offset)
     {
         _open.Add((close, items));
-        CheckNesting(offset);
+        CheckNesting(offset, 1);
     }
 
     private void Close() => _open.RemoveAt(_open.Count - 1);
 
     // The nesting at the current point of the text, as cel-go counts it: 1, the enclosing brackets, and the largest
     // count of the enclosing operands of one kind. Over the limit it stops parsing at the token that opened the operand.
-    private void CheckNesting(int offset)
+    private void CheckNesting(int offset, int length)
     {
         int operands = Math.Max(_thirdOperands, Math.Max(_relationOperands, _arithmeticOperands));
         if (1 + _open.Count + operands > MaxDepth)
         {
-            Stop(CelErrorCode.NestingTooDeep, "nesting depth exceeds the limit of 250", offset);
+            Stop(CelErrorCode.NestingTooDeep, "nesting depth exceeds the limit of 250", offset, length);
         }
     }
 
@@ -954,6 +958,8 @@ internal sealed class Parser
             return;
         }
 
+        // The token that is read past has been consumed: a node created from now on ends where it ends.
+        _nodes.PreviousEnd = _token.Offset + _token.Length;
         _token = _lexer!.Next();
         _recovering = false;
     }
@@ -997,7 +1003,7 @@ internal sealed class Parser
         }
         else
         {
-            Report(CelErrorCode.SyntaxError, "syntax error: expected " + expected + ", found " + Describe(at), at.Offset);
+            Report(CelErrorCode.SyntaxError, "syntax error: expected " + expected + ", found " + Describe(at), at.Offset, at.Length);
         }
 
         Recover();
@@ -1057,7 +1063,8 @@ internal sealed class Parser
         return false;
     }
 
-    private void Report(CelErrorCode code, string message, int offset) => Report(Error(code, message, offset));
+    private void Report(CelErrorCode code, string message, int offset, int length, string? subject = null) =>
+        Report(Error(code, message, offset, length, subject));
 
     // Adds an error in the order of offsets, unless an error at its offset was found before. The error after the
     // hundredth becomes TooManyErrors at its place and stops parsing.
@@ -1082,7 +1089,7 @@ internal sealed class Parser
 
         if (_errors.Count == MaxErrors)
         {
-            Stop(CelErrorCode.TooManyErrors, "more than 100 syntax errors; parsing stopped", offset);
+            Stop(CelErrorCode.TooManyErrors, "more than 100 syntax errors; parsing stopped", offset, error.Span.Length);
             return;
         }
 
@@ -1091,7 +1098,7 @@ internal sealed class Parser
 
     // Stops parsing with an error: the current token becomes the end of the text, so every construct around it ends
     // without reading further.
-    private void Stop(CelErrorCode code, string message, int offset)
+    private void Stop(CelErrorCode code, string message, int offset, int length)
     {
         if (_stopped)
         {
@@ -1102,7 +1109,7 @@ internal sealed class Parser
         _token = new Token(TokenKind.End, _token.Offset, 0);
         if (!HasErrorAt(offset))
         {
-            _stopError = Error(code, message, offset);
+            _stopError = Error(code, message, offset, length);
         }
     }
 
@@ -1119,8 +1126,8 @@ internal sealed class Parser
         return false;
     }
 
-    private CelError Error(CelErrorCode code, string message, int offset) =>
-        new(code, CelErrorStage.Parse, message, _lines!.GetLocation(offset), sourceLocation: null, exception: null);
+    private CelError Error(CelErrorCode code, string message, int offset, int length, string? subject = null) =>
+        new(code, CelErrorStage.Parse, message, _lines!.GetLocation(offset), sourceLocation: null, exception: null, length, subject);
 
     // The errors found, then the error that stopped parsing, then the given one.
     private ImmutableArray<CelError> Errors(CelError? last)

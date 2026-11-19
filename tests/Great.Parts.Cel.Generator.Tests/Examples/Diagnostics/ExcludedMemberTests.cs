@@ -4,7 +4,7 @@ using Xunit;
 
 namespace Great.Parts.Cel.Generator.Tests.Examples.Diagnostics;
 
-// GPCEL002 and GPCEL007: a member of an object type that the context cannot read is left out of the type with a warning;
+// GPCEL002 (and GPCEL007, which 2.0 does not report): a member of an object type that the context cannot read is left out of the type with a warning;
 // the type and the rest of its members are described. The place is the identifier of the member in the source; for a member
 // of a type of another assembly, which has no place of its own, it is the argument of the attribute that lists the type.
 // A member is marked when the attribute stands on the property or the field or on its get accessor (RequiresUnreferencedCode and
@@ -151,31 +151,30 @@ public sealed class ExcludedMemberTests
         }
     }
 
-    // GPCEL007: System.Decimal in a compilation that has no System.Numerics.Decimal128 (net10.0, which is what this project
-    // runs on): the member is left out, with its own code. With the type in the compilation there is no diagnostic and the member
-    // is read as decimal. A member of Decimal128 itself cannot exist in the compilation without the type, so no row for it.
+    // GPCEL007 is not reported since 2.0: System.Decimal is described as decimal on both targets, so in a compilation that has no
+    // System.Numerics.Decimal128 (net10.0, which is what this project runs on) the member is a field, with no diagnostic. A member of
+    // Decimal128 itself cannot exist in the compilation without the type, so no row for it.
     [Fact]
     [Trait("Requirement", "F-2")]
     [Trait("Requirement", "F-5")]
-    public void GPCEL007_DecimalMemberWithoutDecimal128_IsAWarningAtTheMember()
+    public void DecimalMemberWithoutDecimal128_IsAFieldOfTheTypeDecimal_AndThereIsNoDiagnostic()
     {
-        string source = Source("public decimal Price { get; set; }");
+        string source = Source("public decimal Price { get; set; } public decimal? Rebate { get; set; }");
 
-        Diagnostic diagnostic = GeneratorExample.Single(source, "GPCEL007");
+        GeneratorDriverRunResult result = GeneratorExample.Run(GeneratorExample.Compile(source));
 
-        Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
-        Assert.Equal(
-            "Member 'Price' of type 'Acme.Holder' is excluded from the CEL type: the CEL type decimal requires .NET 11 (System.Numerics.Decimal128)",
-            diagnostic.GetMessage());
-        Assert.Equal("Price", GeneratorExample.Place(diagnostic));
-        Assert.Equal("Decimal member excluded from CEL type", diagnostic.Descriptor.Title.ToString());
-        Assert.EndsWith("docs/generator-diagnostics.md#gpcel007", diagnostic.Descriptor.HelpLinkUri, System.StringComparison.Ordinal);
+        Assert.Empty(GeneratorExample.Reported(result));
+        string text = GeneratorExample.CreatedText(result);
+        Assert.Contains("\"price\"", text, System.StringComparison.Ordinal);
+        Assert.Contains("\"rebate\"", text, System.StringComparison.Ordinal);
+        Assert.Contains("CelType.Decimal", text, System.StringComparison.Ordinal);
+        Assert.Contains("FromDecimal(instance.Price)", text, System.StringComparison.Ordinal);
     }
 
     [Fact]
     [Trait("Requirement", "F-2")]
     [Trait("Requirement", "F-5")]
-    public void GPCEL007_NoDiagnosticWithDecimal128InTheCompilation_AndTheMembersAreFields()
+    public void DecimalMembersWithDecimal128InTheCompilation_AreFields()
     {
         string source = Source("public decimal Price { get; set; } public decimal? Rebate { get; set; } public System.Numerics.Decimal128 Exact { get; set; }");
 

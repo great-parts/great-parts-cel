@@ -142,12 +142,14 @@ public sealed partial class ScalarContext : CelTypeContext
 {
 }
 
-#if NET11_0_OR_GREATER
-// The two kinds of decimal members: the CEL type decimal, which needs the extension set decimal in the environment.
+// The kinds of decimal members: the CEL type decimal, which needs the extension set decimal in the environment. A System.Decimal member
+// is read on both targets; a Decimal128 member needs net11.0.
 public sealed class DecimalValues
 {
+#if NET11_0_OR_GREATER
     public System.Numerics.Decimal128 Exact { get; set; }
 
+#endif
     public decimal Money { get; set; }
 
     public decimal? OptMoney { get; set; }
@@ -157,4 +159,3 @@ public sealed class DecimalValues
 public sealed partial class DecimalContext : CelTypeContext
 {
 }
-#endif

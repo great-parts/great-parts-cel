@@ -24,10 +24,11 @@ internal enum TimeZoneResolutionKind
 /// </summary>
 internal readonly struct TimeZoneResolution
 {
-    private readonly ZoneData? _zone;
+    // The zone: the data of a database from TZif bytes, or a zone of the operating system; null for a fixed offset and a failure.
+    private readonly object? _zone;
     private readonly int _fixedOffset;
 
-    private TimeZoneResolution(TimeZoneResolutionKind kind, int fixedOffset, ZoneData? zone)
+    private TimeZoneResolution(TimeZoneResolutionKind kind, int fixedOffset, object? zone)
     {
         Kind = kind;
         _fixedOffset = fixedOffset;
@@ -43,6 +44,9 @@ internal readonly struct TimeZoneResolution
     /// <summary>The name is a zone of the database.</summary>
     internal static TimeZoneResolution InZone(ZoneData zone) => new(TimeZoneResolutionKind.Zone, 0, zone);
 
+    /// <summary>The name is a zone of the operating system.</summary>
+    internal static TimeZoneResolution InSystemZone(SystemZoneSource.Zone zone) => new(TimeZoneResolutionKind.Zone, 0, zone);
+
     /// <summary>The name has <c>:</c> and is no fixed offset.</summary>
     internal static TimeZoneResolution Invalid => new(TimeZoneResolutionKind.Invalid, 0, null);
 
@@ -54,6 +58,10 @@ internal readonly struct TimeZoneResolution
     /// </summary>
     /// <param name="seconds">The instant in Unix seconds.</param>
     /// <returns>The offset in seconds east of UTC.</returns>
-    internal int OffsetAt(long seconds) =>
-        _zone is null ? _fixedOffset : TimeZoneRules.OffsetAt(_zone, seconds);
+    internal int OffsetAt(long seconds) => _zone switch
+    {
+        ZoneData data => TimeZoneRules.OffsetAt(data, seconds),
+        SystemZoneSource.Zone system => system.OffsetAt(seconds),
+        _ => _fixedOffset,
+    };
 }

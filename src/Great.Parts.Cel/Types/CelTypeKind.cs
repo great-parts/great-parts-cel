@@ -115,13 +115,11 @@ public enum CelTypeKind
     /// </summary>
     Optional = 17,
 
-#if NET11_0_OR_GREATER
     /// <summary>
-    /// <c>decimal</c>: an IEEE 754 decimal128 number. Only on .NET 11, and only in environments with the
-    /// <c>decimal</c> extension.
+    /// <c>decimal</c>: a decimal number, an IEEE 754 decimal128 number on .NET 11 and a <see cref="decimal"/> on .NET 10.
+    /// Only in environments with the <c>decimal</c> extension.
     /// </summary>
     Decimal = 18,
-#endif
 
     /// <summary>
     /// An abstract type of an extension set, such as <c>net.IP</c> of the <c>network</c> set: a named type that only the

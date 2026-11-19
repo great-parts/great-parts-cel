@@ -83,6 +83,72 @@ The table is built from the members of `CelErrorCode` and their XML documentatio
 | 9000 | `InsufficientStack` | Any | The thread has too little stack left for the next recursive step of parsing, macro expansion, type checking, planning, evaluation or comparison of nested values. The library checks the stack before each such step instead of failing with a stack overflow, which cannot be caught. Location: the node at which the step was not performed. |
 | 9001 | `InternalError` | Any | An unexpected exception inside the library, other than `OutOfMemoryException`. It is reported as an error of the stage at which it happened, so a defect of the library does not escape as an exception; the original exception is in `Exception`. Location: during parsing, type checking, planning of the program (the stage `Check`) and evaluation, the node that was being processed when the exception was thrown; errors of the environment build have no position in an expression. |
 
+## Parts of an error
+
+Besides the code, the stage, the message and the position, an error has the fragment of the expression it refers to and the parts that its code names: `CelError.Span`, `Subject`, `ExpectedType` and `ActualType`. A program takes them from the error and does not parse the message.
+
+- `Span` is the fragment. It starts at `Location` and runs to the end of the node of the syntax tree that gave the error: the identifier for an undeclared reference; for a call without a matching overload, the call from `(` to `)`; for an operator, the sign of the operator and the operand after it, such as `+ 'a'` in `x + 'a'`; for the root of the expression, from its place to its end. An error at a token, such as a syntax error, has the token as its fragment, and at the end of the text a fragment of length 0. The length counts UTF-16 code units, as the offset and the column do. An error of the stage `Build`, which has no place in an expression, has no fragment: `Span` is `default`, and its length is 0.
+- `Subject` is the name the error is about, as the message writes it between quotes, without the quotes. A .NET type is its full name.
+- `ExpectedType` and `ActualType` are CEL types, `CelType` values. An error of type checking has the static types that the checker compared. An error of evaluation has the type of the value: for a list or a map without a deeper mismatch, the type with its parameters erased to `dyn`, as the function `type` gives it, such as `list(dyn)`; where the message names the type of the first element, key or value that does not fit a declared type, the same type, such as `list(string)`.
+- A part that the code does not name is `null`.
+
+`CelError.ToString()` gives `{Code} at {position}: {message}`, such as `UndeclaredReference at 1:7: undeclared reference to 'totl'`; `{Code}: {message}` without a position; the position is `line:column`, with the name of the source document before it when the error has a position in a document. `CelError.ToDisplayString(expression)` gives the message, the line of `expression` where the fragment starts and, under it, spaces up to the first code unit of the fragment, `^` and `~` for each further code unit on that line. Both texts are for people and are not part of the contract.
+
+The table lists the codes that have at least one part; a code that is not in it has none.
+
+| Code | Name | `Subject` | `ExpectedType` | `ActualType` |
+| :- | :- | :- | :- | :- |
+| 1005 | `ReservedIdentifier` | the identifier | — | — |
+| 1006 | `InvalidMacroCall` | the name of the macro | — | — |
+| 2000 | `UndeclaredReference` | the name | — | — |
+| 2001 | `NoMatchingOverload` | the function | — | — |
+| 2002 | `TypeMismatch` | the field, when the part is the value of a field of a message literal | the type that the construct requires | the type of the part |
+| 2003 | `ExpectedTypeMismatch` | — | the expected type | the type of the result |
+| 2004 | `NoSuchField` | the field | — | the type of the operand |
+| 2005 | `InvalidComprehensionRange` | — | — | the type of the range |
+| 2006 | `NotAType` | the name | — | — |
+| 2007 | `FieldNotAccessible` | the field | — | the type of the object |
+| 2008 | `TypeNotConstructible` | the type | — | — |
+| 2010 | `InvalidFormatString` | `format` | — | — |
+| 3000 | `EvalNoMatchingOverload` | the function | — | — |
+| 3001 | `EvalNoSuchField` | the field | — | the type of the value |
+| 3007 | `ConversionRange` | — | the target CEL type | the type of the source value |
+| 3008 | `InvalidArgument` | the function | — | — |
+| 3009 | `Unbound` | the variable | — | — |
+| 3011 | `BindingTypeMismatch` | the variable | the declared type | the type of the value as the message names it |
+| 3012 | `TypeNotAccessible` | the full name of the .NET type | — | — |
+| 3014 | `ApplicationException` | the overload identifier of the function, the field of the member, the type for an equality or a creation | — | — |
+| 3015 | `ResultConversion` | the full name of the requested .NET type | — | the type of the value as the message names it |
+| 3017 | `UnexpectedNull` | the member | — | the type of the object |
+| 3018 | `FieldNotSet` | the field | — | the type of the object |
+| 3019 | `FieldTypeMismatch` | the field | the declared type of the field | the type of the value |
+| 3020 | `InvalidAny` | the type URL | — | — |
+| 3022 | `TimeZoneNotFound` | the name of the time zone | — | — |
+| 3023 | `InvalidTimeZone` | the time zone string | — | — |
+| 3024 | `ArgumentConversion` | the overload identifier | — | the type of the value |
+| 3025 | `FieldSelectionNotSupported` | the field | — | the type of the value |
+| 3026 | `EvalInvalidComprehensionRange` | — | — | the type of the value of the range |
+| 3027 | `UnsupportedMapKeyType` | — | — | the type of the key |
+| 3028 | `ImplementationResultMismatch` | the overload identifier | the declared result type | the type of the result as the message names it |
+| 4000 | `DuplicateVariable` | the variable | — | — |
+| 4001 | `DuplicateType` | the type | — | — |
+| 4002 | `OverlappingOverloads` | the function | — | — |
+| 4003 | `ExtensionVersionConflict` | the extension set | — | — |
+| 4004 | `UnknownExtensionVersion` | the extension set | — | — |
+| 4005 | `MissingExtensionDependency` | the extension set that is missing | — | — |
+| 4006 | `StandardLibraryConflict` | the name | — | — |
+| 4007 | `MissingImplementation` | the overload identifier | — | — |
+| 4008 | `TypeNotDeclared` | the type: the full name of the .NET type or the name of the CEL type | — | — |
+| 4009 | `InvalidConfiguration` | the key, when the error is about a key | — | — |
+| 4010 | `UnusedImplementation` | the overload identifier | — | — |
+| 4011 | `ImplementationSignatureMismatch` | the overload identifier | — | — |
+| 4013 | `DuplicateOverloadId` | the overload identifier | — | — |
+| 4014 | `DuplicateImplementation` | the overload identifier | — | — |
+| 4015 | `InvalidFunctionName` | the name | — | — |
+| 4016 | `InvalidVariableName` | the name | — | — |
+| 4018 | `DuplicateExtension` | the extension set | — | — |
+| 4019 | `InputConflict` | the full name of the first of the two .NET types by ordinal comparison | — | — |
+
 ## Messages of time
 
 The messages of the errors that the functions of time and the time zone database give. The text is not part of the contract (see below) and can become more precise; the code and the place are.

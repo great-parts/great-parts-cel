@@ -1,6 +1,6 @@
 # Time zone database
 
-An expression can read the local time of a moment in a named zone: `timestamp.getHours('Europe/Moscow')`. To find the offset of `Europe/Moscow` at that moment the environment needs the time zone database, and the library has none of its own: it reads no file, nothing of the operating system, no variable of the environment, and it does not use `TimeZoneInfo`, whose data and names differ between machines. The application supplies the data, and the same expression then gives the same result on every machine.
+An expression can read the local time of a moment in a named zone: `timestamp.getHours('Europe/Moscow')`. To find the offset of `Europe/Moscow` at that moment the environment needs the time zone database, and the library has none of its own: it reads no file, no variable of the environment, and by default nothing of the operating system. The application supplies the data, and the same expression then gives the same result on every machine. The one exception is a choice of the application: `CelTimeZoneDatabase.FromSystem()` reads the zones of the operating system through `TimeZoneInfo`, whose data and names differ between machines (see [Zones of the operating system](#zones-of-the-operating-system)).
 
 ## What the library accepts
 
@@ -13,8 +13,18 @@ An expression can read the local time of a moment in a named zone: `timestamp.ge
 
 ## Where the files come from
 
-- On Linux and macOS, the zoneinfo directory of the system. Its files change with the updates of the system, so the offsets of a future moment can change between two runs of the application.
+- On Linux and macOS, the zoneinfo directory of the system, or `FromSystem()`, which reads the same data through `TimeZoneInfo`. Its files change with the updates of the system, so the offsets of a future moment can change between two runs of the application.
 - On Windows, and for results that must not change, the files of a release of the IANA database that the application ships and pins, for example the directory of a `tzdata` package or the archive `zoneinfo.zip` of a Go release. The offsets of the zones are then those of that release, whatever the machine.
+
+## Zones of the operating system
+
+`CelTimeZoneDatabase.FromSystem()` is a database that holds no data of its own: for a name it asks the operating system through `TimeZoneInfo.FindSystemTimeZoneById`, and its answer is the offsets that the machine has. Add it with `UseTimeZones(CelTimeZoneDatabase.FromSystem())`; the call always returns the same instance, so adding it twice changes nothing, and next to another database it is the build error `TimeZoneDatabaseConflict`.
+
+- **The result depends on the machine.** The data of `TimeZoneInfo`, the version of the IANA database that the operating system ships and the offsets of a future moment change with the updates of the system, so the same expression can give different results on two machines or after an update. This is the one place where the library depends on the host, and the application chooses it by calling `FromSystem()`. For results that must not change, use a database that the application ships (`Create`, above): it never reads `TimeZoneInfo`.
+- **Only IANA names.** The name is checked before the platform is asked: from 1 to 64 characters, parts separated by `/` made of Latin letters, digits, `_`, `-` and `+`, the first part neither `posix` nor `right`. A Windows identifier such as `Russian Standard Time` is `TimeZoneNotFound` on every operating system, and so is a name that the platform does not know. The details are on the page [Limits](../limits.md#time-zones-of-the-operating-system).
+- **No list, no version.** `ZoneIds` is empty and `Version` is `null`: the database cannot say which zones the machine has before it is asked, and `Contains(zoneId)` asks the platform.
+- **Where the platform has no zones.** On a machine whose platform finds no named zone, such as one without zone data, every such name is `TimeZoneNotFound`; `UTC` and fixed offsets still work.
+- **Cost.** A receiver of a timestamp with a name that is not `UTC` and not a fixed offset charges a constant of 2,000 units for the access, found or not ([Cost](../cost.md#time-zones-of-the-operating-system)).
 
 ## From memory
 

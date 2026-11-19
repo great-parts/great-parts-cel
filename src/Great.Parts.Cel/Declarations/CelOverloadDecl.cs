@@ -41,13 +41,15 @@ public sealed class CelOverloadDecl
         bool isReceiverStyle,
         ImmutableArray<CelType> parameterTypes,
         CelType resultType,
-        CelCostFunction? cost = null)
+        CelCostFunction? cost = null,
+        string? description = null)
     {
         OverloadId = overloadId;
         IsReceiverStyle = isReceiverStyle;
         ParameterTypes = parameterTypes;
         ResultType = resultType;
         Cost = cost;
+        Description = description;
     }
 
     /// <summary>
@@ -138,7 +140,7 @@ public sealed class CelOverloadDecl
     public CelOverloadDecl WithCost(CelCostFunction cost)
     {
         ArgumentNullException.ThrowIfNull(cost);
-        return new CelOverloadDecl(OverloadId, IsReceiverStyle, ParameterTypes, ResultType, cost);
+        return new CelOverloadDecl(OverloadId, IsReceiverStyle, ParameterTypes, ResultType, cost, Description);
     }
 
     // Whether two declarations are the same overload: one identifier, call style, parameter types, result
@@ -181,5 +183,27 @@ public sealed class CelOverloadDecl
         }
 
         return parameters.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// A description of the overload in English for people, or <see langword="null"/> when it has none.
+    /// </summary>
+    /// <remarks>
+    /// The application gives it with <see cref="WithDescription(string)"/> or <see cref="CelFunctionOptions.Description"/>.
+    /// An overload of the standard library or of an extension set of the catalog has the one sentence that describes its
+    /// function. The description is not part of the signature: type checking and evaluation do not read it.
+    /// </remarks>
+    public string? Description { get; }
+
+    /// <summary>
+    /// Returns a declaration that differs from this one only by the description. This declaration does not change.
+    /// </summary>
+    /// <param name="description">The description in English, such as <c>Tells whether a string is a valid INN.</c></param>
+    /// <returns>The new declaration.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="description"/> is <see langword="null"/>.</exception>
+    public CelOverloadDecl WithDescription(string description)
+    {
+        ArgumentNullException.ThrowIfNull(description);
+        return new CelOverloadDecl(OverloadId, IsReceiverStyle, ParameterTypes, ResultType, Cost, description.Length == 0 ? null : description);
     }
 }

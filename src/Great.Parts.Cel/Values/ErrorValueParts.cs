@@ -1,5 +1,6 @@
 using System;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel.Values;
 
@@ -9,7 +10,7 @@ namespace Great.Parts.Cel.Values;
 internal static class ErrorValueParts
 {
     // An error of evaluation with the first part and the value; without a line table it has no position.
-    internal static CelError Create(CelErrorCode code, Func<CelError, string> format, LineTable? lines, int offset, object? first, CelValue value)
+    internal static CelError Create(CelErrorCode code, ErrorTemplate format, LineTable? lines, int offset, object? first, CelValue value)
     {
         object? reference = null;
         long number = 0;
@@ -49,6 +50,9 @@ internal static class ErrorValueParts
 
         return new CelError(code, format, lines, offset, first, reference, number, (byte)value.Kind);
     }
+
+    // The CEL type of the value of an error that Create made.
+    internal static CelType TypeOf(CelError error) => ValueTypeRules.TypeOfKind(KindOf(error), error.Second);
 
     // The kind of the value of an error that Create made.
     internal static CelValueKind KindOf(CelError error) => (CelValueKind)error.Small;

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -7,7 +8,7 @@ using Xunit;
 
 namespace Great.Parts.Cel.Generator.Tests.Diagnostics;
 
-// The nine descriptors, the page docs/generator-diagnostics.md and AnalyzerReleases.Unshipped.md say the same: the identifier, the
+// The descriptors, the page docs/generator-diagnostics.md and AnalyzerReleases.Unshipped.md say the same: the identifier, the
 // severity, the title, the category and the help link of each code. The descriptors are internal, so the test reads the fields of the
 // class by reflection; the examples of the diagnostics fix when a code is reported and with what text, and leave these facts to this test.
 public sealed class DescriptorTests
@@ -25,7 +26,8 @@ public sealed class DescriptorTests
             .OrderBy(descriptor => descriptor.Id, StringComparer.Ordinal),
     ];
 
-    private static readonly string[] Codes = [.. Enumerable.Range(1, 9).Select(number => "GPCEL00" + number)];
+    // GPCEL007 is not reported since 2.0 and its number is not used again.
+    private static readonly string[] Codes = [.. Enumerable.Range(1, 11).Where(number => number != 7).Select(number => "GPCEL" + number.ToString("D3", CultureInfo.InvariantCulture))];
 
     public static TheoryData<string> CodeNames
     {
@@ -43,7 +45,7 @@ public sealed class DescriptorTests
 
     [Fact]
     [Trait("Requirement", "S-6")]
-    public void Descriptors_AreTheNineCodesAndNoOther() => Assert.Equal(Codes, Descriptors.Select(descriptor => descriptor.Id));
+    public void Descriptors_AreTheCodesOfThePageAndNoOther() => Assert.Equal(Codes, Descriptors.Select(descriptor => descriptor.Id));
 
     [Theory]
     [Trait("Requirement", "S-6")]

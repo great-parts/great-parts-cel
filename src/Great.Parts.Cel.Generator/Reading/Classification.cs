@@ -10,9 +10,6 @@ internal enum ClassificationKind : byte
     // The type cannot be read: Text is the reason.
     Refused,
 
-    // The type is System.Decimal or Decimal128 (or has one inside) and the compilation has no Decimal128.
-    DecimalUnavailable,
-
     // The type is described, but its default name is not a CEL qualified name: Text is the name.
     InvalidName,
 
@@ -28,8 +25,6 @@ internal enum ClassificationKind : byte
 // The result of classifying a type: how it is read, or why it is not.
 internal sealed class Classification
 {
-    internal static readonly Classification Decimal = new(ClassificationKind.DecimalUnavailable, null, string.Empty, null);
-
     internal static readonly Classification Limit = new(ClassificationKind.LimitReached, null, string.Empty, null);
 
     private Classification(ClassificationKind kind, Shape? shape, string text, INamedTypeSymbol? symbol)

@@ -26,15 +26,20 @@ internal static class Conversions
     private static readonly string[] ParseTargets = [IntName, UIntName, DoubleName, "bool"];
 
     // The target type is the first part; the value is kept by ErrorValueParts.
-    private static readonly Func<CelError, string> OutOfRangeText = static error => ValueText(ErrorValueParts.ValueOf(error)) + " is out of the range of " + (string)error.First!;
+    private static readonly ErrorTemplate OutOfRangeText = new(
+        static error => ValueText(ErrorValueParts.ValueOf(error)) + " is out of the range of " + (string)error.First!,
+        expectedType: static error => ValueTypeRules.TypeOfName((string)error.First!),
+        actualType: ErrorValueParts.TypeOf);
 
     // The function name is the first part, the text the second, and the byte the index of the target type.
-    private static readonly Func<CelError, string> CannotParseText = static error =>
-        "invalid argument to '" + (string)error.First! + "': cannot parse " + (string)error.Second! + " as " + ParseTargets[error.Small];
+    private static readonly ErrorTemplate CannotParseText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': cannot parse " + (string)error.Second! + " as " + ParseTargets[error.Small],
+        subject: static error => (string)error.First!);
 
     // The function name is the first part, the offset of the byte the number.
-    private static readonly Func<CelError, string> InvalidUtf8Text = static error =>
-        "invalid argument to '" + (string)error.First! + "': invalid UTF-8 at byte " + error.Number.ToString(CultureInfo.InvariantCulture);
+    private static readonly ErrorTemplate InvalidUtf8Text = new(
+        static error => "invalid argument to '" + (string)error.First! + "': invalid UTF-8 at byte " + error.Number.ToString(CultureInfo.InvariantCulture),
+        subject: static error => (string)error.First!);
 
     // type, (A) -> type(A): the runtime type with its parameters erased; of an object value its object type, and an
     // instance without a description is TypeNotAccessible at the call.

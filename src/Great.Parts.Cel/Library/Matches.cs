@@ -22,7 +22,7 @@ internal static class Matches
 {
     // The text of an invalid pattern, which the error of the check (2009) and the error of the evaluation (3021) share: the offset and
     // the reason are those of the RegexError that the error value holds by reference.
-    private static readonly Func<CelError, string> InvalidRegexText = static error => Message((RegexError)error.First!);
+    private static readonly ErrorTemplate InvalidRegexText = new(static error => Message((RegexError)error.First!));
 
     // The preparer of the constant argument at index 1 of both overloads: the program of a literal pattern, built once and kept in the
     // cache of the environment, or the text of the refusal. It charges nothing and does not throw for a pattern.

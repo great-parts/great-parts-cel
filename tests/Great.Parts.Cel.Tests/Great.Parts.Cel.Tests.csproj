@@ -65,6 +65,13 @@
     <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
     <!-- The types of the generator samples and their type contexts; the Native AOT publication takes the library with it (docs/design/generator.md, "Test projects"). -->
     <ProjectReference Include="../Great.Parts.Cel.Generator.Samples/Great.Parts.Cel.Generator.Samples.csproj" />
+    <!--
+      The generator of call sites runs in the compiler of these tests as an analyzer: each anonymous object that a test passes to
+      CelExpression.Evaluate is registered by a module initializer before any test runs, under the JIT and under Native AOT.
+    -->
+    <ProjectReference Include="../../src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!--

@@ -7,12 +7,17 @@ internal static partial class TimeZoneRules
 {
     /// <summary>
     /// Resolves a time zone name: <c>UTC</c>, a fixed offset <c>[+-]HH:MM</c>, a name with <c>:</c> that is no offset, or
-    /// a name to look up in the database. It allocates nothing.
+    /// a name to look up in the database. It allocates nothing for a name that is not looked up in the operating system, or that
+    /// the database of the operating system has kept.
     /// </summary>
     /// <param name="database">The database of the environment, or <see langword="null"/> when it has none.</param>
     /// <param name="name">The name; the case counts.</param>
+    /// <param name="meter">
+    /// The meter of an evaluation with a cost limit, charged <see cref="SystemZoneSource.Cost"/> before a name is looked up in
+    /// the database of the operating system; <see langword="null"/> without a limit.
+    /// </param>
     /// <returns>The offset, the zone, or the reason there is none.</returns>
-    internal static TimeZoneResolution Resolve(CelTimeZoneDatabase? database, ReadOnlySpan<char> name)
+    internal static TimeZoneResolution Resolve(CelTimeZoneDatabase? database, ReadOnlySpan<char> name, IEvaluationMeter? meter = null)
     {
         if (name.SequenceEqual("UTC"))
         {
@@ -27,6 +32,13 @@ internal static partial class TimeZoneRules
         if (HasColon(name))
         {
             return TimeZoneResolution.Invalid;
+        }
+
+        if (database is { IsSystem: true })
+        {
+            // The charge comes before the search and does not depend on its outcome.
+            meter?.Charge(SystemZoneSource.Cost);
+            return SystemZoneSource.Find(name) is { } system ? TimeZoneResolution.InSystemZone(system) : TimeZoneResolution.NotFound;
         }
 
         ZoneData? zone = database?.Find(name);

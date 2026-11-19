@@ -1,6 +1,6 @@
 # Extension set `decimal`, version 1
 
-The set adds the CEL type `decimal`, an IEEE 754-2019 decimal128 number of 34 significant digits, with `+`, `-`, `*`, `/`, unary minus, the four orderings and 9 conversions: 18 overloads. It exists only on `net11.0`, because the arithmetic is `System.Numerics.Decimal128`, a type of .NET 11; on `net10.0` there is no set, no literal flag and no member of the public API for it. cel-go has no such type, so nothing here is compared with it: the checks are the examples of the specification and a property test against an exact reference over `BigInteger`. Text, rounding and number conversions are on [decimal-text](decimal-text.md); the value is in [values](values.md#decimal), the type in [types](types.md#decimal), the literal in [syntax](syntax.md#decimal-literals), the outcomes in an environment without the set in [checking](checking.md#decimal-without-the-set), [evaluation](evaluation.md#decimal-in-a-dyn-place) and [declarations](declarations.md#decimal-without-the-set-and-the-literal-option), the cost in [library](library.md#cost-of-decimal), the description in JSON in [configuration](configuration.md#decimal-in-a-description), the tests in [tests](tests.md#tests-of-decimal).
+The set adds the CEL type `decimal` with `+`, `-`, `*`, `/`, unary minus, the four orderings and 9 conversions: 18 overloads. It exists on both targets, with one code of rules: on `net11.0` the value is `System.Numerics.Decimal128`, a type of .NET 11, an IEEE 754-2019 decimal128 number of 34 significant digits, and this page describes it; on `net10.0` the value is `System.Decimal`, 28–29 digits and the exponents −28 to 0, and what differs is on [decimal-net10](decimal-net10.md). cel-go has no such type, so nothing here is compared with it: the checks are the examples of the specification and a property test against an exact reference over `BigInteger`. Text, rounding and number conversions are on [decimal-text](decimal-text.md); the value is in [values](values.md#decimal), the type in [types](types.md#decimal), the literal in [syntax](syntax.md#decimal-literals), the outcomes in an environment without the set in [checking](checking.md#decimal-without-the-set), [evaluation](evaluation.md#decimal-in-a-dyn-place) and [declarations](declarations.md#decimal-without-the-set-and-the-literal-option), the cost in [library](library.md#cost-of-decimal), the description in JSON in [configuration](configuration.md#decimal-in-a-description), the tests in [tests](tests.md#tests-of-decimal).
 
 ## What `Decimal128` does, checked on the SDK
 
@@ -22,7 +22,7 @@ So the set needs no arithmetic of its own, and its volume does not grow. The rea
 
 ## Groups of files
 
-The code of the set is in three groups of files: the values, the set, and the literal with the cases without the set; the last two share no file. A file of one group is edited by another only as these tables say. Paths are relative to the repository root, and every file of the code that only this set uses is under `#if NET11_0_OR_GREATER` as a whole.
+The code of the set is in three groups of files: the values, the set, and the literal with the cases without the set; the last two share no file. A file of one group is edited by another only as these tables say. Paths are relative to the repository root. The files are compiled for both targets; what is under `#if` is listed below.
 
 **The values (group 1)**
 
@@ -31,13 +31,14 @@ The code of the set is in three groups of files: the values, the set, and the li
 | `src/Great.Parts.Cel/Values/DecimalParts.cs` | the internal struct of a value taken apart: sign, coefficient as `UInt128`, exponent; reading and writing the BID bits ([decimal-text](decimal-text.md#the-parts-of-a-value)); the static mark `SystemDecimalOrigin` |
 | `src/Great.Parts.Cel/Values/DecimalTextRules.cs` (rule file) | the reading of a literal and of a string, rounding, the text of a value, `double` to a decimal and back |
 | `src/Great.Parts.Cel/Values/DecimalNumberRules.cs` (rule file) | `int`, `uint` and `System.Decimal` to and from a value, the digits of a coefficient, the powers of ten |
-| `src/Great.Parts.Cel/Values/CelValue.cs` | `FromDecimal`, `TryGetDecimal`, `Equals`, `GetHashCode` ([values](values.md#decimal)) |
-| `src/Great.Parts.Cel/Values/CelObjectType.cs` | the bodies of the two `FromDecimal` |
+| `src/Great.Parts.Cel/Values/PlatformDecimal.cs`, `DecimalPlatform.Decimal128.cs`, `DecimalPlatform.SystemDecimal.cs` | the platform type of the target and the operations on it ([decimal-net10](decimal-net10.md)) |
+| `src/Great.Parts.Cel/Values/CelValue.cs` | `FromDecimal`, `TryGetDecimal`, and on `net11.0` `FromDecimal128`, `TryGetDecimal128`; `Equals`, `GetHashCode` ([values](values.md#decimal)) |
+| `src/Great.Parts.Cel/Values/CelObjectType.cs` | the bodies of `FromDecimal` and, on `net11.0`, `FromDecimal128` |
 | `src/Great.Parts.Cel/Values/ValueTypeRules.cs`, `ValueTypeNames.cs`, `EqualityRules.cs`, `OrderingRules.cs` | the rows of the kind `Decimal`, the ordering row that `CelList.CreateSorted` uses ([values](values.md#decimal)) |
 | `src/Great.Parts.Cel/Values/ConversionRules.cs`, `ConversionRules.Result.cs`, `ConversionRules.Rows.cs`, `ConversionRules.Collections.cs` and `ConversionRules.Decimal.cs` | the input rows and the result rows of `Decimal128`, `System.Decimal` and their `Nullable<>`, and the boxed values of the `object` row ([evaluation](evaluation.md#decimal-in-a-dyn-place)) |
 | `src/Great.Parts.Cel/CelBindings.cs` | the `ArgumentException` for a NaN or an infinity |
 | `src/Great.Parts.Cel/Types/CelType.cs`, `Types/AssignabilityRules.cs` | `CelType.Decimal`; `Decimal` among the types that take `null` |
-| `PublicAPI/net11.0/PublicAPI.Shipped.txt` | the public members of `decimal`; `PublicAPI/net10.0` has none |
+| `src/Great.Parts.Cel/PublicAPI/**` | the public members of `decimal` ("The surface of the public API") |
 | `tests/Great.Parts.Cel.Tests/Values/`, `docs/type-mapping.md`, `CHANGELOG.md` | the tests of this group; the rows of `decimal`; one line |
 
 **The set (group 2)**
@@ -69,16 +70,15 @@ Groups 2 and 3 share no file. The snapshot of the declarations of the set and th
 
 | How | Files |
 | :- | :- |
-| the whole file | `Values/DecimalParts.cs`, `DecimalTextRules.cs`, `DecimalNumberRules.cs`, `ConversionRules.Decimal.cs`; `Library/Decimals/*.cs`; the test files of the set, except where a test of the common code adds a row ([tests](tests.md#tests-of-decimal)) |
-| a block in a file that exists on both targets | the members and the cases that name the kind or the type: `CelValue.cs` (`FromDecimal`, `TryGetDecimal`, the cases of `Equals` and `GetHashCode`), `CelObjectType.cs` (the two `FromDecimal`), `CelType.cs` (`Decimal`), `CelExtensions.cs` (`Decimal`), `CelEnvironmentBuilder.cs` (`EnableDecimalLiterals` and its field), `CelBindings.cs`, `ValueTypeRules.cs`, `ValueTypeNames.cs`, `EqualityRules.cs` (the kind `Decimal`), `ConversionRules*.cs` (the rows and the rows of the table), `AssignabilityRules.cs` (`TakesNull`), `Literals.cs` and `Parser.cs` (the conversion of the literal; the branch of the message of `net10.0` is the `#else`), `Declarations/DeclarationChecks.cs` and `ExtensionChecks.cs` (the kind `Decimal`, the option and step 5), `Checking/Checker.cs` (2007), `TypeIndex.cs` (`DecimalDeclared`), `ObjectRules.cs` and the two plan nodes (the refusal of the kind `Decimal`) |
-| the other branch | `Declarations/DeclarationChecks.cs`: the hint and the unmapped `System.Decimal` that only `net10.0` reaches are in a `#if !NET11_0_OR_GREATER` block; `Syntax/Printer.cs` and `SyntaxTreeComparer.cs`: the case of the kind `Decimal` is a `#if` block |
-| no `#if` | `SyntaxOptions.DecimalLiterals`, a positional member of a record: it exists on both targets and is always `false` on `net10.0` |
+| the whole file | `Values/DecimalPlatform.Decimal128.cs` (`#if NET11_0_OR_GREATER`) and `Values/DecimalPlatform.SystemDecimal.cs` (`#if !NET11_0_OR_GREATER`); `Values/PlatformDecimal.cs` is the alias of the platform type in both branches; the tests of the bits of `Decimal128` and of 34 digits ([tests](tests.md#tests-of-decimal)) |
+| a block in a file that exists on both targets | what names `Decimal128` or depends on the precision of the target: `CelValue.cs` (`FromDecimal128`, `TryGetDecimal128`, the payload), `CelObjectType.cs` (`FromDecimal128`), `CelBindings.cs` (the NaN and the infinities of `Decimal128`), `ConversionRules.Decimal.cs` (the rows of `Decimal128`), `DecimalParts.cs` (the BID bits), `DecimalTextRules.cs` (the limits of the literal), `ValueText.cs` |
+| no `#if` | the rest of the set: `Library/Decimals/**`, `DecimalNumberRules.cs`, the kind and the type, `EnableDecimalLiterals`, the literal, the checks of the declarations and the cases without the set |
 
-`PublicAPI/net11.0/PublicAPI.Shipped.txt` has every public member of the set, and `PublicAPI/net10.0` has none; a build for each target is the check. The snapshot of the declarations of the set is `decimal-v1.txt`.
+The public members are in `src/Great.Parts.Cel/PublicAPI/` ("The surface of the public API"); a build for each target is the check. The snapshot of the declarations of the set is `decimal-v1.txt`, the same on both targets.
 
 ## The surface of the public API
 
-The public members of the set are `CelExtensions.Decimal(uint)`, `CelEnvironmentBuilder.EnableDecimalLiterals()`, `CelValue.FromDecimal(Decimal128)` and `TryGetDecimal`, `CelValueKind.Decimal`, `CelType.Decimal`, `CelTypeKind.Decimal`, `CelObjectType.FromDecimal(int, Decimal128)` and `FromDecimal(decimal)`. `PublicAPI/net11.0/PublicAPI.Shipped.txt` has them, `PublicAPI/net10.0` has none, and no `Decimal128` appears in a signature that exists in `net10.0`.
+The public members of the set on both targets are `CelExtensions.Decimal(uint)`, `CelEnvironmentBuilder.EnableDecimalLiterals()`, `CelValue.FromDecimal(decimal)` and `TryGetDecimal(out decimal)`, `CelValueKind.Decimal`, `CelType.Decimal`, `CelTypeKind.Decimal` and `CelObjectType.FromDecimal(decimal)`; on `net11.0` only, the members named by the type `Decimal128`: `CelValue.FromDecimal128`, `TryGetDecimal128` and `CelObjectType.FromDecimal128(int, Decimal128)`. No `Decimal128` appears in a signature that exists in `net10.0`. The files of the snapshot are on [decimal-net10](decimal-net10.md#the-public-api-and-the-generator).
 
 ## The type `decimal`
 
@@ -134,9 +134,9 @@ The identifiers are local strings of `DecimalExtension`, as those of `network` a
 
 ## The generator part
 
-A member of the type `System.Decimal` or `Decimal128` in a type that the source generator reads is the concern of two components, and the line between them is this one. **The generator** has everything that is in the generator: the row of the type mapping for the member — the field type `CelType.Decimal`, the read `FromDecimal(number, value)` for a `Decimal128` and `FromDecimal(value)` for a `System.Decimal`, the `Nullable<>` forms with the null handling of the other rows — the finding of `System.Numerics.Decimal128` in the compilation of the application, the exclusion of the member with the warning `GPCEL007` and the text of `GetExcludedFieldReason` when it is not there (`net10.0`), and the snapshots of the created text. **The core** has what the created code calls and what meets it in the environment: `CelType.Decimal`, the bodies of the two `FromDecimal` and of `CelValue.FromDecimal`, the refusal of a decimal field in an environment without the set ([checking](checking.md#decimal-without-the-set)) whoever described the type, and 3012 for a boxed value. The one function the two share is `CheckErrors.FieldNotAccessible`, whose signature is on the page of the checker.
+A member of the type `System.Decimal` or `Decimal128` in a type that the source generator reads is the concern of two components, and the line between them is this one. **The generator** has everything that is in the generator: the row of the type mapping for the member — the field type `CelType.Decimal`, the read `FromDecimal128(number, value)` for a `Decimal128` and `FromDecimal(value)` for a `System.Decimal`, the `Nullable<>` forms with the null handling of the other rows — the finding of `System.Numerics.Decimal128` in the compilation of the application (a `Decimal128` member exists only where the type does; a `System.Decimal` member is a field on both targets), and the snapshots of the created text. **The core** has what the created code calls and what meets it in the environment: `CelType.Decimal`, the bodies of `FromDecimal`, `FromDecimal128` and of `CelValue.FromDecimal`, the refusal of a decimal field in an environment without the set ([checking](checking.md#decimal-without-the-set)) whoever described the type, and 3012 for a boxed value. The one function the two share is `CheckErrors.FieldNotAccessible`, whose signature is on the page of the checker.
 
-The tests of the core need no generated type: they build the types they need with `CelObjectTypeBuilder` and with hand-written `CelObjectType` classes that declare fields of the type `CelType.Decimal` and read them with `FromDecimal`. The test that reads a decimal member of a type from the generator is in `Great.Parts.Cel.Generator.Samples` under `#if NET11_0_OR_GREATER`. The snapshot of the generator's text of a decimal member needs no running code.
+The tests of the core need no generated type: they build the types they need with `CelObjectTypeBuilder` and with hand-written `CelObjectType` classes that declare fields of the type `CelType.Decimal` and read them with `FromDecimal`. The sample type with decimal members, `DecimalValues` of `Great.Parts.Cel.Generator.Samples`, is on both targets, and its `Decimal128` member is under `#if NET11_0_OR_GREATER`. The snapshot of the generator's text of a decimal member needs no running code.
 
 ## Cost
 
@@ -148,18 +148,18 @@ The units are those of the table; [library](library.md#cost-of-decimal) has the 
 
 ## An environment without the set
 
-Both targets give the same class of outcome, an error that names the set, and the same codes except where `net10.0` has no type at all.
+Both targets give the same outcomes, an error that names the set or the flag; `Decimal128` exists on `net11.0` only.
 
-| Expression or declaration | `net11.0` without the set | `net10.0` | Where |
-| :- | :- | :- | :- |
-| `12.34m`, `100m` | `SyntaxNotEnabled` (1007), `decimal literal is not enabled: enable decimal literals in the environment builder`, at the literal | the same code with `decimal literal is not enabled: decimal requires .NET 11` | the parser, existing |
-| `decimal('1')`, `type(x) == decimal` | `UndeclaredReference` (2000) | the same | the checker, existing: the identifier and the function do not exist |
-| a member of type `System.Decimal` or `Decimal128` selected | `FieldNotAccessible` (2007) at the selection, with the name of the set | by the generator: the member is not a field and its reason is a `GetExcludedFieldReason` text that says `decimal` needs .NET 11 | the checker ([checking](checking.md#decimal-without-the-set)); the generator belongs to the generator part |
-| `AddVariable<System.Decimal>`, `AddVariable<Decimal128>`, a delegate with such a parameter or result | `TypeNotDeclared` (4008) at `Build`, `…; add the extension set 'decimal'` | the same code for `System.Decimal`, `…; the extension set 'decimal' exists only on .NET 11` | `DeclarationChecks`, the hint |
-| a variable of the type `decimal` in a description | `TypeNotDeclared` (4008) with the position of the variable and the first hint | the same, with the second hint | `Build`; the reader gives `ObjectNamed("decimal")` |
-| a value `System.Decimal` or `Decimal128` in a `dyn` place | `TypeNotAccessible` (3012) at the node that reads it | the same code and the same text | the reading node ([evaluation](evaluation.md#decimal-in-a-dyn-place)) |
-| a `decimal` key in a map literal | `UnsupportedMapKeyType` (3027), `unsupported map key type 'decimal'`, with the set too | not reachable | the planner, existing |
-| the flag of the literal | `MissingExtensionDependency` (4005) | not reachable: no method | `Build` |
+| Expression or declaration | Without the set | Where |
+| :- | :- | :- |
+| `12.34m`, `100m` | `SyntaxNotEnabled` (1007), `decimal literal is not enabled: enable decimal literals in the environment builder`, at the literal | the parser |
+| `decimal('1')`, `type(x) == decimal` | `UndeclaredReference` (2000) | the checker: the identifier and the function do not exist |
+| a member of type `System.Decimal` or `Decimal128` selected | `FieldNotAccessible` (2007) at the selection, with the name of the set | the checker ([checking](checking.md#decimal-without-the-set)) |
+| `AddVariable<System.Decimal>`, `AddVariable<Decimal128>`, a delegate with such a parameter or result | `TypeNotDeclared` (4008) at `Build`, `…; add the extension set 'decimal'` | `DeclarationChecks`, the hint |
+| a variable of the type `decimal` in a description | `TypeNotDeclared` (4008) with the position of the variable and the same hint | `Build`; the reader gives `ObjectNamed("decimal")` |
+| a value `System.Decimal` or `Decimal128` in a `dyn` place | `TypeNotAccessible` (3012) at the node that reads it | the reading node ([evaluation](evaluation.md#decimal-in-a-dyn-place)) |
+| a `decimal` key in a map literal | `UnsupportedMapKeyType` (3027), `unsupported map key type 'decimal'`, with the set too | the planner |
+| the flag of the literal | `MissingExtensionDependency` (4005) | `Build` |
 
 ## Differences from cel-go
 
@@ -169,12 +169,12 @@ None to compare: cel-go has no `decimal`. The rules that stand where a cel-go ru
 
 | Page | Gets |
 | :- | :- |
-| `docs/decimal.md` | sections, in this order: "The type" (the rule that it exists only on .NET 11, with the sentence "There is no `decimal` on .NET 10"; 34 digits; the cohort and `-0`), "Enabling it" (the set, `CelExtensions.Decimal(1)`, the flag, the two ways of writing a value), "Literals", "Operators and conversions" (the 18 overloads), "Text and parsing", "Equality and order", "Data of the application", "Without the set", "What version 1 does not have". Their content: the type and the rule that it exists only on .NET 11 (the sentence "There is no `decimal` on .NET 10"); the literal and its flag with `100m`, `0m`, `100M`, `1e2m`, `-0m` and what `string()` writes for each; the 18 overloads with the identifiers, the errors and the units; the text and the parsing rules of [decimal-text](decimal-text.md) as a user reads them — the grammar, 34 digits, half to even, the cohort, `-0`; equality and order, and why `price > 0` is an error; the rows of the type mapping in short; the environment without the set in both targets; what the set does not have — `%`, `round`, `quantize`, functions of other sets; one example for each part, each compiled by the checker of the examples |
-| `docs/extensions.md` | the set in the catalog list, the sentence that it is only on `net11.0`, cannot be added by a description and has one version, 1; a pointer to `docs/decimal.md` |
+| `docs/decimal.md` | sections, in this order: "The type" (both targets, with the table "Same and different on the two targets": 34 digits on .NET 11, 28–29 on .NET 10; the cohort and `-0`), "Enabling it" (the set, `CelExtensions.Decimal(1)`, the flag, the two ways of writing a value), "Literals", "Operators and conversions" (the 18 overloads), "Text and parsing", "Equality and order", "Data of the application", "Without the set", "What version 1 does not have". Their content: the type on both targets and what differs between them; the literal and its flag with `100m`, `0m`, `100M`, `1e2m`, `-0m` and what `string()` writes for each; the 18 overloads with the identifiers, the errors and the units; the text and the parsing rules of [decimal-text](decimal-text.md) as a user reads them — the grammar, 34 digits, half to even, the cohort, `-0`; equality and order, and why `price > 0` is an error; the rows of the type mapping in short; the environment without the set in both targets; what the set does not have — `%`, `round`, `quantize`, functions of other sets; one example for each part, each compiled by the checker of the examples |
+| `docs/extensions.md` | the set in the catalog list, the sentence that it is on both targets, cannot be added by a description and has one version, 1; a pointer to `docs/decimal.md` |
 | `docs/cost.md` | the rows of the 18 overloads with the units and the two with a text charge |
 | `docs/type-mapping.md` | the rows `decimal` ↔ `Decimal128` and `System.Decimal`, input and result, the expected type, `Nullable<>`, the outcome of a `NaN` or an infinity, the rule of a typed collection, the table of the environment without the set |
 | `docs/error-codes.md` | the texts of 2007, 3012 and 4008 for `decimal` are in the rows already; added: the second hint of 4008 and the reason of 2007 |
 | `docs/environment-json.md` | one sentence: a description cannot name the set `decimal` or carry its flag; a variable can have the type `decimal` when the code added the set |
 | `CHANGELOG.md` | one line for the set and one for the literal and the flag, next to the line of group 1 for the values and the type |
 
-Related pages: [decimal-text](decimal-text.md), [values](values.md), [types](types.md), [syntax](syntax.md), [checking](checking.md), [evaluation](evaluation.md), [library](library.md), [extensions](extensions.md), [declarations](declarations.md), [configuration](configuration.md), [tests](tests.md).
+Related pages: [decimal-net10](decimal-net10.md), [decimal-text](decimal-text.md), [values](values.md), [types](types.md), [syntax](syntax.md), [checking](checking.md), [evaluation](evaluation.md), [library](library.md), [extensions](extensions.md), [declarations](declarations.md), [configuration](configuration.md), [tests](tests.md).

@@ -194,16 +194,15 @@ public sealed class ReasonTests
         Assert.Contains(reported, diagnostic => diagnostic.GetMessage(CultureInfo.InvariantCulture).StartsWith("Member 'Letter' of type 'Acme.Reached'", System.StringComparison.Ordinal));
     }
 
-    // decimal? is a member that net10.0 cannot read, GPCEL007, as decimal is.
+    // decimal? is a member that every target reads, as decimal is: there is no diagnostic and no reason.
     [Fact]
     [Trait("Requirement", "F-2")]
-    public void GPCEL007_NullableDecimalWithoutDecimal128_IsAWarningAtTheMember()
+    public void NullableDecimalWithoutDecimal128_IsAMember_AndHasNoDiagnostic()
     {
-        Diagnostic diagnostic = GeneratorExample.Single(Source("public decimal? Rebate { get; set; }"), "GPCEL007");
+        GeneratorDriverRunResult result = GeneratorExample.Run(GeneratorExample.Compile(Source("public decimal? Rebate { get; set; }")));
 
-        Assert.Equal(DiagnosticSeverity.Warning, diagnostic.Severity);
-        Assert.Equal("Rebate", GeneratorExample.Place(diagnostic));
-        Assert.StartsWith("Member 'Rebate' of type 'Acme.Holder' is excluded from the CEL type: the CEL type decimal requires .NET 11", diagnostic.GetMessage(CultureInfo.InvariantCulture), System.StringComparison.Ordinal);
+        Assert.Empty(GeneratorExample.Reported(result));
+        Assert.Contains("\"rebate\"", GeneratorExample.CreatedText(result), System.StringComparison.Ordinal);
     }
 
     // The language of the project is too old for the file: the file is not written and the build says so, and the other diagnostics of

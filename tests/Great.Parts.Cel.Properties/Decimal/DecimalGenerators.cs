@@ -1,17 +1,20 @@
-#if NET11_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Numerics;
 using CsCheck;
 
 namespace Great.Parts.Cel.Properties.Decimals;
 
-// The values of the properties of decimal and the boundaries they must meet, set explicitly: coefficients of 1, 34 and 35 digits,
+// The values of the properties of decimal and the boundaries they must meet, set explicitly. The lists and the random values are
+// those of decimal128 on net11.0: coefficients of 1, 34 and 35 digits,
 // nines, ten to a power and values just below and above a tie; the exponents -6176, -6175, 6110, 6111 and the range between; the
 // results that vanish below -6176 and those that overflow; both zeros in every position; 1 / 3; cohorts of one value; the
 // boundaries of the integers, of the double and of System.Decimal. A generator builds case i from the stream i and the seed by the
-// PCG of CsCheck (the loop of PropertyLoop), so a case is the same in every run.
+// PCG of CsCheck (the loop of PropertyLoop), so a case is the same in every run. On net10.0 the boundaries of the arithmetic are
+// those of System.Decimal — 28 and 29 digits, 2^96 - 1 and 2^96, the exponent -28 — and every other value passes through
+// ReferenceDecimal.Fit, which makes it a value that System.Decimal holds.
 internal static class DecimalGenerators
 {
     private static readonly BigInteger Nines = ReferenceDecimal.MaxCoefficient;
@@ -29,6 +32,39 @@ internal static class DecimalGenerators
     private static readonly int[] TieShifts = [0, 1, 2, 7, 30, 59];
 
     // Every boundary value of the arithmetic.
+#if !NET11_0_OR_GREATER
+    internal static readonly RefDecimal[] Edges =
+    [
+        // zeros of both signs: the exponent 0, a fraction, the largest scale
+        Make(0, 0), Make(0, 0, true), Make(0, -1), Make(0, -1, true), Make(0, -28), Make(0, -28, true), Make(0, -27),
+        // one digit, ones and fives, and cohorts of one value
+        Make(1, 0), Make(1, 0, true), Make(1, -1), Make(5, -1), Make(5, -1, true), Make(15, -1), Make(150, -2), Make(25, -1),
+        Make(3, 0), Make(7, 0), Make(10, 0), Make(100, -2), Make(1000, -3), Make(10, -1),
+        // the scale 28: the smallest value, ties and values that round
+        Make(1, -28), Make(1, -28, true), Make(5, -28), Make(15, -28), Make(123, -28), new(false, Ten(28), -28), new(false, Ten(28) * 7, -28),
+        // 2^96 - 1 and its neighbours, 28 and 29 digits, at the largest and the smallest exponent
+        new(false, Nines, 0), new(true, Nines, 0), new(false, Nines, -1), new(false, Nines, -28), new(true, Nines, -28), new(false, Nines - 1, 0),
+        new(false, Nines / 10, 0), new(false, (Nines / 10) + 1, 0), new(false, Nines / 10, -1), new(false, Ten(28), 0), new(false, Ten(28), -1),
+        new(false, Ten(28) * 7, 0), new(false, Ten(27), 0), new(false, Ten(28) - 1, 0),
+    ];
+
+    // Pairs that the generator of pairs takes as they are: quotients with and without a finite expansion and with a cohort, an
+    // overflow of a sum and of a product, a quotient that vanishes or rounds at the scale 28, and the zeros of both signs.
+    internal static readonly RefPair[] FixedPairs =
+    [
+        new(Make(1, 0), Make(3, 0)), new(Make(2, 0), Make(3, 0)), new(Make(1, 0), Make(7, 0)), new(Make(10, 0), Make(3, 0)),
+        new(Make(100, -2), Make(4, 0)), new(Make(10, 0), Make(4, 0)), new(Make(6, 0), Make(2, 0)), new(Make(60, -1), Make(2, 0)),
+        new(Make(0, -2), Make(5, 0)), new(Make(100, 0), Make(10, 0)), new(Make(1, 0), Make(8, 0)), new(Make(1, 0, true), Make(3, 0)),
+        new(Make(1, 0), Make(1, -2)), new(Make(1, 0), Make(1, -28)), new(Make(1, -28), Make(10, 0)), new(Make(1, -28), Make(1, -1)),
+        new(Make(1, -28), Make(1, -28)), new(Make(1, 0), Make(29, -1)), new(Make(1, 0), Make(1, -1)), new(Make(1, 0), Make(1, 0)),
+        new(new RefDecimal(false, Nines, 0), Make(1, 0)), new(new RefDecimal(false, Nines, 0), Make(2, 0)), new(new RefDecimal(false, Nines, 0), Make(5, -1)),
+        new(new RefDecimal(false, Nines, 0), Make(3, 0)), new(new RefDecimal(false, Nines, 0), Make(5, 0)), new(new RefDecimal(false, Nines, 0), new RefDecimal(false, Nines, 0)),
+        new(new RefDecimal(false, Nines, 0), new RefDecimal(true, Nines, 0)), new(new RefDecimal(false, Nines, -28), Make(1, -28)),
+        new(new RefDecimal(false, Nines, -28), Make(3, 0)), new(new RefDecimal(false, Ten(28), 0), Make(3, 0)), new(new RefDecimal(false, Ten(28), 0), Make(3, -1)),
+        new(Make(0, 0, true), Make(0, 0, true)), new(Make(0, 0, true), Make(0, 0)), new(Make(0, 0), Make(0, 0, true)),
+        new(Make(15, -1), Make(150, -2)), new(Make(0, 0), Make(0, -5)),
+    ];
+#else
     internal static readonly RefDecimal[] Edges =
     [
         // zeros of both signs: the exponent 0, a fraction, a positive exponent, the largest and the smallest exponent
@@ -60,9 +96,10 @@ internal static class DecimalGenerators
         new(Make(0, 0, true), Make(0, 0, true)), new(Make(0, 0, true), Make(0, 0)), new(Make(0, 0), Make(0, 0, true)),
         new(Make(15, -1), Make(150, -2)), new(Make(0, 0), Make(0, -5)),
     ];
+#endif
 
     // The boundaries of int() and uint(): the values around 2^63 and 2^64 with a fraction, and the truncation of a small fraction.
-    internal static readonly RefDecimal[] IntegerEdges =
+    internal static readonly RefDecimal[] IntegerEdges = FitAll(
     [
         Make(0, 0), Make(0, 0, true), Make(5, -1), Make(5, -1, true), Make(15, -1, true), Make(1, 0), Make(1, 0, true),
         Make(999, -3), Make(999, -3, true), Make(1, 19), Make(1, 19, true), Make(1, 20), Make(1, 5000),
@@ -71,11 +108,11 @@ internal static class DecimalGenerators
         new(true, Big("92233720368547758089"), -1), new(false, Big("92233720368547758079"), -1),
         Make(18446744073709551615, 0), new(false, Big("18446744073709551616"), 0), new(false, Big("184467440737095516159"), -1),
         new(false, Big("184467440737095516155"), -1), new(true, Big("184467440737095516155"), -1),
-    ];
+    ]);
 
     // The boundaries of the conversion to System.Decimal: the largest value with a fraction, the digits that are rounded away, the
     // value 1E+29, and the places 28 and 29.
-    internal static readonly RefDecimal[] SystemRangeEdges =
+    internal static readonly RefDecimal[] SystemRangeEdges = FitAll(
     [
         Make(1, 0), Make(150, -2), Make(150, -2, true), Make(0, -30), Make(0, -30, true), Make(0, 3), Make(0, -5, true),
         new(false, Big("79228162514264337593543950335"), 0), new(false, Big("79228162514264337593543950336"), 0),
@@ -86,7 +123,7 @@ internal static class DecimalGenerators
         new(false, Big("792281625142643375935439503355"), -29), new(false, Big("792281625142643375935439503351"), -29),
         Make(15, -29), Make(25, -29), Make(35, -29), Make(5, -29), Make(51, -30), Make(1, -30), Make(1, -28), Make(1, 28), Make(1, 29),
         Make(79228162514264337, 12), new(false, Nines, -34),
-    ];
+    ]);
 
     internal static readonly decimal[] SystemDecimalEdges =
     [
@@ -118,17 +155,17 @@ internal static class DecimalGenerators
     // ties between two doubles, the half of the smallest subnormal value, and the values that are far outside.
     internal static readonly RefDecimal[] DoubleDecimalEdges = BuildDoubleDecimalEdges();
 
-    internal static readonly Gen<RefDecimal> Values = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => Value(new PCG(stream, seed)));
+    internal static readonly Gen<RefDecimal> Values = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => ReferenceDecimal.Fit(Value(new PCG(stream, seed))));
 
-    internal static readonly Gen<RefPair> Pairs = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => Pair(new PCG(stream, seed)));
+    internal static readonly Gen<RefPair> Pairs = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => Fit(Pair(new PCG(stream, seed))));
 
     internal static readonly Gen<string> Texts = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => Text(new PCG(stream, seed)));
 
-    internal static readonly Gen<RefDecimal> IntegerValues = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => IntegerValue(new PCG(stream, seed)));
+    internal static readonly Gen<RefDecimal> IntegerValues = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => ReferenceDecimal.Fit(IntegerValue(new PCG(stream, seed))));
 
-    internal static readonly Gen<RefDecimal> DoubleValues = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => DoubleValue(new PCG(stream, seed)));
+    internal static readonly Gen<RefDecimal> DoubleValues = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => ReferenceDecimal.Fit(DoubleValue(new PCG(stream, seed))));
 
-    internal static readonly Gen<RefDecimal> SystemRangeValues = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => SystemRangeValue(new PCG(stream, seed)));
+    internal static readonly Gen<RefDecimal> SystemRangeValues = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => ReferenceDecimal.Fit(SystemRangeValue(new PCG(stream, seed))));
 
     internal static readonly Gen<long> Longs = Gen.Select(Gen.UInt, Gen.ULong, (stream, seed) => Long(new PCG(stream, seed)));
 
@@ -156,6 +193,11 @@ internal static class DecimalGenerators
     }
 
     internal static RefDecimal Make(ulong coefficient, int exponent, bool negative = false) => new(negative, coefficient, exponent);
+
+    // Every value of a list or a pair as the target holds it.
+    private static RefDecimal[] FitAll(RefDecimal[] values) => [.. values.Select(ReferenceDecimal.Fit)];
+
+    private static RefPair Fit(RefPair pair) => new(ReferenceDecimal.Fit(pair.First), ReferenceDecimal.Fit(pair.Second));
 
     internal static BigInteger Ten(int power) => ReferenceDecimal.Pow10(power);
 
@@ -454,7 +496,7 @@ internal static class DecimalGenerators
             AddAround(edges, ((BigInteger.One << 53) + 1) << shift, 0);
         }
 
-        return [.. edges];
+        return FitAll([.. edges]);
     }
 
     // Adds the first 34 digits of an exact value, with one more and one less in the last digit, for both signs.
@@ -471,4 +513,3 @@ internal static class DecimalGenerators
         }
     }
 }
-#endif

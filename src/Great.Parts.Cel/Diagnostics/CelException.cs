@@ -7,18 +7,26 @@ using System.Text;
 namespace Great.Parts.Cel.Diagnostics;
 
 /// <summary>
-/// The exception thrown by the <c>Get…OrThrow</c> methods of the build, compile and evaluation results
-/// when the result is not successful. It carries the errors of that result.
+/// The exception that carries all errors of an unsuccessful build, compilation or evaluation, for code in which such an
+/// error is a programming mistake.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Results report errors without exceptions; the <c>Get…OrThrow</c> methods exist for code in which an
-/// error is a programming mistake, such as an environment built from declarations fixed in the source
-/// code. Calling such a method on an unsuccessful result violates its documented condition, and this
-/// exception reports the violation together with the errors. No other member of the library throws it.
+/// Results report errors without exceptions. The library throws this exception only from the members that its
+/// documentation names: the <c>Get…OrThrow</c> methods of the results; <see cref="CelBuildResult.Environment"/>,
+/// <see cref="CelCompileResult{T}.Program"/> and <see cref="CelEvalResult{T}.Value"/> of an unsuccessful result; the
+/// simple entry <see cref="CelExpression"/>; and <see cref="CelEnvironment.Create(Action{CelEnvironmentBuilder})"/> with
+/// its overload that takes a <see cref="CelStandardLibrary"/>. Other
+/// failures of a call are <see cref="ArgumentException"/> and its derived types for arguments,
+/// <see cref="InvalidOperationException"/> for the state of an object, and <see cref="OperationCanceledException"/> for
+/// cancellation.
 /// </para>
 /// <para>
-/// <see cref="Exception.Message"/> lists the errors. Instances are created by the library only.
+/// <see cref="Exception.Message"/> lists the errors. <see cref="Exception.InnerException"/> is the
+/// <see cref="CelError.Exception"/> of the first error in <see cref="Errors"/> that has one — for example the exception
+/// of a function of the application — so logs that follow the chain of inner exceptions show it; it is
+/// <see langword="null"/> when no error has an exception. Every original exception stays in <see cref="Errors"/>.
+/// Instances are created by the library only.
 /// </para>
 /// <para>
 /// Like <see cref="CelError.Message"/>, the text of <see cref="Exception.Message"/> is for people and is
@@ -33,10 +41,31 @@ namespace Great.Parts.Cel.Diagnostics;
     Justification = "The exception exists only to carry the errors of an unsuccessful result; a constructor without errors would create it without its data.")]
 public sealed class CelException : Exception
 {
-    internal CelException(ImmutableArray<CelError> errors)
-        : base(FormatMessage(errors))
+    private CelException(ImmutableArray<CelError> errors, Exception? inner)
+        : base(FormatMessage(errors), inner)
     {
         Errors = errors;
+    }
+
+    /// <summary>
+    /// Creates the exception of an unsuccessful result: the one way the library makes it, so that every member that throws it
+    /// gives the same exception for the same errors.
+    /// </summary>
+    /// <param name="errors">The errors of the result, not empty.</param>
+    /// <returns>The exception; its inner exception is that of the first error that has one, or <see langword="null"/>.</returns>
+    internal static CelException FromErrors(ImmutableArray<CelError> errors)
+    {
+        Exception? inner = null;
+        foreach (CelError error in errors)
+        {
+            if (error.Exception is { } exception)
+            {
+                inner = exception;
+                break;
+            }
+        }
+
+        return new CelException(errors, inner);
     }
 
     /// <summary>

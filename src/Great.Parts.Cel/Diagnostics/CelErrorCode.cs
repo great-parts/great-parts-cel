@@ -40,8 +40,10 @@ public enum CelErrorCode
 
     /// <summary>
     /// A literal does not denote a value: an invalid escape sequence, an <c>int</c> or <c>uint</c>
-    /// literal out of the 64-bit range, a <c>decimal</c> literal with more than 34 significant digits or
-    /// with an exponent out of the decimal128 range. Location: the literal.
+    /// literal out of the 64-bit range, a <c>decimal</c> literal that the decimal type of the platform does not represent
+    /// exactly: on .NET 11 more than 34 significant digits or an exponent out of the decimal128 range, on .NET 10 more
+    /// significant digits than the 96-bit coefficient of <see cref="decimal"/> holds or a value not representable with a
+    /// scale from 0 to 28. Location: the literal.
     /// </summary>
     InvalidLiteral = 1001,
 
@@ -87,8 +89,8 @@ public enum CelErrorCode
     /// <summary>
     /// Syntax that the library supports but the environment has not enabled: <c>.?</c>, <c>[?</c> and
     /// <c>{?</c> without the <c>optional</c> extension; a <c>decimal</c> literal such as <c>12.34m</c> or
-    /// <c>100m</c> without the decimal literal option of the environment. The message says what to enable;
-    /// on .NET 10 it says that <c>decimal</c> exists only on .NET 11. Location: the token.
+    /// <c>100m</c> without the decimal literal option of the environment. The message says what to enable. Location: the
+    /// token.
     /// </summary>
     SyntaxNotEnabled = 1007,
 
@@ -270,9 +272,9 @@ public enum CelErrorCode
     /// <c>CelList</c> and <c>CelMap</c>, which no type source describes by its
     /// type or a base class; an instance that a source describes is an object even if it is enumerable, and
     /// an element of a collection of the application is described only where its description is needed — or
-    /// a <c>System.Decimal</c> or <c>Decimal128</c> value
-    /// when the environment has no <c>decimal</c> extension: on .NET 11 without the extension and on
-    /// .NET 10. Reading or passing an object on needs no description, and checking a value against a
+    /// a <c>System.Decimal</c> or, on .NET 11, <c>Decimal128</c> value
+    /// when the environment has no <c>decimal</c> extension. Reading or passing an object on needs no description, and
+    /// checking a value against a
     /// declared type never gives this code: an instance without a description that does not belong to
     /// the declared type is a mismatch of that place, such as <see cref="BindingTypeMismatch"/>. The
     /// message names the .NET type. Location: for an object, the node that needs its description; for a
@@ -354,8 +356,11 @@ public enum CelErrorCode
 
     /// <summary>
     /// The time zone name is not in the time zone database of the environment, including the names
-    /// <c>""</c> and <c>Local</c>; if the environment has no database, the message says so. The error
-    /// occurs at evaluation even for a constant time zone name. Location: the call.
+    /// <c>""</c> and <c>Local</c>; if the environment has no database, the message says so. With the database of the
+    /// operating system it is also a name that is not an IANA name by the rules of that database — a name like a path, a
+    /// Windows identifier — and an IANA name that the platform does not find, as on Windows without ICU. The message and
+    /// <see cref="CelError.Subject"/> give the name. The error occurs at evaluation even for a constant time zone name.
+    /// Location: the call.
     /// </summary>
     TimeZoneNotFound = 3022,
 
@@ -460,8 +465,10 @@ public enum CelErrorCode
     /// <summary>
     /// The type of a variable, field or overload — a .NET type or a CEL type name — is not declared by
     /// any type source or extension added to the environment. For a .NET <see cref="decimal"/> type the
-    /// message names the <c>decimal</c> extension; on .NET 10 it says that <c>decimal</c> exists only on
-    /// .NET 11. The type name <c>any</c> of an environment description needs the protobuf type provider.
+    /// message names the <c>decimal</c> extension. The type name <c>any</c> of an environment description needs the
+    /// protobuf type provider. In the simple entry <c>CelExpression</c> it is also data of a type the entry does not read —
+    /// an object of the application, a <see cref="decimal"/>, a protobuf message, an anonymous type that the source
+    /// generator did not register — with the name of the .NET type in the message and in <see cref="CelError.Subject"/>.
     /// </summary>
     TypeNotDeclared = 4008,
 
@@ -541,6 +548,13 @@ public enum CelErrorCode
     /// <see cref="ExtensionVersionConflict"/>. The message names both sources.
     /// </summary>
     DuplicateExtension = 4018,
+
+    /// <summary>
+    /// A second, different input type is declared for one environment with
+    /// <c>CelEnvironmentBuilder.UseInput&lt;TInput&gt;()</c>: an environment has at most one input type, and it is never
+    /// replaced silently. The same type declared twice is one declaration. The message names both types.
+    /// </summary>
+    InputConflict = 4019,
 
     // Any stage: 9000-9999.
 

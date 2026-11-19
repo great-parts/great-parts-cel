@@ -67,8 +67,7 @@ public sealed class EvaluateTests
         Assert.False(result.IsSuccess);
         CelError error = Assert.Single(result.Errors);
         Assert.Equal((CelErrorCode.DivisionByZero, CelErrorStage.Evaluate, 6), (error.Code, error.Stage, error.Location.Offset));
-        InvalidOperationException exception = Assert.Throws<InvalidOperationException>(() => result.Value);
-        Assert.Equal("The evaluation gave no value: the result has errors.", exception.Message);
+        Assert.Equal(result.Errors, Assert.Throws<CelException>(() => result.Value).Errors);
         Assert.Equal(result.Errors, Assert.Throws<CelException>(() => result.GetValueOrThrow()).Errors);
     }
 

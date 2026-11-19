@@ -1,12 +1,15 @@
-#if NET11_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+#if NET11_0_OR_GREATER
 using System.Numerics;
+#endif
 using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+#if NET11_0_OR_GREATER
 using Great.Parts.Cel.Tests.Examples.Library;
+#endif
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using Xunit;
@@ -23,7 +26,7 @@ namespace Great.Parts.Cel.Tests.Examples.Declarations;
 // names the set. EnableDecimalLiterals() needs the set: without it Build gives MissingExtensionDependency (4005), "the decimal
 // literal option requires extension 'decimal', which is not added to the environment", once however many times the option is
 // called, whichever call comes first; with a set whose version does not exist the errors are two, 4004 and 4005, each once. A
-// typed collection of decimals — IReadOnlyList<Decimal128>, IReadOnlyDictionary<string, decimal> — is outside the closed list of
+// typed collection of decimals — IReadOnlyList<decimal>, IReadOnlyDictionary<string, decimal> and on net11.0 IReadOnlyList<Decimal128> — is outside the closed list of
 // the elements, as a typed collection of time is: TypeNotDeclared for AddVariable<T> and ArgumentException for CelBindings.Add<T>;
 // the elements of such a collection reach an expression as CelList and CelMap of the values (DecimalInputRowTests). A build error
 // has the stage Build and no place in an expression.
@@ -105,10 +108,21 @@ public sealed class DecimalSetBuildTests
     [Fact]
     public void VariableOfTheTypeDecimal_NeedsTheSet_InEitherOrderOfTheCalls()
     {
-        Assert.True(Builder().AddExtension(CelExtensions.Decimal(1)).AddVariable<Decimal128>("a").AddVariable<decimal>("b").AddVariable("c", CelType.Decimal).Build().IsSuccess);
-        Assert.True(Builder().AddVariable<Decimal128>("a").AddVariable<decimal>("b").AddVariable("c", CelType.Decimal).AddExtension(CelExtensions.Decimal(1)).Build().IsSuccess);
-        Assert.True(Builder().AddExtension(CelExtensions.Decimal(1)).AddVariable<Decimal128?>("n").AddVariable<decimal?>("m").Build().IsSuccess);
+        Assert.True(Builder().AddExtension(CelExtensions.Decimal(1)).AddVariable<decimal?>("a").AddVariable<decimal>("b").AddVariable("c", CelType.Decimal).Build().IsSuccess);
+        Assert.True(Builder().AddVariable<decimal?>("a").AddVariable<decimal>("b").AddVariable("c", CelType.Decimal).AddExtension(CelExtensions.Decimal(1)).Build().IsSuccess);
+        Assert.True(Builder().AddExtension(CelExtensions.Decimal(1)).AddVariable<decimal?>("n").AddVariable<decimal?>("m").Build().IsSuccess);
     }
+
+#if NET11_0_OR_GREATER
+    // The .NET type Decimal128 is the same CEL type, on net11.0 only.
+    [Fact]
+    public void VariableOfTheTypeDecimal128_NeedsTheSet_InEitherOrderOfTheCalls()
+    {
+        Assert.True(Builder().AddExtension(CelExtensions.Decimal(1)).AddVariable<Decimal128>("a").AddVariable<Decimal128?>("n").Build().IsSuccess);
+        Assert.True(Builder().AddVariable<Decimal128>("a").AddVariable<Decimal128?>("n").AddExtension(CelExtensions.Decimal(1)).Build().IsSuccess);
+        Assert.False(Builder().AddVariable<Decimal128>("a").Build().IsSuccess);
+    }
+#endif
 
     [Theory]
     [InlineData("a", "decimal")]
@@ -120,7 +134,7 @@ public sealed class DecimalSetBuildTests
     public static void VariableOfTheTypeDecimalWithoutTheSet_IsTypeNotDeclaredWithTheHint(string name, string type)
     {
         CelEnvironmentBuilder builder = Builder()
-            .AddVariable<Decimal128>("a")
+            .AddVariable<decimal?>("a")
             .AddVariable<decimal>("b")
             .AddVariable("c", CelType.Decimal)
             .AddVariable("d", CelType.ListOf(CelType.Decimal))
@@ -181,9 +195,11 @@ public sealed class DecimalSetBuildTests
     [Fact]
     public void TypedCollectionOfDecimals_IsTypeNotDeclaredAndArgumentException()
     {
+#if NET11_0_OR_GREATER
         AssertOutsideTheRows<IReadOnlyList<Decimal128>>(
             [DecimalExample.Make(15, -1)],
             "System.Collections.Generic.IReadOnlyList`1[System.Numerics.Decimal128]");
+#endif
         AssertOutsideTheRows<IReadOnlyList<decimal>>(
             [1.5m],
             "System.Collections.Generic.IReadOnlyList`1[System.Decimal]");
@@ -229,4 +245,3 @@ public sealed class DecimalSetBuildTests
         Assert.Null(error.SourceLocation);
     }
 }
-#endif

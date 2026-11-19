@@ -14,8 +14,10 @@ internal static partial class ConversionRules
     // The marker in the second part of an error that a conversion made without a name: the node that reads the value names it.
     private static readonly object UnnamedRefusal = new();
 
-    private static readonly Func<CelError, string> TicksOutOfRangeText =
-        static error => error.Number.ToString(CultureInfo.InvariantCulture) + " ticks is out of the range of duration";
+    private static readonly ErrorTemplate TicksOutOfRangeText = new(
+        static error => error.Number.ToString(CultureInfo.InvariantCulture) + " ticks is out of the range of duration",
+        expectedType: static _ => CelType.Duration,
+        actualType: static _ => CelType.Int);
 
     /// <summary>
     /// The timestamp of a <see cref="DateTime"/>: its moment when its kind is <see cref="DateTimeKind.Utc"/>; any other kind

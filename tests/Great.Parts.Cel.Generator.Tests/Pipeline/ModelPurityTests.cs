@@ -14,8 +14,9 @@ public sealed class ModelPurityTests
 {
     private static readonly Assembly GeneratorAssembly = typeof(CelTypeContextGenerator).Assembly;
 
-    // The values that the steps pass on: the model of a context, the facts of the compilation, the diagnostics with their places.
-    private static readonly string[] Roots = ["ContextModel", "CelTypeModel", "CompilationFacts", "DiagnosticModel", "LocationInfo", "Shape"];
+    // The values that the steps pass on: the model of a context, the facts of the compilation, the diagnostics with their places, and
+    // the values of a call of the simple entry.
+    private static readonly string[] Roots = ["ContextModel", "CelTypeModel", "CompilationFacts", "DiagnosticModel", "LocationInfo", "Shape", "CallSite", "AnonymousShape", "PropertyModel", "ShapeAtPlace"];
 
     [Fact]
     [Trait("Requirement", "P-3")]

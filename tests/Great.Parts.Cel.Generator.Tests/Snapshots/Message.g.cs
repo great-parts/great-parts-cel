@@ -18,7 +18,7 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Shipment : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Shipment : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Shipment>
         {
             internal static readonly Type_Acme_Shipment Description = new();
 
@@ -29,7 +29,6 @@ namespace Acme
             private Type_Acme_Shipment()
                 : base(
                     "Acme.Shipment",
-                    typeof(global::Acme.Shipment),
                     [
                         new(0, "byLabel", global::Great.Parts.Cel.Types.CelType.MapOf(global::Great.Parts.Cel.Types.CelType.String, global::Great.Parts.Cel.Types.CelType.ObjectNamed(global::Acme.Pb.Msg.Descriptor.FullName))),
                         new(1, "message", global::Great.Parts.Cel.Types.CelType.ObjectNamed(global::Acme.Pb.Msg.Descriptor.FullName)),
@@ -41,29 +40,28 @@ namespace Acme
                 _convert2 = e0 => e0 is null ? FieldError(2, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(e0);
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Shipment instance, int number)
             {
-                var value = (global::Acme.Shipment)instance;
                 switch (number)
                 {
                     case 0:
                     {
-                        var v = value.ByLabel;
+                        var v = instance.ByLabel;
                         return v is null ? FieldError(0, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromMap(global::Great.Parts.Cel.Values.CelMap.CreateView<string, global::Acme.Pb.Msg>(v, _convert0, false));
                     }
                     case 1:
                     {
-                        var v = value.Message;
+                        var v = instance.Message;
                         return v is null ? FieldError(1, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : FromInstance(v);
                     }
                     case 2:
                     {
-                        var v = value.Messages;
+                        var v = instance.Messages;
                         return v is null ? FieldError(2, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<global::Acme.Pb.Msg>(v, _convert2));
                     }
                     case 3:
                     {
-                        var v = value.NoMessage;
+                        var v = instance.NoMessage;
                         return v is null ? global::Great.Parts.Cel.Values.CelValue.Null : FromInstance(v);
                     }
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));

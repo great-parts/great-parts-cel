@@ -1,8 +1,9 @@
-#if NET11_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+#if NET11_0_OR_GREATER
 using System.Numerics;
+#endif
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -12,7 +13,7 @@ namespace Great.Parts.Cel.Properties.Decimals;
 
 // What the properties of decimal share. The environment is the standard library with the extension set decimal and the literal
 // option, and variables of the types the properties bind: a and b are decimal, i an int, u a uint, d a double, s a string and m a
-// decimal that the property binds as System.Decimal. A property compares the text of what the library gave with the text of what
+// decimal that the property binds as System.Decimal (on net10.0 it is the platform type too). A property compares the text of what the library gave with the text of what
 // the reference gives, so a failure shows both: the sign, the coefficient and the exponent of a value, or the error code.
 internal static class DecimalHarness
 {
@@ -31,10 +32,14 @@ internal static class DecimalHarness
 
     internal static CelProgram<T> Program<T>(string expression) => Env.Compile<T>(expression).GetProgramOrThrow();
 
-    // A decimal value of the library with the sign, the coefficient and the exponent of the reference value, made by the bits of
-    // its binary integer encoding.
+    // A decimal value of the library with the sign, the coefficient and the exponent of the reference value: on net11.0 made by the
+    // bits of its binary integer encoding, on net10.0 by the parts of a System.Decimal.
     internal static CelValue Value(RefDecimal value) =>
-        CelValue.FromDecimal(Decimal128.DecodeBinary(ReferenceDecimal.ToBits(value)));
+#if NET11_0_OR_GREATER
+        CelValue.FromDecimal128(Decimal128.DecodeBinary(ReferenceDecimal.ToBits(value)));
+#else
+        CelValue.FromDecimal(ReferenceDecimal.ToDecimal(value));
+#endif
 
     internal static CelBindings Bind(string name, RefDecimal value) => new CelBindings().Add(name, Value(value));
 
@@ -48,8 +53,12 @@ internal static class DecimalHarness
             : string.Create(CultureInfo.InvariantCulture, $"error {result.Errors[0].Code}");
 
     // The parts of a value of the library, read from its bits by the reference.
-    internal static string Parts(Decimal128 value) =>
+    internal static string Parts(PlatformDecimal value) =>
+#if NET11_0_OR_GREATER
         ReferenceDecimal.FromBits(Decimal128.EncodeBinary(value)) is { } parts ? parts.ToString() : "a value that is not finite";
+#else
+        ReferenceDecimalNumbers.FromSystemDecimal(value).ToString();
+#endif
 
     internal static string Truth(bool value) => value ? "true" : "false";
 
@@ -82,4 +91,3 @@ internal static class DecimalHarness
         }
     }
 }
-#endif

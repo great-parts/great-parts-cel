@@ -73,6 +73,31 @@ M:System.Numerics.Decimal128.TryFormat(System.Span{System.Byte},System.Int32@,Sy
 M:System.Numerics.Decimal128.TryFormat(System.Span{System.Char},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal formatter
 M:System.Numerics.Decimal128.op_Explicit(System.Double)~System.Numerics.Decimal128;Use the library's conversion through the shortest double digits
 
+// System.Decimal parsing and formatting by .NET: the same, the rules of the set decimal are the library's own on both targets
+M:System.Decimal.Parse(System.String);Use the library's own decimal parser
+M:System.Decimal.Parse(System.String,System.Globalization.NumberStyles);Use the library's own decimal parser
+M:System.Decimal.Parse(System.String,System.IFormatProvider);Use the library's own decimal parser
+M:System.Decimal.Parse(System.String,System.Globalization.NumberStyles,System.IFormatProvider);Use the library's own decimal parser
+M:System.Decimal.Parse(System.ReadOnlySpan{System.Char},System.Globalization.NumberStyles,System.IFormatProvider);Use the library's own decimal parser
+M:System.Decimal.Parse(System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal parser
+M:System.Decimal.Parse(System.ReadOnlySpan{System.Byte},System.Globalization.NumberStyles,System.IFormatProvider);Use the library's own decimal parser
+M:System.Decimal.Parse(System.ReadOnlySpan{System.Byte},System.IFormatProvider);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.String,System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.String,System.IFormatProvider,System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.String,System.Globalization.NumberStyles,System.IFormatProvider,System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.ReadOnlySpan{System.Char},System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.ReadOnlySpan{System.Char},System.Globalization.NumberStyles,System.IFormatProvider,System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.ReadOnlySpan{System.Byte},System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.ReadOnlySpan{System.Byte},System.IFormatProvider,System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.TryParse(System.ReadOnlySpan{System.Byte},System.Globalization.NumberStyles,System.IFormatProvider,System.Decimal@);Use the library's own decimal parser
+M:System.Decimal.ToString;Use the library's own decimal formatter
+M:System.Decimal.ToString(System.IFormatProvider);Use the library's own decimal formatter
+M:System.Decimal.ToString(System.String,System.IFormatProvider);Use the library's own decimal formatter
+M:System.Decimal.ToString(System.String);Use the library's own decimal formatter
+M:System.Decimal.TryFormat(System.Span{System.Byte},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal formatter
+M:System.Decimal.TryFormat(System.Span{System.Char},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal formatter
+
 // Reflection: the public API works under Native AOT without reflection
 M:System.Type.GetProperties;Use generated type descriptions instead of reflection
 M:System.Type.GetProperties(System.Reflection.BindingFlags);Use generated type descriptions instead of reflection

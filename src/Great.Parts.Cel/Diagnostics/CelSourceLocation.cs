@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace Great.Parts.Cel.Diagnostics;
 
@@ -125,4 +126,24 @@ public readonly struct CelSourceLocation : IEquatable<CelSourceLocation>
     /// <param name="right">The second position.</param>
     /// <returns><see langword="true"/> when the positions differ.</returns>
     public static bool operator !=(CelSourceLocation left, CelSourceLocation right) => !left.Equals(right);
+
+    /// <summary>
+    /// Returns the position as text: the line and the column, <c>1:7</c>, preceded by the source name when there is one,
+    /// <c>rules.json:12:30</c>; <c>default(CelSourceLocation)</c> gives the empty string.
+    /// </summary>
+    /// <remarks>
+    /// The text is for people and logs, does not depend on the culture of the process and is not part of the compatibility
+    /// contract.
+    /// </remarks>
+    /// <returns>The text.</returns>
+    public override string ToString()
+    {
+        if (_line == 0)
+        {
+            return string.Empty;
+        }
+
+        string position = string.Create(CultureInfo.InvariantCulture, $"{_line}:{_column}");
+        return _sourceName is null ? position : string.Concat(_sourceName, ":", position);
+    }
 }

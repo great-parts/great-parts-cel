@@ -1,7 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel;
@@ -24,12 +27,22 @@ namespace Great.Parts.Cel;
 /// </para>
 /// <para>
 /// Bindings are mutable data of a call, not part of an environment. Any number of evaluations can read
-/// the same bindings at once, as long as nobody adds to them meanwhile.
+/// the same bindings at once, as long as nobody adds, sets or clears values meanwhile. The collection initializer
+/// <c>new CelBindings { { "order", order } }</c> calls <see cref="Add{T}(string, T)"/>, which converts by the static type;
+/// the indexer converts by the run-time type, and <see cref="Clear"/> empties the bindings for the next item of a batch.
 /// </para>
 /// </remarks>
-public sealed class CelBindings
+[SuppressMessage(
+    "Naming",
+    "CA1710:Identifiers should have correct suffix",
+    Justification = "The name is the cel-spec term 'bindings' (docs/api-concepts.md); the type is enumerable for the collection initializer.")]
+public sealed class CelBindings : IEnumerable<KeyValuePair<string, CelValue>>
 {
     private readonly Dictionary<string, CelValue> _values = new(StringComparer.Ordinal);
+
+    // Counts the changes (Add, the setter of the indexer, Clear), so that an enumerator tells a change during its run: the dictionary
+    // does not, for a replaced value or a removal.
+    private int _version;
 
     /// <summary>
     /// Creates empty bindings.
@@ -42,6 +55,16 @@ public sealed class CelBindings
     /// The bound values by name, as evaluation reads them.
     /// </summary>
     internal IReadOnlyDictionary<string, CelValue> Values => _values;
+
+    // Binds a name to a value that is already converted, as the simple entry does for the values it has typed: no second check.
+    internal void Set(string name, CelValue value)
+    {
+        _values[name] = value;
+        _version++;
+    }
+
+    // The bindings of a call that passes none: no value is ever added to them, so one instance serves every such call.
+    internal static readonly CelBindings Empty = new();
 
     /// <summary>
     /// Binds a name to a value, converted by the static type <typeparamref name="T"/> through the input rows of
@@ -92,13 +115,11 @@ public sealed class CelBindings
                 nameof(value));
         }
 
-#if NET11_0_OR_GREATER
         if (ConversionRules.IsNotFiniteDecimal<T>(converted))
         {
             throw new ArgumentException("A decimal must be finite: a NaN and an infinity are not values of CEL.", nameof(value));
         }
 
-#endif
         if (ConversionRules.IsRefusedByBindings(converted))
         {
             throw new ArgumentException(ConversionRules.BindingsRefusalMessage(converted), nameof(value));
@@ -109,6 +130,108 @@ public sealed class CelBindings
             throw new ArgumentException($"The name '{name}' is already bound.", nameof(name));
         }
 
+        _version++;
         return this;
     }
+
+    /// <summary>
+    /// Gets or sets the value bound to a name. Setting binds the name or replaces its value, converted by the run-time type
+    /// of the value.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The setter converts by the run-time type, unlike <see cref="Add{T}(string, T)"/>, which converts by the static type:
+    /// a value of a .NET type of the input rows of
+    /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>
+    /// becomes a value of its CEL type, lists and dictionaries with <see cref="string"/> keys are recognized by the same
+    /// finite list of checks as in the simple entry <see cref="CelExpression"/>, a <see cref="CelValue"/> is taken as it is,
+    /// and any other instance is an object of the application that evaluation describes by the type sources of the
+    /// environment. Setting such a value always succeeds: a value that no type source describes, such as a .NET collection
+    /// outside those lists and dictionaries, is an evaluation error <see cref="Diagnostics.CelErrorCode.TypeNotAccessible"/>
+    /// when the expression reads it. <see langword="null"/> binds <c>null</c>. A value type is boxed: for evaluation without
+    /// allocation use <see cref="Add{T}(string, T)"/> on new bindings or an input type of the environment.
+    /// </para>
+    /// <para>
+    /// The getter returns the bound value as an evaluation result of the type <see cref="object"/> would return it, by the
+    /// result rows of the type mapping.
+    /// </para>
+    /// </remarks>
+    /// <param name="name">The name of the variable.</param>
+    /// <returns>The bound value.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// On get, <paramref name="name"/> is not bound. On set, <paramref name="name"/> is empty, or the value is one that
+    /// <see cref="Add{T}(string, T)"/> rejects: a <see cref="DateTime"/> whose <see cref="DateTime.Kind"/> is not
+    /// <see cref="DateTimeKind.Utc"/>, a <c>Decimal128</c> NaN or infinity, or a default <c>JsonElement</c>.
+    /// </exception>
+    public object? this[string name]
+    {
+        get
+        {
+            ArgumentNullException.ThrowIfNull(name);
+            if (!_values.TryGetValue(name, out CelValue bound))
+            {
+                throw new ArgumentException($"The name '{name}' is not bound.", nameof(name));
+            }
+
+            // The result rows with T = object read any value; a value that no row converts has no object to give.
+            return ConversionRules.TryToResult(bound, CelType.Dyn, out object? result, out _, out _) ? result : null;
+        }
+
+        set
+        {
+            ArgumentException.ThrowIfNullOrEmpty(name);
+            CelValue converted = ConversionRules.FromRuntimeValue(value);
+#if NET11_0_OR_GREATER
+            if (value is System.Numerics.Decimal128 && converted.Kind == CelValueKind.Error)
+            {
+                throw new ArgumentException("A decimal must be finite: a NaN and an infinity are not values of CEL.", nameof(value));
+            }
+
+#endif
+            if (ConversionRules.IsRefusedByBindings(converted))
+            {
+                throw new ArgumentException(ConversionRules.BindingsRefusalMessage(converted), nameof(value));
+            }
+
+            _values[name] = converted;
+            _version++;
+        }
+    }
+
+    /// <summary>
+    /// Removes all values, so that the same bindings serve the next item of a batch evaluation.
+    /// </summary>
+    /// <remarks>
+    /// Do not clear bindings while an evaluation reads them: bindings are mutable data of a call.
+    /// </remarks>
+    public void Clear()
+    {
+        _values.Clear();
+        _version++;
+    }
+
+    /// <summary>
+    /// Returns an enumerator over the bound names and their values, as evaluation reads them; the order is not specified.
+    /// </summary>
+    /// <remarks>
+    /// The enumerator follows the contract of <see cref="IEnumerator{T}"/>: changing the bindings during the enumeration
+    /// makes the next move throw <see cref="InvalidOperationException"/>.
+    /// </remarks>
+    /// <returns>The enumerator.</returns>
+    public IEnumerator<KeyValuePair<string, CelValue>> GetEnumerator()
+    {
+        int version = _version;
+        foreach (KeyValuePair<string, CelValue> pair in _values)
+        {
+            yield return pair;
+            if (version != _version)
+            {
+                throw new InvalidOperationException("The bindings were changed during the enumeration.");
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

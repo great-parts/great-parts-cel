@@ -66,8 +66,18 @@ internal sealed class Plan
         Run(CreateFrame(bindings, costLimit, cancellationToken));
 
     // Allocates the frame of one evaluation with its slots, argument stack and meter.
-    internal Frame CreateFrame(IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken) =>
-        new(this, bindings, costLimit, cancellationToken);
+    internal Frame CreateFrame(IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken, object? input = null) =>
+        new(this, bindings, costLimit, cancellationToken, input);
+
+    // Allocates the frame of one evaluation on an input that is a structure: the frame holds the structure, so the call does not box it.
+    // typed is the description of the input when it is the class CelObjectType<TInput>, which reads a field from the structure by reference.
+    internal Frame CreateInputFrame<TInput>(
+        IReadOnlyDictionary<string, CelValue> bindings,
+        ulong? costLimit,
+        TInput input,
+        CelObjectType<TInput>? typed,
+        CancellationToken cancellationToken) =>
+        new InputFrame<TInput>(this, bindings, costLimit, input, typed, cancellationToken);
 
     // Evaluates the root in the frame inside the one handler of the evaluation: an exceeded cost limit is
     // CostLimitExceeded at the recorded node, and any other exception but OutOfMemoryException and the

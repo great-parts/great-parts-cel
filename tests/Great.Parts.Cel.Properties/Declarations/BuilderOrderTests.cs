@@ -100,11 +100,9 @@ public sealed class BuilderOrderTests
         "shipment.parcel.weight == 3 && shipment.parcels[0].label == 'x'",
         "type(shipment.parcel) == great_parts.samples.Parcel",
         "shipment.byLabel.map(k, k) == ['y', 'x'] && shipment.counts.map(k, k) == ['a', 'z']",
-#if NET11_0_OR_GREATER
         "12.34m",
         "decimal('1')",
         "1 + 1m",
-#endif
     ];
 
     // The provider of protobuf for the message of the samples.
@@ -113,12 +111,8 @@ public sealed class BuilderOrderTests
         .Build();
 
     // The kinds of the draw of one call: the ones of the library (0 to 18) and of the type contexts of the generator (19 to 21) on every
-    // target, and on .NET 11 the two of the set decimal and its literal option (22 and 23).
-#if NET11_0_OR_GREATER
+    // target, and the two of the set decimal and its literal option (22 and 23), also on every target.
     private const uint DrawKinds = 24;
-#else
-    private const uint DrawKinds = 22;
-#endif
 
     // The providers of the pool: every test file with the nine extensions, the proto3 file alone, the same file from a second builder,
     // and the well-known types alone.
@@ -515,13 +509,12 @@ public sealed class BuilderOrderTests
         private void AddCalls(PCG random)
         {
             uint kind = random.Next(DrawKinds);
-#if NET11_0_OR_GREATER
             if (kind >= 22)
             {
                 AddDecimalCalls(random, kind);
                 return;
             }
-#endif
+
             if (kind >= 19)
             {
                 AddGeneratedCalls(random);
@@ -619,7 +612,6 @@ public sealed class BuilderOrderTests
             }
         }
 
-#if NET11_0_OR_GREATER
         // The calls of the pool that concern the set decimal and its literal option: the set at version 1 and, now and then, at version
         // 2, which it does not have (4004 at Build), and the option, which needs the set (4005 without it), whatever the order.
         private void AddDecimalCalls(PCG random, uint kind)
@@ -638,7 +630,6 @@ public sealed class BuilderOrderTests
             }
         }
 
-#endif
         // The calls of the pool that concern protobuf: a provider, sometimes added again, the set protos, a variable of a message type and
         // the container of the proto3 package.
         private void AddProtobufCalls(PCG random, uint kind)

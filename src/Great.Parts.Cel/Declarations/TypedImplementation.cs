@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Declarations;
@@ -73,9 +74,11 @@ internal static class TypedImplementation
         error = argument.Kind == CelValueKind.Object
             ? site.Error(
                 CelErrorCode.ArgumentConversion,
+                ObjectArgumentText,
                 string.Create(
                     CultureInfo.InvariantCulture,
-                    $"argument '{index + 1}' of overload '{overloadId}' of function '{site.Function}' cannot be converted from '{ObjectRules.TypeName(argument, site.Types)}' to .NET type '{typeof(T)}'"))
+                    $"argument '{index + 1}' of overload '{overloadId}' of function '{site.Function}' cannot be converted from '{ObjectRules.TypeName(argument, site.Types)}' to .NET type '{typeof(T)}'"),
+                new ArgumentRefusal(overloadId, ValueTypeRules.TypeOfValue(argument, site.Types)))
             : site.Error(CelErrorCode.ArgumentConversion, ArgumentConversionText<T>.Format, overloadId, site.Function, index + 1, (byte)argument.Kind);
         return false;
     }
@@ -90,8 +93,20 @@ internal static class TypedImplementation
     // second, the number of the argument the number and the kind of its value the byte.
     private static class ArgumentConversionText<T>
     {
-        internal static Func<CelError, string> Format { get; } = static error => string.Create(
-            CultureInfo.InvariantCulture,
-            $"argument '{error.Number}' of overload '{(string)error.First!}' of function '{(string)error.Second!}' cannot be converted from '{ValueTypeNames.Of(ErrorValueParts.KindOf(error))}' to .NET type '{typeof(T)}'");
+        internal static ErrorTemplate Format { get; } = new(
+            static error => string.Create(
+                CultureInfo.InvariantCulture,
+                $"argument '{error.Number}' of overload '{(string)error.First!}' of function '{(string)error.Second!}' cannot be converted from '{ValueTypeNames.Of(ErrorValueParts.KindOf(error))}' to .NET type '{typeof(T)}'"),
+            subject: static error => (string)error.First!,
+            actualType: static error => ValueTypeRules.TypeOfKind(ErrorValueParts.KindOf(error), null));
     }
+
+    // The overload and the type of the value that an argument is refused with, for the error whose message is its first part: the type
+    // of an object argument is its description or its .NET type, which the kind alone does not name.
+    private sealed record ArgumentRefusal(string OverloadId, CelType ActualType);
+
+    private static readonly ErrorTemplate ObjectArgumentText = new(
+        static error => (string)error.First!,
+        subject: static error => ((ArgumentRefusal)error.Second!).OverloadId,
+        actualType: static error => ((ArgumentRefusal)error.Second!).ActualType);
 }

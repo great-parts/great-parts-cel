@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.CSharp;
 namespace Great.Parts.Cel.Generator;
 
 // The members of one object type: which are hidden, which are fields, with what names and types, and which are left out with a
-// reason. The diagnostics about members (GPCEL002, GPCEL003, GPCEL005 of a member and GPCEL007) are reported here.
+// reason. The diagnostics about members (GPCEL002, GPCEL003 and GPCEL005 of a member) are reported here.
 internal sealed class MemberReader
 {
     private readonly TypeClassifier classifier;
@@ -99,9 +99,6 @@ internal sealed class MemberReader
                 return new Item(member.Name, fieldName, access, place, result.Shape, null);
             case ClassificationKind.Refused:
                 return LeftOut(entry, member, fieldName, access, place, result.Text);
-            case ClassificationKind.DecimalUnavailable:
-                sink.Report(DiagnosticIds.DecimalMember, place, member.Name, entry.Display);
-                return new Item(member.Name, fieldName, access, place, null, Reasons.DecimalUnavailable);
             case ClassificationKind.InvalidName:
                 sink.Report(DiagnosticIds.InvalidName, place, result.Text, "qualified type name");
                 return new Item(member.Name, fieldName, access, place, null, Reasons.InvalidTypeName(result.Text));

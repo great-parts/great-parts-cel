@@ -18,14 +18,13 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Money : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Money : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Money>
         {
             internal static readonly Type_Acme_Money Description = new();
 
             private Type_Acme_Money()
                 : base(
                     "Acme.Money",
-                    typeof(global::Acme.Money),
                     [
                         new(0, "amount", global::Great.Parts.Cel.Types.CelType.Decimal),
                         new(1, "exact", global::Great.Parts.Cel.Types.CelType.Decimal),
@@ -34,16 +33,15 @@ namespace Acme
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Money instance, int number)
             {
-                var value = (global::Acme.Money)instance;
                 switch (number)
                 {
-                    case 0: return FromDecimal(value.Amount);
-                    case 1: return FromDecimal(1, value.Exact);
+                    case 0: return FromDecimal(instance.Amount);
+                    case 1: return FromDecimal128(1, instance.Exact);
                     case 2:
                     {
-                        var v = value.Rebate;
+                        var v = instance.Rebate;
                         return v.HasValue ? FromDecimal(v.Value) : FieldError(2, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null);
                     }
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));

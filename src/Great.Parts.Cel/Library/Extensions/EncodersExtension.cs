@@ -20,8 +20,9 @@ internal static class EncodersExtension
 
     // invalid argument to 'base64.decode': illegal base64 data at input byte i. The function name is the first part, the offset the
     // number of the error.
-    private static readonly Func<CelError, string> IllegalDataText = static error =>
-        "invalid argument to '" + (string)error.First! + "': illegal base64 data at input byte " + error.Number.ToString(CultureInfo.InvariantCulture);
+    private static readonly ErrorTemplate IllegalDataText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': illegal base64 data at input byte " + error.Number.ToString(CultureInfo.InvariantCulture),
+        subject: static error => (string)error.First!);
 
     // The definition of the version, or null for a version the set does not have.
     internal static CatalogExtension? Create(uint version) =>

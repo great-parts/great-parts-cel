@@ -1,9 +1,7 @@
-#if NET11_0_OR_GREATER
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Numerics;
 using System.Threading;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
@@ -52,7 +50,7 @@ public sealed class DecimalBuilderOrderTests
     ];
 
     private static readonly CelBindings Bindings = new CelBindings()
-        .Add("price", CelValue.FromDecimal(Make(25, -1)))
+        .Add("price", CelValue.FromDecimal(2.5m))
         .Add("count", 2L);
 
     [Fact]
@@ -179,11 +177,6 @@ public sealed class DecimalBuilderOrderTests
         return [.. lines];
     }
 
-    // A decimal of the given coefficient and exponent by the bits of its binary integer encoding (the sign in bit 127, the exponent plus 6176
-    // in bits 113 to 126, the coefficient in bits 0 to 112).
-    private static Decimal128 Make(ulong coefficient, int exponent) =>
-        Decimal128.DecodeBinary(((UInt128)(uint)(exponent + 6176) << 113) | coefficient);
-
     private static string Shown(CelValue value) =>
         value.TryGetBoolean(out bool flag) ? (flag ? "True" : "False") : value.Kind.ToString();
 
@@ -208,4 +201,3 @@ public sealed class DecimalBuilderOrderTests
         }
     }
 }
-#endif

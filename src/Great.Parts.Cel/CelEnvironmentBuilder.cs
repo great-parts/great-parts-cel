@@ -67,15 +67,21 @@ public sealed class CelEnvironmentBuilder
     private CelTimeZoneDatabase? _timeZones;
     private bool _timeZoneConflict;
 
-    // Whether EnableDecimalLiterals was called; only a builder of .NET 11 has the method, so on .NET 10 it stays false.
+    // Whether EnableDecimalLiterals was called.
     private bool _decimalLiterals;
+
+    // The input types of UseInput, each once; Build reports more than one as InputConflict.
+    private readonly List<Type> _inputTypes = [];
+
+    // The cost limit that SetDefaultCostLimit set; the last call stays.
+    private ulong? _defaultCostLimit;
 
     /// <summary>
     /// Creates a builder for an environment with the given version of the standard library.
     /// </summary>
     /// <remarks>
-    /// The version is required: the declarations of a version never change, so an environment keeps its
-    /// meaning when the library is updated.
+    /// The declarations of a version never change, so an environment keeps its meaning when the library is updated.
+    /// <see cref="CelEnvironmentBuilder()"/> selects the version 1.
     /// </remarks>
     /// <param name="standardLibrary">The version of the standard library, such as <see cref="CelStandardLibrary.V1"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="standardLibrary"/> is <see langword="null"/>.</exception>
@@ -134,8 +140,8 @@ public sealed class CelEnvironmentBuilder
     /// <remarks>
     /// A .NET type that maps to no CEL type and that no type source of the environment describes is a
     /// build error <see cref="CelErrorCode.TypeNotDeclared"/> that names the variable. So is
-    /// <see cref="decimal"/> on .NET 10, and on .NET 11 when the <c>decimal</c> extension set is not added;
-    /// the message names the extension set. A name that is not an identifier or a qualified name is a build
+    /// <see cref="decimal"/> when the <c>decimal</c> extension set is not added; the message names the extension set. A
+    /// name that is not an identifier or a qualified name is a build
     /// error <see cref="CelErrorCode.InvalidVariableName"/>. The other build errors of a variable are listed
     /// on <see cref="CelVariableDecl"/>.
     /// </remarks>
@@ -758,19 +764,19 @@ public sealed class CelEnvironmentBuilder
         return this;
     }
 
-#if NET11_0_OR_GREATER
     /// <summary>
     /// Enables <c>decimal</c> literals in expressions: a number in decimal notation with the suffix
     /// <c>m</c> or <c>M</c>, with a fraction or without one, such as <c>12.34m</c>, <c>100m</c>, <c>.5m</c>,
-    /// <c>1e3m</c> or <c>2.5E+3M</c>. Only on .NET 11.
+    /// <c>1e3m</c> or <c>2.5E+3M</c>.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A literal keeps its exact digits and exponent: <c>string(1.50m)</c> is <c>"1.50"</c>, and
-    /// <c>string(100m)</c> is <c>"100"</c>. A literal with more than 34 significant digits or an exponent out
-    /// of the decimal128 range is the parse error <see cref="CelErrorCode.InvalidLiteral"/>. There is no
-    /// hexadecimal form: <c>0x10m</c> is a syntax error. A minus sign is the unary operator, as for other
-    /// numbers.
+    /// A literal keeps its exact digits and exponent as far as the platform holds them: <c>string(1.50m)</c> is
+    /// <c>"1.50"</c> on both target frameworks; <c>string(1e2m)</c> is <c>"1E+2"</c> on .NET 11 and <c>"100"</c> on
+    /// .NET 10, where a <see cref="decimal"/> has no positive exponent, and the two values are equal. A literal with more
+    /// significant digits than the platform holds — 34 on .NET 11, 28–29 on .NET 10 — or out of its range is the parse
+    /// error <see cref="CelErrorCode.InvalidLiteral"/>. There is no hexadecimal form: <c>0x10m</c> is a syntax error. A
+    /// minus sign is the unary operator, as for other numbers.
     /// </para>
     /// <para>
     /// The literals need the <c>decimal</c> extension set, <c>CelExtensions.Decimal(version: 1)</c>: the
@@ -785,7 +791,6 @@ public sealed class CelEnvironmentBuilder
         _decimalLiterals = true;
         return this;
     }
-#endif
 
     /// <summary>
     /// Builds an immutable environment from the declarations collected so far and checks them all at once.
@@ -798,7 +803,19 @@ public sealed class CelEnvironmentBuilder
     /// <returns>The environment or the build errors.</returns>
     public CelBuildResult Build()
     {
-        var declarations = new DeclarationSet([.. _variables], [.. _functions], [.. _implementations], [.. _containers], [.. _unmapped], [.. _typeSources], [.. _extensions], _timeZones, _timeZoneConflict, _decimalLiterals);
+        var declarations = new DeclarationSet(
+            [.. _variables],
+            [.. _functions],
+            [.. _implementations],
+            [.. _containers],
+            [.. _unmapped],
+            [.. _typeSources],
+            [.. _extensions],
+            _timeZones,
+            _timeZoneConflict,
+            _decimalLiterals,
+            [.. _inputTypes],
+            _defaultCostLimit);
         LibraryDeclarations library = _standardLibrary.Declarations;
         ImmutableArray<CelError> errors = DeclarationChecks.Check(
             declarations,
@@ -808,6 +825,7 @@ public sealed class CelEnvironmentBuilder
             out string container,
             out TypeIndex types,
             out ImmutableArray<ExtensionDefinition> extensions,
+            out CelObjectType? inputType,
             ExtensionCatalog.SetOfAbstractType);
         if (!errors.IsEmpty)
         {
@@ -816,7 +834,7 @@ public sealed class CelEnvironmentBuilder
 
         var patternCache = new PatternCache();
         DeclarationIndex index = DeclarationIndex.Create(
-            [.. library.Overloads, .. overloads], variables, TypeIdentifiers(library, extensions), container, types, patternCache);
+            [.. library.Overloads, .. overloads], variables, TypeIdentifiers(library, extensions), container, types, patternCache, inputType);
         return new(new CelEnvironment(_standardLibrary, declarations, index, SyntaxOf(extensions, declarations), patternCache));
     }
 
@@ -857,6 +875,8 @@ public sealed class CelEnvironmentBuilder
         _extensions.AddRange(declarations.Extensions);
         _timeZones = declarations.TimeZones;
         _decimalLiterals = declarations.DecimalLiterals;
+        _inputTypes.AddRange(declarations.InputTypes);
+        _defaultCostLimit = declarations.DefaultCostLimit;
     }
 
     // The declarations of variables collected so far, in the order of the calls, each once.
@@ -967,17 +987,32 @@ public sealed class CelEnvironmentBuilder
     // The same for a result: a list of a class of the application has its CEL type only at Build, from the type index.
     private static ClrMapping ClrResult<T>() => new(ConversionRules.ResultInputType<T>(), typeof(T), ConversionRules.ParameterType<T>());
 
-    // The global overload of a delegate: its identifier from the name and the CEL types of the parameters,
-    // and the delegate as its implementation. A type of the application among the .NET types has its CEL type only at
+    // The checks that the forms with options share: the name, the delegate and the options are given, and an identifier that is given
+    // is not empty.
+    private static void CheckOptions(string name, Delegate implementation, CelFunctionOptions options)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        ArgumentNullException.ThrowIfNull(options);
+        if (options.OverloadId is { Length: 0 })
+        {
+            throw new ArgumentException("The overload identifier is empty.", nameof(options));
+        }
+    }
+
+    // The global overload of a delegate, or the overload called on a receiver, the first parameter: its identifier from the name and
+    // the CEL types of the parameters, and the delegate as its implementation. A type of the application among the .NET types has its CEL type only at
     // Build, from the type index: the declaration waits unmapped until then.
     private CelEnvironmentBuilder AddDelegate(
         string name,
         Delegate original,
         ReadOnlySpan<ClrMapping> parameters,
         ClrMapping result,
-        Func<string, OverloadImplementation> implementation)
+        Func<string, OverloadImplementation> implementation,
+        bool isReceiverStyle = false,
+        CelFunctionOptions? options = null)
     {
-        var declaration = new DelegateDeclaration(name, original, [.. parameters], result, implementation);
+        var declaration = new DelegateDeclaration(name, original, [.. parameters], result, implementation, isReceiverStyle, options);
         if (!declaration.TryResolve(null, out string overloadId, out CelFunctionDecl? function, out ImplementationEntry? entry, out Type? unresolved))
         {
             AddUnmapped(new UnmappedDeclaration(overloadId, name, unresolved!, declaration.HasApplicationType ? declaration : null));
@@ -1069,5 +1104,431 @@ public sealed class CelEnvironmentBuilder
         {
             _unmapped.Add(declaration);
         }
+    }
+
+    /// <summary>
+    /// Creates a builder for an environment with the standard library version 1, <see cref="CelStandardLibrary.V1"/>.
+    /// </summary>
+    /// <remarks>
+    /// The version stays 1 in every future release of the library: an update never changes the standard library of an
+    /// environment built with this constructor. A later version is selected only explicitly, with
+    /// <see cref="CelEnvironmentBuilder(CelStandardLibrary)"/>.
+    /// </remarks>
+    public CelEnvironmentBuilder()
+        : this(CelStandardLibrary.V1)
+    {
+    }
+
+    /// <summary>
+    /// Declares the input type of the environment: the fields of <typeparamref name="TInput"/> become variables of the top
+    /// level of expressions, and a program evaluates on an instance of <typeparamref name="TInput"/> without bindings by
+    /// name, with <see cref="CelProgram{T}.EvaluateInput{TInput}(TInput, CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// With <c>UseInput&lt;Order&gt;()</c> the expression <c>total &gt; 100</c> reads the field <c>total</c> of the order,
+    /// and <c>program.EvaluateInput(order)</c> evaluates it. The description of <typeparamref name="TInput"/> — its CEL fields and
+    /// their types — comes from a type source added with <see cref="AddTypes"/>, such as a type context completed by the
+    /// source generator; the library does not use reflection. A type that no added source describes is the build error
+    /// <see cref="CelErrorCode.TypeNotDeclared"/>.
+    /// </para>
+    /// <para>
+    /// An environment has at most one input type. A different type given again is the build error
+    /// <see cref="CelErrorCode.InputConflict"/> that names both types; the same type given again is one declaration. A field
+    /// whose name is also the name of another variable is the build error <see cref="CelErrorCode.DuplicateVariable"/> that
+    /// names both sources. Other variables can be declared next to the input and bound by name at evaluation.
+    /// </para>
+    /// <para>
+    /// An environment description in JSON does not declare an input type; declare it in code.
+    /// <see cref="CelEnvironment.InputType"/> tells the input type of a built environment.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="TInput">The .NET type of the input, described by an added type source.</typeparam>
+    /// <returns>This builder.</returns>
+    public CelEnvironmentBuilder UseInput<TInput>()
+    {
+        if (!_inputTypes.Contains(typeof(TInput)))
+        {
+            _inputTypes.Add(typeof(TInput));
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the cost limit of every evaluation in the environment that passes no limit of its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The limit is in the cost units of the
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md">cost model</see> and bounds both the
+    /// time and the allocated memory of an evaluation; an evaluation that exceeds it stops with the error
+    /// <see cref="CelErrorCode.CostLimitExceeded"/>. <see cref="CelEvalOptions.CostLimit"/> of a call replaces this limit for
+    /// that call. Without both limits the cost is not counted, and evaluation is not slowed by counting.
+    /// </para>
+    /// <para>
+    /// A result of an evaluation under a limit reports the cost spent in <see cref="CelEvalResult{T}.Cost"/>. Calling the
+    /// method again replaces the value; <see cref="CelEnvironment.ToBuilder"/> keeps it. An environment description in JSON
+    /// does not set the limit.
+    /// </para>
+    /// </remarks>
+    /// <param name="costLimit">The cost limit in cost units; any value, including <see cref="ulong.MaxValue"/>.</param>
+    /// <returns>This builder.</returns>
+    public CelEnvironmentBuilder SetDefaultCostLimit(ulong costLimit)
+    {
+        _defaultCostLimit = costLimit;
+        return this;
+    }
+
+    /// <summary>
+    /// Declares a function without arguments and implements it with a .NET delegate, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult})"/> does, with the options of the overload: its cost, overload
+    /// identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The options replace what the delegate form derives: <see cref="CelFunctionOptions.OverloadId"/> replaces the derived
+    /// identifier, <see cref="CelFunctionOptions.Cost"/> replaces the fixed cost of 1 unit by 1 unit plus the value of the
+    /// cost function, and <see cref="CelFunctionOptions.Description"/> becomes <see cref="CelOverloadDecl.Description"/> of
+    /// the overload. Options with no property set declare the same overload as the form without options.
+    /// </para>
+    /// <para>
+    /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an exception
+    /// it throws becomes the evaluation error <see cref="CelErrorCode.ApplicationException"/>.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddFunction<TResult>(string name, Func<TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [], ClrResult<TResult>(), _ => TypedImplementation.Of(implementation), options: options);
+    }
+
+    /// <summary>
+    /// Declares a function with one argument and implements it with a .NET delegate, as
+    /// <see cref="AddFunction{T1, TResult}(string, Func{T1, TResult})"/> does, with the options of the overload: its cost,
+    /// overload identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// The options replace what the delegate form derives, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult}, CelFunctionOptions)"/> describes; the cost function receives
+    /// the argument.
+    /// </remarks>
+    /// <typeparam name="T1">The .NET type of the argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddFunction<T1, TResult>(string name, Func<T1, TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [Clr<T1>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), options: options);
+    }
+
+    /// <summary>
+    /// Declares a function with two arguments and implements it with a .NET delegate, as
+    /// <see cref="AddFunction{T1, T2, TResult}(string, Func{T1, T2, TResult})"/> does, with the options of the overload: its
+    /// cost, overload identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// The options replace what the delegate form derives, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult}, CelFunctionOptions)"/> describes; the cost function receives
+    /// the arguments in call order.
+    /// </remarks>
+    /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
+    /// <typeparam name="T2">The .NET type of the second argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddFunction<T1, T2, TResult>(string name, Func<T1, T2, TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), options: options);
+    }
+
+    /// <summary>
+    /// Declares a function with three arguments and implements it with a .NET delegate, as
+    /// <see cref="AddFunction{T1, T2, T3, TResult}(string, Func{T1, T2, T3, TResult})"/> does, with the options of the
+    /// overload: its cost, overload identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// The options replace what the delegate form derives, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult}, CelFunctionOptions)"/> describes; the cost function receives
+    /// the arguments in call order.
+    /// </remarks>
+    /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
+    /// <typeparam name="T2">The .NET type of the second argument.</typeparam>
+    /// <typeparam name="T3">The .NET type of the third argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddFunction<T1, T2, T3, TResult>(string name, Func<T1, T2, T3, TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>(), Clr<T3>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), options: options);
+    }
+
+    /// <summary>
+    /// Declares a function with four arguments and implements it with a .NET delegate, as
+    /// <see cref="AddFunction{T1, T2, T3, T4, TResult}(string, Func{T1, T2, T3, T4, TResult})"/> does, with the options of the
+    /// overload: its cost, overload identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// The options replace what the delegate form derives, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult}, CelFunctionOptions)"/> describes; the cost function receives
+    /// the arguments in call order.
+    /// </remarks>
+    /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
+    /// <typeparam name="T2">The .NET type of the second argument.</typeparam>
+    /// <typeparam name="T3">The .NET type of the third argument.</typeparam>
+    /// <typeparam name="T4">The .NET type of the fourth argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddFunction<T1, T2, T3, T4, TResult>(string name, Func<T1, T2, T3, T4, TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [Clr<T1>(), Clr<T2>(), Clr<T3>(), Clr<T4>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), options: options);
+    }
+
+    /// <summary>
+    /// Declares a function called on a receiver without other arguments, as <c>value.isKpp()</c>, and implements it with a
+    /// .NET delegate whose first parameter is the receiver. The CEL types come from the delegate signature by the
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>AddMethod("isKpp", static (string value) =&gt; Kpp.IsValid(value))</c> declares one overload called on a receiver
+    /// of the type <c>string</c>. Its identifier is the CEL type of the receiver, <c>_</c> and the function name, followed by
+    /// the CEL type of each other parameter, each preceded by <c>_</c>, as in an environment description in JSON:
+    /// <c>string_isKpp</c>. A different overload with the same identifier is the build error
+    /// <see cref="CelErrorCode.DuplicateOverloadId"/>. Arguments are passed and the result is returned by the same rules
+    /// as for <see cref="AddFunction{T1, TResult}(string, Func{T1, TResult})"/>, and a call costs the same. An overload with
+    /// parameters of the type <c>dyn</c> or with type parameters needs <see cref="AddFunction(CelFunctionDecl)"/>.
+    /// </para>
+    /// <para>
+    /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an exception
+    /// it throws becomes the evaluation error <see cref="CelErrorCode.ApplicationException"/>.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="TReceiver">The .NET type of the receiver, the value before the dot.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation; its first parameter is the receiver.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="implementation"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
+    public CelEnvironmentBuilder AddMethod<TReceiver, TResult>(string name, Func<TReceiver, TResult> implementation)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [Clr<TReceiver>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), isReceiverStyle: true);
+    }
+
+    /// <summary>
+    /// Declares a function called on a receiver without other arguments, as
+    /// <see cref="AddMethod{TReceiver, TResult}(string, Func{TReceiver, TResult})"/> does, with the options of the overload:
+    /// its cost, overload identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// The options replace what the delegate form derives, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult}, CelFunctionOptions)"/> describes; the cost function receives
+    /// the receiver.
+    /// </remarks>
+    /// <typeparam name="TReceiver">The .NET type of the receiver, the value before the dot.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation; its first parameter is the receiver.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddMethod<TReceiver, TResult>(string name, Func<TReceiver, TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [Clr<TReceiver>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), isReceiverStyle: true, options: options);
+    }
+
+    /// <summary>
+    /// Declares a function called on a receiver with one argument, as <c>value.startsWithAny(prefixes)</c>, and implements it
+    /// with a .NET delegate whose first parameter is the receiver.
+    /// </summary>
+    /// <remarks>
+    /// The rules are those of <see cref="AddMethod{TReceiver, TResult}(string, Func{TReceiver, TResult})"/>; the identifier is,
+    /// for example, <c>string_startsWithAny_list&lt;string&gt;</c>.
+    /// </remarks>
+    /// <typeparam name="TReceiver">The .NET type of the receiver, the value before the dot.</typeparam>
+    /// <typeparam name="T1">The .NET type of the argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation; its first parameter is the receiver.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="implementation"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
+    public CelEnvironmentBuilder AddMethod<TReceiver, T1, TResult>(string name, Func<TReceiver, T1, TResult> implementation)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [Clr<TReceiver>(), Clr<T1>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), isReceiverStyle: true);
+    }
+
+    /// <summary>
+    /// Declares a function called on a receiver with one argument, as
+    /// <see cref="AddMethod{TReceiver, T1, TResult}(string, Func{TReceiver, T1, TResult})"/> does, with the options of the
+    /// overload: its cost, overload identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// The options replace what the delegate form derives, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult}, CelFunctionOptions)"/> describes; the cost function receives
+    /// the receiver and the argument.
+    /// </remarks>
+    /// <typeparam name="TReceiver">The .NET type of the receiver, the value before the dot.</typeparam>
+    /// <typeparam name="T1">The .NET type of the argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation; its first parameter is the receiver.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddMethod<TReceiver, T1, TResult>(string name, Func<TReceiver, T1, TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [Clr<TReceiver>(), Clr<T1>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), isReceiverStyle: true, options: options);
+    }
+
+    /// <summary>
+    /// Declares a function called on a receiver with two arguments and implements it with a .NET delegate whose first
+    /// parameter is the receiver.
+    /// </summary>
+    /// <remarks>The rules are those of <see cref="AddMethod{TReceiver, TResult}(string, Func{TReceiver, TResult})"/>.</remarks>
+    /// <typeparam name="TReceiver">The .NET type of the receiver, the value before the dot.</typeparam>
+    /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
+    /// <typeparam name="T2">The .NET type of the second argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation; its first parameter is the receiver.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="implementation"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
+    public CelEnvironmentBuilder AddMethod<TReceiver, T1, T2, TResult>(string name, Func<TReceiver, T1, T2, TResult> implementation)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [Clr<TReceiver>(), Clr<T1>(), Clr<T2>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), isReceiverStyle: true);
+    }
+
+    /// <summary>
+    /// Declares a function called on a receiver with two arguments, as
+    /// <see cref="AddMethod{TReceiver, T1, T2, TResult}(string, Func{TReceiver, T1, T2, TResult})"/> does, with the options of
+    /// the overload: its cost, overload identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// The options replace what the delegate form derives, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult}, CelFunctionOptions)"/> describes; the cost function receives
+    /// the receiver and the arguments in call order.
+    /// </remarks>
+    /// <typeparam name="TReceiver">The .NET type of the receiver, the value before the dot.</typeparam>
+    /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
+    /// <typeparam name="T2">The .NET type of the second argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation; its first parameter is the receiver.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddMethod<TReceiver, T1, T2, TResult>(string name, Func<TReceiver, T1, T2, TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [Clr<TReceiver>(), Clr<T1>(), Clr<T2>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), isReceiverStyle: true, options: options);
+    }
+
+    /// <summary>
+    /// Declares a function called on a receiver with three arguments and implements it with a .NET delegate whose first
+    /// parameter is the receiver.
+    /// </summary>
+    /// <remarks>The rules are those of <see cref="AddMethod{TReceiver, TResult}(string, Func{TReceiver, TResult})"/>.</remarks>
+    /// <typeparam name="TReceiver">The .NET type of the receiver, the value before the dot.</typeparam>
+    /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
+    /// <typeparam name="T2">The .NET type of the second argument.</typeparam>
+    /// <typeparam name="T3">The .NET type of the third argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation; its first parameter is the receiver.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> or <paramref name="implementation"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> is empty.</exception>
+    public CelEnvironmentBuilder AddMethod<TReceiver, T1, T2, T3, TResult>(string name, Func<TReceiver, T1, T2, T3, TResult> implementation)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(name);
+        ArgumentNullException.ThrowIfNull(implementation);
+        return AddDelegate(name, implementation, [Clr<TReceiver>(), Clr<T1>(), Clr<T2>(), Clr<T3>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), isReceiverStyle: true);
+    }
+
+    /// <summary>
+    /// Declares a function called on a receiver with three arguments, as
+    /// <see cref="AddMethod{TReceiver, T1, T2, T3, TResult}(string, Func{TReceiver, T1, T2, T3, TResult})"/> does, with the
+    /// options of the overload: its cost, overload identifier and description.
+    /// </summary>
+    /// <remarks>
+    /// The options replace what the delegate form derives, as
+    /// <see cref="AddFunction{TResult}(string, Func{TResult}, CelFunctionOptions)"/> describes; the cost function receives
+    /// the receiver and the arguments in call order.
+    /// </remarks>
+    /// <typeparam name="TReceiver">The .NET type of the receiver, the value before the dot.</typeparam>
+    /// <typeparam name="T1">The .NET type of the first argument.</typeparam>
+    /// <typeparam name="T2">The .NET type of the second argument.</typeparam>
+    /// <typeparam name="T3">The .NET type of the third argument.</typeparam>
+    /// <typeparam name="TResult">The .NET type of the result.</typeparam>
+    /// <param name="name">The name of the function.</param>
+    /// <param name="implementation">The implementation; its first parameter is the receiver.</param>
+    /// <param name="options">The options of the overload.</param>
+    /// <returns>This builder.</returns>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="name"/>, <paramref name="implementation"/> or <paramref name="options"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="ArgumentException"><paramref name="name"/> or <see cref="CelFunctionOptions.OverloadId"/> is empty.</exception>
+    public CelEnvironmentBuilder AddMethod<TReceiver, T1, T2, T3, TResult>(string name, Func<TReceiver, T1, T2, T3, TResult> implementation, CelFunctionOptions options)
+    {
+        CheckOptions(name, implementation, options);
+        return AddDelegate(name, implementation, [Clr<TReceiver>(), Clr<T1>(), Clr<T2>(), Clr<T3>()], ClrResult<TResult>(), id => TypedImplementation.Of(id, implementation), isReceiverStyle: true, options: options);
     }
 }

@@ -20,7 +20,7 @@ internal sealed class CatalogExtension : ExtensionDefinition
         ImmutableArray<string> dependencies = default,
         ImmutableArray<Macro> macros = default,
         bool optionalSyntax = false)
-        : base(name, version, SourceOf(name, version), overloads, abstractTypes, variables, dependencies, FormsOf(macros))
+        : base(name, version, SourceOf(name, version), FunctionDescriptions.Describe(overloads), abstractTypes, variables, dependencies, FormsOf(macros))
     {
         Macros = macros.IsDefault ? [] : macros;
         OptionalSyntax = optionalSyntax;

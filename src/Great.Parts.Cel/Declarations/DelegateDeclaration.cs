@@ -19,19 +19,31 @@ internal sealed class DelegateDeclaration
     private readonly ImmutableArray<ClrMapping> _parameters;
     private readonly ClrMapping _result;
     private readonly Func<string, OverloadImplementation> _implementation;
+    private readonly bool _isReceiverStyle;
+    private readonly string? _overloadId;
+    private readonly CelCostFunction? _cost;
+    private readonly string? _description;
 
+    // The options are read here, once: the declaration does not follow a later change of them. A method (isReceiverStyle) has the
+    // receiver as its first parameter.
     internal DelegateDeclaration(
         string name,
         Delegate original,
         ImmutableArray<ClrMapping> parameters,
         ClrMapping result,
-        Func<string, OverloadImplementation> implementation)
+        Func<string, OverloadImplementation> implementation,
+        bool isReceiverStyle = false,
+        CelFunctionOptions? options = null)
     {
         Name = name;
         Original = original;
         _parameters = parameters;
         _result = result;
         _implementation = implementation;
+        _isReceiverStyle = isReceiverStyle;
+        _overloadId = options?.OverloadId;
+        _cost = options?.Cost;
+        _description = options?.Description;
     }
 
     internal string Name { get; }
@@ -90,7 +102,7 @@ internal sealed class DelegateDeclaration
             }
         }
 
-        overloadId = DeclarationText.DerivedOverloadId(Name, parts);
+        overloadId = _overloadId ?? DerivedId(parts);
         CelType? resultType = Resolve(_result, types);
         if (unresolved is not null || resultType is null)
         {
@@ -101,9 +113,35 @@ internal sealed class DelegateDeclaration
         }
 
         // The typed delegate is checked against the inferred overload like a typed implementation.
-        function = new CelFunctionDecl(Name, CelOverloadDecl.Global(overloadId, parameterTypes, resultType));
+        function = new CelFunctionDecl(Name, Overload(overloadId, parameterTypes, resultType));
         implementation = new ImplementationEntry(overloadId, Original, _implementation(overloadId), [.. expectedTypes], resultType, default, false);
         return true;
+    }
+
+    // The identifier of a global overload is the name and then each parameter type; that of a method is the receiver type, the name and
+    // then each other parameter type, as string_isKpp.
+    private string DerivedId(string[] parts)
+    {
+        if (!_isReceiverStyle)
+        {
+            return DeclarationText.DerivedOverloadId(Name, parts);
+        }
+
+        return parts[0] + "_" + DeclarationText.DerivedOverloadId(Name, parts.AsSpan(1));
+    }
+
+    // The overload with the options that the delegate form was given.
+    private CelOverloadDecl Overload(string overloadId, CelType[] parameterTypes, CelType resultType)
+    {
+        CelOverloadDecl overload = _isReceiverStyle
+            ? CelOverloadDecl.Receiver(overloadId, parameterTypes[0], parameterTypes.AsSpan(1), resultType)
+            : CelOverloadDecl.Global(overloadId, parameterTypes, resultType);
+        if (_cost is not null)
+        {
+            overload = overload.WithCost(_cost);
+        }
+
+        return string.IsNullOrEmpty(_description) ? overload : overload.WithDescription(_description);
     }
 
     // The CEL type of a .NET type: from the type mapping, or the object type that the type index describes for a type of

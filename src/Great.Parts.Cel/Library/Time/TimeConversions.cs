@@ -16,12 +16,15 @@ internal static class TimeConversions
     private const string DurationName = "duration";
 
     // The target type is the first part; the value is kept by ErrorValueParts, a number or a string as it is.
-    private static readonly Func<CelError, string> OutOfRangeText = static error =>
-        ValueText(ErrorValueParts.ValueOf(error)) + " is out of the range of " + (string)error.First!;
+    private static readonly ErrorTemplate OutOfRangeText = new(
+        static error => ValueText(ErrorValueParts.ValueOf(error)) + " is out of the range of " + (string)error.First!,
+        expectedType: static error => ValueTypeRules.TypeOfName((string)error.First!),
+        actualType: ErrorValueParts.TypeOf);
 
     // The function name is the first part, the text the second.
-    private static readonly Func<CelError, string> CannotParseText = static error =>
-        "invalid argument to '" + (string)error.First! + "': cannot parse " + (string)error.Second! + " as " + (error.Small == 0 ? TimestampName : DurationName);
+    private static readonly ErrorTemplate CannotParseText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': cannot parse " + (string)error.Second! + " as " + (error.Small == 0 ? TimestampName : DurationName),
+        subject: static error => (string)error.First!);
 
     // timestamp_to_timestamp, (timestamp) -> timestamp: the argument itself.
     internal static CelValue TimestampIdentity(ReadOnlySpan<CelValue> arguments, in CallSite site) =>

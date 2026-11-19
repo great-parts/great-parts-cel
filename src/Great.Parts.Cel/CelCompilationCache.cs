@@ -13,7 +13,7 @@ namespace Great.Parts.Cel;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The application creates the cache explicitly from an environment and chooses its capacity: the
+/// The application creates the cache explicitly from an environment, with the default capacities or with its own: the
 /// environment itself caches no compilations. The key of an entry is the expression text, the result
 /// type <c>T</c> and the values of the compilation options. Unsuccessful compilations are cached too, so
 /// untrusted text with an error is not compiled again and again. Entries are evicted when a new entry is
@@ -98,13 +98,14 @@ public sealed class CelCompilationCache
 
     /// <summary>
     /// Evaluates an expression on the bindings in one call through the cache: the same result and errors as
-    /// <see cref="CelEnvironment.Evaluate{T}"/>, compiling the text only when the cache does not hold it.
+    /// <see cref="CelEnvironment.Evaluate{T}(string, CelBindings, CelCompileOptions, CelEvalOptions, CancellationToken)"/>,
+    /// compiling the text only when the cache does not hold it.
     /// </summary>
     /// <remarks>
     /// The result holds either the compilation errors or the one evaluation error;
     /// <see cref="CelError.Stage"/> tells which step failed. The token is checked before the compilation
     /// and between the compilation and the evaluation, and during evaluation as
-    /// <see cref="CelProgram{T}.Evaluate"/> describes.
+    /// <see cref="CelProgram{T}.Evaluate(CelBindings, CelEvalOptions, CancellationToken)"/> describes.
     /// </remarks>
     /// <typeparam name="T">The .NET type in which the result is returned.</typeparam>
     /// <param name="expression">The text of the expression.</param>
@@ -216,5 +217,138 @@ public sealed class CelCompilationCache
             get => _referenced;
             set => _referenced = value;
         }
+    }
+
+    /// <summary>
+    /// The default largest number of entries: 80,000. With <see cref="DefaultMaxTotalTextLength"/> a full cache takes about
+    /// 64 MiB, as measured for the page
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>.
+    /// </summary>
+    public const int DefaultMaxEntryCount = 80_000;
+
+    /// <summary>
+    /// The default largest total length of the kept expression texts: 900,000 UTF-16 code units, as
+    /// <see cref="string.Length"/> counts them.
+    /// </summary>
+    public const int DefaultMaxTotalTextLength = 900_000;
+
+    /// <summary>
+    /// Creates an empty cache for compilations in <paramref name="environment"/> with the default capacities,
+    /// <see cref="DefaultMaxEntryCount"/> entries and <see cref="DefaultMaxTotalTextLength"/> UTF-16 code units of text.
+    /// </summary>
+    /// <remarks>
+    /// A full cache with the default capacities takes about 64 MiB. An application with other memory bounds chooses the
+    /// capacities with <see cref="CelCompilationCache(CelEnvironment, int, int)"/>.
+    /// </remarks>
+    /// <param name="environment">The environment in which the cache compiles expressions.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="environment"/> is <see langword="null"/>.</exception>
+    public CelCompilationCache(CelEnvironment environment)
+        : this(environment, DefaultMaxEntryCount, DefaultMaxTotalTextLength)
+    {
+    }
+
+    /// <summary>
+    /// The number of entries the cache keeps now, at most the capacity of entries. Under concurrent use the value is a
+    /// snapshot that can be out of date when it is read.
+    /// </summary>
+    public int Count => Kept.Count;
+
+    /// <summary>
+    /// Removes all entries. Programs already returned stay valid; the next call for any text compiles it again.
+    /// </summary>
+    /// <remarks>A call that runs at the same time can add its entry after the removal.</remarks>
+    public void Clear()
+    {
+        lock (_lock)
+        {
+            _entries.Clear();
+            _ring.Clear();
+            _hand = 0;
+            _totalTextLength = 0;
+        }
+    }
+
+    /// <summary>
+    /// Removes the entries of an expression text — for every result type and every compilation options — for example when
+    /// the rule stored under that text has changed in the database of the application.
+    /// </summary>
+    /// <remarks>
+    /// The key of an entry also holds the result type and the options, which the caller may not know, so the method removes
+    /// by the text alone, by ordinal comparison. Programs already returned stay valid.
+    /// </remarks>
+    /// <param name="expression">The text of the expression.</param>
+    /// <returns><see langword="true"/> when at least one entry was removed.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    public bool TryRemove(string expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        bool removed = false;
+        lock (_lock)
+        {
+            // From the end, so that the entry moved into a freed place has been looked at already.
+            for (int i = _ring.Count - 1; i >= 0; i--)
+            {
+                Entry entry = _ring[i];
+                if (!string.Equals(entry.Key.Text, expression, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                int last = _ring.Count - 1;
+                _ring[i] = _ring[last];
+                _ring.RemoveAt(last);
+                _entries.TryRemove(entry.Key, out _);
+                _totalTextLength -= entry.Key.Text.Length;
+                removed = true;
+            }
+
+            if (_hand >= _ring.Count)
+            {
+                _hand = 0;
+            }
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// Evaluates an expression on an instance of the input type of the environment and on the bindings of other variables in
+    /// one call through the cache: the same result and errors as
+    /// <see cref="CelEnvironment.EvaluateInput{T}(string, object, CelBindings, CelCompileOptions, CelEvalOptions, CancellationToken)"/>,
+    /// compiling the text only when the cache does not hold it.
+    /// </summary>
+    /// <remarks>
+    /// The result holds either the compilation errors or the one evaluation error; <see cref="CelError.Stage"/> tells which
+    /// step failed. The input is a parameter of the type <see cref="object"/>, so a structure is boxed. All members of the
+    /// cache can be called from any number of threads at once.
+    /// </remarks>
+    /// <typeparam name="T">The .NET type in which the result is returned.</typeparam>
+    /// <param name="expression">The text of the expression.</param>
+    /// <param name="input">The instance of the input type of the environment.</param>
+    /// <param name="bindings">The values of the other variables, or <see langword="null"/> for none.</param>
+    /// <param name="compileOptions">The compilation options, or <see langword="null"/> for none.</param>
+    /// <param name="evalOptions">The evaluation options, such as the cost limit, or <see langword="null"/> for none.</param>
+    /// <param name="cancellationToken">The token that cancels the call.</param>
+    /// <returns>The result converted to <typeparamref name="T"/>, or the errors.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> or <paramref name="input"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The environment has no input type, <paramref name="input"/> is not an instance of it, <typeparamref name="T"/> is not in
+    /// the result column of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>,
+    /// or the expected type of <paramref name="compileOptions"/> cannot be converted to <typeparamref name="T"/>.
+    /// </exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
+    public CelEvalResult<T> EvaluateInput<T>(
+        string expression,
+        object input,
+        CelBindings? bindings = null,
+        CelCompileOptions? compileOptions = null,
+        CelEvalOptions? evalOptions = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        ArgumentNullException.ThrowIfNull(input);
+        CelEnvironment.CheckInput(_environment.InputType, input);
+        cancellationToken.ThrowIfCancellationRequested();
+        return CelEnvironment.EvaluateInputCompiled(GetOrCompile<T>(expression, compileOptions), input, bindings, evalOptions, cancellationToken);
     }
 }

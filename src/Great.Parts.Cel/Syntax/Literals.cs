@@ -69,21 +69,22 @@ internal static class Literals
         if (detail is not null)
         {
             value = default;
-            error = Invalid(kind, detail, minusOffset ?? token.Offset, lines);
+            error = Invalid(kind, detail, minusOffset ?? token.Offset, token.Offset + token.Length, lines);
         }
 
         return detail is null;
     }
 
     // The error InvalidLiteral at the literal, the minus included.
-    private static CelError Invalid(string kind, string detail, int offset, LineTable lines) =>
+    private static CelError Invalid(string kind, string detail, int offset, int end, LineTable lines) =>
         new(
             CelErrorCode.InvalidLiteral,
             CelErrorStage.Parse,
             "invalid " + kind + " literal: " + detail,
             lines.GetLocation(offset),
             sourceLocation: null,
-            exception: null);
+            exception: null,
+            length: end - offset);
 
     // The magnitude of a negative literal can reach 2^63, the magnitude of long.MinValue.
     private static string? ConvertInt(ReadOnlySpan<char> digits, bool negative, out CelValue value)
@@ -118,11 +119,11 @@ internal static class Literals
         return double.IsInfinity(number) ? "the value overflows to infinity" : null;
     }
 
-#if NET11_0_OR_GREATER
     /// <summary>
     /// Converts a <c>decimal</c> literal token to its value: the token without its suffix, read exactly, so the digits and
-    /// the exponent are kept and so is the cohort. More than 34 significant digits and an exponent out of the range of
-    /// decimal128 are refused, not rounded or clamped.
+    /// the exponent are kept and so is the cohort. A value that the platform type does not hold exactly — more than 34
+    /// significant digits or an exponent out of the range of decimal128 on .NET 11, more than 29 digits, a coefficient of 2^96 and
+    /// more, an exponent below −28 or a value of 2^96 and more on .NET 10 — is refused, not rounded or clamped.
     /// </summary>
     /// <param name="text">The expression text.</param>
     /// <param name="token">A token of the kind <see cref="TokenKind.DecimalLiteral"/>.</param>
@@ -148,7 +149,7 @@ internal static class Literals
         DecimalParseResult result = DecimalTextRules.TryParse(text.AsSpan(token.Offset, token.Length - 1), exact: true, out DecimalParts parts);
         if (result == DecimalParseResult.Parsed)
         {
-            value = CelValue.FromDecimal((parts with { Negative = minusOffset.HasValue }).ToDecimal128());
+            value = CelValue.FromPlatformDecimal(DecimalPlatform.FromParts(parts with { Negative = minusOffset.HasValue }));
             error = null;
             return true;
         }
@@ -157,12 +158,12 @@ internal static class Literals
         value = default;
         error = Invalid(
             "decimal",
-            result == DecimalParseResult.TooManyDigits ? "more than 34 significant digits" : "exponent out of the range of decimal128",
+            DecimalPlatform.LiteralDetail(result),
             minusOffset ?? token.Offset,
+            token.Offset + token.Length,
             lines);
         return false;
     }
-#endif
 
     // A string or bytes literal from its r or R prefix, if any, to its closing quote.
     private static string? ConvertText(ReadOnlySpan<char> literal, bool bytes, out CelValue value)

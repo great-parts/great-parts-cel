@@ -26,8 +26,14 @@ internal static partial class ConversionRules
     // The list of a set of no element, shared: a list is immutable.
     private static readonly ValueArrayList EmptySorted = new([]);
 
-    private static readonly Func<CelError, string> ApplicationExceptionText =
-        static error => "application code threw " + error.First!.GetType() + " in " + (string)error.Second!;
+    private static readonly ErrorTemplate ApplicationExceptionText = new(
+        static error => "application code threw " + error.First!.GetType() + " in " + (string)error.Second!,
+        subject: static error => (string)error.Second!);
+
+    // The overload is the first part.
+    private static readonly ErrorTemplate NotSortableResultText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': a result set whose elements CEL cannot sort",
+        subject: static error => (string)error.First!);
 
     private static readonly Comparison<CelValue> ByOrderOfCel = static (left, right) => OrderingRules.Compare(left, right) switch
     {
@@ -180,9 +186,7 @@ internal static partial class ConversionRules
     private static bool IsOrderedKind(CelValueKind kind) =>
         kind is CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.String or CelValueKind.Bytes
             or CelValueKind.Timestamp or CelValueKind.Duration
-#if NET11_0_OR_GREATER
             or CelValueKind.Decimal
-#endif
         ;
 
     internal static bool IsMapKeyType<TKey>() => KeyOf<TKey>.IsSupported;
@@ -274,12 +278,7 @@ internal static partial class ConversionRules
         {
             return row.TryConvert(value, meter, out CelValue converted)
                 ? converted
-                : CelValue.FromError(new CelError(
-                    CelErrorCode.InvalidArgument,
-                    CelError.FirstPart,
-                    null,
-                    0,
-                    "invalid argument to '" + overloadId + "': a result set whose elements CEL cannot sort"));
+                : CelValue.FromError(new CelError(CelErrorCode.InvalidArgument, NotSortableResultText, null, 0, overloadId));
         }
 
         if (typeof(T) == typeof(JsonElement))
@@ -299,6 +298,10 @@ internal static partial class ConversionRules
     // Whether a refusal of CelBindings.Add names an undefined JsonElement, which has no CEL value.
     internal static bool IsRefusedByBindings(CelValue value) =>
         value.TryGetError(out CelError? error) && error.Code == CelErrorCode.InvalidArgument;
+
+    // A list or a dictionary with string keys of the closed list of the input table, by the run-time type of the value: the part of
+    // FromRuntimeValue that the simple entry uses after its own closed list of scalar rows; false for any other value.
+    internal static bool TryFromRuntimeCollection(object value, out CelValue result) => Inputs.TryConvertRuntime(value, out result);
 
     // The CEL type that the rows of collections and application lists give a .NET type; null outside them.
     private static CelType? CollectionInputType(Type type)
@@ -770,21 +773,40 @@ internal static partial class ConversionRules
     }
 
     // The row of a .NET collection type of the input table: the CEL type it gives and the conversion of a value.
-    private abstract class InputRow(CelType celType)
+    // The flag tells a row that a value is recognized by at run time (CelBindings indexer, the simple entry): a list of any kind with
+    // an index, and a dictionary with string keys. The sets, the collections without an index and the dictionaries with other keys are
+    // rows of a static type only.
+    private abstract class InputRow(CelType celType, bool isRuntimeRow)
     {
         internal CelType CelType { get; } = celType;
+
+        internal bool IsRuntimeRow { get; } = isRuntimeRow;
+
+        // Converts a value of the run-time type of the row; false when the value is not an instance of the type of the row.
+        internal abstract bool TryConvertBoxed(object value, out CelValue result);
     }
 
-    private abstract class InputRow<T>(CelType celType) : InputRow(celType)
+    private abstract class InputRow<T>(CelType celType, bool isRuntimeRow = false) : InputRow(celType, isRuntimeRow)
     {
         // Converts the value; false when the value has no CEL value, which is a set whose elements CEL cannot sort. The
         // meter is charged for a copy, a set first.
         internal abstract bool TryConvert(T value, IEvaluationMeter? meter, out CelValue result);
+
+        internal override bool TryConvertBoxed(object value, out CelValue result)
+        {
+            if (value is T typed)
+            {
+                return TryConvert(typed, null, out result);
+            }
+
+            result = default;
+            return false;
+        }
     }
 
     // An array, IReadOnlyList<X>, IList<X>, List<X>, ImmutableArray<X>, ImmutableList<X> and ReadOnlyCollection<X>: a typed
     // lazy view that records its source.
-    private sealed class ListInput<TList, X>(CelType type, Func<TList, IReadOnlyList<X>?> asList) : InputRow<TList>(type)
+    private sealed class ListInput<TList, X>(CelType type, Func<TList, IReadOnlyList<X>?> asList) : InputRow<TList>(type, true)
     {
         internal override bool TryConvert(TList value, IEvaluationMeter? meter, out CelValue result)
         {
@@ -845,7 +867,7 @@ internal static partial class ConversionRules
 
     // IReadOnlyDictionary<K, V>, IDictionary<K, V> and Dictionary<K, V>: a typed lazy view that records its source.
     private sealed class DictionaryInput<TDictionary, TKey, TValue>(CelType type, Func<TDictionary, IReadOnlyDictionary<TKey, TValue>?> asDictionary)
-        : InputRow<TDictionary>(type)
+        : InputRow<TDictionary>(type, typeof(TKey) == typeof(string))
         where TKey : notnull
     {
         internal override bool TryConvert(TDictionary value, IEvaluationMeter? meter, out CelValue result)
@@ -860,10 +882,55 @@ internal static partial class ConversionRules
 
     private static class Inputs
     {
-        // The keys are .NET types of the library: trusted keys.
-        internal static readonly FrozenDictionary<Type, InputRow> All = Create();
+        private static readonly Tables Built = Create();
 
-        private static FrozenDictionary<Type, InputRow> Create()
+        // The keys are .NET types of the library: trusted keys.
+        internal static FrozenDictionary<Type, InputRow> All => Built.Rows;
+
+        // The value of a run-time type among the lists and the string-keyed dictionaries of the input table, or false (the closed list
+        // of docs/type-mapping.md, "Data of the simple entry", the lists and the dictionaries): the type of the value is a type of a row; otherwise the dictionaries
+        // IReadOnlyDictionary<string, X> are tried, then the lists IReadOnlyList<X>, in the order of the elements of the table and with
+        // X = object last. A list of X = object is only one whose elements are exactly object: an IList<object> that is no array (an
+        // array of a class is an IList<object> by the covariance of arrays), so that a list of objects of the application is not read
+        // as list(dyn).
+        internal static bool TryConvertRuntime(object value, out CelValue result)
+        {
+            if (Built.Rows.TryGetValue(value.GetType(), out InputRow? exact) && exact.IsRuntimeRow)
+            {
+                return exact.TryConvertBoxed(value, out result);
+            }
+
+            foreach (InputRow row in Built.Dictionaries)
+            {
+                if (row.TryConvertBoxed(value, out result))
+                {
+                    return true;
+                }
+            }
+
+            if (Built.ObjectDictionary.TryConvertBoxed(value, out result))
+            {
+                return true;
+            }
+
+            foreach (InputRow row in Built.Lists)
+            {
+                if (row.TryConvertBoxed(value, out result))
+                {
+                    return true;
+                }
+            }
+
+            if (value is IList<object> and IReadOnlyList<object> and not Array)
+            {
+                return Built.ObjectList.TryConvertBoxed(value, out result);
+            }
+
+            result = default;
+            return false;
+        }
+
+        private static Tables Create()
         {
             var rows = new Dictionary<Type, InputRow>();
             Add<bool>(rows);
@@ -889,8 +956,31 @@ internal static partial class ConversionRules
             Add<CelList>(rows);
             Add<CelMap>(rows);
             Add<JsonElement>(rows);
-            return rows.ToFrozenDictionary();
+            return new Tables(
+                rows.ToFrozenDictionary(),
+                Scan(rows, typeof(IReadOnlyDictionary<,>), typeof(IReadOnlyDictionary<string, object>)),
+                Scan(rows, typeof(IReadOnlyList<>), typeof(IReadOnlyList<object>)),
+                rows[typeof(IReadOnlyDictionary<string, object>)],
+                rows[typeof(IReadOnlyList<object>)]);
         }
+
+        // The interface rows of the run-time kind, a dictionary with string keys or a list, in the order of the table, without the row
+        // of X = object, which is tried last.
+        private static InputRow[] Scan(Dictionary<Type, InputRow> rows, Type definition, Type excluded)
+        {
+            var found = new List<InputRow>();
+            foreach (KeyValuePair<Type, InputRow> entry in rows)
+            {
+                if (entry.Value.IsRuntimeRow && entry.Key != excluded && entry.Key.IsGenericType && entry.Key.GetGenericTypeDefinition() == definition)
+                {
+                    found.Add(entry.Value);
+                }
+            }
+
+            return [.. found];
+        }
+
+        private sealed record Tables(FrozenDictionary<Type, InputRow> Rows, InputRow[] Dictionaries, InputRow[] Lists, InputRow ObjectDictionary, InputRow ObjectList);
 
         // The rows of the collections of one element type X: lists, sets, a collection without an index and the
         // dictionaries of X values.

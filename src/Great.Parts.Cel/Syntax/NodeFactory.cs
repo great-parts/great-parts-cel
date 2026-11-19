@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
@@ -17,6 +18,9 @@ internal sealed class NodeFactory
     // The offset of the node or entry with the id i + 1 at the index i.
     private readonly ImmutableArray<int>.Builder _offsets = ImmutableArray.CreateBuilder<int>();
 
+    // The offset just after the last token of the node or entry with the id i + 1, at the index i, in the same position table.
+    private readonly ImmutableArray<int>.Builder _ends = ImmutableArray.CreateBuilder<int>();
+
     // The ids of the expansions of macro calls in ascending order and their calls; created at the first macro call.
     private ImmutableArray<int>.Builder? _macroIds;
     private ImmutableArray<MacroCall>.Builder? _macroCalls;
@@ -27,6 +31,19 @@ internal sealed class NodeFactory
     /// <param name="node">The node.</param>
     /// <returns>The offset in UTF-16 code units from the start of the text.</returns>
     internal int OffsetOf(ExprNode node) => _offsets[node.Id - 1];
+
+    /// <summary>
+    /// The offset just after the last token the parser has read: the end of every node created now, since a node is created when
+    /// its last token has been read. A factory used without a parser leaves it at 0, and a node then ends where it starts.
+    /// </summary>
+    internal int PreviousEnd { get; set; }
+
+    /// <summary>
+    /// The end of a node this factory created.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <returns>The offset just after its last token, in UTF-16 code units from the start of the text.</returns>
+    internal int EndOf(ExprNode node) => _ends[node.Id - 1];
 
     internal ConstantNode Constant(CelValue value, int offset) => new(NextId(offset), value);
 
@@ -123,11 +140,18 @@ internal sealed class NodeFactory
     /// <param name="lines">The line table of the text.</param>
     /// <returns>The parsed expression.</returns>
     internal ParsedExpression Build(ExprNode root, LineTable lines) =>
-        new(root, _offsets.ToImmutable(), _macroIds?.ToImmutable() ?? [], _macroCalls?.ToImmutable() ?? [], lines);
+        new(
+            root,
+            _offsets.ToImmutable(),
+            _ends.ToImmutable(),
+            _macroIds?.ToImmutable() ?? [],
+            _macroCalls?.ToImmutable() ?? [],
+            lines.WithNodes(_offsets.ToImmutable(), _ends.ToImmutable()));
 
     private int NextId(int offset)
     {
         _offsets.Add(offset);
+        _ends.Add(Math.Max(PreviousEnd, offset));
         return _offsets.Count;
     }
 }

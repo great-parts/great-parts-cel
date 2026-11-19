@@ -87,20 +87,21 @@ public sealed class CelObjectTypeBuilder<TCarrier>
     /// <returns>The description, with <see cref="CelObjectType.ClrType"/> <see langword="null"/>.</returns>
     public CelObjectType Build() => new CarrierObjectType(_name, _fields.ToArray(), [.. _reads], [.. _has]);
 
-    // A type described at run time over the carrier class: each field is read and tested by its delegates.
+    // A type described at run time over the carrier class: each field is read and tested by its delegates. It derives from the typed
+    // description, so the carrier is read by reference; it has no .NET type of its own, because many types share the carrier class.
     private sealed class CarrierObjectType(
         string name,
         ReadOnlySpan<CelObjectField> fields,
         Func<TCarrier, CelValue>[] reads,
         Func<TCarrier, bool>?[] has)
-        : CelObjectType(name, fields)
+        : CelObjectType<TCarrier>(name, fields, null)
     {
         internal override bool Belongs(object instance) => instance is TCarrier;
 
         internal override bool IsDictionaryCarrier => typeof(TCarrier) == typeof(IReadOnlyDictionary<string, object?>);
 
-        protected internal override CelValue GetField(object instance, int number) =>
-            TryReadField(instance, number, out CelValue value) ? value : ObjectRules.FieldNotSet(this, number);
+        protected internal override CelValue GetField(in TCarrier instance, int number) =>
+            ObjectRules.TryReadCarrierField(this, number, instance, reads[number], has[number], out CelValue value) ? value : ObjectRules.FieldNotSet(this, number);
 
         protected internal override bool HasField(object instance, int number)
         {

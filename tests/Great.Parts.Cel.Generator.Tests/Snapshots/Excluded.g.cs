@@ -18,26 +18,24 @@ namespace Acme
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Holder : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Holder : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Holder>
         {
             internal static readonly Type_Acme_Holder Description = new();
 
             private Type_Acme_Holder()
                 : base(
                     "Acme.Holder",
-                    typeof(global::Acme.Holder),
                     [
                         new(0, "kept", global::Great.Parts.Cel.Types.CelType.Int),
                     ])
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Holder instance, int number)
             {
-                var value = (global::Acme.Holder)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Kept);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Kept);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }

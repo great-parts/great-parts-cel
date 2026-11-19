@@ -1,12 +1,11 @@
-#if NET11_0_OR_GREATER
-using System.Numerics;
 using Great.Parts.Cel.Diagnostics;
 using Xunit;
 
 namespace Great.Parts.Cel.Properties.Decimals;
 
-// The arithmetic and the comparison of decimal against the exact reference, on random values and on the boundaries: 34 and 35
-// digits, the extreme exponents, subnormal values, both zeros, 1 / 3, overflow, a result that vanishes. Each property compares
+// The arithmetic and the comparison of decimal against the exact reference, on random values and on the boundaries: on net11.0 34
+// and 35 digits, the extreme exponents and subnormal values, on net10.0 28 and 29 digits, 2^96 - 1 and 2^96 and the exponent -28;
+// on both the zeros of both signs, 1 / 3, overflow, a result that vanishes and a quotient with its cohort. Each property compares
 // every case with no tolerance: the sign, the coefficient and the exponent of a result, or the error code exactly when the
 // reference has no value (Overflow, DivisionByZero).
 public sealed class DecimalArithmeticProperties
@@ -15,11 +14,11 @@ public sealed class DecimalArithmeticProperties
     private const ulong ComparisonSeed = 20261202;
     private const int Cases = 3000;
 
-    private static readonly CelProgram<Decimal128> Sum = DecimalHarness.Program<Decimal128>("a + b");
-    private static readonly CelProgram<Decimal128> Difference = DecimalHarness.Program<Decimal128>("a - b");
-    private static readonly CelProgram<Decimal128> Product = DecimalHarness.Program<Decimal128>("a * b");
-    private static readonly CelProgram<Decimal128> Quotient = DecimalHarness.Program<Decimal128>("a / b");
-    private static readonly CelProgram<Decimal128> Negation = DecimalHarness.Program<Decimal128>("-a");
+    private static readonly CelProgram<PlatformDecimal> Sum = DecimalHarness.Program<PlatformDecimal>("a + b");
+    private static readonly CelProgram<PlatformDecimal> Difference = DecimalHarness.Program<PlatformDecimal>("a - b");
+    private static readonly CelProgram<PlatformDecimal> Product = DecimalHarness.Program<PlatformDecimal>("a * b");
+    private static readonly CelProgram<PlatformDecimal> Quotient = DecimalHarness.Program<PlatformDecimal>("a / b");
+    private static readonly CelProgram<PlatformDecimal> Negation = DecimalHarness.Program<PlatformDecimal>("-a");
 
     private static readonly CelProgram<bool> Less = DecimalHarness.Program<bool>("a < b");
     private static readonly CelProgram<bool> LessOrEqual = DecimalHarness.Program<bool>("a <= b");
@@ -58,7 +57,7 @@ public sealed class DecimalArithmeticProperties
         string quotient = right.IsZero
             ? DecimalHarness.ExpectedError(CelErrorCode.DivisionByZero)
             : DecimalHarness.Expected(ReferenceDecimal.Divide(left, right), CelErrorCode.Overflow);
-        (string Operation, CelProgram<Decimal128> Program, string Expected)[] checks =
+        (string Operation, CelProgram<PlatformDecimal> Program, string Expected)[] checks =
         [
             ("a + b", Sum, DecimalHarness.Expected(ReferenceDecimal.Add(left, right), CelErrorCode.Overflow)),
             ("a - b", Difference, DecimalHarness.Expected(ReferenceDecimal.Subtract(left, right), CelErrorCode.Overflow)),
@@ -67,11 +66,11 @@ public sealed class DecimalArithmeticProperties
             ("-a", Negation, ReferenceDecimal.Negate(left).ToString()),
         ];
 
-        foreach ((string operation, CelProgram<Decimal128> program, string expected) in checks)
+        foreach ((string operation, CelProgram<PlatformDecimal> program, string expected) in checks)
         {
             if (DecimalHarness.Differs(operation, expected, DecimalHarness.Observe(program.Evaluate(bindings), DecimalHarness.Parts)) is { } difference)
             {
-                return difference;
+                return difference + " for " + pair;
             }
         }
 
@@ -103,4 +102,3 @@ public sealed class DecimalArithmeticProperties
         return null;
     }
 }
-#endif

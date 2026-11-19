@@ -1,4 +1,5 @@
 using System;
+using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel.Diagnostics;
 
@@ -8,14 +9,18 @@ namespace Great.Parts.Cel.Diagnostics;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The library returns errors as part of the result of a call — the build, compile and evaluation
-/// results — and does not throw them. It throws exceptions only when the conditions of a call that
+/// The library returns errors as part of the result of a call — the build, compile, validation and evaluation
+/// results — and throws them, as a <see cref="CelException"/>, only from the members whose documentation says so, such as
+/// the simple entry <see cref="CelExpression"/>. Other exceptions are thrown only when the conditions of a call that
 /// its documentation describes are violated, and <see cref="OperationCanceledException"/> when the
 /// evaluation is canceled. An exception thrown by application code during evaluation does not escape
 /// either: it becomes an error with the code <see cref="CelErrorCode.ApplicationException"/>, and the
 /// original exception is in <see cref="Exception"/>.
 /// </para>
 /// <para>
+/// Besides the code and the message, an error has the fragment of the expression it refers to, <see cref="Span"/>, and,
+/// as separate values, the name it is about, <see cref="Subject"/>, and the expected and the actual CEL types,
+/// <see cref="ExpectedType"/> and <see cref="ActualType"/>, as the page of error codes tells for each code.
 /// Compilation returns every error it finds, each with its own position. Evaluation returns one error:
 /// when several parts of an expression fail, the language definition does not specify which error
 /// is reported.
@@ -30,8 +35,8 @@ public sealed class CelError
     // given message and positions, or null for an error of evaluation that has no place yet.
     private readonly object? _source;
 
-    // Forms the message of an error of evaluation from its parts when it is read; null when the message was given.
-    private readonly Func<CelError, string>? _format;
+    // Forms the message and the parts of an error of evaluation from its parts when they are read; null when they were given.
+    private readonly ErrorTemplate? _format;
 
     // The parts of the message of an error of evaluation: references to objects that already exist, a number and a
     // byte, so that creating the error allocates this object only. An exception that caused the error is the first part.
@@ -51,18 +56,22 @@ public sealed class CelError
         string message,
         CelSourceLocation location,
         CelSourceLocation? sourceLocation,
-        Exception? exception)
+        Exception? exception,
+        int length = 0,
+        string? subject = null,
+        CelType? expectedType = null,
+        CelType? actualType = null)
     {
         _code = (ushort)code;
         _stage = (byte)stage;
-        _source = new Given(message, location, sourceLocation, exception);
+        _source = new Given(message, location, sourceLocation, exception, length, subject, expectedType, actualType);
     }
 
     // An error of evaluation whose message and position are formed only when they are read, so that an error value
     // that a later operator absorbs costs no text. Without a line table the error has no position.
     internal CelError(
         CelErrorCode code,
-        Func<CelError, string> format,
+        ErrorTemplate format,
         LineTable? lines,
         int offset,
         object? first = null,
@@ -81,8 +90,14 @@ public sealed class CelError
         _small = small;
     }
 
-    // The format of a message that is its first part.
-    internal static Func<CelError, string> FirstPart { get; } = static error => (string)error._first!;
+    // The format of a message that is its first part; the error has no parts.
+    internal static ErrorTemplate FirstPart { get; } = new(static error => (string)error._first!);
+
+    // The format of a message that is its first part, with the name the error is about as its second part.
+    internal static ErrorTemplate NamedMessage { get; } = new(static error => (string)error._first!, subject: static error => (string?)error._second);
+
+    // The format of a message that is its first part, with the CEL type of the value that it is about as its second part.
+    internal static ErrorTemplate MessageOfType { get; } = new(static error => (string)error._first!, actualType: static error => (CelType?)error._second);
 
     // The parts of the message, for the format.
     internal object? First => _first;
@@ -129,7 +144,7 @@ public sealed class CelError
     /// <see cref="Location"/> and <see cref="SourceLocation"/>.
     /// </para>
     /// </remarks>
-    public string Message => _format is null ? ((Given)_source!).Message : _format(this);
+    public string Message => _format is null ? ((Given)_source!).Message : _format.Text(this);
 
     /// <summary>
     /// The position of the error in the expression text.
@@ -207,14 +222,22 @@ public sealed class CelError
             Add(start.Offset, Location.Offset),
             Add(start.Line, Location.Line - 1),
             column);
-        return new CelError(Code, Stage, Message, Location, place, Exception);
+        return new CelError(Code, Stage, Message, Location, place, Exception, Span.Length, Subject, ExpectedType, ActualType);
     }
 
     // The start is any position the application gives; a sum past int.MaxValue stays at int.MaxValue.
     private static int Add(int start, int value) => (int)Math.Min((long)start + value, int.MaxValue);
 
     // The message and the positions of an error that is created with them.
-    private sealed class Given(string message, CelSourceLocation location, CelSourceLocation? sourceLocation, Exception? exception)
+    private sealed class Given(
+        string message,
+        CelSourceLocation location,
+        CelSourceLocation? sourceLocation,
+        Exception? exception,
+        int length,
+        string? subject,
+        CelType? expectedType,
+        CelType? actualType)
     {
         internal string Message { get; } = message;
 
@@ -223,5 +246,144 @@ public sealed class CelError
         internal CelSourceLocation? SourceLocation { get; } = sourceLocation;
 
         internal Exception? Exception { get; } = exception;
+
+        // The length of the fragment that starts at the location, in UTF-16 code units.
+        internal int Length { get; } = length;
+
+        internal string? Subject { get; } = subject;
+
+        internal CelType? ExpectedType { get; } = expectedType;
+
+        internal CelType? ActualType { get; } = actualType;
+    }
+
+    /// <summary>
+    /// The fragment of the expression that the error refers to: <see cref="Location"/> and the length of the fragment in
+    /// UTF-16 code units.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>Span.Start</c> equals <see cref="Location"/>. The fragment runs from there to the end of the node of the syntax
+    /// tree that gave the error: the identifier for an undeclared reference, the call from <c>(</c> to <c>)</c> for a call
+    /// without a matching overload, the operator and the operand after it for an operator, the whole expression for a result
+    /// that does not convert to the requested .NET type. A parse error at the end of the text has a fragment of length 0.
+    /// </para>
+    /// <para>
+    /// An error of the stage <see cref="CelErrorStage.Build"/> has no fragment: the value is <c>default(CelSourceSpan)</c>,
+    /// whose length is 0. With the start of the expression in a source document, the fragment stays in the expression; the
+    /// position in the document is in <see cref="SourceLocation"/>.
+    /// </para>
+    /// </remarks>
+    public CelSourceSpan Span => _source switch
+    {
+        LineTable lines => new CelSourceSpan(lines.GetLocation(_offset), lines.GetEnd(_offset) - _offset),
+        Given given when given.Location.Line != 0 => new CelSourceSpan(given.Location, given.Length),
+        _ => default,
+    };
+
+    /// <summary>
+    /// The name the error is about, as a separate value: a variable, a field, a function, a type, an overload identifier or a
+    /// time zone; <see langword="null"/> when the code has no such part.
+    /// </summary>
+    /// <remarks>
+    /// For each code the page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md">Error codes</see>
+    /// tells whether the error has this part. An application takes the name from here instead of parsing
+    /// <see cref="Message"/>: <c>totl</c> for <see cref="CelErrorCode.UndeclaredReference"/> in <c>totl &gt; 100</c>.
+    /// </remarks>
+    public string? Subject => _source is Given given ? given.Subject : _format?.Subject?.Invoke(this);
+
+    /// <summary>
+    /// The CEL type that was expected, as a separate value, such as <c>bool</c> for an expression compiled for a
+    /// <see cref="bool"/> result; <see langword="null"/> when the code has no such part.
+    /// </summary>
+    /// <remarks>
+    /// The page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md">Error codes</see>
+    /// tells for each code whether the error has this part.
+    /// </remarks>
+    public CelType? ExpectedType => _source is Given given ? given.ExpectedType : _format?.ExpectedType?.Invoke(this);
+
+    /// <summary>
+    /// The CEL type that was found, as a separate value, such as <c>string</c> for a string where a <c>bool</c> was
+    /// expected; <see langword="null"/> when the code has no such part.
+    /// </summary>
+    /// <remarks>
+    /// The page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md">Error codes</see>
+    /// tells for each code whether the error has this part.
+    /// </remarks>
+    public CelType? ActualType => _source is Given given ? given.ActualType : _format?.ActualType?.Invoke(this);
+
+    /// <summary>
+    /// Returns a one-line text of the error for logs: the code, the line and column, and the message, such as
+    /// <c>UndeclaredReference at 1:7: undeclared reference to 'totl'</c>; without a position, the code and the message.
+    /// </summary>
+    /// <remarks>
+    /// The text is for people, in English, and does not depend on the culture of the process. It is not part of the
+    /// compatibility contract and can be refined in a minor version; applications should not parse it.
+    /// </remarks>
+    /// <returns>The text.</returns>
+    public override string ToString()
+    {
+        CelSourceLocation place = SourceLocation ?? Location;
+        string code = Code.ToString();
+        return place.Line == 0
+            ? string.Concat(code, ": ", Message)
+            : string.Concat(code, " at ", place.ToString(), ": ", Message);
+    }
+
+    /// <summary>
+    /// Returns a text of the error to show to the author of the expression: the message, the line of the expression where
+    /// the fragment starts, and a mark <c>^~~~</c> under the fragment.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The mark starts under the first code unit of the fragment and ends at its last one, or at the end of the line when
+    /// the fragment continues on the next line; a fragment of length 0 is marked with one <c>^</c>. An error without a
+    /// fragment, such as a build error, gives the message only.
+    /// </para>
+    /// <para>
+    /// The text is for people, in English, and is not part of the compatibility contract.
+    /// </para>
+    /// </remarks>
+    /// <param name="expression">The text of the expression that was compiled or evaluated, the one the error belongs to.</param>
+    /// <returns>The text, with lines separated by <c>"\n"</c>.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">The fragment of the error does not fit in <paramref name="expression"/>.</exception>
+    public string ToDisplayString(string expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        CelSourceSpan span = Span;
+        if (span.Start.Line == 0)
+        {
+            return Message;
+        }
+
+        int start = span.Start.Offset;
+        if ((long)start + span.Length > expression.Length)
+        {
+            throw new ArgumentException("The fragment of the error does not fit in the text of the expression.", nameof(expression));
+        }
+
+        int lineStart = start;
+        while (lineStart > 0 && expression[lineStart - 1] is not ('\n' or '\r'))
+        {
+            lineStart--;
+        }
+
+        int lineEnd = start;
+        while (lineEnd < expression.Length && expression[lineEnd] is not ('\n' or '\r'))
+        {
+            lineEnd++;
+        }
+
+        // The mark starts under the first code unit of the fragment and stops at its end or at the end of the line.
+        int marked = Math.Max(1, Math.Min(span.Length, lineEnd - start));
+        return string.Concat(
+            Message,
+            "\n",
+            expression.Substring(lineStart, lineEnd - lineStart),
+            "\n",
+            new string(' ', start - lineStart),
+            "^",
+            new string('~', marked - 1));
     }
 }

@@ -81,7 +81,9 @@ public abstract class CelObjectType
     {
     }
 
-    private CelObjectType(string name, ReadOnlySpan<CelObjectField> fields, Type? clrType)
+    // Also the constructor of CelObjectType<TInstance>, which gives the .NET type of its argument or, for a type described at
+    // run time over a carrier class, none.
+    private protected CelObjectType(string name, ReadOnlySpan<CelObjectField> fields, Type? clrType)
     {
         ArgumentNullException.ThrowIfNull(name);
         if (!DeclarationNames.IsQualifiedIdentifier(name))
@@ -257,10 +259,13 @@ public abstract class CelObjectType
     /// <param name="fieldNumbers">The numbers of the fields the literal sets, in the order of the literal.</param>
     /// <param name="fieldValues">The values of those fields, in the same order.</param>
     /// <returns>The new instance as an object value, or a value of the kind <see cref="CelValueKind.Error"/>.</returns>
-    /// <exception cref="NotSupportedException">The default implementation: the type does not support object literals.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The default implementation: the type does not support object literals, so the library never calls it, and a call
+    /// violates the state of the description, <see cref="IsConstructible"/> being <see langword="false"/>.
+    /// </exception>
     protected internal virtual CelValue CreateInstance(ReadOnlySpan<int> fieldNumbers, ReadOnlySpan<CelValue> fieldValues)
     {
-        throw new NotSupportedException("The type '" + Name + "' does not support object literals.");
+        throw new InvalidOperationException("The type '" + Name + "' does not support object literals.");
     }
 
     /// <summary>
@@ -416,7 +421,7 @@ public abstract class CelObjectType
     /// <para>
     /// <see langword="null"/> becomes <c>null</c>. A value of a .NET type from the input value rows of the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>
     /// — numbers, <see cref="bool"/>, <see cref="string"/>, <see cref="Guid"/>, enumerations, bytes, time types,
-    /// <c>decimal</c> types on .NET 11 — becomes a value of its CEL type; a boxed <see cref="CelValue"/> stays as it
+    /// <see cref="decimal"/> and, on .NET 11, <c>Decimal128</c> — becomes a value of its CEL type; a boxed <see cref="CelValue"/> stays as it
     /// is, and an instance of <see cref="CelList"/> or <see cref="CelMap"/> becomes a <c>list</c> or a <c>map</c>
     /// value. A <see cref="System.Text.Json.JsonElement"/> is read by the JSON data conversion of the CEL language
     /// definition, lazily. Any other instance becomes an object value whose description evaluation finds by the exact
@@ -476,13 +481,15 @@ public abstract class CelObjectType
     // A value that a row of the type mapping rejects, as an error value that names this type and the field.
     private CelValue Named(int number, CelValue value) =>
         value.TryGetError(out CelError? error) && error.Code is CelErrorCode.ConversionRange or CelErrorCode.InvalidArgument
-            ? ObjectRules.FieldError(this, number, error.Code, error.Message)
+            ? error.Code == CelErrorCode.ConversionRange
+                ? ObjectRules.FieldError(this, number, error)
+                : ObjectRules.FieldError(this, number, error.Code, error.Message)
             : value;
 
-#if NET11_0_OR_GREATER
     /// <summary>
-    /// Converts a <see cref="decimal"/> member to a <c>decimal</c> value, exactly: its up to 29 digits and
-    /// scale of at most 28 fit the 34 digits of an IEEE 754 decimal128 number. Only on .NET 11.
+    /// Converts a <see cref="decimal"/> member to a <c>decimal</c> value, exactly: on .NET 10 the value is the
+    /// <see cref="decimal"/> itself, and on .NET 11 its up to 29 digits and scale of at most 28 fit the 34 digits of an
+    /// IEEE 754 decimal128 number.
     /// </summary>
     /// <remarks>
     /// An expression reads such a member only in an environment with the <c>decimal</c> extension;
@@ -497,9 +504,11 @@ public abstract class CelObjectType
         return ConversionRules.FromSystemDecimal(value);
     }
 
+#if NET11_0_OR_GREATER
+
     /// <summary>
     /// Converts a <see cref="Decimal128"/> member to a <c>decimal</c> value, exactly, with its digits and
-    /// exponent. Only on .NET 11.
+    /// exponent. Only on .NET 11; a <see cref="decimal"/> member is converted with <see cref="FromDecimal(decimal)"/>.
     /// </summary>
     /// <remarks>
     /// CEL decimals are finite: a NaN or an infinity gives an error value with the code
@@ -509,7 +518,7 @@ public abstract class CelObjectType
     /// <param name="number">The number of the field, for the error.</param>
     /// <param name="value">The value of the member.</param>
     /// <returns>A value of the kind <see cref="CelValueKind.Decimal"/> or <see cref="CelValueKind.Error"/>.</returns>
-    protected CelValue FromDecimal(int number, Decimal128 value)
+    protected CelValue FromDecimal128(int number, Decimal128 value)
     {
         return Named(number, ConversionRules.FromDecimal128(value));
     }

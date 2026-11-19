@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Frozen;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Great.Parts.Cel.Values;
@@ -26,12 +27,17 @@ internal sealed class TypeIndex
     // The dropped descriptions by reference; empty when nothing was dropped, as in an environment of one context.
     private readonly FrozenDictionary<CelObjectType, CelObjectType> _aliases;
 
+    // The enumeration types by full name, for the description of the environment; the constants are in _enumConstants.
+    private readonly ImmutableArray<CelEnumType> _enumTypes;
+
     internal TypeIndex(
         Dictionary<string, CelObjectType> objectTypes,
         Dictionary<string, long> enumConstants,
         Dictionary<Type, CelObjectType> byClrType,
-        Dictionary<CelObjectType, CelObjectType>? aliases = null)
+        Dictionary<CelObjectType, CelObjectType>? aliases = null,
+        ImmutableArray<CelEnumType> enumTypes = default)
     {
+        _enumTypes = enumTypes.IsDefault ? [] : enumTypes;
         _objectTypes = objectTypes.ToFrozenDictionary(StringComparer.Ordinal);
         _objectTypesBySpan = _objectTypes.GetAlternateLookup<ReadOnlySpan<char>>();
         _enumConstants = enumConstants.ToFrozenDictionary(StringComparer.Ordinal);
@@ -46,7 +52,6 @@ internal sealed class TypeIndex
     internal CelObjectType Resolve(CelObjectType description) =>
         _aliases.Count != 0 && _aliases.TryGetValue(description, out CelObjectType? kept) ? kept : description;
 
-#if NET11_0_OR_GREATER
     private TypeIndex(TypeIndex other, bool decimalDeclared)
     {
         _objectTypes = other._objectTypes;
@@ -55,6 +60,7 @@ internal sealed class TypeIndex
         _enumConstantsBySpan = other._enumConstantsBySpan;
         _byClrType = other._byClrType;
         _aliases = other._aliases;
+        _enumTypes = other._enumTypes;
         DecimalDeclared = decimalDeclared;
     }
 
@@ -66,10 +72,12 @@ internal sealed class TypeIndex
     // This index with the flag set; the same instance when it has the value already, so the shared empty index stays false.
     internal TypeIndex WithDecimalDeclared(bool decimalDeclared) =>
         decimalDeclared == DecimalDeclared ? this : new TypeIndex(this, decimalDeclared);
-#endif
 
     // The object types by full name, for the identifiers of type checking.
     internal FrozenDictionary<string, CelObjectType> ObjectTypes => _objectTypes;
+
+    // The enumeration types of the type sources, each once, in no order.
+    internal ImmutableArray<CelEnumType> EnumTypes => _enumTypes;
 
     internal bool TryGetObjectType(string name, [NotNullWhen(true)] out CelObjectType? objectType) =>
         _objectTypes.TryGetValue(name, out objectType);

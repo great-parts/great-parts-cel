@@ -31,38 +31,7 @@ internal static class NumberText
     // Writes a double as Go %g with the shortest digits that read back to the same double: the exponent form
     // d.ddde±XX when the exponent of the first digit is below -4 or from 6, otherwise the plain decimal;
     // -0, +Inf, -Inf and NaN as written. Returns the number of characters written.
-    internal static int FormatDouble(double value, Span<char> destination)
-    {
-        if (double.IsNaN(value))
-        {
-            return Copy("NaN", destination);
-        }
-
-        if (double.IsInfinity(value))
-        {
-            return Copy(value > 0 ? "+Inf" : "-Inf", destination);
-        }
-
-        Span<char> digits = stackalloc char[MaxDoubleLength];
-        int count = DoubleTextRules.ShortestDigits(value, digits, out int point);
-        ReadOnlySpan<char> significant = digits[..count];
-        int written = 0;
-        if (double.IsNegative(value))
-        {
-            destination[written++] = '-';
-        }
-
-        if (significant is ['0'])
-        {
-            destination[written] = '0';
-            return written + 1;
-        }
-
-        int exponent = point - 1;
-        return exponent < -4 || exponent >= 6
-            ? written + WriteExponentForm(significant, exponent, destination[written..])
-            : written + WritePlainForm(significant, point, destination[written..]);
-    }
+    internal static int FormatDouble(double value, Span<char> destination) => DoubleTextRules.Format(value, destination);
 
     // The text of a double, for messages.
     internal static string FormatDouble(double value)
@@ -169,61 +138,6 @@ internal static class NumberText
 
         value = hexadecimal ? ParseHexadecimal(text, start) : ParseDecimal(text, underscores);
         return double.IsInfinity(value) ? ParseResult.OutOfRange : ParseResult.Parsed;
-    }
-
-    // d.ddde±XX with at least two digits of exponent.
-    private static int WriteExponentForm(ReadOnlySpan<char> significant, int exponent, Span<char> destination)
-    {
-        int written = 0;
-        destination[written++] = significant[0];
-        if (significant.Length > 1)
-        {
-            destination[written++] = '.';
-            significant[1..].CopyTo(destination[written..]);
-            written += significant.Length - 1;
-        }
-
-        destination[written++] = 'e';
-        destination[written++] = exponent < 0 ? '-' : '+';
-        int magnitude = Math.Abs(exponent);
-        if (magnitude < 10)
-        {
-            destination[written++] = '0';
-        }
-
-        _ = magnitude.TryFormat(destination[written..], out int exponentLength, default, CultureInfo.InvariantCulture);
-        return written + exponentLength;
-    }
-
-    // The digits with the point at its position: 0.000ddd, ddd000 or dd.d.
-    private static int WritePlainForm(ReadOnlySpan<char> significant, int point, Span<char> destination)
-    {
-        if (point <= 0)
-        {
-            destination[0] = '0';
-            destination[1] = '.';
-            destination.Slice(2, -point).Fill('0');
-            significant.CopyTo(destination[(2 - point)..]);
-            return 2 - point + significant.Length;
-        }
-
-        if (point >= significant.Length)
-        {
-            significant.CopyTo(destination);
-            destination[significant.Length..point].Fill('0');
-            return point;
-        }
-
-        significant[..point].CopyTo(destination);
-        destination[point] = '.';
-        significant[point..].CopyTo(destination[(point + 1)..]);
-        return significant.Length + 1;
-    }
-
-    private static int Copy(string text, Span<char> destination)
-    {
-        text.CopyTo(destination);
-        return text.Length;
     }
 
     // inf and infinity with an optional sign, nan without one, regardless of case, as the whole text.

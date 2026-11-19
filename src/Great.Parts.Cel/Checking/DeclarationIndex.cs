@@ -45,10 +45,14 @@ internal sealed class DeclarationIndex
         FrozenDictionary<string, CelType> typeIdentifiers,
         FrozenSet<string> functions,
         FrozenDictionary<(string Function, bool IsReceiverStyle, int ArgumentCount), ImmutableArray<OverloadBinding>> overloads,
+        ImmutableArray<OverloadBinding> allOverloads,
         string container,
         TypeIndex types,
-        object? patternCache)
+        object? patternCache,
+        CelObjectType? inputType)
     {
+        AllOverloads = allOverloads;
+        InputType = inputType;
         _variables = variables;
         _variablesBySpan = variables.GetAlternateLookup<ReadOnlySpan<char>>();
         _typeIdentifiers = typeIdentifiers;
@@ -64,12 +68,35 @@ internal sealed class DeclarationIndex
     // The name resolution container; empty without one.
     internal string Container { get; }
 
+    // Every overload of the environment in the order given to Create, for the description of the environment.
+    internal ImmutableArray<OverloadBinding> AllOverloads { get; }
+
+    // The declarations of the variables, the fields of the input included, in no order.
+    internal ImmutableArray<CelVariableDecl> Variables => _variables.Values;
+
     // The type index of the type sources: object types, enumeration constants and descriptions by .NET type.
     internal TypeIndex Types { get; }
 
     // The cache of patterns that the environment created with its index; null for an index made without one, for the tests of
     // checking and evaluation.
     internal object? PatternCache { get; }
+
+    // The description of the input type of the environment (UseInput), whose fields are variables read from the input of the
+    // evaluation; null without an input.
+    internal CelObjectType? InputType { get; }
+
+    // The description of the field of the input that a variable of this name is, or false: the planner reads such a variable from
+    // the input of the frame, not from the bindings.
+    internal bool TryGetInputField(string name, [NotNullWhen(true)] out CelObjectField? field)
+    {
+        if (InputType is { } input)
+        {
+            return input.TryGetField(name, out field);
+        }
+
+        field = null;
+        return false;
+    }
 
     // An index without type identifiers and container, for the tests of checking and evaluation.
     internal static DeclarationIndex Create(ImmutableArray<OverloadBinding> overloads, ImmutableArray<CelVariableDecl> variables) =>
@@ -85,7 +112,8 @@ internal sealed class DeclarationIndex
         FrozenDictionary<string, CelType> typeIdentifiers,
         string container,
         TypeIndex? types = null,
-        object? patternCache = null)
+        object? patternCache = null,
+        CelObjectType? inputType = null)
     {
         types ??= TypeIndex.Empty;
         if (types.ObjectTypes.Count != 0)
@@ -120,9 +148,11 @@ internal sealed class DeclarationIndex
             typeIdentifiers,
             functions.ToFrozenSet(StringComparer.Ordinal),
             overloadsByCall.ToFrozenDictionary(entry => entry.Key, entry => entry.Value.ToImmutable()),
+            overloads,
             container,
             types,
-            patternCache);
+            patternCache,
+            inputType);
     }
 
     internal bool TryGetVariable(string name, [NotNullWhen(true)] out CelVariableDecl? variable) =>

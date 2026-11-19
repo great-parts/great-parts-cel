@@ -92,7 +92,7 @@ public sealed class CreatedFileTests
         }
 
         Assert.Contains("\"Acme.Sales.Order\"", text, System.StringComparison.Ordinal);
-        Assert.Contains("typeof(global::Acme.Sales.Order)", text, System.StringComparison.Ordinal);
+        Assert.Contains("CelObjectType<global::Acme.Sales.Order>", text, System.StringComparison.Ordinal);
         Assert.Contains("\"Acme.Sales.OrderLine\"", text, System.StringComparison.Ordinal);
     }
 

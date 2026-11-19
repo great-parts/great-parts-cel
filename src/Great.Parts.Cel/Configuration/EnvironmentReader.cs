@@ -17,7 +17,8 @@ namespace Great.Parts.Cel.Configuration;
 /// </summary>
 /// <param name="ByteIndex">The byte index of the place in the JSON text without the byte order mark.</param>
 /// <param name="Detail">What is wrong, the end of the message of the error.</param>
-internal readonly record struct JsonError(int ByteIndex, string Detail);
+/// <param name="Key">The key the error is about, or <see langword="null"/> when it is not about a key.</param>
+internal readonly record struct JsonError(int ByteIndex, string Detail, string? Key = null);
 
 /// <summary>
 /// A container that the key <c>container</c> declares, and the byte index of its value.
@@ -298,7 +299,7 @@ internal sealed partial class EnvironmentReader
                 }
 
                 _nameIsRepeated |= text == "name" && ReferenceEquals(keys, _descriptionKeys);
-                AddError(keyIndex, $"the key '{text}' is repeated");
+                AddError(keyIndex, $"the key '{text}' is repeated", text);
             }
 
             reader.Skip();
@@ -311,7 +312,7 @@ internal sealed partial class EnvironmentReader
 
     private void KeyError(ref Utf8JsonReader reader, string key, int keyIndex, bool isKnown)
     {
-        AddError(keyIndex, isKnown ? $"the key '{key}' is not supported" : $"unknown key '{key}'");
+        AddError(keyIndex, isKnown ? $"the key '{key}' is not supported" : $"unknown key '{key}'", key);
         reader.Skip();
     }
 
@@ -348,7 +349,7 @@ internal sealed partial class EnvironmentReader
         reader.Skip();
     }
 
-    private void AddError(int byteIndex, string detail) => _errors.Add(new JsonError(byteIndex, detail));
+    private void AddError(int byteIndex, string detail, string? key = null) => _errors.Add(new JsonError(byteIndex, detail, key));
 
     private static JsonTokenType Advance(ref Utf8JsonReader reader)
     {

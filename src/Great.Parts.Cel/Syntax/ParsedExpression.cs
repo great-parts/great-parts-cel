@@ -13,6 +13,9 @@ internal sealed class ParsedExpression
     // The offset of the node or entry with the id i + 1 at the index i: ids run from 1 without gaps.
     private readonly ImmutableArray<int> _offsets;
 
+    // The offset just after the last token of the node or entry with the id i + 1 at the index i.
+    private readonly ImmutableArray<int> _ends;
+
     // The ids of the expansions of macro calls in ascending order, and the call of each at the same index.
     private readonly ImmutableArray<int> _macroIds;
     private readonly ImmutableArray<MacroCall> _macroCalls;
@@ -20,12 +23,14 @@ internal sealed class ParsedExpression
     internal ParsedExpression(
         ExprNode root,
         ImmutableArray<int> offsets,
+        ImmutableArray<int> ends,
         ImmutableArray<int> macroIds,
         ImmutableArray<MacroCall> macroCalls,
         LineTable lines)
     {
         Root = root;
         _offsets = offsets;
+        _ends = ends;
         _macroIds = macroIds;
         _macroCalls = macroCalls;
         Lines = lines;
@@ -42,11 +47,24 @@ internal sealed class ParsedExpression
     internal LineTable Lines { get; }
 
     /// <summary>
+    /// The macro calls of the text, as written, in the order of the ids of their expansions.
+    /// </summary>
+    internal ImmutableArray<MacroCall> MacroCalls => _macroCalls;
+
+    /// <summary>
     /// Returns the position of a node or an entry: its offset in UTF-16 code units from the start of the text.
     /// </summary>
     /// <param name="id">The id of a node or an entry of this tree.</param>
     /// <returns>The offset.</returns>
     internal int GetOffset(int id) => _offsets[id - 1];
+
+    /// <summary>
+    /// Returns the end of a node or an entry: the offset just after its last token, so that the fragment of the node is
+    /// <c>[GetOffset(id), GetEnd(id))</c>.
+    /// </summary>
+    /// <param name="id">The id of a node or an entry of this tree.</param>
+    /// <returns>The offset in UTF-16 code units, not less than the offset of the node.</returns>
+    internal int GetEnd(int id) => _ends[id - 1];
 
     /// <summary>
     /// Returns the macro call that a node is the expansion of.

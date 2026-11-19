@@ -22,7 +22,7 @@ namespace Acme.Sales
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Sales_Order : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Sales_Order : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Sales.Order>
         {
             internal static readonly Type_Acme_Sales_Order Description = new();
 
@@ -31,7 +31,6 @@ namespace Acme.Sales
             private Type_Acme_Sales_Order()
                 : base(
                     "Acme.Sales.Order",
-                    typeof(global::Acme.Sales.Order),
                     [
                         new(0, "currency", global::Great.Parts.Cel.Types.CelType.String),
                         new(1, "lines", global::Great.Parts.Cel.Types.CelType.ListOf(global::Great.Parts.Cel.Types.CelType.ObjectNamed("Acme.Sales.OrderLine"))),
@@ -41,22 +40,21 @@ namespace Acme.Sales
                 _convert1 = e0 => e0 is null ? FieldError(1, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : e0.GetType() == typeof(global::Acme.Sales.OrderLine) ? FromInstance(e0) : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_Sales_OrderLine.Description, e0);
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Sales.Order instance, int number)
             {
-                var value = (global::Acme.Sales.Order)instance;
                 switch (number)
                 {
                     case 0:
                     {
-                        var v = value.Currency;
+                        var v = instance.Currency;
                         return v is null ? FieldError(0, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
                     case 1:
                     {
-                        var v = value.Lines;
+                        var v = instance.Lines;
                         return v is null ? FieldError(1, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromList(global::Great.Parts.Cel.Values.CelList.CreateView<global::Acme.Sales.OrderLine>(v, _convert1));
                     }
-                    case 2: return FromEnum(2, value.Status);
+                    case 2: return FromEnum(2, instance.Status);
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
                 }
             }
@@ -75,14 +73,13 @@ namespace Acme.Sales
         }
 
         [global::System.CodeDom.Compiler.GeneratedCode("Great.Parts.Cel.Generator", "<version>")]
-        private sealed class Type_Acme_Sales_OrderLine : global::Great.Parts.Cel.Values.CelObjectType
+        private sealed class Type_Acme_Sales_OrderLine : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Sales.OrderLine>
         {
             internal static readonly Type_Acme_Sales_OrderLine Description = new();
 
             private Type_Acme_Sales_OrderLine()
                 : base(
                     "Acme.Sales.OrderLine",
-                    typeof(global::Acme.Sales.OrderLine),
                     [
                         new(0, "qty", global::Great.Parts.Cel.Types.CelType.Int),
                         new(1, "sku", global::Great.Parts.Cel.Types.CelType.String),
@@ -90,15 +87,14 @@ namespace Acme.Sales
             {
             }
 
-            protected override global::Great.Parts.Cel.Values.CelValue GetField(object instance, int number)
+            protected override global::Great.Parts.Cel.Values.CelValue GetField(in global::Acme.Sales.OrderLine instance, int number)
             {
-                var value = (global::Acme.Sales.OrderLine)instance;
                 switch (number)
                 {
-                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(value.Qty);
+                    case 0: return global::Great.Parts.Cel.Values.CelValue.FromInt64(instance.Qty);
                     case 1:
                     {
-                        var v = value.Sku;
+                        var v = instance.Sku;
                         return v is null ? FieldError(1, global::Great.Parts.Cel.Diagnostics.CelErrorCode.UnexpectedNull, null) : global::Great.Parts.Cel.Values.CelValue.FromString(v);
                     }
                     default: throw new global::System.ArgumentOutOfRangeException(nameof(number));
