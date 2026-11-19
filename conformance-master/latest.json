@@ -1,29 +1,19 @@
 {
   "schema": 1,
   "kind": "conformance-master",
-  "generatedAtUtc": "2026-11-18T14:38:07Z",
+  "generatedAtUtc": "2026-11-19T10:48:49Z",
   "celSpecRepository": "cel-expr/cel-spec",
   "celSpecCommit": "3dd8162270505540492e4198a35717c173e1506a",
-  "greatPartsCelCommit": "515566235b023389b3437b4a2e6b7e56bd769406",
+  "greatPartsCelCommit": "8ff6d07f057aed493d2c0c39d823d8a404a5d35d",
   "cell": "jit, linux-x64, net11.0",
-  "runDate": "2026-11-18",
-  "passed": 2745,
+  "runDate": "2026-11-19",
+  "passed": 2755,
   "total": 2771,
-  "failed": 26,
-  "summary": "cel-spec master 3dd8162: 2745/2771 passed, 2026-11-18 (jit, linux-x64, net11.0)",
-  "failedCasesReported": 26,
+  "failed": 16,
+  "summary": "cel-spec master 3dd8162: 2755/2771 passed, 2026-11-19 (jit, linux-x64, net11.0)",
+  "failedCasesReported": 16,
   "failures": [
     "tests/cel-spec/tests/simple/testdata/network_ext.textproto(103,3): error ENG801: case 'network_ext/ip_type/is_ip_cidr_compile_error' failed: check failed: 'found no matching overload for \\'isIP\\' applied to \\'(net.CIDR)\\'' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(43,3): error ENG801: case 'timestamps/duration_conversions/toString_duration_max' failed: expected string \"315576000000.999999999s\", got error '315576000000s999999999ns is out of the range of duration' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(48,3): error ENG801: case 'timestamps/duration_conversions/toString_duration_min' failed: expected string \"-315576000000.999999999s\", got error '-315576000000s999999999ns is out of the range of duration' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(53,3): error ENG801: case 'timestamps/duration_conversions/from_string_max' failed: expected object type.googleapis.com/google.protobuf.Duration \"315576000000.999999999s\", got error '315576000000s999999999ns is out of the range of duration' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(65,3): error ENG801: case 'timestamps/duration_conversions/from_string_min' failed: expected object type.googleapis.com/google.protobuf.Duration \"-315576000000.999999999s\", got error '-315576000000s999999999ns is out of the range of duration' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(300,3): error ENG801: case 'timestamps/timestamp_arithmetic/add_max_duration_to_min_time' failed: expected bool true, got error '315537897599s999999999ns is out of the range of duration' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(305,3): error ENG801: case 'timestamps/timestamp_arithmetic/subtract_max_duration_from_max_time' failed: expected bool true, got error '315537897599s999999999ns is out of the range of duration' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(310,3): error ENG801: case 'timestamps/timestamp_arithmetic/add_duration_to_duration_max' failed: expected bool true, got error '315576000000s is out of the range of duration' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(315,3): error ENG801: case 'timestamps/timestamp_arithmetic/subtract_duration_from_duration_min' failed: expected bool true, got error '-315576000000s is out of the range of duration' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(486,3): error ENG801: case 'timestamps/timestamp_range/sub_time_duration_over' failed: expected object type.googleapis.com/google.protobuf.Duration \"315537897599s\", got error 'duration overflow' (jit, linux-x64, net11.0)",
-    "tests/cel-spec/tests/simple/testdata/timestamps.textproto(497,3): error ENG801: case 'timestamps/timestamp_range/sub_time_duration_under' failed: expected object type.googleapis.com/google.protobuf.Duration \"-315537897599s\", got error 'duration overflow' (jit, linux-x64, net11.0)",
     "tests/cel-spec/tests/simple/testdata/wrappers.textproto(348,3): error ENG801: case 'wrappers/duration/max_value' failed: check failed: '\\'google.protobuf.Duration\\' is not a type' (jit, linux-x64, net11.0)",
     "tests/cel-spec/tests/simple/testdata/wrappers.textproto(360,3): error ENG801: case 'wrappers/duration/min_value' failed: check failed: '\\'google.protobuf.Duration\\' is not a type' (jit, linux-x64, net11.0)",
     "tests/cel-spec/tests/simple/testdata/wrappers.textproto(372,3): error ENG801: case 'wrappers/duration/seconds_over' failed: check failed: '\\'google.protobuf.Duration\\' is not a type' (jit, linux-x64, net11.0)",
@@ -41,9 +31,9 @@
     "tests/cel-spec/tests/simple/testdata/wrappers.textproto(498,3): error ENG801: case 'wrappers/timestamp/negative_seconds_negative_nanos' failed: check failed: '\\'google.protobuf.Timestamp\\' is not a type' (jit, linux-x64, net11.0)"
   ],
   "run": {
-    "id": 44326159367,
+    "id": 44508889541,
     "attempt": 1,
-    "event": "workflow_dispatch",
-    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/44326159367"
+    "event": "schedule",
+    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/44508889541"
   }
 }
