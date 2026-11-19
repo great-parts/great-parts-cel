@@ -33,6 +33,7 @@ public sealed class TracesTests
     [InlineData("// See c4-fitness-functions.", "c4-fitness-functions", "the name of a document of the specification")]
     public static void Trace_InAComment_IsEng103AtItsFirstCharacter(string line, string code, string what)
     {
+        ArgumentNullException.ThrowIfNull(line);
         using TempDirectory root = new();
         root.Write("src/Great.Parts.Cel/A.cs", Text("class A", "{", line, "}"));
 

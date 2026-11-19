@@ -24,13 +24,20 @@
 
   <!--
     The invariant time zone mode of the runtime, which the property InvariantTimezone sets: TimeZoneInfo finds no named zone. The property
-    is not used because it needs the workload wasm-tools (NETSDK1147), and the default mode of this application needs none; the option of
-    the runtime is what it writes. Program.cs checks that CelTimeZoneDatabase.FromSystem() then finds none either (SystemZones.cs). The
-    cel-spec cases use the archive of the suite project, not the zones of the platform.
+    is not used because setting it to true needs the workload wasm-tools (NETSDK1147: it asks for a relink of the runtime), and the default
+    mode of this application needs none; the option of the runtime is what it writes. A plain item of the project does not act: the
+    workload sets InvariantTimezone to false by default (WasmFeatures.props), the SDK adds the option with that value after the body of the
+    project, and the later item wins, so runtimeconfig.json says false. The target removes that item and adds the option with the value
+    true, just before the file is generated (and before the trimmer reads the options). Program.cs checks that
+    CelTimeZoneDatabase.FromSystem() then finds no zone either (SystemZones.cs). The cel-spec cases use the archive of the suite project,
+    not the zones of the platform.
   -->
-  <ItemGroup>
-    <RuntimeHostConfigurationOption Include="System.TimeZoneInfo.Invariant" Value="true" />
-  </ItemGroup>
+  <Target Name="SetInvariantTimeZone" BeforeTargets="GenerateBuildRuntimeConfigurationFiles;GeneratePublishRuntimeConfigurationFiles">
+    <ItemGroup>
+      <RuntimeHostConfigurationOption Remove="System.TimeZoneInfo.Invariant" />
+      <RuntimeHostConfigurationOption Include="System.TimeZoneInfo.Invariant" Value="true" Trim="true" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" />

@@ -153,7 +153,8 @@ jobs:
   # tests/Great.Parts.Cel.Conformance.Wasm is published as a console application of the runtime for WebAssembly in the default mode (the
   # interpreter of the runtime, IL trimming, no AOT compilation to WebAssembly) with the data of the suite embedded, and runs under Node.js
   # in a container; its exit code is the result, and the summary line and the skipped cases are in the log. The runner is built with
-  # the invariant time zone mode of the runtime, and it also checks that CelTimeZoneDatabase.FromSystem() then finds no zone (TimeZoneNotFound, never another zone).
+  # the invariant time zone mode of the runtime (the option System.TimeZoneInfo.Invariant, which a target of the project writes into
+  # runtimeconfig.json after the SDK's own item with the value false), and it also checks that CelTimeZoneDatabase.FromSystem() then finds no zone (TimeZoneNotFound, never another zone).
   # The test application tests/Great.Parts.Cel.Wasm.App, a Blazor WebAssembly application that takes the assemblies of both packages as
   # roots of the trimmer, is published too: a publish with a trimming warning fails (every warning is an error), and the step counts the
   # lines IL2xxx and IL3xxx of the log (.github/scripts/il-gate.mjs), so 0 of them is part of the cell; a control example with one
