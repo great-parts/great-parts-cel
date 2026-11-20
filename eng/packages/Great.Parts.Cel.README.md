@@ -21,7 +21,7 @@ The library targets `net10.0` and `net11.0`. Add the package to a project:
 dotnet add package Great.Parts.Cel
 ```
 
-Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](https://github.com/great-parts/great-parts-cel/blob/main/docs/protobuf.md). The type `decimal` is available on both targets, with a smaller range on `net10.0`; see [Decimal](https://github.com/great-parts/great-parts-cel/blob/main/docs/decimal.md).
+Messages of protobuf need a second package, `Great.Parts.Cel.Protobuf`, which depends on `Great.Parts.Cel` and `Google.Protobuf`; see [Protobuf messages](https://github.com/great-parts/great-parts-cel/blob/main/docs/protobuf.md). Two more packages come in 2.0. `Great.Parts.Cel.Policy` reads policies written in the [CEL policy format](https://github.com/cel-expr/cel-policy), YAML documents of rules that compile to CEL expressions. `Great.Parts.Cel.Filtering` reads the filters of [AIP-160](https://google.aip.dev/160), the `filter` string of a list method of an API, as CEL expressions. Both build on the core of the library and use its type checking. See the [Roadmap](https://github.com/great-parts/great-parts-cel/blob/main/ROADMAP.md). The type `decimal` is available on both targets, with a smaller range on `net10.0`; see [Decimal](https://github.com/great-parts/great-parts-cel/blob/main/docs/decimal.md).
 
 ## Quick start
 
