@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,8 +18,10 @@ import (
 	"cel.dev/cel-go/common/types/ref"
 	celpb "cel.dev/expr"
 	testpb "cel.dev/expr/conformance/test"
+	exprpb "google.golang.org/genproto/googleapis/api/expr/v1alpha1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/encoding/prototext"
+	"google.golang.org/protobuf/proto"
 )
 
 // celGoModule is the module whose version the handshake names.
@@ -34,6 +37,7 @@ type request struct {
 	Description string                     `json:"description"`
 	Zone        *string                    `json:"zone"`
 	Instant     *int64                     `json:"instant"`
+	Checked     *string                    `json:"checked"`
 }
 
 type handshake struct {
@@ -50,6 +54,7 @@ type answer struct {
 	Value     json.RawMessage `json:"value,omitempty"`
 	Textproto *string         `json:"textproto,omitempty"`
 	Seconds   *int64          `json:"seconds,omitempty"`
+	Checked   *string         `json:"checked,omitempty"`
 }
 
 // outcome is the result of cel-go for one expression.
@@ -126,6 +131,12 @@ func handle(environment *cel.Env, line []byte) (answer, error) {
 	if req.Zone != nil || req.Instant != nil {
 		return answer{}, fmt.Errorf("malformed request %q: zone and instant belong to the op offset", line)
 	}
+	if req.Op == "checked" {
+		return handleChecked(environment, req, line)
+	}
+	if req.Checked != nil {
+		return answer{}, fmt.Errorf("malformed request %q: checked belongs to the op checked", line)
+	}
 	if req.Expr == nil {
 		return answer{}, fmt.Errorf("malformed request %q: no expr", line)
 	}
@@ -135,13 +146,9 @@ func handle(environment *cel.Env, line []byte) (answer, error) {
 	if req.Op == "eval" && (req.Name != "" || req.Description != "") {
 		return answer{}, fmt.Errorf("malformed request %q: name and description belong to the op case", line)
 	}
-	bindings := make(map[string]*celpb.Value, len(req.Bindings))
-	for name, raw := range req.Bindings {
-		value := &celpb.Value{}
-		if err := protojson.Unmarshal(raw, value); err != nil {
-			return answer{}, fmt.Errorf("malformed request %q: binding %q: %v", line, name, err)
-		}
-		bindings[name] = value
+	bindings, err := readBindings(req, line)
+	if err != nil {
+		return answer{}, err
 	}
 	result, err := evaluate(environment, *req.Expr, bindings)
 	if err != nil {
@@ -154,11 +161,29 @@ func handle(environment *cel.Env, line []byte) (answer, error) {
 		}
 		return answer{ID: *req.ID, Textproto: &text}, nil
 	}
-	reply := answer{ID: *req.ID, Outcome: result.kind, Stage: result.stage}
+	return outcomeAnswer(*req.ID, result)
+}
+
+// readBindings decodes the bindings of a request: name -> cel.expr.Value in the JSON mapping of protobuf.
+func readBindings(req request, line []byte) (map[string]*celpb.Value, error) {
+	bindings := make(map[string]*celpb.Value, len(req.Bindings))
+	for name, raw := range req.Bindings {
+		value := &celpb.Value{}
+		if err := protojson.Unmarshal(raw, value); err != nil {
+			return nil, fmt.Errorf("malformed request %q: binding %q: %v", line, name, err)
+		}
+		bindings[name] = value
+	}
+	return bindings, nil
+}
+
+// outcomeAnswer is the answer to a request that evaluates: the outcome, with its stage, message or value.
+func outcomeAnswer(id int64, result outcome) (answer, error) {
+	reply := answer{ID: id, Outcome: result.kind, Stage: result.stage}
 	if result.kind == "value" {
 		raw, err := protojson.Marshal(result.value)
 		if err != nil {
-			return answer{}, fmt.Errorf("request %d: %v", *req.ID, err)
+			return answer{}, fmt.Errorf("request %d: %v", id, err)
 		}
 		reply.Value = raw
 	} else {
@@ -166,6 +191,82 @@ func handle(environment *cel.Env, line []byte) (answer, error) {
 		reply.Message = &message
 	}
 	return reply, nil
+}
+
+// handleChecked answers the op checked (docs/design/ast-protobuf.md, "Exchange with cel-go"). With expr, it parses and checks
+// the expression and answers the bytes of cel.AstToCheckedExpr, base64; a parse or check failure is the compile-error of
+// the op eval. With checked, it loads the bytes with cel.CheckedExprToAst, plans them in the environment and evaluates on
+// the bindings, as the op eval does with text.
+func handleChecked(environment *cel.Env, req request, line []byte) (answer, error) {
+	if req.Name != "" || req.Description != "" {
+		return answer{}, fmt.Errorf("malformed request %q: name and description belong to the op case", line)
+	}
+	if (req.Expr == nil) == (req.Checked == nil) {
+		return answer{}, fmt.Errorf("malformed request %q: the op checked has expr or checked, one of them", line)
+	}
+	if req.Expr != nil {
+		if len(req.Bindings) != 0 {
+			return answer{}, fmt.Errorf("malformed request %q: the op checked with expr has no bindings", line)
+		}
+		return checkedBytes(environment, *req.ID, *req.Expr)
+	}
+	data, err := base64.StdEncoding.DecodeString(*req.Checked)
+	if err != nil {
+		return answer{}, fmt.Errorf("malformed request %q: checked is not base64: %v", line, err)
+	}
+	bindings, err := readBindings(req, line)
+	if err != nil {
+		return answer{}, err
+	}
+	result, err := evaluateChecked(environment, data, bindings)
+	if err != nil {
+		return answer{}, fmt.Errorf("request %d: %v", *req.ID, err)
+	}
+	return outcomeAnswer(*req.ID, result)
+}
+
+// checkedBytes parses and checks an expression and gives the bytes of its CheckedExpr; an error means that cel-go has no
+// message for a checked expression it checked.
+func checkedBytes(environment *cel.Env, id int64, expr string) (answer, error) {
+	parsed, issues := environment.Parse(expr)
+	if issues.Err() != nil {
+		message := issues.Err().Error()
+		return answer{ID: id, Outcome: "compile-error", Stage: "parse", Message: &message}, nil
+	}
+	checked, issues := environment.Check(parsed)
+	if issues.Err() != nil {
+		message := issues.Err().Error()
+		return answer{ID: id, Outcome: "compile-error", Stage: "check", Message: &message}, nil
+	}
+	message, err := cel.AstToCheckedExpr(checked)
+	if err != nil {
+		return answer{}, fmt.Errorf("request %d: AstToCheckedExpr: %v", id, err)
+	}
+	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(message)
+	if err != nil {
+		return answer{}, fmt.Errorf("request %d: the checked expression does not marshal: %v", id, err)
+	}
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return answer{ID: id, Outcome: "checked", Checked: &encoded}, nil
+}
+
+// evaluateChecked loads the bytes of a CheckedExpr, as an application that stored one does, and runs it. Bytes that do not read
+// as the message, or that cel-go refuses to load, and a program that it cannot plan are a compile error, stage load or program:
+// the bytes are the other side's, so a divergence is the finding.
+func evaluateChecked(environment *cel.Env, data []byte, bindings map[string]*celpb.Value) (outcome, error) {
+	message := &exprpb.CheckedExpr{}
+	if err := proto.Unmarshal(data, message); err != nil {
+		return outcome{kind: "compile-error", stage: "load", message: err.Error()}, nil
+	}
+	loaded, err := cel.CheckedExprToAstWithSource(message, nil)
+	if err != nil {
+		return outcome{kind: "compile-error", stage: "load", message: err.Error()}, nil
+	}
+	program, err := environment.Program(loaded)
+	if err != nil {
+		return outcome{kind: "compile-error", stage: "program", message: err.Error()}, nil
+	}
+	return runProgram(environment, program, bindings, nil)
 }
 
 // evaluate runs an expression through the stages of cel-go; an error means the result has no
@@ -183,6 +284,11 @@ func evaluate(environment *cel.Env, expr string, bindings map[string]*celpb.Valu
 	if err != nil {
 		return outcome{kind: "compile-error", stage: "program", message: err.Error(), parsed: parsed}, nil
 	}
+	return runProgram(environment, program, bindings, parsed)
+}
+
+// runProgram evaluates a program on the bindings; parsed is the parsed form of the text, nil for a loaded expression.
+func runProgram(environment *cel.Env, program cel.Program, bindings map[string]*celpb.Value, parsed *cel.Ast) (outcome, error) {
 	activation := make(map[string]any, len(bindings))
 	for name, value := range bindings {
 		converted, err := cel.ProtoAsValue(environment.CELTypeAdapter(), value)
@@ -293,7 +399,7 @@ func handleOffset(req request, line []byte) (answer, error) {
 	if req.Zone == nil || req.Instant == nil {
 		return answer{}, fmt.Errorf("malformed request %q: the op offset needs zone and instant", line)
 	}
-	if req.Expr != nil || len(req.Bindings) != 0 || req.Name != "" || req.Description != "" {
+	if req.Expr != nil || req.Checked != nil || len(req.Bindings) != 0 || req.Name != "" || req.Description != "" {
 		return answer{}, fmt.Errorf("malformed request %q: the op offset has only zone and instant", line)
 	}
 	location, ok := locations[*req.Zone]

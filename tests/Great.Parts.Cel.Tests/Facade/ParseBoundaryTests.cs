@@ -18,7 +18,7 @@ public sealed class ParseBoundaryTests
     {
         var exception = new InvalidOperationException("defect");
 
-        ParseResult result = CelEnvironment.ParseWithinBoundary(new Parser("x\n+ 1", SyntaxOptions.Standard), _ => throw exception);
+        CelParseResult result = CelEnvironment.ParseWithinBoundary(new Parser("x\n+ 1", SyntaxOptions.Standard), _ => throw exception);
 
         Assert.False(result.IsSuccess);
         CelError error = Assert.Single(result.Errors);
@@ -35,7 +35,7 @@ public sealed class ParseBoundaryTests
     {
         var exception = new FormatException("defect");
 
-        ParseResult result = CelEnvironment.ParseWithinBoundary(
+        CelParseResult result = CelEnvironment.ParseWithinBoundary(
             new Parser("[1 2,\n if", SyntaxOptions.Standard),
             parser =>
             {
@@ -65,7 +65,7 @@ public sealed class ParseBoundaryTests
     {
         CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1).Build().GetEnvironmentOrThrow();
 
-        ParseResult result = environment.Parse("[1 2] + if");
+        CelParseResult result = environment.Parse("[1 2] + if");
 
         Assert.Equal(
             new[] { CelErrorCode.SyntaxError, CelErrorCode.ReservedIdentifier },

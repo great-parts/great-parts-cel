@@ -25,7 +25,7 @@ public sealed class CheckLimitTests
     public void CheckingWithoutStack_IsInsufficientStackAtTheNodeNotChecked()
     {
         const string Text = "[[[y]]]";
-        ParsedExpression parsed = Parse(Text);
+        CelParsedExpr parsed = Parse(Text);
 
         CheckResult result = CheckOnExhaustedStack(parsed);
 
@@ -50,9 +50,9 @@ public sealed class CheckLimitTests
     {
         const string Text = "[y, size()]";
         var factory = new NodeFactory();
-        ExprNode y = factory.Ident("y", 1);
-        ExprNode broken = factory.Call("size", null, default(ImmutableArray<ExprNode>), 8);
-        ParsedExpression parsed = factory.Build(factory.List(ImmutableArray.Create(y, broken), ImmutableArray<int>.Empty, 0), new LineTable(Text));
+        CelExprNode y = factory.Ident("y", 1);
+        CelExprNode broken = factory.Call("size", null, default(ImmutableArray<CelExprNode>), 8);
+        CelParsedExpr parsed = factory.Build(factory.List(ImmutableArray.Create(y, broken), ImmutableArray<int>.Empty, 0), new LineTable(Text));
 
         CheckResult result = environment.Check(parsed);
 
@@ -69,18 +69,18 @@ public sealed class CheckLimitTests
         Assert.IsNotType<OutOfMemoryException>(error.Exception);
     }
 
-    private ParsedExpression Parse(string text)
+    private CelParsedExpr Parse(string text)
     {
-        ParseResult result = environment.Parse(text);
+        CelParseResult result = environment.Parse(text);
 
         Assert.True(result.IsSuccess);
-        Assert.NotNull(result.Expression);
-        return result.Expression;
+        Assert.NotNull(result.ParsedExpr);
+        return result.ParsedExpr;
     }
 
     // Descends until the runtime reports that the stack is nearly used up, then checks there.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private CheckResult CheckOnExhaustedStack(ParsedExpression parsed)
+    private CheckResult CheckOnExhaustedStack(CelParsedExpr parsed)
     {
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {

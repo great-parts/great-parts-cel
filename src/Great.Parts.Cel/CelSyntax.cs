@@ -1,5 +1,6 @@
 using System;
 using System.Text;
+using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel;
@@ -75,5 +76,35 @@ public static class CelSyntax
     {
         ArgumentNullException.ThrowIfNull(value);
         return DeclarationNames.IsIdentifier(value);
+    }
+
+    /// <summary>
+    /// Writes a parsed expression as CEL text that parses, in an environment with the same syntax, into an equivalent tree:
+    /// the same kinds, children, names, functions and constants, without regard to ids and positions.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The text is that of <c>parser/unparser.go</c> of cel-go: binary operators and <c>?:</c> with single spaces, parentheses
+    /// only where the tree needs them, a field that is not an identifier in backticks, the expansion of a macro written as its
+    /// recorded call. It shows a tree that a factory built — for example a filter translated into CEL — or the remainder of an
+    /// expression. Only the property "the text parses into an equivalent tree" is a contract; spaces and parentheses can change
+    /// in a minor version.
+    /// </para>
+    /// <para>
+    /// Names are written as they are: a tree whose identifier is not an identifier of the language, such as the internal
+    /// <c>@index0</c>, gives a text that parses only where such a name is allowed.
+    /// </para>
+    /// </remarks>
+    /// <param name="expression">The parsed expression.</param>
+    /// <returns>The text.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The tree has no text form: a comprehension or a presence test without a recorded macro call, or a nesting deeper than
+    /// the limit of parsing.
+    /// </exception>
+    public static string Format(CelParsedExpr expression)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        return Printer.Print(expression);
     }
 }

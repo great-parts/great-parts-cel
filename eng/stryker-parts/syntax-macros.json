@@ -18,8 +18,8 @@
     "mutate": [
       "Syntax/ExtensionMacros.cs",
       "Syntax/Macros.cs",
-      "Syntax/MacroCall.cs",
-      "Syntax/ComprehensionNode.cs",
+      "Syntax/CelMacroCall.cs",
+      "Syntax/CelComprehensionNode.cs",
       "Syntax/Literals.cs"
     ],
     "thresholds": {

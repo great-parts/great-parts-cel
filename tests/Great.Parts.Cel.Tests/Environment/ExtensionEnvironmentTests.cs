@@ -76,12 +76,12 @@ public sealed class ExtensionEnvironmentTests
     {
         CelEnvironment environment = BuildEnvironment(Builder().AddExtension(Of(Set("alpha", 1, macros: [Successor()]))));
 
-        ParseResult parsed = environment.Parse("other.succ(2)");
+        CelParseResult parsed = environment.Parse("other.succ(2)");
 
         Assert.True(parsed.IsSuccess);
-        CallNode call = Assert.IsType<CallNode>(parsed.Expression!.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.ParsedExpr!.Root);
         Assert.Equal("succ", call.Function);
-        Assert.IsType<IdentNode>(call.Target);
+        Assert.IsType<CelIdentNode>(call.Target);
     }
 
     [Fact]
@@ -90,7 +90,7 @@ public sealed class ExtensionEnvironmentTests
         CelEnvironment environment = BuildEnvironment(Builder().AddExtension(Of(Set("alpha", 1, macros: [Failing()]))));
         const string Text = "test.fail(x)";
 
-        ParseResult parsed = environment.Parse(Text);
+        CelParseResult parsed = environment.Parse(Text);
 
         Assert.False(parsed.IsSuccess);
         CelError error = Assert.Single(parsed.Errors);

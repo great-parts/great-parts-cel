@@ -184,8 +184,8 @@ internal static class CostRows
             return environment.Compile<CelValue>(text).GetProgramOrThrow().Plan;
         }
 
-        ParseResult parsed = environment.Parse(text);
+        CelParseResult parsed = environment.Parse(text);
         Assert.True(parsed.IsSuccess, text);
-        return Planner.PlanWithoutTypeCheck(parsed.Expression!, environment.Declarations, environment.TimeZones);
+        return Planner.PlanWithoutTypeCheck(parsed.ParsedExpr!, environment.Declarations, environment.TimeZones);
     }
 }

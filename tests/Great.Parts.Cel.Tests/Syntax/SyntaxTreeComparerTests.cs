@@ -27,7 +27,7 @@ public sealed class SyntaxTreeComparerTests
 
     // Two trees differ in a single place; the difference names it from the root.
     [Theory]
-    [InlineData("x", "1", "root: IdentNode vs ConstantNode")]
+    [InlineData("x", "1", "root: CelIdentNode vs CelConstantNode")]
     [InlineData("x", "y", "root.name: \"x\" vs \"y\"")]
     [InlineData("1", "1u", "root.kind: Int vs UInt")]
     [InlineData("1.0", "2.0", "root.value: 1.0 vs 2.0")]
@@ -44,7 +44,7 @@ public sealed class SyntaxTreeComparerTests
     [InlineData("a.f()", "f(a)", "root.target: a target vs null")]
     [InlineData("a.f()", "b.f()", "root.target.name: \"a\" vs \"b\"")]
     [InlineData("[1, 2]", "[1, 3]", "root.elements[1].value: 2 vs 3")]
-    [InlineData("x{}", "{}", "root.messageName: \"x\" vs \"\"")]
+    [InlineData("x{}", "{}", "root: CelStructNode vs CelMapNode")]
     [InlineData("x{f: 1}", "x{g: 1}", "root.entries[0].fieldName: \"f\" vs \"g\"")]
     [InlineData("x{f: 1}", "x{f: 1, g: 2}", "root.entries: 1 items vs 2 items")]
     [InlineData("{1: 2}", "{1: 3}", "root.entries[0].value.value: 2 vs 3")]
@@ -76,20 +76,20 @@ public sealed class SyntaxTreeComparerTests
     public static void Comprehensions_DifferInTheAccumulatorVariable()
     {
         var nodes = new NodeFactory();
-        IdentNode range = nodes.Ident("xs", 0);
-        ConstantNode init = nodes.Constant(CelValue.FromBoolean(true), 0);
+        CelIdentNode range = nodes.Ident("xs", 0);
+        CelConstantNode init = nodes.Constant(CelValue.FromBoolean(true), 0);
 
-        ComprehensionNode left = nodes.Comprehension("e", range, "@result", init, init, init, init, 0);
-        ComprehensionNode right = nodes.Comprehension("e", range, "acc", init, init, init, init, 0);
+        CelComprehensionNode left = nodes.Comprehension("e", range, "@result", init, init, init, init, 0);
+        CelComprehensionNode right = nodes.Comprehension("e", range, "acc", init, init, init, init, 0);
 
         Assert.Equal("root.accuVar: \"@result\" vs \"acc\"", SyntaxTreeComparer.Difference(left, right));
     }
 
-    private static ExprNode Parse(string expression, SyntaxOptions? syntax = null)
+    private static CelExprNode Parse(string expression, SyntaxOptions? syntax = null)
     {
-        ParseResult result = Parser.Parse(expression, syntax);
+        CelParseResult result = Parser.Parse(expression, syntax);
         Assert.True(result.IsSuccess, expression + ": " + string.Join(" | ", result.Errors.Select(Format)));
-        return result.Expression.Root;
+        return result.ParsedExpr.Root;
     }
 
     private static string Format(CelError error) => error.Code + " " + error.Message;

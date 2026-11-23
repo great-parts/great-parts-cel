@@ -216,6 +216,11 @@ public sealed class CelError
     /// <returns>A new error with the same code, stage, message, position and exception.</returns>
     internal CelError InDocument(CelSourceLocation start)
     {
+        if (Location.Line == 0)
+        {
+            return this;
+        }
+
         int column = Location.Line == 1 ? Add(start.Column, Location.Column - 1) : Location.Column;
         var place = new CelSourceLocation(
             start.SourceName!,

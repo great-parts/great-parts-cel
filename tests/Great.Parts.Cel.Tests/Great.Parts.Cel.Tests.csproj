@@ -83,6 +83,12 @@
     <CelProtoRoot>$([MSBuild]::NormalizeDirectory('$(MSBuildProjectDirectory)', '..', '..', 'tests', 'cel-spec', 'proto'))</CelProtoRoot>
   </PropertyGroup>
 
+  <!-- The messages ParsedExpr and CheckedExpr (namespace Cel.Expr), against which the tests of the protobuf form of the expressions check the codec of the library. -->
+  <ItemGroup>
+    <Protobuf Include="$(CelProtoRoot)cel/expr/syntax.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
+    <Protobuf Include="$(CelProtoRoot)cel/expr/checked.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
+  </ItemGroup>
+
   <ItemGroup>
     <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/proto2/test_all_types.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />
     <Protobuf Include="$(CelProtoRoot)cel/expr/conformance/proto2/test_all_types_extensions.proto" ProtoRoot="$(CelProtoRoot)" GrpcServices="None" />

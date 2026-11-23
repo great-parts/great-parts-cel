@@ -54,7 +54,7 @@ public sealed class MacroTests
     [MemberData(nameof(ExpansionCases))]
     public static void MacroCall_ExpandsIntoTheShapeOfCelGo(string expression, string tree)
     {
-        ParsedExpression parsed = Parsed(expression, null);
+        CelParsedExpr parsed = Parsed(expression, null);
 
         Assert.Equal(tree, Format(parsed.Root, parsed));
     }
@@ -63,7 +63,7 @@ public sealed class MacroTests
     [MemberData(nameof(CallCases))]
     public static void CallThatIsNoMacro_StaysACall(string expression, string tree)
     {
-        ParsedExpression parsed = Parsed(expression, null);
+        CelParsedExpr parsed = Parsed(expression, null);
 
         Assert.Equal(tree, Format(parsed.Root, parsed));
     }
@@ -75,7 +75,7 @@ public sealed class MacroTests
     [InlineData("xs.map(e, e, e)", "xs@0.map(e@7, e@10, e@13)@6")]
     public static void MacroCall_WithoutMacros_IsACall(string expression, string tree)
     {
-        ParsedExpression parsed = Parsed(expression, WithoutMacros);
+        CelParsedExpr parsed = Parsed(expression, WithoutMacros);
 
         Assert.Equal(tree, Format(parsed.Root, parsed));
     }
@@ -84,7 +84,7 @@ public sealed class MacroTests
     [Fact]
     public static void Expansion_IsAtTheParenthesisOfTheCall()
     {
-        ParsedExpression parsed = Parsed("[1]\n  .all(e,\n  true)", null);
+        CelParsedExpr parsed = Parsed("[1]\n  .all(e,\n  true)", null);
 
         Assert.Equal(
             "comprehension(e, [1@1]@0, @result, true@10, @not_strictly_false(@result@10)@10, _&&_(@result@10, true@16)@10, @result@10)@10",
@@ -97,7 +97,7 @@ public sealed class MacroTests
     [Fact]
     public static void Expansion_HasIdsInTheOrderOfCreation()
     {
-        ParsedExpression parsed = Parsed("xs.all(e, e < 3)", null);
+        CelParsedExpr parsed = Parsed("xs.all(e, e < 3)", null);
 
         Assert.Equal("12 1 6 8 7 10 9 5 3 4 11", string.Join(" ", Ids(parsed.Root)));
     }
@@ -107,17 +107,17 @@ public sealed class MacroTests
     [Fact]
     public static void Expansion_RecordsTheCallAsWritten()
     {
-        ParsedExpression parsed = Parsed("xs.exists(e, e > 0)", null);
-        var comprehension = (ComprehensionNode)parsed.Root;
+        CelParsedExpr parsed = Parsed("xs.exists(e, e > 0)", null);
+        var comprehension = (CelComprehensionNode)parsed.Root;
 
-        MacroCall? call = parsed.GetMacroCall(comprehension.Id);
+        CelMacroCall? call = parsed.GetMacroCall(comprehension.Id);
 
         Assert.NotNull(call);
         Assert.Equal("exists", call.Function);
         Assert.Same(comprehension.IterRange, call.Target);
         Assert.Equal(2, call.Arguments.Length);
-        Assert.Equal((2, "e"), (call.Arguments[0].Id, ((IdentNode)call.Arguments[0]).Name));
-        Assert.Same(((CallNode)comprehension.LoopStep).Arguments[1], call.Arguments[1]);
+        Assert.Equal((2, "e"), (call.Arguments[0].Id, ((CelIdentNode)call.Arguments[0]).Name));
+        Assert.Same(((CelCallNode)comprehension.LoopStep).Arguments[1], call.Arguments[1]);
         Assert.Null(parsed.GetMacroCall(comprehension.IterRange.Id));
     }
 
@@ -126,20 +126,20 @@ public sealed class MacroTests
     [Fact]
     public static void NestedAndGlobalMacroCalls_AreEachRecorded()
     {
-        ParsedExpression parsed = Parsed("xs.all(e, has(e.f))", null);
-        var outer = (ComprehensionNode)parsed.Root;
-        ExprNode presence = ((CallNode)outer.LoopStep).Arguments[1];
+        CelParsedExpr parsed = Parsed("xs.all(e, has(e.f))", null);
+        var outer = (CelComprehensionNode)parsed.Root;
+        CelExprNode presence = ((CelCallNode)outer.LoopStep).Arguments[1];
 
-        MacroCall? outerCall = parsed.GetMacroCall(outer.Id);
-        MacroCall? innerCall = parsed.GetMacroCall(presence.Id);
+        CelMacroCall? outerCall = parsed.GetMacroCall(outer.Id);
+        CelMacroCall? innerCall = parsed.GetMacroCall(presence.Id);
 
         Assert.NotNull(outerCall);
         Assert.NotNull(innerCall);
         Assert.Same(presence, outerCall.Arguments[1]);
-        Assert.Equal(("has", (ExprNode?)null), (innerCall.Function, innerCall.Target));
-        SelectNode written = Assert.IsType<SelectNode>(Assert.Single(innerCall.Arguments));
+        Assert.Equal(("has", (CelExprNode?)null), (innerCall.Function, innerCall.Target));
+        CelSelectNode written = Assert.IsType<CelSelectNode>(Assert.Single(innerCall.Arguments));
         Assert.False(written.IsPresenceTest);
-        Assert.Same(written.Operand, ((SelectNode)presence).Operand);
+        Assert.Same(written.Operand, ((CelSelectNode)presence).Operand);
     }
 
     [Theory]
@@ -192,7 +192,7 @@ public sealed class MacroTests
     public static void Macro_CountsAsItsCallInTheSyntaxTreeDepth(int selections, string tail, bool parses)
     {
         string text = "x" + string.Concat(Enumerable.Repeat(".a", selections)) + tail;
-        ParseResult result = Parser.Parse(text);
+        CelParseResult result = Parser.Parse(text);
 
         Assert.Equal(parses, result.IsSuccess);
         if (!parses)
@@ -222,29 +222,29 @@ public sealed class MacroTests
         Assert.Equal("InvalidMacroCall@505 invalid call of macro 'all': argument must be a simple name", Format(error));
     }
 
-    private static ParsedExpression Parsed(string expression, SyntaxOptions? syntax)
+    private static CelParsedExpr Parsed(string expression, SyntaxOptions? syntax)
     {
-        ParseResult result = Parser.Parse(expression, syntax);
+        CelParseResult result = Parser.Parse(expression, syntax);
         Assert.True(result.IsSuccess, string.Join(" | ", result.Errors.Select(Format)));
-        return result.Expression;
+        return result.ParsedExpr;
     }
 
     private static string Format(CelError error) => error.Code + "@" + Offset(error) + " " + error.Message;
 
     private static string Offset(CelError error) => error.Location.Offset.ToString(CultureInfo.InvariantCulture);
 
-    private static string Format(ExprNode node, ParsedExpression parsed)
+    private static string Format(CelExprNode node, CelParsedExpr parsed)
     {
         string text = node switch
         {
-            ConstantNode constant => FormatValue(constant.Value),
-            IdentNode ident => ident.Name,
-            SelectNode { IsPresenceTest: true } select => "present(" + Format(select.Operand, parsed) + "." + select.Field + ")",
-            SelectNode select => Format(select.Operand, parsed) + "." + select.Field,
-            CallNode { Target: { } target } call => Format(target, parsed) + "." + call.Function + "(" + Join(call.Arguments, parsed) + ")",
-            CallNode call => call.Function + "(" + Join(call.Arguments, parsed) + ")",
-            ListNode list => "[" + Join(list.Elements, parsed) + "]",
-            ComprehensionNode loop => "comprehension(" + string.Join(
+            CelConstantNode constant => FormatValue(constant.Value),
+            CelIdentNode ident => ident.Name,
+            CelSelectNode { IsPresenceTest: true } select => "present(" + Format(select.Operand, parsed) + "." + select.Field + ")",
+            CelSelectNode select => Format(select.Operand, parsed) + "." + select.Field,
+            CelCallNode { Target: { } target } call => Format(target, parsed) + "." + call.Function + "(" + Join(call.Arguments, parsed) + ")",
+            CelCallNode call => call.Function + "(" + Join(call.Arguments, parsed) + ")",
+            CelListNode list => "[" + Join(list.Elements, parsed) + "]",
+            CelComprehensionNode loop => "comprehension(" + string.Join(
                 ", ",
                 loop.IterVar,
                 Format(loop.IterRange, parsed),
@@ -258,18 +258,18 @@ public sealed class MacroTests
         return text + "@" + parsed.GetOffset(node.Id).ToString(CultureInfo.InvariantCulture);
     }
 
-    private static string Join(ImmutableArray<ExprNode> nodes, ParsedExpression parsed) =>
+    private static string Join(ImmutableArray<CelExprNode> nodes, CelParsedExpr parsed) =>
         string.Join(", ", nodes.Select(node => Format(node, parsed)));
 
     // The ids in pre-order: a node, then its children; the parts of a comprehension in the order of the table.
-    private static IEnumerable<int> Ids(ExprNode node)
+    private static IEnumerable<int> Ids(CelExprNode node)
     {
         IEnumerable<int> children = node switch
         {
-            SelectNode select => Ids(select.Operand),
-            CallNode call => (call.Target is null ? [] : Ids(call.Target)).Concat(call.Arguments.SelectMany(Ids)),
-            ListNode list => list.Elements.SelectMany(Ids),
-            ComprehensionNode loop => new[] { loop.IterRange, loop.AccuInit, loop.LoopCondition, loop.LoopStep, loop.Result }.SelectMany(Ids),
+            CelSelectNode select => Ids(select.Operand),
+            CelCallNode call => (call.Target is null ? [] : Ids(call.Target)).Concat(call.Arguments.SelectMany(Ids)),
+            CelListNode list => list.Elements.SelectMany(Ids),
+            CelComprehensionNode loop => new[] { loop.IterRange, loop.AccuInit, loop.LoopCondition, loop.LoopStep, loop.Result }.SelectMany(Ids),
             _ => [],
         };
         return new[] { node.Id }.Concat(children);

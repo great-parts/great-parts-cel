@@ -94,6 +94,23 @@ public enum CelErrorCode
     /// </summary>
     SyntaxNotEnabled = 1007,
 
+    /// <summary>
+    /// A parsed expression loaded from protobuf breaks the rules of <c>syntax.proto</c> or of the library: an expression without
+    /// a kind, an empty name, a function or a field, an id used twice, an optional index outside its list, a map entry with a
+    /// field name or a message field with a key, a comprehension without its variables, a macro call recorded under no node of
+    /// the tree or naming a nested expansion that is not a node of the tree with a macro call of its own, or a position
+    /// outside the source text given for loading. The message names the id of the node. Location: the node, when the message
+    /// gives its position; otherwise none.
+    /// </summary>
+    InvalidSyntaxTree = 1008,
+
+    /// <summary>
+    /// The bytes given for loading a parsed or a checked expression are not a valid protobuf message: a truncated field, a wrong
+    /// wire type for a known field, a length beyond the end, a string that is not UTF-8. The message names the offset in the
+    /// bytes. Location: none.
+    /// </summary>
+    InvalidProtobuf = 1009,
+
     // Type checking: 2000-2999.
 
     /// <summary>

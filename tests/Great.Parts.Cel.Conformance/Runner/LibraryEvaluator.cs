@@ -108,7 +108,7 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     private static CaseOutcome WithInternalEntryPoints(CelEnvironment environment, ConformanceCase testCase, ref CaseStage stage)
     {
         stage = CaseStage.Parse;
-        ParseResult parsed = environment.Parse(
+        CelParseResult parsed = environment.Parse(
             testCase.Expression,
             testCase.Environment.DisableMacros ? environment.Syntax with { Macros = MacroTable.Empty } : null);
         if (!parsed.IsSuccess)
@@ -119,14 +119,14 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
         if (testCase.Check == CheckMode.CheckOnly)
         {
             stage = CaseStage.Check;
-            CheckResult checkedResult = environment.Check(parsed.Expression);
+            CheckResult checkedResult = environment.Check(parsed.ParsedExpr);
             return checkedResult.IsSuccess
                 ? CaseOutcome.Checked(TypeConversion.ToExprType(checkedResult.Expression.ResultType))
                 : CaseOutcome.Failed(CaseStage.Check, Messages(checkedResult.Errors));
         }
 
         stage = CaseStage.Evaluate;
-        return Evaluated(TypeConversion.Dyn, environment.EvaluateWithoutTypeCheck(parsed.Expression, Bindings(testCase.Bindings)));
+        return Evaluated(TypeConversion.Dyn, environment.EvaluateWithoutTypeCheck(parsed.ParsedExpr, Bindings(testCase.Bindings)));
     }
 
     private static CaseOutcome Evaluated(Type resultType, CelEvalResult<CelValue> result) =>
@@ -137,7 +137,7 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     // The setup of all cases and what the case declares: the container and the variables of type_env. Every case has the time zone
     // database of the archive of the tests, as the runner of cel-go takes zones from its own database; no case declares one. Every
     // case has the provider of the test messages too: a case declares no provider, its container finds the messages by name.
-    private static CelEnvironmentBuilder Setup(CaseEnvironment declared)
+    internal static CelEnvironmentBuilder Setup(CaseEnvironment declared)
     {
         CelEnvironmentBuilder builder = new CelEnvironmentBuilder(CelStandardLibrary.V1)
             .UseTimeZones(ZoneInfoFile.Database())
@@ -165,7 +165,7 @@ internal sealed class LibraryEvaluator : ICaseEvaluator
     }
 
     // A binding of the kind value only: the rule fails a case with other bindings.
-    private static CelBindings Bindings(IReadOnlyDictionary<string, ExprValue> bindings)
+    internal static CelBindings Bindings(IReadOnlyDictionary<string, ExprValue> bindings)
     {
         CelBindings values = new();
         foreach ((string name, ExprValue binding) in bindings)

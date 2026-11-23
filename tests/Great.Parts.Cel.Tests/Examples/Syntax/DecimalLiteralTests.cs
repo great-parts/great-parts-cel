@@ -290,7 +290,7 @@ public sealed class DecimalLiteralTests
     {
         foreach (CelEnvironment environment in new[] { enabled, disabled })
         {
-            ParseResult result = environment.Parse(expression);
+            CelParseResult result = environment.Parse(expression);
 
             Assert.False(result.IsSuccess);
             CelError error = result.Errors[0];

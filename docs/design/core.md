@@ -11,13 +11,13 @@ The core is the code that decides the value or the error of an expression by the
 - the standard library and the extension sets with the implementations of their functions, including `matches`, `decimal` and the time functions — `Great.Parts.Cel.Library` and its sub-namespaces;
 - the value rules that evaluation relies on: assignability of types in `Great.Parts.Cel.Types`; CEL equality, ordering, hashing of map keys and conversions of values in `Great.Parts.Cel.Values`.
 
-Not core: the parser and the macros (`Great.Parts.Cel.Syntax`), the public facade, declarations, diagnostics, the environment description in JSON (`Great.Parts.Cel.Configuration`), the value model in `Types` and `Values` outside the rule files, the text of error messages, including the names of types in it (`Values/ValueTypeNames.cs`), the source generator, the type providers, the type descriptions and their builders outside the rule files, the adapters of application collections and of `JsonElement` outside the rule files, the packages `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore`, `eng/` and the tests.
+Not core: the parser, the macros, the public tree, the factory of nodes, the printing and the codec of `ParsedExpr` (`Great.Parts.Cel.Syntax`), the codec of `CheckedExpr` (`Checking/Protobuf/`), the public facade, declarations, diagnostics, the environment description in JSON (`Great.Parts.Cel.Configuration`), the value model in `Types` and `Values` outside the rule files, the text of error messages, including the names of types in it (`Values/ValueTypeNames.cs`), the source generator, the type providers, the type descriptions and their builders outside the rule files, the adapters of application collections and of `JsonElement` outside the rule files, the packages `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore`, `eng/` and the tests.
 
 A defect in the core gives a wrong value instead of a visible error. Core changes are therefore also checked against the reference implementation with `eng/difftest`.
 
 ## Layout of `src/Great.Parts.Cel`
 
-Each namespace of the assembly is a directory, and the namespace of a file equals its directory. The allowed references between namespaces are the layer table in `eng/layers.txt`; this layout adds no namespace to it.
+Each namespace of the assembly is a directory, and the namespace of a file equals its directory, with one exception: the subdirectories `Protobuf/` of `Syntax/` and `Checking/` hold the codec of the protobuf messages and keep the namespace of their layer. A namespace of their own would make a cycle with the layer (`ToProtobuf` calls the codec, the codec creates nodes), and the layer table would need rows for it. The allowed references between namespaces are the layer table in `eng/layers.txt`; this layout adds no namespace to it.
 
 | Directory | Namespace | Visibility | Core |
 | :- | :- | :- | :- |
@@ -27,8 +27,10 @@ Each namespace of the assembly is a directory, and the namespace of a file equal
 | `src/Great.Parts.Cel/Types/` | `Great.Parts.Cel.Types` | public | rule files only |
 | `src/Great.Parts.Cel/Values/` | `Great.Parts.Cel.Values` | public | rule files only |
 | `src/Great.Parts.Cel/Declarations/` | `Great.Parts.Cel.Declarations` | public | no |
-| `src/Great.Parts.Cel/Syntax/` | `Great.Parts.Cel.Syntax` | internal | no |
-| `src/Great.Parts.Cel/Checking/` | `Great.Parts.Cel.Checking` | internal | yes |
+| `src/Great.Parts.Cel/Syntax/` | `Great.Parts.Cel.Syntax` | public: the tree, the factory; internal: the lexer, the parser, the macros, the printing | no |
+| `src/Great.Parts.Cel/Syntax/Protobuf/` | `Great.Parts.Cel.Syntax` | internal | no |
+| `src/Great.Parts.Cel/Checking/` | `Great.Parts.Cel.Checking` | public: `CelCheckedExpr`, `CelReference`; internal: the checker | yes |
+| `src/Great.Parts.Cel/Checking/Protobuf/` | `Great.Parts.Cel.Checking` | internal | no |
 | `src/Great.Parts.Cel/Library/` | `Great.Parts.Cel.Library` | internal | yes |
 | `src/Great.Parts.Cel/Library/Unicode/` | `Great.Parts.Cel.Library.Unicode` | internal, generated code | yes |
 | `src/Great.Parts.Cel/Library/Text/` | `Great.Parts.Cel.Library.Text` | internal, no dependencies | yes |
@@ -106,7 +108,7 @@ A defect in a core file is a wrong answer for a decimal and no visible error, bu
 Paths are relative to the repository root, with `/` separators, as git prints them. `*` matches any characters except `/`; `**` matches any number of whole path segments. Matching is case-sensitive.
 
 ```text
-src/Great.Parts.Cel/Checking/**
+src/Great.Parts.Cel/Checking/*.cs
 src/Great.Parts.Cel/Evaluation/**
 src/Great.Parts.Cel/Library/**
 src/Great.Parts.Cel/Types/*Rules.cs
@@ -128,6 +130,8 @@ git diff --name-only --no-renames <base>...<head>
 
 Moving code across the line — a new rule file outside this naming, a rule in a model file, a new core directory — changes this page in the same change.
 
+The pattern for `Checking/` names the files directly in the directory, so that `Checking/Protobuf/` is not core: the codec of `CheckedExpr` writes what the checker found and decides no value of an expression ([ast-protobuf](ast-protobuf.md)). The two public files `CelCheckedExpr.cs` and `CelReference.cs` match the pattern and count as core, which is the safe side.
+
 The packages `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore` are not core: their paths match no pattern above, and they use only the public API of `Great.Parts.Cel`, so no part of the core serves them.
 
 ## Protobuf messages
@@ -139,7 +143,7 @@ The package `Great.Parts.Cel.Protobuf` is not core: `src/Great.Parts.Cel.Protobu
 | `src/Great.Parts.Cel/Types/WellKnownRules.cs` | yes | a new rule file: which full names of protobuf stand for which CEL type ([types](types.md#well-known-names)); `CelType.ObjectNamed` delegates to it |
 | `src/Great.Parts.Cel/Types/AssignabilityRules.cs`, `Values/ValueTypeRules.cs` | yes | `Any` as a type that takes every value ([types](types.md#any), [values](values.md#any-and-the-known-types-in-the-value-rules)) |
 | `src/Great.Parts.Cel/Values/ObjectRules.cs` | yes | the dispatch of a custom equality and the charge of `FieldReadCost`, [objects](objects.md#members-for-protobuf-messages) |
-| `src/Great.Parts.Cel/Checking/**` | yes | the check of a message literal and of the type `Any` ([checking](checking.md#message-literals-of-constructible-types)) |
+| `src/Great.Parts.Cel/Checking/*.cs` | yes | the check of a message literal and of the type `Any` ([checking](checking.md#message-literals-of-constructible-types)) |
 | `src/Great.Parts.Cel/Evaluation/**` | yes | `MessagePlanNode`, the plan of a literal ([evaluation](evaluation.md#message-literals)) |
 | `src/Great.Parts.Cel/Library/Extensions/ProtosExtension.cs` | yes | the catalog row of the set `protos` ([library](library.md#the-set-protos)) |
 | `src/Great.Parts.Cel/Syntax/ExtensionMacros.cs` | no | the two macros of `protos`, parser code |

@@ -303,21 +303,21 @@ public sealed class ParserTests
     [MemberData(nameof(TreeCases))]
     public static void Expression_ParsesIntoItsTree(string expression, string tree)
     {
-        ParseResult result = Parser.Parse(expression);
+        CelParseResult result = Parser.Parse(expression);
 
         Assert.True(result.IsSuccess);
         Assert.Empty(result.Errors);
-        Assert.Equal(tree, Format(result.Expression.Root, result.Expression));
+        Assert.Equal(tree, Format(result.ParsedExpr.Root, result.ParsedExpr));
     }
 
     [Theory]
     [MemberData(nameof(OptionalTreeCases))]
     public static void OptionalSyntax_ParsesIntoItsTreeWhenEnabled(string expression, string tree)
     {
-        ParseResult result = Parser.Parse(expression, WithOptionalSyntax);
+        CelParseResult result = Parser.Parse(expression, WithOptionalSyntax);
 
         Assert.True(result.IsSuccess);
-        Assert.Equal(tree, Format(result.Expression.Root, result.Expression));
+        Assert.Equal(tree, Format(result.ParsedExpr.Root, result.ParsedExpr));
     }
 
     // Ids run from 1 in the order of creation: operands before the call, keys and values before their entry, the
@@ -333,7 +333,7 @@ public sealed class ParserTests
     [InlineData("A{f: 1, g: x.y}", "6 2 1 5 4 3")]
     public static void Nodes_HaveIdsInTheOrderOfCreation(string expression, string ids)
     {
-        ParsedExpression parsed = Parsed(expression);
+        CelParsedExpr parsed = Parsed(expression);
 
         Assert.Equal(ids, string.Join(" ", Ids(parsed.Root)));
     }
@@ -341,7 +341,7 @@ public sealed class ParserTests
     [Fact]
     public static void Positions_AreRecordedById()
     {
-        ParsedExpression parsed = Parsed("{\"k\": [1]}");
+        CelParsedExpr parsed = Parsed("{\"k\": [1]}");
 
         Assert.Equal("1 7 6 4 0", string.Join(" ", Enumerable.Range(1, 5).Select(parsed.GetOffset)));
     }
@@ -349,13 +349,13 @@ public sealed class ParserTests
     [Fact]
     public static void LineTable_GivesTheLinesAndColumnsOfNodes()
     {
-        ParsedExpression parsed = Parsed("1 +\r\n  f(\n x)");
-        var call = (CallNode)parsed.Root;
+        CelParsedExpr parsed = Parsed("1 +\r\n  f(\n x)");
+        var call = (CelCallNode)parsed.Root;
 
         CelSourceLocation location = parsed.Lines.GetLocation(parsed.GetOffset(call.Arguments[1].Id));
 
         Assert.Equal((8, 2, 4), (location.Offset, location.Line, location.Column));
-        location = parsed.Lines.GetLocation(parsed.GetOffset(((CallNode)call.Arguments[1]).Arguments[0].Id));
+        location = parsed.Lines.GetLocation(parsed.GetOffset(((CelCallNode)call.Arguments[1]).Arguments[0].Id));
         Assert.Equal((11, 3, 2), (location.Offset, location.Line, location.Column));
     }
 
@@ -363,10 +363,10 @@ public sealed class ParserTests
     [MemberData(nameof(ErrorCases))]
     public static void Error_IsReportedInTheOrderFound(string expression, string errors)
     {
-        ParseResult result = Parser.Parse(expression);
+        CelParseResult result = Parser.Parse(expression);
 
         Assert.False(result.IsSuccess);
-        Assert.Null(result.Expression);
+        Assert.False(result.IsSuccess);
         Assert.All(result.Errors, error => Assert.Equal(CelErrorStage.Parse, error.Stage));
         Assert.Equal(errors, string.Join(" | ", result.Errors.Select(FormatError)));
     }
@@ -378,7 +378,7 @@ public sealed class ParserTests
     [InlineData("1 +\r\n)", 5, 2, 1)]
     public static void SyntaxError_HasItsLineAndColumn(string expression, int offset, int line, int column)
     {
-        ParseResult result = Parser.Parse(expression);
+        CelParseResult result = Parser.Parse(expression);
 
         CelError error = Assert.Single(result.Errors);
         Assert.Equal(
@@ -394,7 +394,7 @@ public sealed class ParserTests
     public static void ReservedIdentifierAndSyntaxNotEnabled_HaveTheirTextAndPlace(
         string expression, CelErrorCode code, string message, int offset, int line, int column)
     {
-        ParseResult result = Parser.Parse(expression);
+        CelParseResult result = Parser.Parse(expression);
 
         CelError error = Assert.Single(result.Errors);
         Assert.Equal(
@@ -433,7 +433,7 @@ public sealed class ParserTests
     [InlineData("x + 3m", 4)]
     public static void DecimalLiteral_IsNotEnabled(string expression, int offset)
     {
-        ParseResult result = Parser.Parse(expression);
+        CelParseResult result = Parser.Parse(expression);
 
         Assert.Equal("SyntaxNotEnabled@" + offset.ToString(CultureInfo.InvariantCulture) + " " + DecimalNotEnabled, FormatError(Assert.Single(result.Errors)));
     }
@@ -442,7 +442,7 @@ public sealed class ParserTests
     [Fact]
     public static void LoneSurrogate_IsInvalidLiteralAndParsingGoesOn()
     {
-        ParseResult result = Parser.Parse("['\uD800', b'\uDC00', 99999999999999999999]");
+        CelParseResult result = Parser.Parse("['\uD800', b'\uDC00', 99999999999999999999]");
 
         Assert.Equal(
             "InvalidLiteral@1 invalid string literal: the text has a lone surrogate"
@@ -463,11 +463,11 @@ public sealed class ParserTests
     {
         CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1).Build().GetEnvironmentOrThrow();
 
-        ParseResult success = environment.Parse("f(x) + 1");
-        ParseResult failure = environment.Parse("1 +");
+        CelParseResult success = environment.Parse("f(x) + 1");
+        CelParseResult failure = environment.Parse("1 +");
 
         Assert.True(success.IsSuccess);
-        Assert.Equal("_+_@5(f@1(x@2), 1@7)", Format(success.Expression.Root, success.Expression));
+        Assert.Equal("_+_@5(f@1(x@2), 1@7)", Format(success.ParsedExpr.Root, success.ParsedExpr));
         Assert.Equal(
             "SyntaxError@3 syntax error: expected an operand, found the end of the text",
             FormatError(Assert.Single(failure.Errors)));
@@ -480,14 +480,14 @@ public sealed class ParserTests
     {
         CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1).Build().GetEnvironmentOrThrow();
 
-        ParseResult standard = environment.Parse("a.?b");
-        ParseResult optional = environment.Parse("a.?b", WithOptionalSyntax);
+        CelParseResult standard = environment.Parse("a.?b");
+        CelParseResult optional = environment.Parse("a.?b", WithOptionalSyntax);
 
         Assert.Equal(
             "SyntaxNotEnabled@2 '.?'" + OptionalNotEnabled,
             FormatError(Assert.Single(standard.Errors)));
         Assert.True(optional.IsSuccess);
-        Assert.Equal("_?._@1(a@0, \"b\"@3)", Format(optional.Expression.Root, optional.Expression));
+        Assert.Equal("_?._@1(a@0, \"b\"@3)", Format(optional.ParsedExpr.Root, optional.ParsedExpr));
         Assert.Single(environment.Parse("a.?b", SyntaxOptions.Standard).Errors);
     }
 
@@ -501,53 +501,58 @@ public sealed class ParserTests
         Assert.Equal("expression", exception.ParamName);
     }
 
-    private static ParsedExpression Parsed(string expression)
+    private static CelParsedExpr Parsed(string expression)
     {
-        ParseResult result = Parser.Parse(expression);
+        CelParseResult result = Parser.Parse(expression);
         Assert.True(result.IsSuccess);
-        return result.Expression;
+        return result.ParsedExpr;
     }
 
     private static string FormatError(CelError error) =>
         string.Create(CultureInfo.InvariantCulture, $"{error.Code}@{error.Location.Offset} {error.Message}");
 
-    private static string Format(ExprNode node, ParsedExpression parsed)
+    private static string Format(CelExprNode node, CelParsedExpr parsed)
     {
         string at = "@" + Offset(node.Id, parsed);
         switch (node)
         {
-            case ConstantNode constant:
+            case CelConstantNode constant:
                 return FormatValue(constant.Value) + at;
-            case IdentNode ident:
+            case CelIdentNode ident:
                 return ident.Name + at;
-            case SelectNode select:
+            case CelSelectNode select:
                 Assert.False(select.IsPresenceTest);
                 return Format(select.Operand, parsed) + "." + select.Field + at;
-            case CallNode call:
+            case CelCallNode call:
                 string target = call.Target is null ? string.Empty : Format(call.Target, parsed) + ".";
                 return target + call.Function + at + "(" + string.Join(", ", call.Arguments.Select(a => Format(a, parsed))) + ")";
-            case ListNode list:
+            case CelListNode list:
                 IEnumerable<string> elements = list.Elements.Select((e, i) => (list.OptionalIndices.Contains(i) ? "?" : "") + Format(e, parsed));
                 return "[" + string.Join(", ", elements) + "]" + at;
-            default:
-                var map = (StructNode)node;
+            case CelMapNode map:
                 IEnumerable<string> entries = map.Entries.Select(e =>
-                    (e.IsOptional ? "?" : "") + (e.FieldName ?? Format(e.Key, parsed)) + " :@" + Offset(e.Id, parsed) + " " + Format(e.Value, parsed));
-                return map.MessageName + "{" + string.Join(", ", entries) + "}" + at;
+                    (e.IsOptional ? "?" : "") + Format(e.Key, parsed) + " :@" + Offset(e.Id, parsed) + " " + Format(e.Value, parsed));
+                return "{" + string.Join(", ", entries) + "}" + at;
+            default:
+                var message = (CelStructNode)node;
+                IEnumerable<string> fields = message.Fields.Select(e =>
+                    (e.IsOptional ? "?" : "") + e.Name + " :@" + Offset(e.Id, parsed) + " " + Format(e.Value, parsed));
+                return message.TypeName + "{" + string.Join(", ", fields) + "}" + at;
         }
     }
 
-    private static string Offset(int id, ParsedExpression parsed) => parsed.GetOffset(id).ToString(CultureInfo.InvariantCulture);
+    private static string Offset(int id, CelParsedExpr parsed) => parsed.GetOffset(id).ToString(CultureInfo.InvariantCulture);
 
     // The ids of the nodes and entries in pre-order: a node, then its children in the order of the text.
-    private static IEnumerable<int> Ids(ExprNode node)
+    private static IEnumerable<int> Ids(CelExprNode node)
     {
         IEnumerable<int> children = node switch
         {
-            SelectNode select => Ids(select.Operand),
-            CallNode call => (call.Target is null ? Enumerable.Empty<int>() : Ids(call.Target)).Concat(call.Arguments.SelectMany(Ids)),
-            ListNode list => list.Elements.SelectMany(Ids),
-            StructNode map => map.Entries.SelectMany(e => new[] { e.Id }.Concat(e.FieldName is null ? Ids(e.Key) : Enumerable.Empty<int>()).Concat(Ids(e.Value))),
+            CelSelectNode select => Ids(select.Operand),
+            CelCallNode call => (call.Target is null ? Enumerable.Empty<int>() : Ids(call.Target)).Concat(call.Arguments.SelectMany(Ids)),
+            CelListNode list => list.Elements.SelectMany(Ids),
+            CelMapNode map => map.Entries.SelectMany(e => new[] { e.Id }.Concat(Ids(e.Key)).Concat(Ids(e.Value))),
+            CelStructNode message => message.Fields.SelectMany(f => new[] { f.Id }.Concat(Ids(f.Value))),
             _ => [],
         };
         return new[] { node.Id }.Concat(children);

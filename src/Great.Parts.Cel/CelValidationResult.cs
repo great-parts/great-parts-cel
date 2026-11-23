@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
+using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 
@@ -29,12 +30,14 @@ public sealed class CelValidationResult
         ImmutableArray<CelError> errors,
         CelType? resultType,
         ImmutableArray<string> referencedVariables,
-        ImmutableArray<string> referencedFunctions)
+        ImmutableArray<string> referencedFunctions,
+        CelCheckedExpr? checkedExpr = null)
     {
         Errors = errors;
         ResultType = resultType;
         ReferencedVariables = referencedVariables;
         ReferencedFunctions = referencedFunctions;
+        CheckedExpr = checkedExpr;
     }
 
     /// <summary>
@@ -80,4 +83,15 @@ public sealed class CelValidationResult
     /// <c>dyn</c> type checking keeps several overloads, so the name of the function is the only unambiguous answer.
     /// </remarks>
     public ImmutableArray<string> ReferencedFunctions { get; }
+
+    /// <summary>
+    /// The checked expression — the tree with the CEL type of every node and the references of its names and calls — when the
+    /// expression is valid; <see langword="null"/> when it has errors.
+    /// </summary>
+    /// <remarks>
+    /// A tool reads the types of the nodes, for example to show the type of a part of an expression; an application stores the
+    /// checked expression with <see cref="CelCheckedExpr.ToProtobuf"/> or passes it to a service that reads <c>CheckedExpr</c>.
+    /// A program does not keep its checked expression: validation is the call that gives it.
+    /// </remarks>
+    public CelCheckedExpr? CheckedExpr { get; }
 }

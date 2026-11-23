@@ -72,10 +72,10 @@ internal static class Plans
         return error;
     }
 
-    private static ParsedExpression Parse(string expression)
+    private static CelParsedExpr Parse(string expression)
     {
-        ParseResult parsed = Environment.Parse(expression);
+        CelParseResult parsed = Environment.Parse(expression);
         Assert.True(parsed.IsSuccess, expression);
-        return parsed.Expression;
+        return parsed.ParsedExpr;
     }
 }

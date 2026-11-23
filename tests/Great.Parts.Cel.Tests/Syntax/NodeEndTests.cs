@@ -57,23 +57,23 @@ public sealed class NodeEndTests
     public static void EveryNode_StartsBeforeItsEnd_AndEndsWithinTheText_AndNotBeforeItsChildren(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParseResult result = Parser.Parse(text, Options);
+        CelParseResult result = Parser.Parse(text, Options);
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors));
-        ParsedExpression parsed = result.Expression!;
+        CelParsedExpr parsed = result.ParsedExpr!;
 
         int visited = 0;
         Walk(parsed.Root);
 
         Assert.True(visited > 0);
 
-        void Walk(ExprNode node)
+        void Walk(CelExprNode node)
         {
             visited++;
             int offset = parsed.GetOffset(node.Id);
             int end = parsed.GetEnd(node.Id);
             Assert.InRange(offset, 0, text.Length);
             Assert.InRange(end, offset, text.Length);
-            foreach (ExprNode child in Children(node))
+            foreach (CelExprNode child in Children(node))
             {
                 Walk(child);
                 Assert.True(end >= parsed.GetEnd(child.Id), $"the node at {offset} ends at {end}, before its child at {parsed.GetOffset(child.Id)}");
@@ -94,7 +94,7 @@ public sealed class NodeEndTests
     [InlineData("a[0]", 1, 4)]
     public static void Root_HasThePlaceAndTheEndOfItsLastToken(string text, int offset, int end)
     {
-        ParsedExpression parsed = Parser.Parse(text, Options).Expression!;
+        CelParsedExpr parsed = Parser.Parse(text, Options).ParsedExpr!;
 
         Assert.Equal((offset, end), (parsed.GetOffset(parsed.Root.Id), parsed.GetEnd(parsed.Root.Id)));
     }
@@ -102,10 +102,10 @@ public sealed class NodeEndTests
     [Fact]
     public void Call_StartsAtItsParenthesis_AndEndsAtTheClosingOne()
     {
-        ParsedExpression parsed = Parser.Parse("size(1, 2) == 0", Options).Expression!;
-        var comparison = (CallNode)parsed.Root;
+        CelParsedExpr parsed = Parser.Parse("size(1, 2) == 0", Options).ParsedExpr!;
+        var comparison = (CelCallNode)parsed.Root;
 
-        ExprNode call = comparison.Arguments[0];
+        CelExprNode call = comparison.Arguments[0];
 
         Assert.Equal((4, 10), (parsed.GetOffset(call.Id), parsed.GetEnd(call.Id)));
     }
@@ -114,23 +114,23 @@ public sealed class NodeEndTests
     [Fact]
     public void ExpandedMacro_HasTheFragmentOfTheCall_AndItsArgumentsKeepTheirOwn()
     {
-        ParsedExpression parsed = Parser.Parse("l.all(i, i > 0)", Options).Expression!;
-        var expansion = (ComprehensionNode)parsed.Root;
+        CelParsedExpr parsed = Parser.Parse("l.all(i, i > 0)", Options).ParsedExpr!;
+        var expansion = (CelComprehensionNode)parsed.Root;
 
         Assert.Equal((5, 15), (parsed.GetOffset(expansion.Id), parsed.GetEnd(expansion.Id)));
         Assert.Equal((5, 15), (parsed.GetOffset(expansion.AccuInit.Id), parsed.GetEnd(expansion.AccuInit.Id)));
         Assert.Equal((5, 15), (parsed.GetOffset(expansion.LoopCondition.Id), parsed.GetEnd(expansion.LoopCondition.Id)));
 
         // The comparison that the user wrote is a node inside the expansion, at its own place.
-        List<ExprNode> inside = [];
+        List<CelExprNode> inside = [];
         Collect(expansion, inside);
-        ExprNode written = Assert.Single(inside, node => parsed.GetOffset(node.Id) == 11);
+        CelExprNode written = Assert.Single(inside, node => parsed.GetOffset(node.Id) == 11);
         Assert.Equal(14, parsed.GetEnd(written.Id));
 
-        void Collect(ExprNode node, List<ExprNode> into)
+        void Collect(CelExprNode node, List<CelExprNode> into)
         {
             into.Add(node);
-            foreach (ExprNode child in Children(node))
+            foreach (CelExprNode child in Children(node))
             {
                 Collect(child, into);
             }
@@ -142,53 +142,56 @@ public sealed class NodeEndTests
     [Fact]
     public void GroupedOperand_EndsBeforeItsParenthesis()
     {
-        ParsedExpression parsed = Parser.Parse("(1 + 2) * 3", Options).Expression!;
-        var product = (CallNode)parsed.Root;
+        CelParsedExpr parsed = Parser.Parse("(1 + 2) * 3", Options).ParsedExpr!;
+        var product = (CelCallNode)parsed.Root;
 
-        ExprNode sum = product.Arguments[0];
+        CelExprNode sum = product.Arguments[0];
 
         Assert.Equal((3, 6), (parsed.GetOffset(sum.Id), parsed.GetEnd(sum.Id)));
     }
 
-    private static IEnumerable<ExprNode> Children(ExprNode node)
+    private static IEnumerable<CelExprNode> Children(CelExprNode node)
     {
         switch (node)
         {
-            case CallNode call:
+            case CelCallNode call:
                 if (call.Target is not null)
                 {
                     yield return call.Target;
                 }
 
-                foreach (ExprNode argument in call.Arguments)
+                foreach (CelExprNode argument in call.Arguments)
                 {
                     yield return argument;
                 }
 
                 break;
-            case SelectNode select:
+            case CelSelectNode select:
                 yield return select.Operand;
                 break;
-            case ListNode list:
-                foreach (ExprNode element in list.Elements)
+            case CelListNode list:
+                foreach (CelExprNode element in list.Elements)
                 {
                     yield return element;
                 }
 
                 break;
-            case StructNode message:
-                foreach (StructEntry entry in message.Entries)
+            case CelMapNode map:
+                foreach (CelMapEntryNode entry in map.Entries)
                 {
-                    if (entry.FieldName is null)
-                    {
-                        yield return entry.Key;
-                    }
-
+                    yield return entry.Key;
                     yield return entry.Value;
                 }
 
                 break;
-            case ComprehensionNode comprehension:
+            case CelStructNode message:
+                foreach (CelStructFieldNode field in message.Fields)
+                {
+                    yield return field.Value;
+                }
+
+                break;
+            case CelComprehensionNode comprehension:
                 yield return comprehension.IterRange;
                 yield return comprehension.AccuInit;
                 yield return comprehension.LoopCondition;

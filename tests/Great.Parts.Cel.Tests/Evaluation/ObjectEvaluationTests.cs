@@ -251,10 +251,10 @@ public sealed class ObjectEvaluationTests
     [Fact]
     public static void WithoutTypeChecking_ADeclaredObjectVariableAppliesThePlaceRule_AndFieldsAreFoundByName()
     {
-        ParseResult parsed = ObjectEnvironment.Parse("c.name + '/' + d.manager.name");
+        CelParseResult parsed = ObjectEnvironment.Parse("c.name + '/' + d.manager.name");
         var contact = new Contact { Name = "Ann", Manager = new Contact { Name = "Bob" } };
 
-        CelEvalResult<CelValue> result = ObjectEnvironment.EvaluateWithoutTypeCheck(parsed.Expression!, Bind(("c", contact), ("d", CelValue.FromObject(ContactType, contact))));
+        CelEvalResult<CelValue> result = ObjectEnvironment.EvaluateWithoutTypeCheck(parsed.ParsedExpr!, Bind(("c", contact), ("d", CelValue.FromObject(ContactType, contact))));
 
         Assert.Equal(CelValue.FromString("Ann/Bob"), result.GetValueOrThrow());
     }
@@ -283,7 +283,7 @@ public sealed class ObjectEvaluationTests
         };
         var bindings = new CelBindings().Add<IReadOnlyDictionary<string, object?>>("card", value);
 
-        CelEvalResult<CelValue> loose = environment.EvaluateWithoutTypeCheck(environment.Parse(expression).Expression!, bindings);
+        CelEvalResult<CelValue> loose = environment.EvaluateWithoutTypeCheck(environment.Parse(expression).ParsedExpr!, bindings);
         CelEvalResult<CelValue> typed = environment.Compile<CelValue>(expression).GetProgramOrThrow().Evaluate(bindings, cancellationToken: TestContext.Current.CancellationToken);
 
         Assert.True(typed.IsSuccess);

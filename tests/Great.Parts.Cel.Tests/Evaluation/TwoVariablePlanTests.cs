@@ -86,10 +86,10 @@ public sealed class TwoVariablePlanTests
         return Planner.Plan(result.Expression!, TwoVarEnvironment.Environment.Declarations);
     }
 
-    private static ParsedExpression Parse(string expression)
+    private static CelParsedExpr Parse(string expression)
     {
-        ParseResult parsed = TwoVarEnvironment.Environment.Parse(expression);
+        CelParseResult parsed = TwoVarEnvironment.Environment.Parse(expression);
         Assert.True(parsed.IsSuccess, expression + ": " + string.Join("; ", parsed.Errors));
-        return parsed.Expression;
+        return parsed.ParsedExpr;
     }
 }

@@ -93,10 +93,10 @@ public sealed class CelSpecExpressionParseTests
     [MemberData(nameof(Expressions))]
     public void CelSpecExpression_ParsesIntoSyntaxTree(string caseName, string expression)
     {
-        ParseResult result = environment.Parse(expression);
+        CelParseResult result = environment.Parse(expression);
 
         Assert.True(result.IsSuccess, caseName);
-        Assert.NotNull(result.Expression);
+        Assert.NotNull(result.ParsedExpr);
         Assert.Empty(result.Errors);
     }
 

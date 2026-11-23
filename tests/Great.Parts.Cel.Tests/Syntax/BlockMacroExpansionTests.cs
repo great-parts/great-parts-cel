@@ -97,8 +97,8 @@ public sealed class BlockMacroExpansionTests
 
     private CelEvalResult<CelValue> EvaluateUnchecked(string expression)
     {
-        ParseResult parsed = runner.Parse(expression);
+        CelParseResult parsed = runner.Parse(expression);
         Assert.True(parsed.IsSuccess, string.Join("; ", parsed.Errors.Select(error => error.Message)));
-        return runner.EvaluateWithoutTypeCheck(parsed.Expression, new CelBindings());
+        return runner.EvaluateWithoutTypeCheck(parsed.ParsedExpr, new CelBindings());
     }
 }

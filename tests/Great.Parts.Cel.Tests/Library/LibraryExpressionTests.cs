@@ -433,9 +433,9 @@ public sealed class LibraryExpressionTests
         CelBindings bindings = new CelBindings().Add("x", DynOperandEnvironment.Evaluate<CelValue>(cells[0], new CelBindings(), cancellationToken: TestContext.Current.CancellationToken).GetValueOrThrow());
         CelEvalResult<CelValue> checkedResult = DynOperandEnvironment.Compile<CelValue>(cells[1]).GetProgramOrThrow()
             .Evaluate(bindings, null, CancellationToken.None);
-        ParseResult parsed = DynOperandEnvironment.Parse(cells[1]);
+        CelParseResult parsed = DynOperandEnvironment.Parse(cells[1]);
         Assert.True(parsed.IsSuccess, input);
-        CelEvalResult<CelValue> uncheckedResult = DynOperandEnvironment.EvaluateWithoutTypeCheck(parsed.Expression!, bindings);
+        CelEvalResult<CelValue> uncheckedResult = DynOperandEnvironment.EvaluateWithoutTypeCheck(parsed.ParsedExpr!, bindings);
 
         Assert.All([checkedResult, uncheckedResult], result =>
         {

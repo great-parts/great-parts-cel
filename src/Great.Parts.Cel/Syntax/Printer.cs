@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Great.Parts.Cel.Values;
 
@@ -12,8 +13,8 @@ namespace Great.Parts.Cel.Syntax;
 /// </summary>
 /// <remarks>
 /// Binary operators and the conditional operator have single spaces around them; parentheses are added only where
-/// the tree needs them; a macro expansion is printed as its recorded call. The printer recurses without checking the
-/// stack: it serves trees within the limits of parsing.
+/// the tree needs them; a macro expansion is printed as its recorded call. Each recursive step checks the depth of the tree,
+/// which is limited as the depth of a parsed tree is, and the room left on the stack.
 /// </remarks>
 internal sealed class Printer
 {
@@ -26,10 +27,16 @@ internal sealed class Printer
     // The level of the operands of the conditional operator before its ":".
     private const int ConditionOperandLevel = 2;
 
-    private readonly ParsedExpression _expression;
+    // The depth of the tree that the parser accepts: a node is at most this many levels below the root.
+    private const int MaxDepth = 250;
+
+    private readonly CelParsedExpr _expression;
     private readonly StringBuilder _text = new();
 
-    private Printer(ParsedExpression expression)
+    // The number of nodes being printed above the current one.
+    private int _depth;
+
+    private Printer(CelParsedExpr expression)
     {
         _expression = expression;
     }
@@ -39,10 +46,11 @@ internal sealed class Printer
     /// </summary>
     /// <param name="expression">The parsed expression.</param>
     /// <returns>The text.</returns>
-    /// <exception cref="InvalidOperationException">
-    /// The tree has a comprehension or a presence test without a recorded macro call.
+    /// <exception cref="ArgumentException">
+    /// The tree has a comprehension or a presence test without a recorded macro call, is deeper than the limit of parsing, or
+    /// is too deep for the stack that is left.
     /// </exception>
-    internal static string Print(ParsedExpression expression)
+    internal static string Print(CelParsedExpr expression)
     {
         var printer = new Printer(expression);
         printer.Node(expression.Root);
@@ -86,6 +94,15 @@ internal sealed class Printer
             case CelValueKind.Bool:
                 _ = value.TryGetBoolean(out bool flag);
                 text.Append(flag ? "true" : "false");
+                break;
+            case CelValueKind.Duration:
+                // The deprecated duration_value of a tree loaded from protobuf has no literal: it is the call that gives it.
+                _ = value.TryGetDuration(out CelDuration duration);
+                text.Append("duration(\"").Append(duration.ToString()).Append("\")");
+                break;
+            case CelValueKind.Timestamp:
+                _ = value.TryGetTimestamp(out CelTimestamp timestamp);
+                text.Append("timestamp(\"").Append(timestamp.ToString()).Append("\")");
                 break;
             default:
                 text.Append("null");
@@ -201,40 +218,67 @@ internal sealed class Printer
         return true;
     }
 
-    private static bool IsNumber(ExprNode node) =>
-        node is ConstantNode { Value.Kind: CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.Decimal };
+    private static bool IsNumber(CelExprNode node) =>
+        node is CelConstantNode { Value.Kind: CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.Decimal };
 
-    private void Node(ExprNode node)
+    private void Node(CelExprNode node)
     {
+        if (_depth > MaxDepth)
+        {
+            throw new ArgumentException("The tree is deeper than the limit of 250 and has no text.");
+        }
+
+        if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
+        {
+            throw new ArgumentException("The tree is too deep for the stack that is left and has no text.");
+        }
+
+        _depth++;
+        NodeText(node);
+        _depth--;
+    }
+
+    private void NodeText(CelExprNode node)
+    {
+        // The expansion of a macro call that the text writes is printed as the call, whatever the kind of the node is.
+        if (_expression.GetRecordedMacroCall(node.Id) is { IsWritten: true })
+        {
+            WriteMacroCall(node);
+            return;
+        }
+
         switch (node)
         {
-            case ConstantNode constant:
+            case CelConstantNode constant:
                 AppendConstant(_text, constant.Value);
                 break;
-            case IdentNode ident:
+            case CelIdentNode ident:
                 _text.Append(ident.Name);
                 break;
-            case SelectNode { IsPresenceTest: false } select:
+            case CelSelectNode { IsPresenceTest: false } select:
                 Target(select.Operand);
                 _text.Append('.');
                 Field(select.Field);
                 break;
-            case CallNode call:
+            case CelCallNode call:
                 Call(call);
                 break;
-            case ListNode list:
+            case CelListNode list:
                 List(list);
                 break;
-            case StructNode structure:
+            case CelMapNode map:
+                Map(map);
+                break;
+            case CelStructNode structure:
                 Struct(structure);
                 break;
             default:
-                MacroCall(node);
+                WriteMacroCall(node);
                 break;
         }
     }
 
-    private void Call(CallNode call)
+    private void Call(CelCallNode call)
     {
         if (call.Target is not null)
         {
@@ -244,7 +288,7 @@ internal sealed class Printer
             return;
         }
 
-        ImmutableArray<ExprNode> arguments = call.Arguments;
+        ImmutableArray<CelExprNode> arguments = call.Arguments;
         if (Parser.TryGetBinaryOperator(call.Function, out int level, out string text) && arguments.Length == 2)
         {
             Binary(call.Function, level, text, arguments[0], arguments[1]);
@@ -270,7 +314,7 @@ internal sealed class Printer
                 Node(arguments[1]);
                 _text.Append(']');
                 break;
-            case "_?._" when arguments is [_, ConstantNode field] && field.Value.TryGetString(out string? name):
+            case "_?._" when arguments is [_, CelConstantNode field] && field.Value.TryGetString(out string? name):
                 Target(arguments[0]);
                 _text.Append(".?");
                 Field(name);
@@ -285,7 +329,7 @@ internal sealed class Printer
     // An operand of a lower level needs parentheses, and so does one of the same level: on the right of a
     // left-associative level, and on either side of a balanced level, whose only operator it then is, so that the shape
     // of the chain stays.
-    private void Binary(string function, int level, string text, ExprNode left, ExprNode right)
+    private void Binary(string function, int level, string text, CelExprNode left, CelExprNode right)
     {
         bool balanced = function is "_||_" or "_&&_";
         int leftLevel = LevelOf(left);
@@ -295,14 +339,14 @@ internal sealed class Printer
     }
 
     // The operand of !_ or -_: a numeric constant, a run of either operator or a lower level needs parentheses.
-    private void Unary(ExprNode operand) => Parenthesized(operand, IsNumber(operand) || LevelOf(operand) <= UnaryLevel);
+    private void Unary(CelExprNode operand) => Parenthesized(operand, IsNumber(operand) || LevelOf(operand) <= UnaryLevel);
 
     // The operand of a selection, an index or a receiver call: a numeric constant or a lower level needs parentheses.
-    private void Target(ExprNode target) => Parenthesized(target, IsNumber(target) || LevelOf(target) < MemberLevel);
+    private void Target(CelExprNode target) => Parenthesized(target, IsNumber(target) || LevelOf(target) < MemberLevel);
 
-    private void Operand(ExprNode operand, int level) => Parenthesized(operand, LevelOf(operand) < level);
+    private void Operand(CelExprNode operand, int level) => Parenthesized(operand, LevelOf(operand) < level);
 
-    private void Parenthesized(ExprNode node, bool parentheses)
+    private void Parenthesized(CelExprNode node, bool parentheses)
     {
         if (parentheses)
         {
@@ -316,7 +360,7 @@ internal sealed class Printer
         }
     }
 
-    private void Arguments(ImmutableArray<ExprNode> arguments)
+    private void Arguments(ImmutableArray<CelExprNode> arguments)
     {
         _text.Append('(');
         for (int i = 0; i < arguments.Length; i++)
@@ -332,7 +376,7 @@ internal sealed class Printer
         _text.Append(')');
     }
 
-    private void List(ListNode list)
+    private void List(CelListNode list)
     {
         _text.Append('[');
         for (int i = 0; i < list.Elements.Length; i++)
@@ -353,12 +397,12 @@ internal sealed class Printer
         _text.Append(']');
     }
 
-    private void Struct(StructNode structure)
+    private void Map(CelMapNode map)
     {
-        _text.Append(structure.MessageName).Append('{');
-        for (int i = 0; i < structure.Entries.Length; i++)
+        _text.Append('{');
+        for (int i = 0; i < map.Entries.Length; i++)
         {
-            StructEntry entry = structure.Entries[i];
+            CelMapEntryNode entry = map.Entries[i];
             if (i > 0)
             {
                 _text.Append(", ");
@@ -369,17 +413,33 @@ internal sealed class Printer
                 _text.Append('?');
             }
 
-            if (entry.FieldName is { } field)
-            {
-                Field(field);
-            }
-            else
-            {
-                Node(entry.Key);
-            }
-
+            Node(entry.Key);
             _text.Append(": ");
             Node(entry.Value);
+        }
+
+        _text.Append('}');
+    }
+
+    private void Struct(CelStructNode structure)
+    {
+        _text.Append(structure.TypeName).Append('{');
+        for (int i = 0; i < structure.Fields.Length; i++)
+        {
+            CelStructFieldNode field = structure.Fields[i];
+            if (i > 0)
+            {
+                _text.Append(", ");
+            }
+
+            if (field.IsOptional)
+            {
+                _text.Append('?');
+            }
+
+            Field(field.Name);
+            _text.Append(": ");
+            Node(field.Value);
         }
 
         _text.Append('}');
@@ -398,9 +458,9 @@ internal sealed class Printer
     }
 
     // A comprehension or a presence test, printed as the macro call it is the expansion of.
-    private void MacroCall(ExprNode node)
+    private void WriteMacroCall(CelExprNode node)
     {
-        MacroCall call = RecordedCall(node);
+        CelMacroCall call = RecordedCall(node);
         if (call.Target is not null)
         {
             Target(call.Target);
@@ -411,21 +471,30 @@ internal sealed class Printer
         Arguments(call.Arguments);
     }
 
-    private MacroCall RecordedCall(ExprNode node) =>
-        _expression.GetMacroCall(node.Id)
-            ?? throw new InvalidOperationException("The node " + node.Id.ToString(CultureInfo.InvariantCulture) + " has no recorded macro call to print.");
+    private CelMacroCall RecordedCall(CelExprNode node) =>
+        _expression.GetRecordedMacroCall(node.Id)
+            ?? throw new ArgumentException("The node " + node.Id.ToString(CultureInfo.InvariantCulture) + " has no recorded macro call to print.");
 
     // The level of the grammar table at which a node is written.
-    private int LevelOf(ExprNode node) => node switch
+    private int LevelOf(CelExprNode node)
     {
-        CallNode { Target: not null } => MemberLevel,
-        CallNode call => CallLevel(call),
-        SelectNode { IsPresenceTest: false } => MemberLevel,
-        ComprehensionNode or SelectNode => RecordedCall(node).Target is null ? PrimaryLevel : MemberLevel,
-        _ => PrimaryLevel,
-    };
+        // The expansion of a written macro call is at the level of the call.
+        if (_expression.GetRecordedMacroCall(node.Id) is { IsWritten: true } written)
+        {
+            return written.Target is null ? PrimaryLevel : MemberLevel;
+        }
 
-    private static int CallLevel(CallNode call)
+        return node switch
+        {
+            CelCallNode { Target: not null } => MemberLevel,
+            CelCallNode call => CallLevel(call),
+            CelSelectNode { IsPresenceTest: false } => MemberLevel,
+            CelComprehensionNode or CelSelectNode => RecordedCall(node).Target is null ? PrimaryLevel : MemberLevel,
+            _ => PrimaryLevel,
+        };
+    }
+
+    private static int CallLevel(CelCallNode call)
     {
         int count = call.Arguments.Length;
         if (Parser.TryGetBinaryOperator(call.Function, out int level, out _) && count == 2)

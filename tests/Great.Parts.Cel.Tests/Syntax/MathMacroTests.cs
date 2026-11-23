@@ -17,23 +17,24 @@ public sealed class MathMacroTests
     {
         const string Text = "math.greatest(1, x)";
 
-        ParsedExpression parsed = Parse(Text);
+        CelParsedExpr parsed = Parse(Text);
 
-        CallNode call = Assert.IsType<CallNode>(parsed.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.Root);
         Assert.Equal("math.@max", call.Function);
         Assert.Null(call.Target);
         Assert.Equal(2, call.Arguments.Length);
-        Assert.IsType<ConstantNode>(call.Arguments[0]);
-        Assert.Equal("x", Assert.IsType<IdentNode>(call.Arguments[1]).Name);
+        Assert.IsType<CelConstantNode>(call.Arguments[0]);
+        Assert.Equal("x", Assert.IsType<CelIdentNode>(call.Arguments[1]).Name);
         Assert.Equal(Text.IndexOf('(', StringComparison.Ordinal), parsed.GetOffset(call.Id));
-        MacroCall recorded = Assert.IsType<MacroCall>(parsed.GetMacroCall(call.Id));
-        Assert.Equal(("greatest", "math"), (recorded.Function, Assert.IsType<IdentNode>(recorded.Target).Name));
+        CelMacroCall recorded = Assert.IsType<CelMacroCall>(parsed.GetMacroCall(call.Id));
+        Assert.Equal("math.greatest", recorded.Function);
+        Assert.Null(recorded.Target);
     }
 
     [Fact]
     public static void Least_ExpandsToACallOfMin()
     {
-        CallNode call = Assert.IsType<CallNode>(Parse("math.least(1, 2)").Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(Parse("math.least(1, 2)").Root);
 
         Assert.Equal(("math.@min", 2), (call.Function, call.Arguments.Length));
     }
@@ -41,10 +42,10 @@ public sealed class MathMacroTests
     [Fact]
     public static void OneArgument_ExpandsToACallOfMaxWithThatArgument()
     {
-        CallNode call = Assert.IsType<CallNode>(Parse("math.greatest(x)").Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(Parse("math.greatest(x)").Root);
 
         Assert.Equal("math.@max", call.Function);
-        Assert.Equal("x", Assert.IsType<IdentNode>(Assert.Single(call.Arguments)).Name);
+        Assert.Equal("x", Assert.IsType<CelIdentNode>(Assert.Single(call.Arguments)).Name);
     }
 
     // Three arguments and more become one argument, a list literal of them, at the offset of the call.
@@ -54,11 +55,11 @@ public sealed class MathMacroTests
     public static void ThreeArgumentsAndMore_ExpandToACallOfOneListLiteral(string text, string function, int count)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParsedExpression parsed = Parse(text);
+        CelParsedExpr parsed = Parse(text);
 
-        CallNode call = Assert.IsType<CallNode>(parsed.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.Root);
         Assert.Equal(function, call.Function);
-        ListNode list = Assert.IsType<ListNode>(Assert.Single(call.Arguments));
+        CelListNode list = Assert.IsType<CelListNode>(Assert.Single(call.Arguments));
         Assert.Equal(count, list.Elements.Length);
         Assert.Empty(list.OptionalIndices);
         Assert.Equal(parsed.GetOffset(call.Id), parsed.GetOffset(list.Id));
@@ -69,9 +70,9 @@ public sealed class MathMacroTests
     [Fact]
     public static void MacroAmongTheArguments_IsExpandedFirst()
     {
-        CallNode call = Assert.IsType<CallNode>(Parse("math.greatest(math.least(1, 2), 3)").Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(Parse("math.greatest(math.least(1, 2), 3)").Root);
 
-        CallNode inner = Assert.IsType<CallNode>(call.Arguments[0]);
+        CelCallNode inner = Assert.IsType<CelCallNode>(call.Arguments[0]);
         Assert.Equal(("math.@max", "math.@min"), (call.Function, inner.Function));
     }
 
@@ -94,17 +95,17 @@ public sealed class MathMacroTests
     public static void NumericArguments_Expand(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParseResult parsed = Parse2(text);
+        CelParseResult parsed = Parse2(text);
 
         Assert.True(parsed.IsSuccess, text + ": " + string.Join("; ", parsed.Errors));
-        Assert.Equal(text.Contains("least", StringComparison.Ordinal) ? "math.@min" : "math.@max", Assert.IsType<CallNode>(parsed.Expression!.Root).Function);
+        Assert.Equal(text.Contains("least", StringComparison.Ordinal) ? "math.@min" : "math.@max", Assert.IsType<CelCallNode>(parsed.ParsedExpr!.Root).Function);
     }
 
     // The first argument that is not numeric is the place, though a later one is not either.
     [Fact]
     public static void SeveralBadArguments_ReportTheFirst()
     {
-        ParseResult parsed = Parse2("math.greatest(1, 'a', [2])");
+        CelParseResult parsed = Parse2("math.greatest(1, 'a', [2])");
 
         CelError error = Assert.Single(parsed.Errors);
         Assert.Equal(17, error.Location.Offset);
@@ -114,13 +115,13 @@ public sealed class MathMacroTests
     [Fact]
     public static void WithoutTheSet_TheCallStaysACall()
     {
-        ParseResult parsed = WithoutMath.Parse("math.greatest(1, 2)");
+        CelParseResult parsed = WithoutMath.Parse("math.greatest(1, 2)");
 
         Assert.True(parsed.IsSuccess);
-        CallNode call = Assert.IsType<CallNode>(parsed.Expression!.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.ParsedExpr!.Root);
         Assert.Equal("greatest", call.Function);
-        Assert.Equal("math", Assert.IsType<IdentNode>(call.Target).Name);
-        Assert.Null(parsed.Expression.GetMacroCall(call.Id));
+        Assert.Equal("math", Assert.IsType<CelIdentNode>(call.Target).Name);
+        Assert.Null(parsed.ParsedExpr.GetMacroCall(call.Id));
     }
 
     // The target has to be the identifier math: a selection that ends in math, another name and a call result are not it.
@@ -131,9 +132,9 @@ public sealed class MathMacroTests
     [InlineData("math.greatest.least(1)", "least")]
     public static void OtherTarget_LeavesTheCall(string text, string function)
     {
-        ParsedExpression parsed = Parse(text);
+        CelParsedExpr parsed = Parse(text);
 
-        CallNode call = Assert.IsType<CallNode>(parsed.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.Root);
         Assert.NotNull(call.Target);
         Assert.Equal(function, call.Function);
         Assert.Null(parsed.GetMacroCall(call.Id));
@@ -143,7 +144,7 @@ public sealed class MathMacroTests
     [Fact]
     public static void CallWithoutATarget_IsNotAMacro()
     {
-        CallNode call = Assert.IsType<CallNode>(Parse("greatest(1, 2)").Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(Parse("greatest(1, 2)").Root);
 
         Assert.Equal("greatest", call.Function);
         Assert.Null(call.Target);
@@ -166,12 +167,12 @@ public sealed class MathMacroTests
         Assert.Null(syntax.Macros.Find("bind", 2, isReceiver: true));
     }
 
-    private static ParsedExpression Parse(string text)
+    private static CelParsedExpr Parse(string text)
     {
-        ParseResult parsed = Parse2(text);
+        CelParseResult parsed = Parse2(text);
         Assert.True(parsed.IsSuccess, text + ": " + string.Join("; ", parsed.Errors));
-        return parsed.Expression!;
+        return parsed.ParsedExpr!;
     }
 
-    private static ParseResult Parse2(string text) => MathEnvironment.Environment.Parse(text);
+    private static CelParseResult Parse2(string text) => MathEnvironment.Environment.Parse(text);
 }

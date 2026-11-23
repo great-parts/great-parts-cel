@@ -101,10 +101,10 @@ public sealed class DecimalReadPlacesTests
     public static void LiteralWithoutTypeChecking_IsAConstantOfTheKindDecimal()
     {
         CelEnvironment environment = DecimalExample.Create();
-        ParseResult parsed = environment.Parse("-1.50m");
+        CelParseResult parsed = environment.Parse("-1.50m");
         Assert.True(parsed.IsSuccess);
 
-        CelValue value = Planner.PlanWithoutTypeCheck(parsed.Expression, environment.Declarations).EvaluateOn(new Dictionary<string, CelValue>());
+        CelValue value = Planner.PlanWithoutTypeCheck(parsed.ParsedExpr, environment.Declarations).EvaluateOn(new Dictionary<string, CelValue>());
 
         Assert.True(value.TryGetDecimal128(out Decimal128 number));
         Assert.Equal((true, (System.UInt128)150, -2), DecimalExample.Parts(number));

@@ -39,7 +39,7 @@ public sealed class TimeFunctionDeclarationTests
             .GetEnvironmentOrThrow();
 
         CelValue checkedValue = environment.Evaluate<CelValue>("unix(timestamp('2009-02-13T23:31:30Z'))", new CelBindings(), cancellationToken: TestContext.Current.CancellationToken).GetValueOrThrow();
-        CelValue uncheckedValue = environment.EvaluateWithoutTypeCheck(environment.Parse("unix(timestamp(1234567890))").Expression!, new CelBindings()).GetValueOrThrow();
+        CelValue uncheckedValue = environment.EvaluateWithoutTypeCheck(environment.Parse("unix(timestamp(1234567890))").ParsedExpr!, new CelBindings()).GetValueOrThrow();
 
         Assert.True(checkedValue.TryGetInt64(out long fromString));
         Assert.True(uncheckedValue.TryGetInt64(out long fromNumber));

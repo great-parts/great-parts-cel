@@ -21,16 +21,16 @@ public sealed class BindMacroTests
     {
         const string Text = "cel.bind(x, 1, x + 1)";
 
-        ParsedExpression parsed = Parse(Text);
+        CelParsedExpr parsed = Parse(Text);
 
-        ComprehensionNode comprehension = Assert.IsType<ComprehensionNode>(parsed.Root);
+        CelComprehensionNode comprehension = Assert.IsType<CelComprehensionNode>(parsed.Root);
         Assert.Equal(("#unused", "x"), (comprehension.IterVar, comprehension.AccuVar));
-        Assert.Empty(Assert.IsType<ListNode>(comprehension.IterRange).Elements);
-        Assert.True(Assert.IsType<ConstantNode>(comprehension.AccuInit).Value.TryGetInt64(out long start));
+        Assert.Empty(Assert.IsType<CelListNode>(comprehension.IterRange).Elements);
+        Assert.True(Assert.IsType<CelConstantNode>(comprehension.AccuInit).Value.TryGetInt64(out long start));
         Assert.Equal(1L, start);
-        Assert.True(Assert.IsType<ConstantNode>(comprehension.LoopCondition).Value.TryGetBoolean(out bool condition) && !condition);
-        Assert.Equal("x", Assert.IsType<IdentNode>(comprehension.LoopStep).Name);
-        Assert.Equal("_+_", Assert.IsType<CallNode>(comprehension.Result).Function);
+        Assert.True(Assert.IsType<CelConstantNode>(comprehension.LoopCondition).Value.TryGetBoolean(out bool condition) && !condition);
+        Assert.Equal("x", Assert.IsType<CelIdentNode>(comprehension.LoopStep).Name);
+        Assert.Equal("_+_", Assert.IsType<CelCallNode>(comprehension.Result).Function);
 
         int call = Text.IndexOf('(', StringComparison.Ordinal);
         Assert.Equal(call, parsed.GetOffset(comprehension.Id));
@@ -39,15 +39,16 @@ public sealed class BindMacroTests
         Assert.Equal(call, parsed.GetOffset(comprehension.LoopStep.Id));
         Assert.Equal(Text.IndexOf('1', StringComparison.Ordinal), parsed.GetOffset(comprehension.AccuInit.Id));
 
-        MacroCall recorded = Assert.IsType<MacroCall>(parsed.GetMacroCall(comprehension.Id));
-        Assert.Equal(("bind", "cel", 3), (recorded.Function, Assert.IsType<IdentNode>(recorded.Target).Name, recorded.Arguments.Length));
+        CelMacroCall recorded = Assert.IsType<CelMacroCall>(parsed.GetMacroCall(comprehension.Id));
+        Assert.Equal(("cel.bind", 3), (recorded.Function, recorded.Arguments.Length));
+        Assert.Null(recorded.Target);
     }
 
     // The nodes are created in the order of cel-go: the range, the condition, the step, then the comprehension, after the arguments.
     [Fact]
     public static void Bind_CreatesTheNodesInTheOrderOfCelGo()
     {
-        ComprehensionNode comprehension = Assert.IsType<ComprehensionNode>(Parse("cel.bind(x, 1, 2)").Root);
+        CelComprehensionNode comprehension = Assert.IsType<CelComprehensionNode>(Parse("cel.bind(x, 1, 2)").Root);
 
         Assert.True(comprehension.AccuInit.Id < comprehension.Result.Id);
         Assert.True(comprehension.Result.Id < comprehension.IterRange.Id);
@@ -63,7 +64,7 @@ public sealed class BindMacroTests
     public static void FirstArgumentThatIsNotAnIdentifier_IsInvalidMacroCall(string text, string place)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParseResult parsed = MathEnvironment.Environment.Parse(text);
+        CelParseResult parsed = MathEnvironment.Environment.Parse(text);
 
         Assert.False(parsed.IsSuccess);
         CelError error = Assert.Single(parsed.Errors);
@@ -79,21 +80,21 @@ public sealed class BindMacroTests
     [InlineData("cel.bind()", 0)]
     public static void OtherNumberOfArguments_StaysACall(string text, int count)
     {
-        ParsedExpression parsed = Parse(text);
+        CelParsedExpr parsed = Parse(text);
 
-        CallNode call = Assert.IsType<CallNode>(parsed.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.Root);
         Assert.Equal(("bind", count), (call.Function, call.Arguments.Length));
-        Assert.Equal("cel", Assert.IsType<IdentNode>(call.Target).Name);
+        Assert.Equal("cel", Assert.IsType<CelIdentNode>(call.Target).Name);
         Assert.Null(parsed.GetMacroCall(call.Id));
     }
 
     [Fact]
     public static void WithoutTheSet_TheCallStaysACall()
     {
-        ParseResult parsed = WithoutBindings.Parse("cel.bind(x, 1, x)");
+        CelParseResult parsed = WithoutBindings.Parse("cel.bind(x, 1, x)");
 
         Assert.True(parsed.IsSuccess);
-        CallNode call = Assert.IsType<CallNode>(parsed.Expression!.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.ParsedExpr!.Root);
         Assert.Equal(("bind", 3), (call.Function, call.Arguments.Length));
     }
 
@@ -104,9 +105,9 @@ public sealed class BindMacroTests
     [InlineData("cel2.bind(x, 1, 2)")]
     public static void OtherTarget_LeavesTheCall(string text)
     {
-        ParsedExpression parsed = Parse(text);
+        CelParsedExpr parsed = Parse(text);
 
-        CallNode call = Assert.IsType<CallNode>(parsed.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.Root);
         Assert.Equal("bind", call.Function);
         Assert.Null(parsed.GetMacroCall(call.Id));
     }
@@ -115,17 +116,17 @@ public sealed class BindMacroTests
     [Fact]
     public static void NestedBind_IsAComprehensionInTheResult()
     {
-        ComprehensionNode outer = Assert.IsType<ComprehensionNode>(Parse("cel.bind(a, 1, cel.bind(b, a, b))").Root);
+        CelComprehensionNode outer = Assert.IsType<CelComprehensionNode>(Parse("cel.bind(a, 1, cel.bind(b, a, b))").Root);
 
-        ComprehensionNode inner = Assert.IsType<ComprehensionNode>(outer.Result);
+        CelComprehensionNode inner = Assert.IsType<CelComprehensionNode>(outer.Result);
         Assert.Equal(("a", "b"), (outer.AccuVar, inner.AccuVar));
-        Assert.Equal("a", Assert.IsType<IdentNode>(inner.AccuInit).Name);
+        Assert.Equal("a", Assert.IsType<CelIdentNode>(inner.AccuInit).Name);
     }
 
-    private static ParsedExpression Parse(string text)
+    private static CelParsedExpr Parse(string text)
     {
-        ParseResult parsed = MathEnvironment.Environment.Parse(text);
+        CelParseResult parsed = MathEnvironment.Environment.Parse(text);
         Assert.True(parsed.IsSuccess, text + ": " + string.Join("; ", parsed.Errors));
-        return parsed.Expression!;
+        return parsed.ParsedExpr!;
     }
 }

@@ -17,6 +17,7 @@
     },
     "mutate": [
       "Checking/**/*.cs",
+      "!Checking/Protobuf/**/*.cs",
       "Configuration/**/*.cs"
     ],
     "thresholds": {

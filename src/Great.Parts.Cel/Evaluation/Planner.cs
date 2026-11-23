@@ -56,7 +56,7 @@ internal sealed class Planner
     private const string StringToTimestampId = "string_to_timestamp";
     private const string StringToDurationId = "string_to_duration";
 
-    private readonly ParsedExpression _parsed;
+    private readonly CelParsedExpr _parsed;
 
     // The checked expression; null when planning without type checking.
     private readonly CheckedExpression? _checked;
@@ -76,11 +76,11 @@ internal sealed class Planner
 
     // The expressions the author wrote in the standard macros being planned.
     // Created at the first standard macro.
-    private HashSet<ExprNode>? _authored;
+    private HashSet<CelExprNode>? _authored;
 
     // The reads of names that the expansion of optMap and optFlatMap added — the copy of the target and the hidden target — which cost
     // nothing. Created at the first such macro.
-    private HashSet<ExprNode>? _free;
+    private HashSet<CelExprNode>? _free;
 
     private int _localCount;
 
@@ -102,7 +102,7 @@ internal sealed class Planner
     // The offset of the node being planned, for InternalError; -1 before the root and after it.
     private int _current = -1;
 
-    private Planner(ParsedExpression parsed, CheckedExpression? checkedExpression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones)
+    private Planner(CelParsedExpr parsed, CheckedExpression? checkedExpression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones)
     {
         _timeZones = timeZones;
         _parsed = parsed;
@@ -122,7 +122,7 @@ internal sealed class Planner
     // Plans a parsed expression without type checking: names resolve in the bindings at evaluation, and
     // every call other than the special forms chooses among all overloads of its name, call style and
     // argument count.
-    internal static Plan PlanWithoutTypeCheck(ParsedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null) =>
+    internal static Plan PlanWithoutTypeCheck(CelParsedExpr expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null) =>
         new Planner(expression, null, declarations, timeZones).Run();
 
     // Plans the expression from its root: the plan is the root node with the sizes of the stack, the locals and the slots
@@ -143,7 +143,7 @@ internal sealed class Planner
 
     // The node of a syntax node, and the most argument values on the stack at one time while it is
     // evaluated.
-    private PlanNode Visit(ExprNode node, out int stackSize)
+    private PlanNode Visit(CelExprNode node, out int stackSize)
     {
         int offset = _parsed.GetOffset(node.Id);
         int enclosing = _current;
@@ -153,7 +153,7 @@ internal sealed class Planner
         return planned;
     }
 
-    private PlanNode VisitOrStop(ExprNode node, int offset, out int stackSize)
+    private PlanNode VisitOrStop(CelExprNode node, int offset, out int stackSize)
     {
         stackSize = 0;
 
@@ -171,7 +171,7 @@ internal sealed class Planner
             return authored;
         }
 
-        if (node is CallNode or ComprehensionNode && _parsed.GetMacroCall(node.Id) is { Function: "optMap" or "optFlatMap" })
+        if (node is CelCallNode or CelComprehensionNode && _parsed.GetRecordedMacroCall(node.Id) is { Function: "optMap" or "optFlatMap" })
         {
             MarkFreeReads(node);
         }
@@ -190,22 +190,22 @@ internal sealed class Planner
     // The reads that the expansion of optMap or optFlatMap adds, which are free: the copy of the target in x.value() and, for a target
     // that is not an identifier, the hidden target of x.hasValue() as well. The expansion is a conditional, or a comprehension whose
     // result is the conditional; its present branch is the comprehension that binds the variable, or optional.of of it.
-    private void MarkFreeReads(ExprNode expansion)
+    private void MarkFreeReads(CelExprNode expansion)
     {
-        bool hidden = expansion is ComprehensionNode;
-        ExprNode conditional = expansion is ComprehensionNode outer ? outer.Result : expansion;
-        if (conditional is not CallNode { Arguments.Length: 3 } call)
+        bool hidden = expansion is CelComprehensionNode;
+        CelExprNode conditional = expansion is CelComprehensionNode outer ? outer.Result : expansion;
+        if (conditional is not CelCallNode { Arguments.Length: 3 } call)
         {
             return;
         }
 
-        ExprNode present = call.Arguments[1] is CallNode { Arguments.Length: 1 } wrapped ? wrapped.Arguments[0] : call.Arguments[1];
-        if (hidden && call.Arguments[0] is CallNode { Target: { } subject })
+        CelExprNode present = call.Arguments[1] is CelCallNode { Arguments.Length: 1 } wrapped ? wrapped.Arguments[0] : call.Arguments[1];
+        if (hidden && call.Arguments[0] is CelCallNode { Target: { } subject })
         {
             _ = (_free ??= new(ReferenceEqualityComparer.Instance)).Add(subject);
         }
 
-        if (present is ComprehensionNode { AccuInit: CallNode { Target: { } copy } })
+        if (present is CelComprehensionNode { AccuInit: CelCallNode { Target: { } copy } })
         {
             _ = (_free ??= new(ReferenceEqualityComparer.Instance)).Add(copy);
         }
@@ -214,7 +214,7 @@ internal sealed class Planner
     // A list literal whose elements are all literals, made once at planning: the list is immutable, so every evaluation may share it.
     // It charges what the literal charges, 1 and 1 for each element, at the position of the literal. A literal without elements, with
     // an element that is not a literal, or with an error value as an element stays a node that builds it.
-    private static ConstantPlanNode? TryFoldList(ListNode list, int offset)
+    private static ConstantPlanNode? TryFoldList(CelListNode list, int offset)
     {
         if (list.Elements.IsEmpty)
         {
@@ -224,7 +224,7 @@ internal sealed class Planner
         var items = new CelValue[list.Elements.Length];
         for (int i = 0; i < items.Length; i++)
         {
-            if (list.Elements[i] is not ConstantNode { Value: var value } || value.Kind == CelValueKind.Error)
+            if (list.Elements[i] is not CelConstantNode { Value: var value } || value.Kind == CelValueKind.Error)
             {
                 return null;
             }
@@ -235,40 +235,40 @@ internal sealed class Planner
         return new ConstantPlanNode(offset, CelValue.FromList(new ValueArrayList(items)), 1 + (ulong)items.Length);
     }
 
-    private PlanNode VisitNode(ExprNode node, int offset, out int stackSize)
+    private PlanNode VisitNode(CelExprNode node, int offset, out int stackSize)
     {
         stackSize = 0;
         switch (node)
         {
-            case ConstantNode constant:
+            case CelConstantNode constant:
                 return new ConstantPlanNode(offset, constant.Value);
-            case IdentNode identifier:
+            case CelIdentNode identifier:
                 return VisitIdentifier(identifier, offset, out stackSize);
-            case SelectNode select:
+            case CelSelectNode select:
                 return VisitSelect(select, offset, out stackSize);
-            case CallNode call:
+            case CelCallNode call:
                 return VisitCall(call, offset, out stackSize);
 
-            case ListNode { OptionalIndices.IsEmpty: false } optionalList:
+            case CelListNode { OptionalIndices.IsEmpty: false } optionalList:
                 return VisitOptionalList(optionalList, offset, out stackSize);
-            case ListNode list when TryFoldList(list, offset) is { } folded:
+            case CelListNode list when TryFoldList(list, offset) is { } folded:
                 return folded;
-            case ListNode list:
+            case CelListNode list:
                 return new ListPlanNode(offset, VisitAll(list.Elements, out stackSize));
-            case StructNode { MessageName.Length: > 0 } message:
+            case CelStructNode message:
                 return VisitMessage(message, offset, out stackSize);
-            case StructNode optionalMap when optionalMap.HasOptionalEntry():
+            case CelMapNode optionalMap when optionalMap.HasOptionalEntry():
                 return VisitOptionalMap(optionalMap, offset, out stackSize);
-            case StructNode map:
+            case CelMapNode map:
                 return VisitMap(map, offset, out stackSize);
-            case ComprehensionNode comprehension:
+            case CelComprehensionNode comprehension:
                 return VisitComprehension(comprehension, offset, out stackSize);
             default:
                 throw new UnreachableException("The parser creates no other node.");
         }
     }
 
-    private PlanNode VisitIdentifier(IdentNode identifier, int offset, out int stackSize)
+    private PlanNode VisitIdentifier(CelIdentNode identifier, int offset, out int stackSize)
     {
         stackSize = 0;
         if (_blocks.Count > 0 && TryGetSlot(identifier.Name, out int innermost, out int number))
@@ -320,7 +320,7 @@ internal sealed class Planner
     private LocalPlanNode Local(int offset, int slot, string name) =>
         new(offset, slot, _added || string.Equals(name, ExtensionMacros.SortByInput, StringComparison.Ordinal) ? 0UL : 1UL);
 
-    private PlanNode VisitSelect(SelectNode select, int offset, out int stackSize)
+    private PlanNode VisitSelect(CelSelectNode select, int offset, out int stackSize)
     {
         stackSize = 0;
         if (_checked is not null && _checked.References.TryGetValue(select.Id, out Reference? reference))
@@ -333,7 +333,7 @@ internal sealed class Planner
             return VisitReference(reference, offset);
         }
 
-        if (_checked is null && !select.IsPresenceTest && TryCollectChain(select, out IdentNode? root, out List<SelectNode>? chain))
+        if (_checked is null && !select.IsPresenceTest && TryCollectChain(select, out CelIdentNode? root, out List<CelSelectNode>? chain))
         {
             return VisitName(root, chain, offset);
         }
@@ -344,23 +344,23 @@ internal sealed class Planner
 
     // A chain of selections that ends in an identifier that is not a variable of a comprehension, the
     // outermost selection first.
-    private bool TryCollectChain(ExprNode node, [NotNullWhen(true)] out IdentNode? root, out List<SelectNode> chain)
+    private bool TryCollectChain(CelExprNode node, [NotNullWhen(true)] out CelIdentNode? root, out List<CelSelectNode> chain)
     {
         chain = [];
-        while (node is SelectNode { IsPresenceTest: false } select)
+        while (node is CelSelectNode { IsPresenceTest: false } select)
         {
             chain.Add(select);
             node = select.Operand;
         }
 
-        root = node as IdentNode;
+        root = node as CelIdentNode;
         return root is not null && (root.Name[0] == '.' || !TryGetLocal(root.Name, out _));
     }
 
     // A name without type checking: an identifier and the selections of its chain, the outermost first.
     // The candidates are the qualified names of the identifier and its first selections, the longest
     // first, each by the candidates of the container; the selections after a candidate select fields.
-    private NamePlanNode VisitName(IdentNode root, List<SelectNode> chain, int offset)
+    private NamePlanNode VisitName(CelIdentNode root, List<CelSelectNode> chain, int offset)
     {
         bool leadingDot = root.Name[0] == '.';
         string first = leadingDot ? root.Name[1..] : root.Name;
@@ -387,7 +387,7 @@ internal sealed class Planner
         var selects = new SelectPlanNode[chain.Count];
         for (int i = 0; i < chain.Count; i++)
         {
-            SelectNode select = chain[chain.Count - 1 - i];
+            CelSelectNode select = chain[chain.Count - 1 - i];
             selects[i] = new SelectPlanNode(_parsed.GetOffset(select.Id), null, select.Field, false);
         }
 
@@ -415,9 +415,9 @@ internal sealed class Planner
         return names;
     }
 
-    private PlanNode VisitCall(CallNode call, int offset, out int stackSize)
+    private PlanNode VisitCall(CelCallNode call, int offset, out int stackSize)
     {
-        ImmutableArray<ExprNode> arguments = call.Arguments;
+        ImmutableArray<CelExprNode> arguments = call.Arguments;
         if (call.Target is null)
         {
             switch (call.Function)
@@ -431,7 +431,7 @@ internal sealed class Planner
                 case NotStrictlyFalsePlanNode.Function when arguments.Length == 1:
                     return new NotStrictlyFalsePlanNode(offset, Visit(arguments[0], out stackSize));
                 case AddFunction when _appendSlot >= 0 && IsAppend(arguments):
-                    return new AppendPlanNode(offset, _appendSlot, Visit(((ListNode)arguments[1]).Elements[0], out stackSize));
+                    return new AppendPlanNode(offset, _appendSlot, Visit(((CelListNode)arguments[1]).Elements[0], out stackSize));
                 case MapInsertPlanNode.Function when _insertSlot >= 0 && IsInsert(arguments):
                     return VisitInsert(arguments, offset, out stackSize);
                 default:
@@ -449,7 +449,7 @@ internal sealed class Planner
 
     // The special forms that the planner evaluates itself: cel.@block, the optional selection _?._ and or and orValue of the set
     // optional. False for any other call, which is an ordinary call.
-    private bool TryVisitSpecialForm(CallNode call, int offset, [NotNullWhen(true)] out PlanNode? form, out int stackSize)
+    private bool TryVisitSpecialForm(CelCallNode call, int offset, [NotNullWhen(true)] out PlanNode? form, out int stackSize)
     {
         stackSize = 0;
         form = null;
@@ -476,9 +476,9 @@ internal sealed class Planner
     // expression and the node of the result, with a cell in the frame for each slot. A block of no slots is its result. A first
     // argument that is not such a literal can only come from a tree that was not checked: the call has no candidates, so it
     // is EvalNoMatchingOverload at the call after its arguments are evaluated.
-    private PlanNode VisitBlock(CallNode call, int offset, out int stackSize)
+    private PlanNode VisitBlock(CelCallNode call, int offset, out int stackSize)
     {
-        if (call.Arguments[0] is not ListNode { OptionalIndices.IsEmpty: true } list)
+        if (call.Arguments[0] is not CelListNode { OptionalIndices.IsEmpty: true } list)
         {
             return new DispatchPlanNode(offset, call.Function, [], [], !_added, VisitAll(call.Arguments, out stackSize));
         }
@@ -511,7 +511,7 @@ internal sealed class Planner
     // Whether the call is one of the two overloads of or and orValue that the planner evaluates itself: a call on a receiver with one
     // argument whose candidates, which type checking recorded or, without it, the overloads of the name and the call style, hold the
     // binding with that identifier. A call with an overload of the application among its candidates is still the form.
-    private bool IsOptionalOr(CallNode call, out bool orValue)
+    private bool IsOptionalOr(CelCallNode call, out bool orValue)
     {
         orValue = false;
         string function = call.Function;
@@ -550,7 +550,7 @@ internal sealed class Planner
     // Whether the call _?._ is the special form of the optional selection: the candidates that type checking recorded, or without
     // type checking the overloads of the declarations, hold select_optional_field. Without the set there is no candidate, and the
     // call is an ordinary call of a function that nothing declares.
-    private bool IsOptionalSelect(CallNode call)
+    private bool IsOptionalSelect(CelCallNode call)
     {
         ImmutableArray<OverloadBinding> candidates = _checked is null
             ? _declarations.GetOverloads(OptionalSelectFunction, false, 2)
@@ -568,7 +568,7 @@ internal sealed class Planner
 
     // The receiver and the argument as nodes: the argument is evaluated only when the receiver is empty. The node charges its own unit
     // unless the expansion of a macro added the call.
-    private OptionalOrPlanNode VisitOptionalOr(CallNode call, bool orValue, int offset, out int stackSize)
+    private OptionalOrPlanNode VisitOptionalOr(CelCallNode call, bool orValue, int offset, out int stackSize)
     {
         PlanNode receiver = Visit(call.Target!, out int receiverStack);
         PlanNode argument = Visit(call.Arguments[0], out int argumentStack);
@@ -579,9 +579,9 @@ internal sealed class Planner
     // e.?f, the call _?._(e, 'f'): a node that holds the name of the field, which the parser always writes as a string literal and
     // that is never evaluated. A second argument of another form can only come from a tree that was not checked: the call has no
     // candidate to run, so it is EvalNoMatchingOverload at the call after its arguments are evaluated.
-    private PlanNode VisitOptionalSelect(CallNode call, int offset, out int stackSize)
+    private PlanNode VisitOptionalSelect(CelCallNode call, int offset, out int stackSize)
     {
-        if (call.Arguments[1] is not ConstantNode { Value: var name } || !name.TryGetString(out string? field))
+        if (call.Arguments[1] is not CelConstantNode { Value: var name } || !name.TryGetString(out string? field))
         {
             return new DispatchPlanNode(offset, call.Function, [], [], !_added, VisitAll(call.Arguments, out stackSize));
         }
@@ -655,7 +655,7 @@ internal sealed class Planner
         return false;
     }
 
-    private ConditionalPlanNode VisitConditional(ImmutableArray<ExprNode> arguments, int offset, out int stackSize)
+    private ConditionalPlanNode VisitConditional(ImmutableArray<CelExprNode> arguments, int offset, out int stackSize)
     {
         PlanNode condition = Visit(arguments[0], out int conditionStack);
         PlanNode then = Visit(arguments[1], out int thenStack);
@@ -665,19 +665,19 @@ internal sealed class Planner
     }
 
     // The step @result + [e] that the expansion of map, filter and transformList writes.
-    private static bool IsAppend(ImmutableArray<ExprNode> arguments) =>
+    private static bool IsAppend(ImmutableArray<CelExprNode> arguments) =>
         arguments.Length == 2
-        && arguments[0] is IdentNode { Name: Macro.AccumulatorName }
-        && arguments[1] is ListNode { Elements.Length: 1, OptionalIndices.IsEmpty: true };
+        && arguments[0] is CelIdentNode { Name: Macro.AccumulatorName }
+        && arguments[1] is CelListNode { Elements.Length: 1, OptionalIndices.IsEmpty: true };
 
     // The step cel.@mapInsert(@result, k, v) or cel.@mapInsert(@result, m) that the expansion of transformMap and transformMapEntry writes.
-    private static bool IsInsert(ImmutableArray<ExprNode> arguments) =>
-        arguments.Length is 2 or 3 && arguments[0] is IdentNode { Name: Macro.AccumulatorName };
+    private static bool IsInsert(ImmutableArray<CelExprNode> arguments) =>
+        arguments.Length is 2 or 3 && arguments[0] is CelIdentNode { Name: Macro.AccumulatorName };
 
     // The insertion into the map builder of the accumulator: the key, when the call has one, and the value or the map are planned;
     // the accumulator is read from its slot. The key, the value and the map are evaluated one after the other, none of them waits on
     // the argument stack.
-    private MapInsertPlanNode VisitInsert(ImmutableArray<ExprNode> arguments, int offset, out int stackSize)
+    private MapInsertPlanNode VisitInsert(ImmutableArray<CelExprNode> arguments, int offset, out int stackSize)
     {
         int keyStack = 0;
         PlanNode? key = arguments.Length == 3 ? Visit(arguments[1], out keyStack) : null;
@@ -690,13 +690,13 @@ internal sealed class Planner
     // overloads is the call of a qualified function name: the target is part of the name and is not
     // evaluated. Otherwise the target is the first argument. A _[_] whose operand has the static type dyn also
     // has the index overloads of the library that type checking did not keep.
-    private PlanNode VisitCheckedCall(CallNode call, int offset, out int stackSize)
+    private PlanNode VisitCheckedCall(CelCallNode call, int offset, out int stackSize)
     {
         Reference reference = _checked!.References[call.Id];
         ImmutableArray<OverloadBinding> candidates = reference.Candidates;
         object? prepared = reference.Prepared;
         bool qualified = call.Target is null || (!candidates.IsEmpty && !candidates[0].Declaration.IsReceiverStyle);
-        ImmutableArray<ExprNode> argumentNodes = qualified ? call.Arguments : [call.Target!, .. call.Arguments];
+        ImmutableArray<CelExprNode> argumentNodes = qualified ? call.Arguments : [call.Target!, .. call.Arguments];
         ImmutableArray<PlanNode> arguments = VisitAll(argumentNodes, out stackSize);
         var argumentTypes = new CelType[argumentNodes.Length];
         for (int i = 0; i < argumentTypes.Length; i++)
@@ -731,18 +731,18 @@ internal sealed class Planner
     }
 
     // The name that an error of a call names: the qualified name when the target of the call is part of it, math.sqrt and not sqrt.
-    private static string NameInErrors(CallNode call, ImmutableArray<OverloadBinding> candidates) =>
+    private static string NameInErrors(CelCallNode call, ImmutableArray<OverloadBinding> candidates) =>
         call.Target is not null && !candidates.IsEmpty && !candidates[0].Declaration.IsReceiverStyle ? candidates[0].Function : call.Function;
 
     // A call of timestamp or duration on a string literal, run once at planning on a call site with no limit and no
     // database: a value becomes a constant that charges the units of the call it replaces, the fixed units and the cost of the
     // literal, at the position of the call. An error value is not folded: the call stays and fails when it is evaluated. A call
     // that the expansion of a standard macro adds charges nothing.
-    private ConstantPlanNode? TryFoldTime(OverloadBinding overload, ImmutableArray<ExprNode> argumentNodes, int offset)
+    private ConstantPlanNode? TryFoldTime(OverloadBinding overload, ImmutableArray<CelExprNode> argumentNodes, int offset)
     {
         if (overload.IsApplication
             || argumentNodes.Length != 1
-            || argumentNodes[0] is not ConstantNode { Value: var literal }
+            || argumentNodes[0] is not CelConstantNode { Value: var literal }
             || !literal.TryGetString(out _)
             || overload.Declaration.OverloadId is not (StringToTimestampId or StringToDurationId))
         {
@@ -792,14 +792,14 @@ internal sealed class Planner
     // A call without type checking: the overloads of the name, call style and argument count, each with
     // every argument marked. A target that is a chain of names naming a declared function with the name of
     // the call is part of that name; otherwise the target is the first argument.
-    private DispatchPlanNode VisitUncheckedCall(CallNode call, int offset, out int stackSize)
+    private DispatchPlanNode VisitUncheckedCall(CelCallNode call, int offset, out int stackSize)
     {
         string function = call.Function;
         bool receiverStyle = false;
-        ImmutableArray<ExprNode> argumentNodes = call.Arguments;
+        ImmutableArray<CelExprNode> argumentNodes = call.Arguments;
         if (call.Target is { } target)
         {
-            if (TryCollectChain(target, out IdentNode? root, out List<SelectNode>? chain)
+            if (TryCollectChain(target, out CelIdentNode? root, out List<CelSelectNode>? chain)
                 && TryResolveFunction(ChainName(root, chain) + "." + function, root.Name[0] == '.', out string? qualified))
             {
                 function = qualified;
@@ -831,7 +831,7 @@ internal sealed class Planner
         return new DispatchPlanNode(offset, call.Target is not null && !receiverStyle ? function : call.Function, candidates, marks.MoveToImmutable(), !_added, arguments, null, _declarations.PatternCache);
     }
 
-    private static string ChainName(IdentNode root, List<SelectNode> chain)
+    private static string ChainName(CelIdentNode root, List<CelSelectNode> chain)
     {
         string name = root.Name[0] == '.' ? root.Name[1..] : root.Name;
         for (int i = chain.Count - 1; i >= 0; i--)
@@ -912,18 +912,18 @@ internal sealed class Planner
     }
 
     // The operands of a chain of _&&_ or of _||_ calls in the order of the text.
-    private static ImmutableArray<ExprNode> Operands(CallNode call)
+    private static ImmutableArray<CelExprNode> Operands(CelCallNode call)
     {
-        var operands = new List<ExprNode>();
+        var operands = new List<CelExprNode>();
         AddOperands(call, call.Function, operands);
         return [.. operands];
     }
 
-    private static void AddOperands(CallNode call, string function, List<ExprNode> operands)
+    private static void AddOperands(CelCallNode call, string function, List<CelExprNode> operands)
     {
-        foreach (ExprNode argument in call.Arguments)
+        foreach (CelExprNode argument in call.Arguments)
         {
-            if (argument is CallNode { Target: null, Arguments.Length: 2 } inner && string.Equals(inner.Function, function, StringComparison.Ordinal))
+            if (argument is CelCallNode { Target: null, Arguments.Length: 2 } inner && string.Equals(inner.Function, function, StringComparison.Ordinal))
             {
                 AddOperands(inner, function, operands);
             }
@@ -937,10 +937,10 @@ internal sealed class Planner
     // A comprehension: the range and the initializer in the enclosing scopes, the loop condition and the
     // step with the accumulator and the iteration variable, the result with the accumulator only. In a
     // standard macro everything but the expressions the author wrote is planned as added.
-    private ComprehensionPlanNode VisitComprehension(ComprehensionNode comprehension, int offset, out int stackSize)
+    private ComprehensionPlanNode VisitComprehension(CelComprehensionNode comprehension, int offset, out int stackSize)
     {
-        MacroCall? macro = string.Equals(comprehension.AccuVar, Macro.AccumulatorName, StringComparison.Ordinal)
-            ? _parsed.GetMacroCall(comprehension.Id)
+        CelMacroCall? macro = string.Equals(comprehension.AccuVar, Macro.AccumulatorName, StringComparison.Ordinal)
+            ? _parsed.GetRecordedMacroCall(comprehension.Id)
             : null;
         bool appends = macro is not null && macro.Function is "map" or "filter" or "transformList";
         bool inserts = macro is not null && macro.Function is "transformMap" or "transformMapEntry";
@@ -995,7 +995,7 @@ internal sealed class Planner
         return new ComprehensionPlanNode(offset, range, initializer, condition, step, result, variable, accumulator, secondVariable, inserts);
     }
 
-    private MapPlanNode VisitMap(StructNode map, int offset, out int stackSize)
+    private MapPlanNode VisitMap(CelMapNode map, int offset, out int stackSize)
     {
         VisitEntries(map, out ImmutableArray<PlanNode> keys, out ImmutableArray<PlanNode> values, out stackSize);
         return new MapPlanNode(offset, keys, values);
@@ -1003,26 +1003,27 @@ internal sealed class Planner
 
     // The keys and the values of the entries of a map literal, in the order of the text, and the room that they need: the keys and the
     // values before an entry stay on the stack, and then its key.
-    private void VisitEntries(StructNode map, out ImmutableArray<PlanNode> keys, out ImmutableArray<PlanNode> values, out int stackSize)
+    private void VisitEntries(CelMapNode map, out ImmutableArray<PlanNode> keys, out ImmutableArray<PlanNode> values, out int stackSize)
     {
-        ImmutableArray<PlanNode>.Builder keyNodes = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
-        ImmutableArray<PlanNode>.Builder valueNodes = ImmutableArray.CreateBuilder<PlanNode>(map.Entries.Length);
+        int count = map.Count;
+        ImmutableArray<PlanNode>.Builder keyNodes = ImmutableArray.CreateBuilder<PlanNode>(count);
+        ImmutableArray<PlanNode>.Builder valueNodes = ImmutableArray.CreateBuilder<PlanNode>(count);
         stackSize = 0;
-        foreach (StructEntry entry in map.Entries)
+        for (int i = 0; i < count; i++)
         {
             int pushed = 2 * keyNodes.Count;
-            keyNodes.Add(Visit(entry.Key, out int keyStackSize));
-            valueNodes.Add(Visit(entry.Value, out int valueStackSize));
+            keyNodes.Add(Visit(map.KeyOf(i), out int keyStackSize));
+            valueNodes.Add(Visit(map.ValueOf(i), out int valueStackSize));
             stackSize = Math.Max(stackSize, Math.Max(pushed + keyStackSize, pushed + 1 + valueStackSize));
         }
 
-        stackSize = Math.Max(stackSize, 2 * map.Entries.Length);
+        stackSize = Math.Max(stackSize, 2 * count);
         keys = keyNodes.MoveToImmutable();
         values = valueNodes.MoveToImmutable();
     }
 
     // A list literal with optional elements, ?e: the elements that are not stored leave the stack, so the room is that of a plain list.
-    private OptionalListPlanNode VisitOptionalList(ListNode list, int offset, out int stackSize)
+    private OptionalListPlanNode VisitOptionalList(CelListNode list, int offset, out int stackSize)
     {
         ImmutableArray<PlanNode> elements = VisitAll(list.Elements, out stackSize);
         var optional = new bool[elements.Length];
@@ -1035,75 +1036,53 @@ internal sealed class Planner
     }
 
     // A map literal with optional entries, ?k: v: the room on the stack is that of a plain map.
-    private OptionalMapPlanNode VisitOptionalMap(StructNode map, int offset, out int stackSize)
+    private OptionalMapPlanNode VisitOptionalMap(CelMapNode map, int offset, out int stackSize)
     {
         VisitEntries(map, out ImmutableArray<PlanNode> keys, out ImmutableArray<PlanNode> values, out stackSize);
-        var optional = new bool[map.Entries.Length];
-        for (int i = 0; i < optional.Length; i++)
-        {
-            optional[i] = map.Entries[i].IsOptional;
-        }
-
-        return new OptionalMapPlanNode(offset, keys, values, ImmutableArray.Create(optional));
+        return new OptionalMapPlanNode(offset, keys, values, map.OptionalFlags());
     }
 
     // A message literal: the values stay on the stack while the next ones are evaluated. With type checking the description and
     // the field numbers are those of the reference map; without it the name of the type, with its candidates in the container,
     // and the field names resolve at evaluation. An entry with ?, ?f: v, is stored only when its optional has a value.
-    private MessagePlanNode VisitMessage(StructNode message, int offset, out int stackSize)
+    private MessagePlanNode VisitMessage(CelStructNode message, int offset, out int stackSize)
     {
-        ImmutableArray<StructEntry> entries = message.Entries;
-        ImmutableArray<PlanNode>.Builder values = ImmutableArray.CreateBuilder<PlanNode>(entries.Length);
-        stackSize = entries.Length;
-        for (int i = 0; i < entries.Length; i++)
+        int count = message.Count;
+        ImmutableArray<PlanNode>.Builder values = ImmutableArray.CreateBuilder<PlanNode>(count);
+        stackSize = count;
+        for (int i = 0; i < count; i++)
         {
-            values.Add(Visit(entries[i].Value, out int valueStackSize));
+            values.Add(Visit(message.ValueOf(i), out int valueStackSize));
             stackSize = Math.Max(stackSize, i + valueStackSize);
         }
 
-        ImmutableArray<bool> optional = default;
-        if (message.HasOptionalEntry())
-        {
-            var flags = new bool[entries.Length];
-            for (int i = 0; i < flags.Length; i++)
-            {
-                flags[i] = entries[i].IsOptional;
-            }
-
-            optional = ImmutableArray.Create(flags);
-        }
+        ImmutableArray<bool> optional = message.HasOptionalEntry() ? message.OptionalFlags() : default;
 
         if (_checked is not null)
         {
-            ImmutableArray<int>.Builder numbers = ImmutableArray.CreateBuilder<int>(entries.Length);
-            foreach (StructEntry entry in entries)
+            ImmutableArray<int>.Builder numbers = ImmutableArray.CreateBuilder<int>(count);
+            for (int i = 0; i < count; i++)
             {
-                numbers.Add(_checked.References[entry.Id].FieldNumber);
+                numbers.Add(_checked.References[message.FieldId(i)].FieldNumber);
             }
 
             return new MessagePlanNode(offset, _checked.References[message.Id].ObjectType!, numbers.MoveToImmutable(), values.MoveToImmutable(), optional);
         }
 
-        bool leadingDot = message.MessageName[0] == '.';
-        string name = leadingDot ? message.MessageName[1..] : message.MessageName;
-        ImmutableArray<string>.Builder fieldNames = ImmutableArray.CreateBuilder<string>(entries.Length);
-        foreach (StructEntry entry in entries)
-        {
-            fieldNames.Add(entry.FieldName!);
-        }
-
+        bool leadingDot = message.TypeName[0] == '.';
+        string name = leadingDot ? message.TypeName[1..] : message.TypeName;
         return new MessagePlanNode(
             offset,
-            message.MessageName,
+            message.TypeName,
             [.. Qualified(name, leadingDot)],
-            fieldNames.MoveToImmutable(),
+            message.FieldNames(),
             values.MoveToImmutable(),
             optional);
     }
 
     // The nodes of the arguments of a call or of the elements of a list, which stay on the stack while the
     // next ones are evaluated.
-    private ImmutableArray<PlanNode> VisitAll(ImmutableArray<ExprNode> nodes, out int stackSize)
+    private ImmutableArray<PlanNode> VisitAll(ImmutableArray<CelExprNode> nodes, out int stackSize)
     {
         ImmutableArray<PlanNode>.Builder planned = ImmutableArray.CreateBuilder<PlanNode>(nodes.Length);
         stackSize = nodes.Length;

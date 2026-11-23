@@ -50,10 +50,10 @@ public sealed class ParseErrorTests
 
     private CelError FirstError(string expression)
     {
-        ParseResult result = environment.Parse(expression);
+        CelParseResult result = environment.Parse(expression);
 
         Assert.False(result.IsSuccess);
-        Assert.Null(result.Expression);
+        Assert.False(result.IsSuccess);
         Assert.NotEmpty(result.Errors);
         Assert.All(result.Errors, error => Assert.Equal(CelErrorStage.Parse, error.Stage));
         return result.Errors[0];

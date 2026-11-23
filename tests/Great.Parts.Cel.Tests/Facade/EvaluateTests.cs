@@ -116,11 +116,11 @@ public sealed class EvaluateTests
     [Fact]
     public void EvaluateWithoutTypeCheck_ReadsUndeclaredNamesAndReturnsTheValueAsItIs()
     {
-        ParseResult parsed = Environment.Parse("[other, count]");
+        CelParseResult parsed = Environment.Parse("[other, count]");
         Assert.True(parsed.IsSuccess);
 
         CelEvalResult<CelValue> result = Environment.EvaluateWithoutTypeCheck(
-            parsed.Expression,
+            parsed.ParsedExpr,
             new CelBindings().Add("other", "text").Add("count", 3L));
 
         Assert.True(result.Value.TryGetList(out CelList? list));
@@ -130,10 +130,10 @@ public sealed class EvaluateTests
     [Fact]
     public void EvaluateWithoutTypeCheck_OfAnErrorValue_HasTheOneError()
     {
-        ParseResult parsed = Environment.Parse("count + other");
+        CelParseResult parsed = Environment.Parse("count + other");
         Assert.True(parsed.IsSuccess);
 
-        CelEvalResult<CelValue> result = Environment.EvaluateWithoutTypeCheck(parsed.Expression, new CelBindings().Add("count", 1L));
+        CelEvalResult<CelValue> result = Environment.EvaluateWithoutTypeCheck(parsed.ParsedExpr, new CelBindings().Add("count", 1L));
 
         CelError error = Assert.Single(result.Errors);
         Assert.Equal((CelErrorCode.Unbound, CelErrorStage.Evaluate, 8), (error.Code, error.Stage, error.Location.Offset));
@@ -142,7 +142,7 @@ public sealed class EvaluateTests
     [Fact]
     public void InternalEntryPoints_OfNull_ThrowArgumentNullException()
     {
-        ParseResult parsed = Environment.Parse("count");
+        CelParseResult parsed = Environment.Parse("count");
         Assert.True(parsed.IsSuccess);
 
         Assert.Equal("expression", Assert.Throws<ArgumentNullException>(() => Environment.Parse(null!)).ParamName);
@@ -152,7 +152,7 @@ public sealed class EvaluateTests
             Assert.Throws<ArgumentNullException>(() => Environment.EvaluateWithoutTypeCheck(null!, new CelBindings())).ParamName);
         Assert.Equal(
             "bindings",
-            Assert.Throws<ArgumentNullException>(() => Environment.EvaluateWithoutTypeCheck(parsed.Expression, null!)).ParamName);
+            Assert.Throws<ArgumentNullException>(() => Environment.EvaluateWithoutTypeCheck(parsed.ParsedExpr, null!)).ParamName);
     }
 
     // Evaluations pass CancellationToken.None: a token that can be canceled is not implemented yet.

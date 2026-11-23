@@ -106,24 +106,41 @@ public sealed class CelEnvironment
         // The expected type is derived before the text is read, so the same T and options throw for every text.
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
         CelSourceLocation? start = options?.SourceLocation;
-        Compilation compiled = CompileSteps(expression, expectedType, start);
-        return compiled is { Plan: { } plan, Check.Expression: { } checkedExpression }
+        return ProgramOf<T>(CompileSteps(expression, expectedType, start), start);
+    }
+
+    // The program of a compilation that got as far as the plan, or its errors.
+    private CelCompileResult<T> ProgramOf<T>(Compilation compiled, CelSourceLocation? start) =>
+        compiled is { Plan: { } plan, Check.Expression: { } checkedExpression }
             ? new CelCompileResult<T>(new CelProgram<T>(plan, checkedExpression.ResultType, start, DefaultCostLimit, InputType))
             : new CelCompileResult<T>(compiled.Errors);
-    }
 
     // The steps that Compile and Validate share, so that both give the same errors: parse, check and planning. The plan exists
     // only when all three succeeded; the check result holds the references resolved before an error of the check.
     private Compilation CompileSteps(string expression, CelType expectedType, CelSourceLocation? start)
     {
-        ParseResult parsed = Parse(expression);
-        if (!parsed.IsSuccess)
+        CelParseResult parsed = Parse(expression, syntax: null);
+        return parsed.IsSuccess
+            ? CheckAndPlan(parsed.ParsedExpr, expectedType, start)
+            : new Compilation(InDocument(parsed.Errors, start), null, null, default);
+    }
+
+    // The steps for a tree of any source: the syntax that the environment accepts is checked unless its own parser made the tree,
+    // then the tree is checked and planned.
+    private Compilation CompileTree(CelParsedExpr tree, CelType expectedType, CelSourceLocation? start)
+    {
+        if (!ReferenceEquals(tree.ParsedWith, Syntax) && TreeInput.Check(tree, Syntax) is { IsEmpty: false } inputErrors)
         {
-            return new Compilation(InDocument(parsed.Errors, start), null, null, default);
+            return new Compilation(InDocument(inputErrors, start), null, null, default);
         }
 
-        ImmutableArray<MacroCall> macroCalls = parsed.Expression.MacroCalls;
-        CheckResult checkedResult = Check(parsed.Expression, expectedType);
+        return CheckAndPlan(tree, expectedType, start);
+    }
+
+    private Compilation CheckAndPlan(CelParsedExpr parsed, CelType expectedType, CelSourceLocation? start)
+    {
+        ImmutableArray<CelMacroCall> macroCalls = parsed.MacroCalls;
+        CheckResult checkedResult = Check(parsed, expectedType);
         if (!checkedResult.IsSuccess)
         {
             return new Compilation(InDocument(checkedResult.Errors, start), null, checkedResult, macroCalls);
@@ -139,7 +156,7 @@ public sealed class CelEnvironment
 
     // The outcome of CompileSteps: the errors, and the plan, the check result and the macro calls of the text that exist when the
     // steps got that far.
-    private readonly record struct Compilation(ImmutableArray<CelError> Errors, Plan? Plan, CheckResult? Check, ImmutableArray<MacroCall> MacroCalls);
+    private readonly record struct Compilation(ImmutableArray<CelError> Errors, Plan? Plan, CheckResult? Check, ImmutableArray<CelMacroCall> MacroCalls);
 
     /// <summary>
     /// The compilation boundary of planning: runs a planning step of the planner, and turns an unexpected exception other than
@@ -287,7 +304,7 @@ public sealed class CelEnvironment
     /// </param>
     /// <returns>The parsed expression, or the errors of the stage <see cref="CelErrorStage.Parse"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
-    internal ParseResult Parse(string expression, SyntaxOptions? syntax = null)
+    internal CelParseResult Parse(string expression, SyntaxOptions? syntax)
     {
         ArgumentNullException.ThrowIfNull(expression);
         return ParseWithinBoundary(new Parser(expression, syntax ?? Syntax), static parser => parser.Run());
@@ -299,9 +316,9 @@ public sealed class CelEnvironment
     /// <see cref="CelErrorStage.Parse"/>, after the errors the parser found before it.
     /// </summary>
     /// <param name="parser">The parser of the text.</param>
-    /// <param name="parse">The parse step: <see cref="Parse"/> runs the parser; a test can make the step throw.</param>
+    /// <param name="parse">The parse step: <see cref="Parse(string, SyntaxOptions)"/> runs the parser; a test can make the step throw.</param>
     /// <returns>The result of the step, or the errors with <see cref="CelErrorCode.InternalError"/> last.</returns>
-    internal static ParseResult ParseWithinBoundary(Parser parser, Func<Parser, ParseResult> parse)
+    internal static CelParseResult ParseWithinBoundary(Parser parser, Func<Parser, CelParseResult> parse)
     {
         try
         {
@@ -345,7 +362,7 @@ public sealed class CelEnvironment
     /// ordered by offset.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="parsed"/> is <see langword="null"/>.</exception>
-    internal CheckResult Check(ParsedExpression parsed, CelType? expectedType = null)
+    internal CheckResult Check(CelParsedExpr parsed, CelType? expectedType = null)
     {
         ArgumentNullException.ThrowIfNull(parsed);
         var checker = new Checker(parsed, Declarations, expectedType);
@@ -368,7 +385,7 @@ public sealed class CelEnvironment
     /// <param name="bindings">The values of the variables.</param>
     /// <returns>The value as it is, without conversion, or one error of the stage <see cref="CelErrorStage.Evaluate"/>.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="parsed"/> or <paramref name="bindings"/> is <see langword="null"/>.</exception>
-    internal CelEvalResult<CelValue> EvaluateWithoutTypeCheck(ParsedExpression parsed, CelBindings bindings)
+    internal CelEvalResult<CelValue> EvaluateWithoutTypeCheck(CelParsedExpr parsed, CelBindings bindings)
     {
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(bindings);
@@ -548,10 +565,19 @@ public sealed class CelEnvironment
         ArgumentNullException.ThrowIfNull(expression);
 
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
-        Compilation compiled = CompileSteps(expression, expectedType, options?.SourceLocation);
+        return ValidationOf(CompileSteps(expression, expectedType, options?.SourceLocation));
+    }
+
+    // The result of the validation of a compilation: its errors, the type of the result and the names it referred to.
+    private static CelValidationResult ValidationOf(Compilation compiled)
+    {
         ReferencedNames.Collect(compiled.Check?.References ?? EmptyReferences, compiled.MacroCalls, out ImmutableArray<string> variables, out ImmutableArray<string> functions);
-        CelType? resultType = compiled is { Plan: not null, Check.Expression: { } checkedExpression } ? checkedExpression.ResultType : null;
-        return new CelValidationResult(compiled.Errors, resultType, variables, functions);
+        if (compiled is { Plan: not null, Check.Expression: { } checkedExpression })
+        {
+            return new CelValidationResult(compiled.Errors, checkedExpression.ResultType, variables, functions, new CelCheckedExpr(checkedExpression));
+        }
+
+        return new CelValidationResult(compiled.Errors, null, variables, functions);
     }
 
     /// <summary>
@@ -569,6 +595,117 @@ public sealed class CelEnvironment
         Justification = "The generic and the non-generic validation take the same optional options; they differ by the expected type, not by the arguments.")]
     public CelValidationResult Validate(string expression, CelCompileOptions? options = null) =>
         Validate<CelValue>(expression, options);
+
+    /// <summary>
+    /// Parses an expression with the syntax of this environment — its macros, the optional syntax of the <c>optional</c>
+    /// extension, the <c>decimal</c> literal option — and returns the tree without type checking.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The parse is the first step of <see cref="Compile{T}(string, CelCompileOptions)"/>, with the same errors of the stage
+    /// <see cref="CelErrorStage.Parse"/> and the same limits of length, nesting and number of errors.
+    /// <see cref="CompileParsed{T}(CelParsedExpr, CelCompileOptions)"/> of the result gives the same program and the same errors
+    /// as <see cref="Compile{T}(string, CelCompileOptions)"/> of the text. The tree does not refer to the environment.
+    /// </para>
+    /// <para>
+    /// Of the options only <see cref="CelCompileOptions.SourceLocation"/> is used: its source name becomes
+    /// <see cref="CelParsedExpr.SourceName"/>, and parse errors report the position in the document, as at compilation.
+    /// </para>
+    /// </remarks>
+    /// <param name="expression">The text of the expression.</param>
+    /// <param name="options">The options, or <see langword="null"/> for none.</param>
+    /// <returns>The parsed expression, or all parse errors.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    public CelParseResult Parse(string expression, CelCompileOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+        CelSourceLocation? start = options?.SourceLocation;
+        CelParseResult parsed = Parse(expression, syntax: null);
+        if (!parsed.IsSuccess)
+        {
+            return start is null ? parsed : new CelParseResult(InDocument(parsed.Errors, start));
+        }
+
+        return new CelParseResult(parsed.ParsedExpr.WithSource(start?.SourceName, Syntax));
+    }
+
+    /// <summary>
+    /// Compiles a parsed expression — parsed from text, built by a <see cref="CelExprFactory"/> or loaded from protobuf — in this
+    /// environment: type-checks and plans it, as <see cref="Compile{T}(string, CelCompileOptions)"/> does after parsing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The tree is checked first as an input: deeper than the nesting limit of parsing is <see cref="CelErrorCode.NestingTooDeep"/>;
+    /// a <c>decimal</c> constant without the <c>decimal</c> literal option, and the optional syntax without the <c>optional</c>
+    /// extension, are <see cref="CelErrorCode.SyntaxNotEnabled"/>, as for a text; these errors have the stage
+    /// <see cref="CelErrorStage.Parse"/>. Then type checking resolves every name, function and type in the environment and
+    /// reports all errors of the stage <see cref="CelErrorStage.Check"/> at the positions of the nodes. Only overloads that type
+    /// checking found applicable are called at evaluation.
+    /// </para>
+    /// <para>
+    /// Errors are returned, not thrown, and the time is linear in the number of nodes. With
+    /// <see cref="CelCompileOptions.SourceLocation"/> errors also report the position in the document, as for a text.
+    /// </para>
+    /// </remarks>
+    /// <typeparam name="T">The .NET type in which the result is returned, as for <see cref="Compile{T}(string, CelCompileOptions)"/>.</typeparam>
+    /// <param name="expression">The parsed expression.</param>
+    /// <param name="options">The compilation options, or <see langword="null"/> for none.</param>
+    /// <returns>The program, or all errors.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// <typeparamref name="T"/> is not in the result column of the
+    /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see>, or the
+    /// expected type of <paramref name="options"/> cannot be converted to <typeparamref name="T"/>.
+    /// </exception>
+    public CelCompileResult<T> CompileParsed<T>(CelParsedExpr expression, CelCompileOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+
+        CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
+        CelSourceLocation? start = options?.SourceLocation;
+        return ProgramOf<T>(CompileTree(expression, expectedType, start), start);
+    }
+
+    /// <summary>
+    /// Validates a parsed expression without creating a program: compiles it as
+    /// <see cref="CompileParsed{T}(CelParsedExpr, CelCompileOptions)"/> does and returns all errors, the CEL type of the result,
+    /// the names it refers to and the checked expression.
+    /// </summary>
+    /// <typeparam name="T">The .NET type in which the expression would return its result.</typeparam>
+    /// <param name="expression">The parsed expression.</param>
+    /// <param name="options">The compilation options, or <see langword="null"/> for none.</param>
+    /// <returns>The result of the validation.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// <typeparamref name="T"/> is not in the result column of the type mapping, or the expected type of
+    /// <paramref name="options"/> cannot be converted to <typeparamref name="T"/>.
+    /// </exception>
+    [SuppressMessage(
+        "ApiDesign",
+        "RS0026:Do not add multiple public overloads with optional parameters",
+        Justification = "The generic and the non-generic validation take the same optional options; they differ by the expected type, not by the arguments.")]
+    public CelValidationResult ValidateParsed<T>(CelParsedExpr expression, CelCompileOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(expression);
+
+        CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
+        return ValidationOf(CompileTree(expression, expectedType, options?.SourceLocation));
+    }
+
+    /// <summary>
+    /// Validates a parsed expression without creating a program and without an expected type of the result, as
+    /// <see cref="ValidateParsed{T}(CelParsedExpr, CelCompileOptions)"/> does with <see cref="Values.CelValue"/>.
+    /// </summary>
+    /// <param name="expression">The parsed expression.</param>
+    /// <param name="options">The compilation options, or <see langword="null"/> for none.</param>
+    /// <returns>The result of the validation.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="expression"/> is <see langword="null"/>.</exception>
+    [SuppressMessage(
+        "ApiDesign",
+        "RS0026:Do not add multiple public overloads with optional parameters",
+        Justification = "The generic and the non-generic validation take the same optional options; they differ by the expected type, not by the arguments.")]
+    public CelValidationResult ValidateParsed(CelParsedExpr expression, CelCompileOptions? options = null) =>
+        ValidateParsed<CelValue>(expression, options);
 
     /// <summary>
     /// The variables of the environment with their CEL types, including the fields of the input type, in the order of

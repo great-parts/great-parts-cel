@@ -259,11 +259,11 @@ public sealed class TimeEvaluationTests
     private static Plan PlanWithoutTypeCheck(string expression) =>
         Planner.PlanWithoutTypeCheck(Parse(WithZones, expression), WithZones.Declarations, WithZones.TimeZones);
 
-    private static ParsedExpression Parse(CelEnvironment environment, string expression)
+    private static CelParsedExpr Parse(CelEnvironment environment, string expression)
     {
-        ParseResult parsed = environment.Parse(expression);
+        CelParseResult parsed = environment.Parse(expression);
         Assert.True(parsed.IsSuccess, expression);
-        return parsed.Expression;
+        return parsed.ParsedExpr;
     }
 
     // The units charged by one evaluation of the plan on the bindings.

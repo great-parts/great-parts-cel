@@ -23,14 +23,14 @@ public sealed class ProtosMacroEvaluationTests
     public static void Macro_IsTheSelectionOfTheFieldNamedByTheChain_AtTheParenthesis(string expression, string field, bool isPresenceTest)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        ParseResult parsed = WithSet.Parse(expression);
+        CelParseResult parsed = WithSet.Parse(expression);
         Assert.True(parsed.IsSuccess, expression);
 
-        var root = Assert.IsType<SelectNode>(parsed.Expression.Root);
+        var root = Assert.IsType<CelSelectNode>(parsed.ParsedExpr.Root);
 
         Assert.Equal((field, isPresenceTest), (root.Field, root.IsPresenceTest));
-        Assert.Equal("msg", Assert.IsType<IdentNode>(root.Operand).Name);
-        Assert.Equal(expression.IndexOf('(', StringComparison.Ordinal), parsed.Expression.GetOffset(root.Id));
+        Assert.Equal("msg", Assert.IsType<CelIdentNode>(root.Operand).Name);
+        Assert.Equal(expression.IndexOf('(', StringComparison.Ordinal), parsed.ParsedExpr.GetOffset(root.Id));
     }
 
     [Fact]

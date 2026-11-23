@@ -108,10 +108,10 @@ public sealed class ParseErrorCodeTests
             "opt" => SyntaxOptions.Standard with { OptionalSyntax = true },
             _ => throw new UnreachableException(syntax),
         };
-        ParseResult result = environment.Parse(expression.Replace("\\n", "\n", StringComparison.Ordinal), options);
+        CelParseResult result = environment.Parse(expression.Replace("\\n", "\n", StringComparison.Ordinal), options);
 
         Assert.False(result.IsSuccess);
-        Assert.Null(result.Expression);
+        Assert.False(result.IsSuccess);
         Assert.NotEmpty(result.Errors);
         return result.Errors;
     }

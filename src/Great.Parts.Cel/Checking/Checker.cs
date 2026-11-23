@@ -31,7 +31,7 @@ internal sealed class Checker
     private const string OptionalSelectFunction = "_?._";
     private const string OptionalSelectId = "select_optional_field";
 
-    private readonly ParsedExpression _parsed;
+    private readonly CelParsedExpr _parsed;
     private readonly DeclarationIndex _declarations;
 
     // The expected type of the root; null for none, as dyn.
@@ -47,14 +47,14 @@ internal sealed class Checker
 
     // The calls with a candidate that carries a validator, each with that binding, in the order of the traversal; and the types
     // of the nodes after the substitution, made once when the validators or the result need them.
-    private readonly List<(CallNode Call, OverloadBinding Binding)> _validations = [];
+    private readonly List<(CelCallNode Call, OverloadBinding Binding)> _validations = [];
     private Dictionary<int, CelType>? _finalTypes;
 
     // The variables of the enclosing comprehensions, the innermost last; a null type is the type error.
     private readonly List<(string Name, CelType? Type)> _locals = [];
 
     // The selections of the chain of names being resolved, the outermost first.
-    private readonly List<SelectNode> _chain = [];
+    private readonly List<CelSelectNode> _chain = [];
 
     // The candidates of the call being resolved and their result types.
     private readonly List<OverloadBinding> _candidates = [];
@@ -73,19 +73,19 @@ internal sealed class Checker
     private int _variableCount;
 
     // The node being checked, for InternalError; null before the root and after it.
-    private ExprNode? _current;
+    private CelExprNode? _current;
 
     // Whether checking stopped at InsufficientStack.
     private bool _stopped;
 
-    internal Checker(ParsedExpression parsed, DeclarationIndex declarations, CelType? expectedType)
+    internal Checker(CelParsedExpr parsed, DeclarationIndex declarations, CelType? expectedType)
     {
         _parsed = parsed;
         _declarations = declarations;
         _expectedType = expectedType;
     }
 
-    internal static CheckResult Check(ParsedExpression parsed, DeclarationIndex declarations, CelType? expectedType = null) =>
+    internal static CheckResult Check(CelParsedExpr parsed, DeclarationIndex declarations, CelType? expectedType = null) =>
         new Checker(parsed, declarations, expectedType).Run();
 
     // Checks the expression and, when it has no error, its type against the expected type.
@@ -141,7 +141,7 @@ internal sealed class Checker
     private void RunValidators()
     {
         var keys = new long[_validations.Count];
-        var order = new (CallNode Call, OverloadBinding Binding)[_validations.Count];
+        var order = new (CelCallNode Call, OverloadBinding Binding)[_validations.Count];
         for (int i = 0; i < order.Length; i++)
         {
             order[i] = _validations[i];
@@ -150,7 +150,7 @@ internal sealed class Checker
 
         Array.Sort(keys, order);
         Dictionary<int, CelType> types = FinalTypes();
-        foreach ((CallNode call, OverloadBinding binding) in order)
+        foreach ((CelCallNode call, OverloadBinding binding) in order)
         {
             CallShape shape = ShapeOf(call, binding, types);
             CallValidation answer = binding.Validator!(shape);
@@ -163,11 +163,11 @@ internal sealed class Checker
 
     // The receiver, when the overload takes one, and the arguments of the call. A call of a qualified function name has no
     // receiver: its target is part of the name.
-    private CallShape ShapeOf(CallNode call, OverloadBinding binding, Dictionary<int, CelType> types)
+    private CallShape ShapeOf(CelCallNode call, OverloadBinding binding, Dictionary<int, CelType> types)
     {
         ValueShape? receiver = binding.Declaration.IsReceiverStyle ? ShapeOf(call.Target!, types) : null;
         ImmutableArray<ValueShape>.Builder arguments = ImmutableArray.CreateBuilder<ValueShape>(call.Arguments.Length);
-        foreach (ExprNode argument in call.Arguments)
+        foreach (CelExprNode argument in call.Arguments)
         {
             arguments.Add(ShapeOf(argument, types));
         }
@@ -176,26 +176,26 @@ internal sealed class Checker
     }
 
     // The offset, the final type and, for a literal, its value: a string, the elements of a list or the entries of a map.
-    private ValueShape ShapeOf(ExprNode node, Dictionary<int, CelType> types)
+    private ValueShape ShapeOf(CelExprNode node, Dictionary<int, CelType> types)
     {
         int offset = _parsed.GetOffset(node.Id);
         CelType type = types.TryGetValue(node.Id, out CelType? known) ? known : CelType.Dyn;
         switch (node)
         {
-            case ConstantNode constant when constant.Value.TryGetString(out string? text):
+            case CelConstantNode constant when constant.Value.TryGetString(out string? text):
                 return new ValueShape(offset, type, text, null, false, null);
-            case ListNode list:
+            case CelListNode list:
                 ImmutableArray<ValueShape>.Builder elements = ImmutableArray.CreateBuilder<ValueShape>(list.Elements.Length);
-                foreach (ExprNode element in list.Elements)
+                foreach (CelExprNode element in list.Elements)
                 {
                     elements.Add(ShapeOf(element, types));
                 }
 
                 return new ValueShape(offset, type, null, elements.MoveToImmutable(), !list.OptionalIndices.IsEmpty, null);
-            case StructNode { MessageName.Length: 0 } map:
+            case CelMapNode map:
                 ImmutableArray<(ValueShape Key, ValueShape Value)>.Builder entries =
                     ImmutableArray.CreateBuilder<(ValueShape Key, ValueShape Value)>(map.Entries.Length);
-                foreach (StructEntry entry in map.Entries)
+                foreach (CelMapEntryNode entry in map.Entries)
                 {
                     entries.Add((ShapeOf(entry.Key, types), ShapeOf(entry.Value, types)));
                 }
@@ -207,7 +207,7 @@ internal sealed class Checker
     }
 
     // The error of a rejected call: the message of its code, at the part that the answer names or at the call.
-    private CelError ValidationError(CallNode call, CallValidation answer, CallShape shape)
+    private CelError ValidationError(CelCallNode call, CallValidation answer, CallShape shape)
     {
         CelSourceSpan place = answer.Offset is int offset ? Place(offset, _parsed.Lines.GetEnd(offset)) : Place(call);
         switch (answer.Code)
@@ -264,7 +264,7 @@ internal sealed class Checker
         }
     }
 
-    private CelType? Visit(ExprNode node)
+    private CelType? Visit(CelExprNode node)
     {
         if (_stopped)
         {
@@ -278,18 +278,18 @@ internal sealed class Checker
             return null;
         }
 
-        ExprNode? parent = _current;
+        CelExprNode? parent = _current;
         _current = node;
         CelType? type = node switch
         {
-            ConstantNode constant => ConstantType(constant.Value.Kind),
-            IdentNode identifier => VisitIdentifier(identifier),
-            SelectNode select => VisitSelect(select),
-            CallNode call => VisitCall(call),
-            ListNode list => VisitList(list),
-            StructNode { MessageName.Length: 0 } map => VisitMap(map),
-            StructNode message => VisitMessage(message),
-            ComprehensionNode comprehension => VisitComprehension(comprehension),
+            CelConstantNode constant => ConstantType(constant.Value.Kind),
+            CelIdentNode identifier => VisitIdentifier(identifier),
+            CelSelectNode select => VisitSelect(select),
+            CelCallNode call => VisitCall(call),
+            CelListNode list => VisitList(list),
+            CelMapNode map => VisitMap(map),
+            CelStructNode message => VisitMessage(message),
+            CelComprehensionNode comprehension => VisitComprehension(comprehension),
             _ => throw new UnreachableException("The parser creates no other node."),
         };
         _current = parent;
@@ -297,7 +297,7 @@ internal sealed class Checker
         return type;
     }
 
-    private void Record(ExprNode node, CelType? type)
+    private void Record(CelExprNode node, CelType? type)
     {
         if (type is not null)
         {
@@ -315,12 +315,16 @@ internal sealed class Checker
         CelValueKind.String => CelType.String,
         CelValueKind.Bytes => CelType.Bytes,
         CelValueKind.Decimal => CelType.Decimal,
+
+        // The deprecated duration_value and timestamp_value of a tree loaded from protobuf.
+        CelValueKind.Duration => CelType.Duration,
+        CelValueKind.Timestamp => CelType.Timestamp,
         _ => throw new UnreachableException("A literal has no other kind."),
     };
 
     // A variable of an enclosing comprehension, unless the name has a leading dot; then the declarations by
     // the candidates of the container.
-    private CelType? VisitIdentifier(IdentNode identifier)
+    private CelType? VisitIdentifier(CelIdentNode identifier)
     {
         string name = identifier.Name;
         bool leadingDot = name[0] == '.';
@@ -331,8 +335,9 @@ internal sealed class Checker
         }
 
         ReadOnlySpan<char> written = leadingDot ? name.AsSpan(1) : name;
+        bool needsDot = leadingDot && HasLocalOfFirstPart(written);
         written.CopyTo(NameRoom(written.Length));
-        if (TryResolveName(written.Length, leadingDot, out Reference? reference, out CelType? type))
+        if (TryResolveName(written.Length, leadingDot, needsDot, out Reference? reference, out CelType? type))
         {
             _references.Add(identifier.Id, reference);
             return type;
@@ -342,9 +347,9 @@ internal sealed class Checker
         return null;
     }
 
-    private CelType? VisitSelect(SelectNode select)
+    private CelType? VisitSelect(CelSelectNode select)
     {
-        if (!select.IsPresenceTest && TryCollectChain(select, out IdentNode? root))
+        if (!select.IsPresenceTest && TryCollectChain(select, out CelIdentNode? root))
         {
             return VisitChain(root);
         }
@@ -355,16 +360,17 @@ internal sealed class Checker
     // A chain of selections that ends in an identifier, such as a.b.c: the longest prefix that names a
     // declaration wins, and the selections after it select fields. Nothing declared is UndeclaredReference
     // at the identifier.
-    private CelType? VisitChain(IdentNode root)
+    private CelType? VisitChain(CelIdentNode root)
     {
         int count = _chain.Count;
         int length = WriteChainName(root, null);
         bool leadingDot = root.Name[0] == '.';
+        bool needsDot = leadingDot && HasLocalOfFirstPart(root.Name.AsSpan(1));
         int resolved = count;
         CelType? type = null;
         while (true)
         {
-            if (TryResolveName(length, leadingDot, out Reference? reference, out CelType? found))
+            if (TryResolveName(length, leadingDot, needsDot, out Reference? reference, out CelType? found))
             {
                 _references.Add(ChainNode(root, resolved).Id, reference);
                 type = found;
@@ -389,7 +395,7 @@ internal sealed class Checker
 
         for (int selects = resolved + 1; selects <= count; selects++)
         {
-            SelectNode select = _chain[count - selects];
+            CelSelectNode select = _chain[count - selects];
             type = SelectField(select, type);
             if (selects < count)
             {
@@ -401,11 +407,11 @@ internal sealed class Checker
     }
 
     // The node of the chain that the identifier and its first selections form: the identifier for none.
-    private ExprNode ChainNode(IdentNode root, int selects) => selects == 0 ? root : _chain[_chain.Count - selects];
+    private CelExprNode ChainNode(CelIdentNode root, int selects) => selects == 0 ? root : _chain[_chain.Count - selects];
 
     // The selection of a field. An operand of the type optional_type(U) is optional: the rule goes on with the head of U and the
     // result is wrapped, as cel-go does (maybeUnwrapOptional). A presence test has the type bool, whatever the operand that has a type.
-    private CelType? SelectField(SelectNode select, CelType? operandType)
+    private CelType? SelectField(CelSelectNode select, CelType? operandType)
     {
         if (operandType is null)
         {
@@ -428,7 +434,7 @@ internal sealed class Checker
     // to dyn; any other type has no fields and is NoSuchField at the place. The result of an optional selection is optional_type of
     // it, except for a presence test. The reference map records the field of an object only for a selection whose operand is not
     // optional: for an optional one the description of the value is known at evaluation, and the planner needs no reference to choose its node.
-    private CelType? SelectionType(string field, CelType head, bool optional, bool isPresenceTest, SelectNode? select, CelSourceSpan place)
+    private CelType? SelectionType(string field, CelType head, bool optional, bool isPresenceTest, CelSelectNode? select, CelSourceSpan place)
     {
         CelType result;
         switch (head.Kind)
@@ -466,7 +472,7 @@ internal sealed class Checker
 
     // The type of a field of an object type, or null with the error added: no such field is NoSuchField with the full name of the
     // type, at the place, and a field that the description excluded from expressions is FieldNotAccessible with the reason it gives.
-    private CelType? ObjectFieldType(string field, CelType head, bool optional, SelectNode? select, CelSourceSpan place)
+    private CelType? ObjectFieldType(string field, CelType head, bool optional, CelSelectNode? select, CelSourceSpan place)
     {
         if (!_declarations.Types.TryGetObjectType(head.Name, out CelObjectType? description)
             || !description.TryGetField(field, out CelObjectField? declared))
@@ -531,9 +537,9 @@ internal sealed class Checker
     // optional_type(T).
     private static CelType OptionalType(CelType valueType) => new(CelTypeKind.Optional, OptionalTypeName, [valueType]);
 
-    private CelType? VisitCall(CallNode call)
+    private CelType? VisitCall(CelCallNode call)
     {
-        ExprNode? target = call.Target;
+        CelExprNode? target = call.Target;
         if (target is null)
         {
             if (call.Function is LogicalAnd or LogicalOr && call.Arguments.Length == 2)
@@ -547,7 +553,7 @@ internal sealed class Checker
         }
 
         // A target that is a chain of names can be part of a qualified function name: a.b.f(x) calls a.b.f.
-        if (TryCollectChain(target, out IdentNode? root))
+        if (TryCollectChain(target, out CelIdentNode? root))
         {
             int length = WriteChainName(root, call.Function);
             if (TryResolveFunction(length, root.Name[0] == '.', out string? qualified))
@@ -595,7 +601,7 @@ internal sealed class Checker
     // of the overload, but the selection rule on the head of e, wrapped, as cel-go types OptSelect. An operand that is optional is
     // unwrapped once. The name of the field is the string constant that the parser writes; a tree with another second argument
     // keeps the type of its candidates and is rejected by the validator after the traversal.
-    private CelType? VisitOptionalSelect(CallNode call)
+    private CelType? VisitOptionalSelect(CelCallNode call)
     {
         if (!VisitArguments(call.Arguments, 0, out CelType[] argumentTypes))
         {
@@ -604,7 +610,7 @@ internal sealed class Checker
 
         int mark = _substitution.Mark;
         CelType? type = Resolve(call, OptionalSelectFunction, false, argumentTypes);
-        if (type is null || call.Arguments[1] is not ConstantNode { Value: var name } || !name.TryGetString(out string? field))
+        if (type is null || call.Arguments[1] is not CelConstantNode { Value: var name } || !name.TryGetString(out string? field))
         {
             return type;
         }
@@ -622,7 +628,7 @@ internal sealed class Checker
         return SelectionType(field, head, true, false, null, Place(call));
     }
 
-    private CelType? VisitGlobalCall(CallNode call)
+    private CelType? VisitGlobalCall(CelCallNode call)
     {
         if (!VisitArguments(call.Arguments, 0, out CelType[] argumentTypes))
         {
@@ -644,9 +650,9 @@ internal sealed class Checker
 
     // && and ||: each operand must be assignable to bool, otherwise TypeMismatch at that operand, as cel-go
     // checks them.
-    private CelType? VisitLogical(CallNode call)
+    private CelType? VisitLogical(CelCallNode call)
     {
-        ImmutableArray<ExprNode> operands = call.Arguments;
+        ImmutableArray<CelExprNode> operands = call.Arguments;
         CelType? left = Visit(operands[0]);
         CelType? right = Visit(operands[1]);
         bool assignable = Expect(operands[0], left, CelType.Bool) & Expect(operands[1], right, CelType.Bool);
@@ -661,7 +667,7 @@ internal sealed class Checker
 
     // Checks every argument, so that each reports its errors; false when one has the type error. The types
     // start at the index first, after the room for a receiver.
-    private bool VisitArguments(ImmutableArray<ExprNode> arguments, int first, out CelType[] types)
+    private bool VisitArguments(ImmutableArray<CelExprNode> arguments, int first, out CelType[] types)
     {
         int count = first + arguments.Length;
         types = count == 0 ? [] : new CelType[count];
@@ -679,7 +685,7 @@ internal sealed class Checker
     // The overloads of the function that accept the argument types, in the order of the index; each
     // successful trial keeps its bindings. The type is the result type of the first candidate after the
     // substitution, or dyn when the candidates differ.
-    private CelType? Resolve(CallNode call, string function, bool isReceiverStyle, CelType[] argumentTypes)
+    private CelType? Resolve(CelCallNode call, string function, bool isReceiverStyle, CelType[] argumentTypes)
     {
         ImmutableArray<OverloadBinding> overloads = _declarations.GetOverloads(function, isReceiverStyle, argumentTypes.Length);
         _candidates.Clear();
@@ -743,7 +749,7 @@ internal sealed class Checker
     // variable, a call such as dyn('('), a concatenation or an element of a list, and nothing is folded, so the class of the outcome
     // depends on the form of the text alone. A candidate of the application has no constant argument, so a call it can take is
     // prepared by none.
-    private object? PrepareConstant(CallNode call, ImmutableArray<OverloadBinding> candidates, bool isReceiverStyle)
+    private object? PrepareConstant(CelCallNode call, ImmutableArray<OverloadBinding> candidates, bool isReceiverStyle)
     {
         if (candidates.IsEmpty || candidates[0].ConstantArgument is not { } constant)
         {
@@ -759,8 +765,8 @@ internal sealed class Checker
         }
 
         // The receiver counts as the argument 0; a call of a qualified function name has no receiver.
-        ExprNode? node = isReceiverStyle ? (constant.Index == 0 ? call.Target : call.Arguments[constant.Index - 1]) : call.Arguments[constant.Index];
-        if (node is not ConstantNode { Value: var value } || !value.TryGetString(out string? text))
+        CelExprNode? node = isReceiverStyle ? (constant.Index == 0 ? call.Target : call.Arguments[constant.Index - 1]) : call.Arguments[constant.Index];
+        if (node is not CelConstantNode { Value: var value } || !value.TryGetString(out string? text))
         {
             return null;
         }
@@ -913,9 +919,9 @@ internal sealed class Checker
     private CelType NewVariable() => CelType.TypeParameter("_var" + (_variableCount++).ToString(CultureInfo.InvariantCulture));
 
     // The join of the element types; an empty list has a fresh element type.
-    private CelType? VisitList(ListNode list)
+    private CelType? VisitList(CelListNode list)
     {
-        ImmutableArray<ExprNode> elements = list.Elements;
+        ImmutableArray<CelExprNode> elements = list.Elements;
         ImmutableArray<int> optionalIndices = list.OptionalIndices;
         int nextOptional = 0;
         CelType? joined = null;
@@ -937,12 +943,12 @@ internal sealed class Checker
     }
 
     // The joins of the key types and of the value types; the key types are not checked.
-    private CelType? VisitMap(StructNode map)
+    private CelType? VisitMap(CelMapNode map)
     {
         CelType? keys = null;
         CelType? values = null;
         bool hasError = false;
-        foreach (StructEntry entry in map.Entries)
+        foreach (CelMapEntryNode entry in map.Entries)
         {
             CelType? keyType = Visit(entry.Key);
             CelType? valueType = Visit(entry.Value);
@@ -964,7 +970,7 @@ internal sealed class Checker
 
     // The value of an optional element or entry: the value type of an optional_type, or dyn; any other type
     // is TypeMismatch, as cel-go checks it.
-    private CelType? OptionalValue(ExprNode node, CelType? type)
+    private CelType? OptionalValue(CelExprNode node, CelType? type)
     {
         if (type is null)
         {
@@ -994,16 +1000,16 @@ internal sealed class Checker
     // whose type is the type error. A constructible description gets the checks of its fields. The candidate is looked up
     // in the type index, not among the type identifiers, since the type of the description of a well-known message
     // is not an object type.
-    private CelType? VisitMessage(StructNode message)
+    private CelType? VisitMessage(CelStructNode message)
     {
-        ImmutableArray<StructEntry> entries = message.Entries;
+        ImmutableArray<CelStructFieldNode> entries = message.Fields;
         CelType?[] valueTypes = entries.IsEmpty ? [] : new CelType?[entries.Length];
         for (int i = 0; i < valueTypes.Length; i++)
         {
             valueTypes[i] = Visit(entries[i].Value);
         }
 
-        string name = message.MessageName;
+        string name = message.TypeName;
         bool leadingDot = name[0] == '.';
         ReadOnlySpan<char> written = leadingDot ? name.AsSpan(1) : name;
         written.CopyTo(NameRoom(written.Length));
@@ -1038,13 +1044,13 @@ internal sealed class Checker
     // TypeMismatch. The checks go on after an error. The reference map records the description for the literal and the number
     // of the field for each entry whose field exists, which the planner binds. The type of the literal is the type of the
     // description, also when an entry has an error, so the errors of the rest of the expression are not lost.
-    private CelType CheckMessageFields(StructNode message, CelObjectType description, CelType?[] valueTypes)
+    private CelType CheckMessageFields(CelStructNode message, CelObjectType description, CelType?[] valueTypes)
     {
         _references.Add(message.Id, Reference.ToMessage(description));
         for (int i = 0; i < valueTypes.Length; i++)
         {
-            StructEntry entry = message.Entries[i];
-            string field = entry.FieldName!;
+            CelStructFieldNode entry = message.Fields[i];
+            string field = entry.Name;
             CelSourceSpan place = Place(_parsed.GetOffset(entry.Id), _parsed.GetEnd(entry.Id));
             if (!description.TryGetField(field, out CelObjectField? declared))
             {
@@ -1080,7 +1086,7 @@ internal sealed class Checker
     // with the accumulator and the iteration variable; the result with the accumulator only. The type is
     // that of the result, also when the range is invalid. A comprehension of two variables declares the second variable after
     // the first, both before the loop condition and the step.
-    private CelType? VisitComprehension(ComprehensionNode comprehension)
+    private CelType? VisitComprehension(CelComprehensionNode comprehension)
     {
         CelType? rangeType = Visit(comprehension.IterRange);
         bool twoVariables = comprehension.IterVar2 is not null;
@@ -1109,7 +1115,7 @@ internal sealed class Checker
     // The types of the iteration variables. One variable: the element type of a list, the key type of a map. Two: the index, an int,
     // and the element of a list; the key and the value of a map. Dyn for dyn, error or a type parameter, which is bound to dyn;
     // another type is InvalidComprehensionRange and the type error for both. The second type is meaningful for two variables only.
-    private (CelType? First, CelType? Second) IterationTypes(ExprNode range, CelType? rangeType, bool twoVariables)
+    private (CelType? First, CelType? Second) IterationTypes(CelExprNode range, CelType? rangeType, bool twoVariables)
     {
         if (rangeType is null)
         {
@@ -1138,7 +1144,7 @@ internal sealed class Checker
 
     // Whether a part is assignable to the type its construct requires; otherwise TypeMismatch at the part,
     // and the bindings of the failed trial are undone. The type error passes on either side.
-    private bool Expect(ExprNode node, CelType? actual, CelType? expected)
+    private bool Expect(CelExprNode node, CelType? actual, CelType? expected)
     {
         if (actual is null || expected is null)
         {
@@ -1158,26 +1164,26 @@ internal sealed class Checker
 
     // Collects the selections of a chain of names that starts at the node and ends in an identifier that is
     // not a variable of a comprehension: such a chain can be a qualified name.
-    private bool TryCollectChain(ExprNode node, [NotNullWhen(true)] out IdentNode? root)
+    private bool TryCollectChain(CelExprNode node, [NotNullWhen(true)] out CelIdentNode? root)
     {
         _chain.Clear();
-        while (node is SelectNode { IsPresenceTest: false } select)
+        while (node is CelSelectNode { IsPresenceTest: false } select)
         {
             _chain.Add(select);
             node = select.Operand;
         }
 
-        root = node as IdentNode;
+        root = node as CelIdentNode;
         return root is not null && (root.Name[0] == '.' || !TryGetLocal(root.Name, out _));
     }
 
     // Writes the name of the identifier and the collected selections, then the last name if there is one,
     // without a leading dot, into the name buffer; returns the length.
-    private int WriteChainName(IdentNode root, string? last)
+    private int WriteChainName(CelIdentNode root, string? last)
     {
         ReadOnlySpan<char> first = root.Name[0] == '.' ? root.Name.AsSpan(1) : root.Name;
         int length = first.Length + (last is null ? 0 : 1 + last.Length);
-        foreach (SelectNode select in _chain)
+        foreach (CelSelectNode select in _chain)
         {
             length += 1 + select.Field.Length;
         }
@@ -1199,11 +1205,11 @@ internal sealed class Checker
         return length;
     }
 
-    private bool TryGetLocal(string name, out CelType? type)
+    private bool TryGetLocal(ReadOnlySpan<char> name, out CelType? type)
     {
         for (int i = _locals.Count - 1; i >= 0; i--)
         {
-            if (string.Equals(_locals[i].Name, name, StringComparison.Ordinal))
+            if (_locals[i].Name.AsSpan().SequenceEqual(name))
             {
                 type = _locals[i].Type;
                 return true;
@@ -1228,28 +1234,28 @@ internal sealed class Checker
 
     // The variable, the type identifier or the enumeration constant that the name in the name buffer refers to, by the
     // candidates of the container; for each candidate in this order, as cel-go v0.33.4 Env.LookupIdent does.
-    private bool TryResolveName(int length, bool asWritten, [NotNullWhen(true)] out Reference? reference, [NotNullWhen(true)] out CelType? type)
+    private bool TryResolveName(int length, bool asWritten, bool needsDot, [NotNullWhen(true)] out Reference? reference, [NotNullWhen(true)] out CelType? type)
     {
         var candidates = new NameCandidates(_names, _declarations.Container, length, asWritten);
         while (candidates.MoveNext(out ReadOnlySpan<char> candidate))
         {
             if (_declarations.TryGetVariable(candidate, out CelVariableDecl? variable))
             {
-                reference = Reference.ToVariable(variable);
+                reference = Reference.ToVariable(variable, needsDot);
                 type = variable.Type;
                 return true;
             }
 
             if (_declarations.TryGetTypeIdentifier(candidate, out CelType? typeValue))
             {
-                reference = Reference.ToTypeIdentifier(typeValue);
+                reference = Reference.ToTypeIdentifier(typeValue, candidate.ToString(), needsDot);
                 type = CelType.TypeOf(typeValue);
                 return true;
             }
 
             if (_declarations.Types.TryGetEnumConstant(candidate, out long constant))
             {
-                reference = Reference.ToConstant(constant);
+                reference = Reference.ToConstant(constant, candidate.ToString(), needsDot);
                 type = CelType.Int;
                 return true;
             }
@@ -1258,6 +1264,13 @@ internal sealed class Checker
         reference = null;
         type = null;
         return false;
+    }
+
+    // Whether a variable of an enclosing comprehension has the name that the first part of the written name (up to its first dot) has.
+    private bool HasLocalOfFirstPart(ReadOnlySpan<char> written)
+    {
+        int dot = written.IndexOf('.');
+        return TryGetLocal(dot < 0 ? written : written[..dot], out _);
     }
 
     // The declared function that the name in the name buffer refers to, by the candidates of the container.
@@ -1291,7 +1304,7 @@ internal sealed class Checker
     private CelType Shown(CelType type) => SubstitutionRules.Apply(_substitution, type, freeToDyn: true);
 
     // The fragment of a node: from its place to the end of the node.
-    private CelSourceSpan Place(ExprNode node) => Place(_parsed.GetOffset(node.Id), _parsed.GetEnd(node.Id));
+    private CelSourceSpan Place(CelExprNode node) => Place(_parsed.GetOffset(node.Id), _parsed.GetEnd(node.Id));
 
     private CelSourceSpan Place(int offset, int end) => new(_parsed.Lines.GetLocation(offset), end - offset);
 

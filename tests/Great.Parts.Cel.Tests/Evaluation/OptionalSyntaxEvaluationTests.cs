@@ -216,8 +216,8 @@ public sealed class OptionalSyntaxEvaluationTests : IDisposable
         foreach (string row in ExtensionRows.Lines(WithoutTypeCheck))
         {
             string[] sides = row.Split(" => ");
-            ParseResult parsed = Maps.Parse(sides[0]);
-            CelEvalResult<CelValue> actual = Maps.EvaluateWithoutTypeCheck(parsed.Expression!, MapBindings());
+            CelParseResult parsed = Maps.Parse(sides[0]);
+            CelEvalResult<CelValue> actual = Maps.EvaluateWithoutTypeCheck(parsed.ParsedExpr!, MapBindings());
             CelValue wanted = Maps.Compile<CelValue>(sides[1]).GetProgramOrThrow().Evaluate(MapBindings(), cancellationToken: CancellationToken.None).GetValueOrThrow();
             if (!actual.IsSuccess)
             {
@@ -237,9 +237,9 @@ public sealed class OptionalSyntaxEvaluationTests : IDisposable
     [Fact]
     public void WithoutTypeChecking_SelectionOfAHeldValueWithoutFields_IsFieldSelectionNotSupported()
     {
-        ParseResult parsed = Maps.Parse("optional.of({'a': 1}).a.b");
+        CelParseResult parsed = Maps.Parse("optional.of({'a': 1}).a.b");
 
-        CelEvalResult<CelValue> result = Maps.EvaluateWithoutTypeCheck(parsed.Expression!, MapBindings());
+        CelEvalResult<CelValue> result = Maps.EvaluateWithoutTypeCheck(parsed.ParsedExpr!, MapBindings());
 
         CelError error = Assert.Single(result.Errors);
         Assert.Equal(

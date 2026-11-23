@@ -24,7 +24,7 @@ public sealed class CelSpecParseTests
     private static readonly SyntaxOptions WithoutMacros = Syntax with { Macros = MacroTable.Empty };
 
     // Test macros of the internal set block stay calls until the set joins the options (docs/design/conformance.md, "Parse test of the cel-spec suite").
-    private static readonly string[] BlockTestMacroCases =
+    internal static readonly string[] BlockTestMacroCases =
     [
         "block_ext/basic/multiple_macros_1",
         "block_ext/basic/multiple_macros_2",
@@ -60,10 +60,13 @@ public sealed class CelSpecParseTests
         Assert.Equal(CaseCount, CelSpecSuite.ReadCases().Count);
     }
 
+    // The syntax options of the cel-go runner for a case: the optional syntax, and no macros for disable_macros.
+    internal static SyntaxOptions SyntaxOf(ConformanceCase testCase) => testCase.Environment.DisableMacros ? WithoutMacros : Syntax;
+
     // The failure of a case as "<path>(<line>,<column>): <name>: <first error or difference>", or null.
     private static string? Failure(CelEnvironment environment, ConformanceCase testCase)
     {
-        SyntaxOptions syntax = testCase.Environment.DisableMacros ? WithoutMacros : Syntax;
+        SyntaxOptions syntax = SyntaxOf(testCase);
         string? reason = BlockTestMacroCases.Contains(testCase.Name, StringComparer.Ordinal)
             ? BlockTestMacroReason(environment, testCase.Expression, syntax)
             : Reason(environment, testCase.Expression, syntax);
@@ -76,20 +79,20 @@ public sealed class CelSpecParseTests
     {
         try
         {
-            ParseResult parsed = environment.Parse(expression, syntax);
+            CelParseResult parsed = environment.Parse(expression, syntax);
             if (!parsed.IsSuccess)
             {
                 return "parse error " + Format(parsed.Errors[0]);
             }
 
-            string printed = Printer.Print(parsed.Expression);
-            ParseResult again = environment.Parse(printed, syntax);
+            string printed = CelSyntax.Format(parsed.ParsedExpr);
+            CelParseResult again = environment.Parse(printed, syntax);
             if (!again.IsSuccess)
             {
                 return $"the printed text {ExprText.Quote(printed)} has the parse error {Format(again.Errors[0])}";
             }
 
-            return SyntaxTreeComparer.Difference(parsed.Expression.Root, again.Expression.Root) is { } difference
+            return SyntaxTreeComparer.Difference(parsed.ParsedExpr.Root, again.ParsedExpr.Root) is { } difference
                 ? $"the printed text {ExprText.Quote(printed)} parses into another tree: {difference}"
                 : null;
         }
@@ -104,7 +107,7 @@ public sealed class CelSpecParseTests
     {
         try
         {
-            ParseResult parsed = environment.Parse(expression, syntax);
+            CelParseResult parsed = environment.Parse(expression, syntax);
             if (parsed.IsSuccess)
             {
                 return "parses now: remove it from the list";

@@ -165,13 +165,13 @@ public sealed class MessageLiteralTests
     public static void CheckedLiteral_RecordsItsDescriptionAndTheFieldNumberOfEachEntry()
     {
         CheckedExpression expression = Check(WithMessages, "acme.test.Message{label: 'x', id: 2, id: 3}").Expression!;
-        var literal = Assert.IsType<StructNode>(expression.Parsed.Root);
+        var literal = Assert.IsType<CelStructNode>(expression.Parsed.Root);
 
         Assert.Same(Description, expression.References[literal.Id].ObjectType);
         Assert.Equal(
             [Label, Id, Id],
-            literal.Entries.Select(entry => expression.References[entry.Id].FieldNumber).ToArray());
-        Assert.All(literal.Entries, entry => Assert.Same(Description, expression.References[entry.Id].ObjectType));
+            literal.Fields.Select(entry => expression.References[entry.Id].FieldNumber).ToArray());
+        Assert.All(literal.Fields, entry => Assert.Same(Description, expression.References[entry.Id].ObjectType));
     }
 
     [Fact]
@@ -225,8 +225,8 @@ public sealed class MessageLiteralTests
 
     private static CheckResult Check(CelEnvironment environment, string expression)
     {
-        ParseResult parsed = environment.Parse(expression);
+        CelParseResult parsed = environment.Parse(expression);
         Assert.True(parsed.IsSuccess, expression);
-        return environment.Check(parsed.Expression);
+        return environment.Check(parsed.ParsedExpr);
     }
 }

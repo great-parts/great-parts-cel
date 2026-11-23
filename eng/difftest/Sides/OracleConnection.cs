@@ -46,7 +46,7 @@ internal sealed record OracleHandshake(string Oracle, string Go)
 /// the oracle wrote since, its first lines, and the request in progress, the expression and the bindings, in the message itself, also
 /// in a run with <c>--numbers-only</c>.
 /// </summary>
-internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
+internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide, IDisposable
 {
     /// <summary>The host of the oracle in the network of the Compose project.</summary>
     internal const string DefaultHost = "oracle";
@@ -149,15 +149,79 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
     {
         long id = Request("eval", expression, bindings, null, null);
         using JsonDocument answer = Answer(id);
+        return Outcome(answer.RootElement, id);
+    }
+
+    /// <summary>
+    /// The request <c>checked</c> with <c>expr</c> (docs/design/ast-protobuf.md, "Exchange with cel-go"): cel-go parses and checks the
+    /// text and answers the bytes of <c>cel.AstToCheckedExpr</c>.
+    /// </summary>
+    /// <param name="expression">The expression as CEL source.</param>
+    /// <returns>The bytes, or that the text does not parse or check.</returns>
+    public CheckedAttempt Check(string expression)
+    {
+        long id = nextId++;
+        describeRequest = () => Describe("checked", expression, new Dictionary<string, Value>());
+        Send(request =>
+        {
+            request.WriteNumber("id", id);
+            request.WriteString("op", "checked");
+            request.WriteString("expr", expression);
+        });
+        using JsonDocument answer = Answer(id);
         JsonElement root = answer.RootElement;
         string outcome = Text(root, "outcome", id);
-        return outcome switch
+        if (outcome == "compile-error")
         {
-            "value" when root.TryGetProperty("value", out JsonElement value) => SideOutcome.Of(ReadValue(value, id)),
-            "eval-error" => SideOutcome.EvaluationError(Text(root, "message", id)),
-            "compile-error" => SideOutcome.CompileError(Stage(root, id), Text(root, "message", id)),
-            _ => throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no outcome of the protocol"), root.GetRawText()),
-        };
+            return CheckedAttempt.NotCompiled;
+        }
+
+        if (outcome != "checked")
+        {
+            throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no outcome of the protocol"), root.GetRawText());
+        }
+
+        try
+        {
+            return CheckedAttempt.Made(Convert.FromBase64String(Text(root, "checked", id)));
+        }
+        catch (FormatException)
+        {
+            throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has a 'checked' that is not base64"), root.GetRawText());
+        }
+    }
+
+    /// <summary>
+    /// The request <c>checked</c> with <c>checked</c> (docs/design/ast-protobuf.md, "Exchange with cel-go"): cel-go loads the bytes
+    /// with <c>cel.CheckedExprToAst</c>, plans them in its environment and evaluates them on the bindings.
+    /// </summary>
+    /// <param name="checkedExpr">The bytes of a <c>CheckedExpr</c> message.</param>
+    /// <param name="bindings">The bound variables.</param>
+    /// <returns>The outcome; bytes that cel-go does not load are a compile error of the stage <c>load</c>.</returns>
+    public SideOutcome EvaluateChecked(byte[] checkedExpr, IReadOnlyDictionary<string, Value> bindings)
+    {
+        long id = nextId++;
+        string encoded = Convert.ToBase64String(checkedExpr);
+        describeRequest = () => Describe(
+            "checked",
+            string.Create(CultureInfo.InvariantCulture, $"<{checkedExpr.Length} bytes> ") + (encoded.Length > DescribedBindingLength ? encoded[..DescribedBindingLength] + "..." : encoded),
+            bindings);
+        Send(request =>
+        {
+            request.WriteNumber("id", id);
+            request.WriteString("op", "checked");
+            request.WriteString("checked", encoded);
+            request.WriteStartObject("bindings");
+            foreach ((string variable, Value value) in bindings)
+            {
+                request.WritePropertyName(variable);
+                request.WriteRawValue(BindingJson(variable, value));
+            }
+
+            request.WriteEndObject();
+        });
+        using JsonDocument answer = Answer(id);
+        return Outcome(answer.RootElement, id);
     }
 
     /// <inheritdoc/>
@@ -286,6 +350,19 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
         _ => DoubleRoundTrip.Format(value),
     };
 
+    // The outcome of an answer to a request that evaluates: a value, an error of evaluation, or a compile error with its stage.
+    private SideOutcome Outcome(JsonElement root, long id)
+    {
+        string outcome = Text(root, "outcome", id);
+        return outcome switch
+        {
+            "value" when root.TryGetProperty("value", out JsonElement value) => SideOutcome.Of(ReadValue(value, id)),
+            "eval-error" => SideOutcome.EvaluationError(Text(root, "message", id)),
+            "compile-error" => SideOutcome.CompileError(Stage(root, id), Text(root, "message", id)),
+            _ => throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no outcome of the protocol"), root.GetRawText()),
+        };
+    }
+
     private static CompileStage Stage(JsonElement answer, long id)
     {
         string stage = Text(answer, "stage", id);
@@ -294,6 +371,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, IDisposable
             "parse" => CompileStage.Parse,
             "check" => CompileStage.Check,
             "program" => CompileStage.Program,
+            "load" => CompileStage.Load,
             _ => throw Quoting(
                 string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has the stage '{stage}', which the protocol does not have"),
                 answer.GetRawText()),

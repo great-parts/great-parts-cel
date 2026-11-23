@@ -17,9 +17,9 @@
 | `Program.cs` | the options, the run, the findings, the journal line, the exit code |
 | `BudgetText.cs` | the form of the time of `--budget` |
 | `Profile/` | `environment.json` — the run manifest; the profile tables; the case generator and the printer of expressions; the grammar of the strings of time; the constant `ZoneInfoPath`, the path of the time zone data file |
-| `Sides/` | `ICaseSide` with `LibrarySide` and `OracleConnection`; `ICaseRecorder`, the request `case` of the oracle, which `OracleConnection` implements; the outcome classes |
+| `Sides/` | `ICaseSide` with `LibrarySide` and `OracleConnection`; `ICheckedSide` and `ExchangedSide`, the exchange of checked expressions ([Exchange of checked expressions](#exchange-of-checked-expressions)); `ICaseRecorder`, the request `case` of the oracle, which `OracleConnection` implements; the outcome classes |
 | `Compare/` | kinds and severities, the equality of `cel.expr.Value`, signatures, minimization, the comparison of zone offsets, values and outcomes as text for messages |
-| `Corpus/` | the known signatures, the search of new signatures in a case, the writer of `pending.textproto` |
+| `Corpus/` | the known signatures, the search of new signatures in a case, `ExchangeChannel`, the writer of `pending.textproto` |
 
 The namespaces have no cycles (`ARCH001`): `Corpus` uses `Compare` and `Sides`, `Compare` uses `Sides`, and neither `Sides` nor `Compare` uses `Corpus`.
 
@@ -187,6 +187,19 @@ description: "New divergence signatures of the last run of eng/difftest"
 With cases, the empty form is followed by one section: the line `section {`, the line `  name: "new"`, and for each case, in the order the run found it, the line `  test {`, the text of the `case` answer as it is, and the line `  }`; the line `}` ends the section and the file. The description of a case is its signature. The first case thus starts at line 6, and the place of its `ENG820` is the `test` token, column 3.
 
 An entry of the corpus skip list moves its case from `pending.textproto` to a corpus file, since the next run rewrites `pending.textproto` without it. A registry record and its case enter with the change that implements the behavior of the record: the skip entry carries the class of the record as the verdict and the same signature, and the oracle checks the answer of cel-go again.
+
+## Exchange of checked expressions
+
+A case on which the sides agree about the text, and that compiles on both, is run through two more comparisons ([ast-protobuf](ast-protobuf.md#exchange-with-cel-go)): a checked expression made by one side is loaded and evaluated by the other, and the outcome is compared with the outcome of the same side for the text.
+
+| Prefix of the signature | Reference outcome | Outcome of the exchange |
+| :- | :- | :- |
+| `checked-to-cel-go: ` | cel-go from the text | cel-go plans and evaluates the bytes that the library writes (`Validate<CelValue>(text).CheckedExpr.ToProtobuf()`) |
+| `checked-from-cel-go: ` | the library from the text | the library loads the bytes that cel-go writes (the request `checked` with `expr`) with `FromCheckedExprProtobuf(bytes, text)`, compiles them with `CompileParsed<CelValue>` and evaluates |
+
+The two outcomes are compared as outcomes of the text are, and the kinds of [Outcomes and signatures](#outcomes-and-signatures) apply with the outcome of the exchange in the place of the library and the reference outcome in the place of cel-go: `we-value` is a value from the bytes where the text gives an error, `we-error` an error from the bytes where the text gives a value, `value-mismatch` and `stage-mismatch` as before, with the same severities. The signature is the prefix and the signature of the minimized case; the minimization is the same descent with the exchange as the evaluated side, and the finding `ENG820` says who returned what (`cel-go from our bytes returns …`). Bytes that a side does not read are a compile error of the stage `load`, which is not compared as a stage, as no compile error is. The registry of known differences has no record of an exchange: a new signature of an exchange is analysed as any new signature.
+
+A case on which the sides diverge about the text is spent: the exchange would repeat its divergence. The exchange adds requests to the oracle for each agreed case, so a run of a given budget checks fewer cases. The library side is `ICheckedSide` of `Sides/` (`LibrarySide` and `OracleConnection` implement it; the fake sides of the tests do not, and a run with one has no exchange), the exchange itself `ExchangedSide` and `Corpus/ExchangeChannel`.
 
 ## Profile of the extension sets
 

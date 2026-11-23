@@ -38,9 +38,9 @@ internal sealed class Parser
     // The level of the grammar table of the first binary level, that of ||; the conditional operator is below it.
     private const int FirstBinaryLevel = 2;
 
-    private const string OptionalSyntaxHint = " is not enabled: add the extension set optional";
+    internal const string OptionalSyntaxHint = " is not enabled: add the extension set optional";
 
-    private const string DecimalLiteralNotEnabled =
+    internal const string DecimalLiteralNotEnabled =
         "decimal literal is not enabled: enable decimal literals in the environment builder";
 
     // The binary levels from the lowest, below the conditional operator and above it the unary operators. The
@@ -134,7 +134,7 @@ internal sealed class Parser
     /// <param name="text">The text.</param>
     /// <param name="syntax">The syntax options; <see langword="null"/> for <see cref="SyntaxOptions.Standard"/>.</param>
     /// <returns>The parsed expression, or the errors of the stage <see cref="CelErrorStage.Parse"/>.</returns>
-    internal static ParseResult Parse(string text, SyntaxOptions? syntax = null) =>
+    internal static CelParseResult Parse(string text, SyntaxOptions? syntax = null) =>
         new Parser(text, syntax ?? SyntaxOptions.Standard).Run();
 
     /// <summary>
@@ -144,7 +144,7 @@ internal sealed class Parser
     /// The parsed expression, or the errors of the stage <see cref="CelErrorStage.Parse"/> ordered by offset, with the
     /// error that stopped parsing last.
     /// </returns>
-    internal ParseResult Run()
+    internal CelParseResult Run()
     {
         // Only the first code unit past the length limit is read, for the line table too.
         LineTable lines = new(_text.AsSpan(0, Math.Min(_text.Length, MaxLength + 1)));
@@ -154,12 +154,12 @@ internal sealed class Parser
         {
             // The place is a character: a surrogate pair is one character of two code units.
             int character = pastLimit + 1 < _text.Length && char.IsHighSurrogate(_text[pastLimit]) && char.IsLowSurrogate(_text[pastLimit + 1]) ? 2 : 1;
-            return new ParseResult([Error(CelErrorCode.ExpressionTooLong, "expression is longer than 65536 UTF-8 bytes", pastLimit, character)]);
+            return new CelParseResult([Error(CelErrorCode.ExpressionTooLong, "expression is longer than 65536 UTF-8 bytes", pastLimit, character)]);
         }
 
         _lexer = new Lexer(_text, lines);
         _token = _lexer.Next();
-        ExprNode root = ParseExpression();
+        CelExprNode root = ParseExpression();
         if (_token.Kind != TokenKind.End)
         {
             Fail("the end of the text");
@@ -172,8 +172,8 @@ internal sealed class Parser
         }
 
         return _errors.Count == 0 && _stopError is null
-            ? new ParseResult(_nodes.Build(root, lines))
-            : new ParseResult(Errors(last: null));
+            ? new CelParseResult(_nodes.Build(root, lines))
+            : new CelParseResult(Errors(last: null));
     }
 
     /// <summary>
@@ -209,7 +209,7 @@ internal sealed class Parser
     /// </summary>
     /// <param name="exception">The exception.</param>
     /// <returns>The errors.</returns>
-    internal ParseResult Interrupted(Exception exception)
+    internal CelParseResult Interrupted(Exception exception)
     {
         // Before the first token the offset is 0.
         int offset = _token.Offset;
@@ -222,7 +222,7 @@ internal sealed class Parser
             sourceLocation: null,
             exception,
             length: _token.Length);
-        return new ParseResult(Errors(error));
+        return new CelParseResult(Errors(error));
     }
 
     // The offset of the first code unit with which the UTF-8 length of the text passes the limit, or -1. A lone
@@ -269,7 +269,7 @@ internal sealed class Parser
 
     // c ? a : b, where c and a are of the next level and b is an expression, so the operator associates to the right.
     // Every nested sub-expression starts here, so the stack is checked here.
-    private ExprNode ParseExpression()
+    private CelExprNode ParseExpression()
     {
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {
@@ -277,7 +277,7 @@ internal sealed class Parser
             return Placeholder();
         }
 
-        ExprNode condition = ParseLevel(0);
+        CelExprNode condition = ParseLevel(0);
         if (_token.Kind != TokenKind.Question)
         {
             return condition;
@@ -285,17 +285,17 @@ internal sealed class Parser
 
         int question = _token.Offset;
         Advance();
-        ExprNode then = ParseLevel(0);
+        CelExprNode then = ParseLevel(0);
         Expect(TokenKind.Colon, "':'");
         _thirdOperands++;
         CheckNesting(question, 1);
-        ExprNode otherwise = ParseExpression();
+        CelExprNode otherwise = ParseExpression();
         _thirdOperands--;
         return Call("_?_:_", null, [condition, then, otherwise], question, counts: true);
     }
 
     // The operands of one level are the expressions of the next higher level; above the last level, unary ones.
-    private ExprNode ParseLevel(int level)
+    private CelExprNode ParseLevel(int level)
     {
         if (level == Levels.Length)
         {
@@ -303,7 +303,7 @@ internal sealed class Parser
         }
 
         BinaryLevel binary = Levels[level];
-        ExprNode result = ParseLevel(level + 1);
+        CelExprNode result = ParseLevel(level + 1);
         string? function = binary.FunctionOf(_token.Kind);
         if (function is null)
         {
@@ -321,7 +321,7 @@ internal sealed class Parser
             int offset = _token.Offset;
             int length = _token.Length;
             Advance();
-            ExprNode right = ParseRightOperand(level, relation, offset, length);
+            CelExprNode right = ParseRightOperand(level, relation, offset, length);
             result = Call(function, null, [result, right], offset, counts: true);
             function = binary.FunctionOf(_token.Kind);
         }
@@ -331,21 +331,21 @@ internal sealed class Parser
     }
 
     // The right operand of a left-associative level, which adds to the nesting.
-    private ExprNode ParseRightOperand(int level, bool relation, int operatorOffset, int operatorLength)
+    private CelExprNode ParseRightOperand(int level, bool relation, int operatorOffset, int operatorLength)
     {
         ref int operands = ref relation ? ref _relationOperands : ref _arithmeticOperands;
         operands++;
         CheckNesting(operatorOffset, operatorLength);
-        ExprNode right = ParseLevel(level + 1);
+        CelExprNode right = ParseLevel(level + 1);
         operands--;
         return right;
     }
 
     // A chain of the single operator of a balanced level after its first term.
-    private CallNode ParseBalanced(int level, string function, ExprNode first)
+    private CelCallNode ParseBalanced(int level, string function, CelExprNode first)
     {
         TokenKind op = _token.Kind;
-        List<ExprNode> terms = [first];
+        List<CelExprNode> terms = [first];
         List<int> offsets = [];
         while (_token.Kind == op)
         {
@@ -359,18 +359,18 @@ internal sealed class Parser
 
     // The balanced tree of the operators low to high over the terms low to high + 1, the shape that cel-go gives to
     // chains of && and ||: the operator in the middle is the root. These calls add no depth to the syntax tree.
-    private CallNode Balance(string function, List<ExprNode> terms, List<int> offsets, int low, int high)
+    private CelCallNode Balance(string function, List<CelExprNode> terms, List<int> offsets, int low, int high)
     {
         int middle = (low + high + 1) / 2;
-        ExprNode left = middle == low ? terms[middle] : Balance(function, terms, offsets, low, middle - 1);
-        ExprNode right = middle == high ? terms[middle + 1] : Balance(function, terms, offsets, middle + 1, high);
+        CelExprNode left = middle == low ? terms[middle] : Balance(function, terms, offsets, low, middle - 1);
+        CelExprNode right = middle == high ? terms[middle + 1] : Balance(function, terms, offsets, middle + 1, high);
         return Call(function, null, [left, right], offsets[middle], counts: false);
     }
 
     // A run of "!" or a run of "-" before a member, folded as in cel-go: an even run gives the member itself, an odd run
     // one call at the offset of the first operator. A single minus right before a number belongs to the number, also
     // after a run of "!"; otherwise a run never mixes the two operators.
-    private ExprNode ParseUnary()
+    private CelExprNode ParseUnary()
     {
         if (_token.Kind is not (TokenKind.Exclamation or TokenKind.Minus))
         {
@@ -386,7 +386,7 @@ internal sealed class Parser
             Advance();
         }
 
-        ExprNode operand;
+        CelExprNode operand;
         if (op == TokenKind.Minus)
         {
             if (count == 1 && IsNumber(_token.Kind))
@@ -419,11 +419,11 @@ internal sealed class Parser
     }
 
     // A primary followed by selections, receiver calls and indexes.
-    private ExprNode ParseMember() =>
+    private CelExprNode ParseMember() =>
         _token.Kind is TokenKind.Identifier or TokenKind.Dot ? ParseName() : ParseMember(ParsePrimary(), -1);
 
     // The selections, receiver calls and indexes after an operand; dot is the offset of a "." already read, or -1.
-    private ExprNode ParseMember(ExprNode operand, int dot)
+    private CelExprNode ParseMember(CelExprNode operand, int dot)
     {
         while (true)
         {
@@ -450,7 +450,7 @@ internal sealed class Parser
 
     // After the "." of a member: "?" for an optional selection, then the field; a field that is an IDENT and is followed
     // by "(" is the name of a receiver call instead.
-    private ExprNode ParseAfterDot(ExprNode operand, int dot)
+    private CelExprNode ParseAfterDot(CelExprNode operand, int dot)
     {
         bool optional = TryOptional("'.?'");
         Token field = _token;
@@ -479,13 +479,13 @@ internal sealed class Parser
     }
 
     // "[" ["?"] Expr "]" after an operand.
-    private CallNode ParseIndex(ExprNode operand)
+    private CelCallNode ParseIndex(CelExprNode operand)
     {
         int bracket = _token.Offset;
         Open(TokenKind.RightBracket, items: false, bracket);
         Advance();
         bool optional = TryOptional("'[?'");
-        ExprNode index = ParseExpression();
+        CelExprNode index = ParseExpression();
         Expect(TokenKind.RightBracket, "']'");
         Close();
         return Call(optional ? "_[?_]" : "_[_]", null, [operand, index], bracket, counts: true);
@@ -494,7 +494,7 @@ internal sealed class Parser
     // A name with an optional leading dot and its members. The pairs "." IDENT after the first identifier are read
     // before any node is created: before "{" they name a message; otherwise they are selections, and the last one is
     // the name of a receiver call when "(" follows it. Without pairs, "(" makes the name that of a global call.
-    private ExprNode ParseName()
+    private CelExprNode ParseName()
     {
         bool leadingDot = _token.Kind == TokenKind.Dot;
         if (leadingDot)
@@ -539,7 +539,7 @@ internal sealed class Parser
             }
 
             Token function = _segments[^1].Name;
-            ExprNode target = Selections(leadingDot, first, _segments.Count - 1);
+            CelExprNode target = Selections(leadingDot, first, _segments.Count - 1);
             return ParseMember(ParseCall(Text(function), target), -1);
         }
 
@@ -547,10 +547,10 @@ internal sealed class Parser
     }
 
     // The identifier and the first count pairs of the name as selections.
-    private ExprNode Selections(bool leadingDot, Token identifier, int count)
+    private CelExprNode Selections(bool leadingDot, Token identifier, int count)
     {
         CheckNotReserved(identifier);
-        ExprNode node = _nodes.Ident(Name(leadingDot, identifier), identifier.Offset);
+        CelExprNode node = _nodes.Ident(Name(leadingDot, identifier), identifier.Offset);
         for (int i = 0; i < count; i++)
         {
             (int dot, Token name) = _segments[i];
@@ -584,12 +584,12 @@ internal sealed class Parser
 
     // "(" [ExprList] ")" of a global call, or of a receiver call with its target. The arguments allow no trailing
     // comma. A call of a macro of the options is replaced by its expansion.
-    private ExprNode ParseCall(string function, ExprNode? target)
+    private CelExprNode ParseCall(string function, CelExprNode? target)
     {
         int parenthesis = _token.Offset;
         Open(TokenKind.RightParenthesis, items: true, parenthesis);
         Advance();
-        ImmutableArray<ExprNode>.Builder arguments = ImmutableArray.CreateBuilder<ExprNode>();
+        ImmutableArray<CelExprNode>.Builder arguments = ImmutableArray.CreateBuilder<CelExprNode>();
         if (!TryAdvance(TokenKind.RightParenthesis))
         {
             do
@@ -600,7 +600,7 @@ internal sealed class Parser
         }
 
         Close();
-        ImmutableArray<ExprNode> parsed = arguments.ToImmutable();
+        ImmutableArray<CelExprNode> parsed = arguments.ToImmutable();
         Macro? macro = _syntax.Macros.Find(function, parsed.Length, target is not null);
         return macro is null
             ? Call(function, target, parsed, parenthesis, counts: target is not null)
@@ -610,7 +610,7 @@ internal sealed class Parser
     // Replaces a macro call by its expansion and records the call. Arguments of the wrong shape are InvalidMacroCall at
     // the node the macro names, by default the "(" of the call, and the call then stays a call; a macro that does not apply
     // to the target leaves the call as it is. The expansion has the depth of the call it is written as.
-    private ExprNode Expand(Macro macro, ExprNode? target, ImmutableArray<ExprNode> arguments, int parenthesis)
+    private CelExprNode Expand(Macro macro, CelExprNode? target, ImmutableArray<CelExprNode> arguments, int parenthesis)
     {
         bool counts = target is not null;
         MacroCheck check = macro.Check(target, arguments);
@@ -628,19 +628,19 @@ internal sealed class Parser
             return Call(macro.Name, target, arguments, parenthesis, counts);
         }
 
-        ExprNode expansion = macro.Expand(_nodes, target, arguments, parenthesis);
-        _nodes.RecordMacroCall(expansion, new MacroCall(macro.Name, target, arguments, macro.Namespace));
+        CelExprNode expansion = macro.Expand(_nodes, target, arguments, parenthesis);
+        _nodes.RecordMacroCall(expansion, macro.Recorded(target, arguments));
         return Record(expansion, ChildDepth(target, arguments), counts, parenthesis);
     }
 
-    private ExprNode ParsePrimary()
+    private CelExprNode ParsePrimary()
     {
         switch (_token.Kind)
         {
             case TokenKind.LeftParenthesis:
                 Open(TokenKind.RightParenthesis, items: false, _token.Offset);
                 Advance();
-                ExprNode inner = ParseExpression();
+                CelExprNode inner = ParseExpression();
                 Expect(TokenKind.RightParenthesis, "')'");
                 Close();
                 return inner;
@@ -667,7 +667,7 @@ internal sealed class Parser
             or TokenKind.True or TokenKind.False or TokenKind.Null;
 
     // A literal; minus is the offset of a minus that belongs to it, which is also its position.
-    private ConstantNode ParseLiteral(int? minus)
+    private CelConstantNode ParseLiteral(int? minus)
     {
         Token token = _token;
         Advance();
@@ -702,12 +702,12 @@ internal sealed class Parser
     }
 
     // "[" [ListInit] [","] "]", where an element may have "?" before it.
-    private ListNode ParseList()
+    private CelListNode ParseList()
     {
         int bracket = _token.Offset;
         Open(TokenKind.RightBracket, items: true, bracket);
         Advance();
-        ImmutableArray<ExprNode>.Builder elements = ImmutableArray.CreateBuilder<ExprNode>();
+        ImmutableArray<CelExprNode>.Builder elements = ImmutableArray.CreateBuilder<CelExprNode>();
         ImmutableArray<int>.Builder? optionalIndices = null;
         if (!TryEndItems(TokenKind.RightBracket, "']'"))
         {
@@ -725,9 +725,9 @@ internal sealed class Parser
         }
 
         Close();
-        ImmutableArray<ExprNode> items = elements.ToImmutable();
+        ImmutableArray<CelExprNode> items = elements.ToImmutable();
         int depth = 0;
-        foreach (ExprNode element in items)
+        foreach (CelExprNode element in items)
         {
             depth = Math.Max(depth, DepthOf(element));
         }
@@ -736,22 +736,22 @@ internal sealed class Parser
     }
 
     // "{" [MapInits] [","] "}", where MapInits is ["?"] Expr ":" Expr {"," ["?"] Expr ":" Expr}.
-    private StructNode ParseMap()
+    private CelMapNode ParseMap()
     {
         int brace = _token.Offset;
         Open(TokenKind.RightBrace, items: true, brace);
         Advance();
-        ImmutableArray<StructEntry>.Builder entries = ImmutableArray.CreateBuilder<StructEntry>();
+        ImmutableArray<CelMapEntryNode>.Builder entries = ImmutableArray.CreateBuilder<CelMapEntryNode>();
         int depth = 0;
         if (!TryEndItems(TokenKind.RightBrace, "'}'"))
         {
             do
             {
                 bool optional = TryOptional("'?'");
-                ExprNode key = ParseExpression();
+                CelExprNode key = ParseExpression();
                 int colon = _token.Offset;
                 Expect(TokenKind.Colon, "':'");
-                ExprNode value = ParseExpression();
+                CelExprNode value = ParseExpression();
                 entries.Add(_nodes.Entry(key, value, optional, colon));
                 depth = Math.Max(depth, Math.Max(DepthOf(key), DepthOf(value)));
             }
@@ -759,17 +759,17 @@ internal sealed class Parser
         }
 
         Close();
-        return Record(_nodes.Struct(string.Empty, entries.ToImmutable(), brace), depth, counts: false, brace);
+        return Record(_nodes.Map(entries.ToImmutable(), brace), depth, counts: false, brace);
     }
 
     // "{" [FieldInits] [","] "}" of a message, where FieldInits is ["?"] field ":" Expr {"," ["?"] field ":" Expr} and
     // a field is an IDENT, reserved words included, or an escaped identifier.
-    private StructNode ParseMessage(string name)
+    private CelStructNode ParseMessage(string name)
     {
         int brace = _token.Offset;
         Open(TokenKind.RightBrace, items: true, brace);
         Advance();
-        ImmutableArray<StructEntry>.Builder entries = ImmutableArray.CreateBuilder<StructEntry>();
+        ImmutableArray<CelStructFieldNode>.Builder entries = ImmutableArray.CreateBuilder<CelStructFieldNode>();
         int depth = 0;
         if (!TryEndItems(TokenKind.RightBrace, "'}'"))
         {
@@ -786,8 +786,8 @@ internal sealed class Parser
                 Advance();
                 int colon = _token.Offset;
                 Expect(TokenKind.Colon, "':'");
-                ExprNode value = ParseExpression();
-                entries.Add(_nodes.Entry(FieldName(field), value, optional, colon));
+                CelExprNode value = ParseExpression();
+                entries.Add(_nodes.Field(FieldName(field), value, optional, colon));
                 depth = Math.Max(depth, DepthOf(value));
             }
             while (NextItem(TokenKind.RightBrace, "'}'", trailingComma: true));
@@ -883,16 +883,16 @@ internal sealed class Parser
         token.Kind == TokenKind.EscapedIdentifier ? _text.Substring(token.Offset + 1, token.Length - 2) : Text(token);
 
     // A node that only lets parsing unwind after an error: the result has an error and no tree.
-    private ConstantNode Placeholder() => _nodes.Constant(CelValue.Null, _token.Offset);
+    private CelConstantNode Placeholder() => _nodes.Constant(CelValue.Null, _token.Offset);
 
-    private CallNode Call(string function, ExprNode? target, ImmutableArray<ExprNode> arguments, int offset, bool counts) =>
+    private CelCallNode Call(string function, CelExprNode? target, ImmutableArray<CelExprNode> arguments, int offset, bool counts) =>
         Record(_nodes.Call(function, target, arguments, offset), ChildDepth(target, arguments), counts, offset);
 
     // The largest depth of the syntax tree under the target and the arguments of a call.
-    private int ChildDepth(ExprNode? target, ImmutableArray<ExprNode> arguments)
+    private int ChildDepth(CelExprNode? target, ImmutableArray<CelExprNode> arguments)
     {
         int depth = target is null ? 0 : DepthOf(target);
-        foreach (ExprNode argument in arguments)
+        foreach (CelExprNode argument in arguments)
         {
             depth = Math.Max(depth, DepthOf(argument));
         }
@@ -900,15 +900,15 @@ internal sealed class Parser
         return depth;
     }
 
-    private SelectNode Select(ExprNode operand, string field, int offset) =>
+    private CelSelectNode Select(CelExprNode operand, string field, int offset) =>
         Record(_nodes.Select(operand, field, isPresenceTest: false, offset), DepthOf(operand), counts: true, offset);
 
-    private int DepthOf(ExprNode node) => node.Id <= _depths.Count ? _depths[node.Id - 1] : 0;
+    private int DepthOf(CelExprNode node) => node.Id <= _depths.Count ? _depths[node.Id - 1] : 0;
 
     // Records the depth of the syntax tree under a node just created: the largest depth of its children, plus 1 for a
     // node that counts. The first node deeper than the limit gives the place of the error.
     private T Record<T>(T node, int childDepth, bool counts, int offset)
-        where T : ExprNode
+        where T : CelExprNode
     {
         int depth = counts ? childDepth + 1 : childDepth;
         if (depth == 0)

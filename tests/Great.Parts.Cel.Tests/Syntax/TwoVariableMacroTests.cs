@@ -41,7 +41,7 @@ public sealed class TwoVariableMacroTests
     [MemberData(nameof(ShapeRows))]
     public static void Macro_ExpandsToAComprehensionOfTwoVariables(string text, string shape)
     {
-        ParsedExpression parsed = Parse(text);
+        CelParsedExpr parsed = Parse(text);
 
         Assert.Equal(shape, Shape(parsed.Root));
     }
@@ -57,8 +57,8 @@ public sealed class TwoVariableMacroTests
     public static void Expansion_IsAtTheParenthesisAndIsCreatedAfterItsArguments(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParsedExpression parsed = Parse(text);
-        ComprehensionNode loop = Assert.IsType<ComprehensionNode>(parsed.Root);
+        CelParsedExpr parsed = Parse(text);
+        CelComprehensionNode loop = Assert.IsType<CelComprehensionNode>(parsed.Root);
         int parenthesis = text.IndexOf('(', StringComparison.Ordinal);
 
         Assert.Equal(parenthesis, parsed.GetOffset(loop.Id));
@@ -67,7 +67,7 @@ public sealed class TwoVariableMacroTests
         Assert.Equal(parenthesis, parsed.GetOffset(loop.LoopStep.Id));
         Assert.Equal(parenthesis, parsed.GetOffset(loop.Result.Id));
         Assert.True(Ids(loop.IterRange).Max() < loop.AccuInit.Id);
-        if (loop.LoopStep is CallNode { Function: "_?_:_" } conditional)
+        if (loop.LoopStep is CelCallNode { Function: "_?_:_" } conditional)
         {
             Assert.True(Ids(conditional.Arguments[0]).Max() < loop.AccuInit.Id);
         }
@@ -84,12 +84,12 @@ public sealed class TwoVariableMacroTests
     public static void TransformMap_ReadsTheFirstVariableThroughAnIdentifierOfItsOwn()
     {
         const string Text = "xs.transformMap(k, v, v)";
-        ParsedExpression parsed = Parse(Text);
-        ComprehensionNode loop = Assert.IsType<ComprehensionNode>(parsed.Root);
-        MacroCall recorded = Assert.IsType<MacroCall>(parsed.GetMacroCall(loop.Id));
+        CelParsedExpr parsed = Parse(Text);
+        CelComprehensionNode loop = Assert.IsType<CelComprehensionNode>(parsed.Root);
+        CelMacroCall recorded = Assert.IsType<CelMacroCall>(parsed.GetMacroCall(loop.Id));
 
-        CallNode insert = Assert.IsType<CallNode>(loop.LoopStep);
-        IdentNode key = Assert.IsType<IdentNode>(insert.Arguments[1]);
+        CelCallNode insert = Assert.IsType<CelCallNode>(loop.LoopStep);
+        CelIdentNode key = Assert.IsType<CelIdentNode>(insert.Arguments[1]);
 
         Assert.Equal("k", key.Name);
         Assert.NotSame(recorded.Arguments[0], key);
@@ -108,14 +108,14 @@ public sealed class TwoVariableMacroTests
     public static void Call_IsRecordedAsWrittenUnderTheIdOfTheComprehension(string text, string function, int count)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParsedExpression parsed = Parse(text);
-        ComprehensionNode loop = Assert.IsType<ComprehensionNode>(parsed.Root);
+        CelParsedExpr parsed = Parse(text);
+        CelComprehensionNode loop = Assert.IsType<CelComprehensionNode>(parsed.Root);
 
-        MacroCall recorded = Assert.IsType<MacroCall>(parsed.GetMacroCall(loop.Id));
+        CelMacroCall recorded = Assert.IsType<CelMacroCall>(parsed.GetMacroCall(loop.Id));
 
         Assert.Equal((function, count), (recorded.Function, recorded.Arguments.Length));
         Assert.Same(loop.IterRange, recorded.Target);
-        Assert.Equal(("i", "v"), (Assert.IsType<IdentNode>(recorded.Arguments[0]).Name, Assert.IsType<IdentNode>(recorded.Arguments[1]).Name));
+        Assert.Equal(("i", "v"), (Assert.IsType<CelIdentNode>(recorded.Arguments[0]).Name, Assert.IsType<CelIdentNode>(recorded.Arguments[1]).Name));
     }
 
     // The key of a macro is its name, whether it has a receiver and the number of its arguments: all, exists, exists_one, map and
@@ -181,9 +181,9 @@ public sealed class TwoVariableMacroTests
     public static void StandardMacro_KeepsOneVariable(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParsedExpression parsed = Parse(text);
+        CelParsedExpr parsed = Parse(text);
 
-        ComprehensionNode loop = Assert.IsType<ComprehensionNode>(parsed.Root);
+        CelComprehensionNode loop = Assert.IsType<CelComprehensionNode>(parsed.Root);
 
         Assert.Equal("x", loop.IterVar);
         Assert.Null(loop.IterVar2);
@@ -199,9 +199,9 @@ public sealed class TwoVariableMacroTests
     public static void Receiver_OfAnyKind_ExpandsTheMacro(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParsedExpression parsed = Parse(text);
+        CelParsedExpr parsed = Parse(text);
 
-        ComprehensionNode loop = Assert.IsType<ComprehensionNode>(parsed.Root);
+        CelComprehensionNode loop = Assert.IsType<CelComprehensionNode>(parsed.Root);
 
         Assert.Equal(("i", "v"), (loop.IterVar, loop.IterVar2));
     }
@@ -213,9 +213,9 @@ public sealed class TwoVariableMacroTests
     public static void CallWithoutAReceiver_StaysACall(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParsedExpression parsed = Parse(text);
+        CelParsedExpr parsed = Parse(text);
 
-        CallNode call = Assert.IsType<CallNode>(parsed.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(parsed.Root);
 
         Assert.Null(call.Target);
         Assert.Null(parsed.GetMacroCall(call.Id));
@@ -228,13 +228,13 @@ public sealed class TwoVariableMacroTests
     public static void WithoutTheSet_TheCallStaysACall(string text, string function, int count)
     {
         ArgumentNullException.ThrowIfNull(text);
-        ParseResult result = TwoVarEnvironment.WithoutTheSet.Parse(text);
+        CelParseResult result = TwoVarEnvironment.WithoutTheSet.Parse(text);
 
         Assert.True(result.IsSuccess);
-        CallNode call = Assert.IsType<CallNode>(result.Expression!.Root);
+        CelCallNode call = Assert.IsType<CelCallNode>(result.ParsedExpr!.Root);
         Assert.Equal((function, count), (call.Function, call.Arguments.Length));
         Assert.NotNull(call.Target);
-        Assert.Null(result.Expression.GetMacroCall(call.Id));
+        Assert.Null(result.ParsedExpr.GetMacroCall(call.Id));
     }
 
     // An error of the names stops the expansion of that call alone: the other macro calls of the text are expanded, and the one that
@@ -242,31 +242,31 @@ public sealed class TwoVariableMacroTests
     [Fact]
     public static void CallWithBadNames_IsOneErrorAndOthersAreStillExpanded()
     {
-        ParseResult result = TwoVarEnvironment.Environment.Parse("xs.all(1, v, true) && ys.all(i, i, true)");
+        CelParseResult result = TwoVarEnvironment.Environment.Parse("xs.all(1, v, true) && ys.all(i, i, true)");
 
         Assert.False(result.IsSuccess);
         Assert.Equal(2, result.Errors.Length);
         Assert.All(result.Errors, error => Assert.Equal(CelErrorCode.InvalidMacroCall, error.Code));
     }
 
-    private static ParsedExpression Parse(string text)
+    private static CelParsedExpr Parse(string text)
     {
-        ParseResult result = Parser.Parse(text, WithTheSet);
+        CelParseResult result = Parser.Parse(text, WithTheSet);
         Assert.True(result.IsSuccess, text + ": " + string.Join("; ", result.Errors));
-        return result.Expression;
+        return result.ParsedExpr;
     }
 
     // The comprehension as "comprehension(<variables>, <range>, <accumulator>, <init>, <condition>, <step>, <result>)", and the other nodes
     // as the text of the checks of the shapes writes them.
-    private static string Shape(ExprNode node) => node switch
+    private static string Shape(CelExprNode node) => node switch
     {
-        ConstantNode { Value.Kind: CelValueKind.Bool } constant => constant.Value.TryGetBoolean(out bool flag) && flag ? "true" : "false",
-        ConstantNode constant => constant.Value.TryGetInt64(out long number) ? number.ToString(CultureInfo.InvariantCulture) : throw new ArgumentException("constant"),
-        IdentNode ident => ident.Name,
-        CallNode call => call.Function + "(" + string.Join(", ", call.Arguments.Select(Shape)) + ")",
-        ListNode list => "[" + string.Join(", ", list.Elements.Select(Shape)) + "]",
-        StructNode { Entries.Length: 0 } => "{}",
-        ComprehensionNode loop => "comprehension(" + string.Join(
+        CelConstantNode { Value.Kind: CelValueKind.Bool } constant => constant.Value.TryGetBoolean(out bool flag) && flag ? "true" : "false",
+        CelConstantNode constant => constant.Value.TryGetInt64(out long number) ? number.ToString(CultureInfo.InvariantCulture) : throw new ArgumentException("constant"),
+        CelIdentNode ident => ident.Name,
+        CelCallNode call => call.Function + "(" + string.Join(", ", call.Arguments.Select(Shape)) + ")",
+        CelListNode list => "[" + string.Join(", ", list.Elements.Select(Shape)) + "]",
+        CelMapNode { Entries.Length: 0 } => "{}",
+        CelComprehensionNode loop => "comprehension(" + string.Join(
             ", ",
             loop.IterVar,
             loop.IterVar2 ?? "-",
@@ -280,14 +280,14 @@ public sealed class TwoVariableMacroTests
     };
 
     // The ids of a node and of all the nodes below it.
-    private static IEnumerable<int> Ids(ExprNode node)
+    private static IEnumerable<int> Ids(CelExprNode node)
     {
         IEnumerable<int> below = node switch
         {
-            CallNode call => call.Arguments.SelectMany(Ids),
-            ListNode list => list.Elements.SelectMany(Ids),
-            SelectNode select => Ids(select.Operand),
-            ComprehensionNode loop => new[] { loop.IterRange, loop.AccuInit, loop.LoopCondition, loop.LoopStep, loop.Result }.SelectMany(Ids),
+            CelCallNode call => call.Arguments.SelectMany(Ids),
+            CelListNode list => list.Elements.SelectMany(Ids),
+            CelSelectNode select => Ids(select.Operand),
+            CelComprehensionNode loop => new[] { loop.IterRange, loop.AccuInit, loop.LoopCondition, loop.LoopStep, loop.Result }.SelectMany(Ids),
             _ => [],
         };
         return new[] { node.Id }.Concat(below);

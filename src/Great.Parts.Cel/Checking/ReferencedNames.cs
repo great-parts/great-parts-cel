@@ -23,7 +23,7 @@ internal static class ReferencedNames
     /// <param name="functions">The names of the functions and the macros that are an identifier or a qualified name.</param>
     internal static void Collect(
         IReadOnlyDictionary<int, Reference> references,
-        ImmutableArray<MacroCall> macroCalls,
+        ImmutableArray<CelMacroCall> macroCalls,
         out ImmutableArray<string> variables,
         out ImmutableArray<string> functions)
     {
@@ -48,11 +48,11 @@ internal static class ReferencedNames
 
         if (!macroCalls.IsDefaultOrEmpty)
         {
-            foreach (MacroCall call in macroCalls)
+            foreach (CelMacroCall call in macroCalls)
             {
-                if (call.IsWritten && IsName(call.QualifiedName))
+                if (call.IsWritten && IsName(call.Function))
                 {
-                    functionNames.Add(call.QualifiedName);
+                    functionNames.Add(call.Function);
                 }
             }
         }

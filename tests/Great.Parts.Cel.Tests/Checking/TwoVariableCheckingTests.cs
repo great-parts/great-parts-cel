@@ -57,10 +57,10 @@ public sealed class TwoVariableCheckingTests
         CheckResult result = Check("counts.all(k, v, v > 0 && k != 'x')");
 
         Assert.True(result.IsSuccess);
-        var loop = (ComprehensionNode)result.Expression.Parsed.Root;
-        var both = (CallNode)((CallNode)loop.LoopStep).Arguments[1];
-        var value = (IdentNode)((CallNode)both.Arguments[0]).Arguments[0];
-        var key = (IdentNode)((CallNode)both.Arguments[1]).Arguments[0];
+        var loop = (CelComprehensionNode)result.Expression.Parsed.Root;
+        var both = (CelCallNode)((CelCallNode)loop.LoopStep).Arguments[1];
+        var value = (CelIdentNode)((CelCallNode)both.Arguments[0]).Arguments[0];
+        var key = (CelIdentNode)((CelCallNode)both.Arguments[1]).Arguments[0];
         Assert.Equal("v", result.Expression.References[value.Id].Local);
         Assert.Equal(CelType.Int, result.Expression.Types[value.Id]);
         Assert.Equal("k", result.Expression.References[key.Id].Local);
@@ -116,9 +116,9 @@ public sealed class TwoVariableCheckingTests
 
     private static CheckResult Check(string expression)
     {
-        ParseResult parsed = TwoVarEnvironment.Environment.Parse(expression);
+        CelParseResult parsed = TwoVarEnvironment.Environment.Parse(expression);
         Assert.True(parsed.IsSuccess, expression + ": " + string.Join("; ", parsed.Errors));
-        return TwoVarEnvironment.Environment.Check(parsed.Expression);
+        return TwoVarEnvironment.Environment.Check(parsed.ParsedExpr);
     }
 
     private static TheoryData<string, string> Rows(string rows)

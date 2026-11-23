@@ -52,7 +52,7 @@ public sealed class WorstInputTests
 
         _ = Environment.Parse(text);
         var stopwatch = Stopwatch.StartNew();
-        ParseResult result = Environment.Parse(text);
+        CelParseResult result = Environment.Parse(text);
         double seconds = stopwatch.Elapsed.TotalSeconds;
 
         Assert.DoesNotContain(result.Errors, error => error.Code == CelErrorCode.InternalError);

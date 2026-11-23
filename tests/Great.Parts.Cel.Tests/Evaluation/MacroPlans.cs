@@ -47,10 +47,10 @@ internal static class MacroPlans
         return CelValue.FromList(CelList.Create(items));
     }
 
-    private static ParsedExpression Parse(string expression)
+    private static CelParsedExpr Parse(string expression)
     {
-        ParseResult parsed = Plans.Environment.Parse(expression);
+        CelParseResult parsed = Plans.Environment.Parse(expression);
         Assert.True(parsed.IsSuccess, expression);
-        return parsed.Expression;
+        return parsed.ParsedExpr;
     }
 }

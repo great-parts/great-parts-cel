@@ -154,7 +154,7 @@ public sealed class GradualTypingTests
         CheckResult result = Checker.Check(CheckingIndex.Parse(expression), Declared);
 
         Assert.True(result.IsSuccess);
-        var list = (ListNode)result.Expression.Parsed.Root;
+        var list = (CelListNode)result.Expression.Parsed.Root;
         Assert.Equal(types, string.Join(' ', list.Elements.Select(element => result.Expression.Types[element.Id].ToString())));
     }
 
@@ -164,7 +164,7 @@ public sealed class GradualTypingTests
         CheckResult result = Checker.Check(CheckingIndex.Parse("[] + nums"), Declared);
 
         Assert.True(result.IsSuccess);
-        var call = (CallNode)result.Expression.Parsed.Root;
+        var call = (CelCallNode)result.Expression.Parsed.Root;
         Assert.Equal(CelType.ListOf(CelType.Int), result.Expression.Types[call.Arguments[0].Id]);
     }
 

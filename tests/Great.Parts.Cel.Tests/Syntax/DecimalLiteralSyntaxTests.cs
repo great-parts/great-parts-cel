@@ -85,11 +85,11 @@ public sealed class DecimalLiteralSyntaxTests
     [InlineData("[1m].filter(x, x != 0m).all(y, y < 2m)", 3)]
     public static void LiteralInAnyConstruct_IsAConstantOfTheKindDecimal(string expression, int count)
     {
-        ParseResult result = Parser.Parse(expression, WithDecimals);
+        CelParseResult result = Parser.Parse(expression, WithDecimals);
 
         Assert.True(result.IsSuccess, expression);
         var constants = new List<CelValue>();
-        Collect(result.Expression.Root, constants);
+        Collect(result.ParsedExpr.Root, constants);
         Assert.Equal(count, constants.FindAll(constant => constant.Kind == CelValueKind.Decimal).Count);
     }
 
@@ -97,7 +97,7 @@ public sealed class DecimalLiteralSyntaxTests
     [Fact]
     public static void LiteralsInAMacroWithoutTheOption_AreEachSyntaxNotEnabled()
     {
-        ParseResult result = Parser.Parse("[1m].exists(x, x > 2m)");
+        CelParseResult result = Parser.Parse("[1m].exists(x, x > 2m)");
 
         Assert.Equal("SyntaxNotEnabled@1 | SyntaxNotEnabled@19", string.Join(" | ", result.Errors.Select(Place)));
     }
@@ -113,7 +113,7 @@ public sealed class DecimalLiteralSyntaxTests
     [InlineData("\n\n1e-6177m", 2, 3, 1)]
     public static void InvalidLiteral_IsAtTheLiteralOrItsMinus_WithTheLineAndColumn(string expression, int offset, int line, int column)
     {
-        ParseResult result = Parser.Parse(expression, WithDecimals);
+        CelParseResult result = Parser.Parse(expression, WithDecimals);
 
         CelError error = Assert.Single(result.Errors);
         Assert.Equal(
@@ -127,7 +127,7 @@ public sealed class DecimalLiteralSyntaxTests
     [InlineData("1 +\n  0m", 6, 2, 3)]
     public static void SyntaxNotEnabled_IsAtTheLiteralOrItsMinus_WithTheLineAndColumn(string expression, int offset, int line, int column)
     {
-        ParseResult result = Parser.Parse(expression);
+        CelParseResult result = Parser.Parse(expression);
 
         CelError error = Assert.Single(result.Errors);
         Assert.Equal(
@@ -142,15 +142,15 @@ public sealed class DecimalLiteralSyntaxTests
     [MemberData(nameof(PrintedTexts))]
     public static void Printer_WritesTheValueAndTheTextParsesBackIntoAnEqualTree(string expression, string printed)
     {
-        ParseResult first = Parser.Parse(expression, WithDecimals);
+        CelParseResult first = Parser.Parse(expression, WithDecimals);
         Assert.True(first.IsSuccess, expression);
 
-        string text = Printer.Print(first.Expression);
-        ParseResult second = Parser.Parse(text, WithDecimals);
+        string text = Printer.Print(first.ParsedExpr);
+        CelParseResult second = Parser.Parse(text, WithDecimals);
 
         Assert.Equal(printed, text);
         Assert.True(second.IsSuccess, text);
-        Assert.Null(SyntaxTreeComparer.Difference(first.Expression.Root, second.Expression.Root));
+        Assert.Null(SyntaxTreeComparer.Difference(first.ParsedExpr.Root, second.ParsedExpr.Root));
     }
 
     public static TheoryData<string, string> PrintedTexts()
@@ -195,57 +195,53 @@ public sealed class DecimalLiteralSyntaxTests
         Assert.Equal("root.kind: Decimal vs Double", SyntaxTreeComparer.Difference(Root("1.5m"), Root("1.5")));
     }
 
-    private static ExprNode Root(string expression)
+    private static CelExprNode Root(string expression)
     {
-        ParseResult result = Parser.Parse(expression, WithDecimals);
+        CelParseResult result = Parser.Parse(expression, WithDecimals);
         Assert.True(result.IsSuccess, expression);
-        return result.Expression.Root;
+        return result.ParsedExpr.Root;
     }
 
     // The constants of a tree, in the order of the text; a comprehension has its range, its initial value, its condition, its step
     // and its result.
-    private static void Collect(ExprNode node, List<CelValue> constants)
+    private static void Collect(CelExprNode node, List<CelValue> constants)
     {
         switch (node)
         {
-            case ConstantNode constant:
+            case CelConstantNode constant:
                 constants.Add(constant.Value);
                 break;
-            case SelectNode select:
+            case CelSelectNode select:
                 Collect(select.Operand, constants);
                 break;
-            case CallNode call:
+            case CelCallNode call:
                 if (call.Target is not null)
                 {
                     Collect(call.Target, constants);
                 }
 
-                foreach (ExprNode argument in call.Arguments)
+                foreach (CelExprNode argument in call.Arguments)
                 {
                     Collect(argument, constants);
                 }
 
                 break;
-            case ListNode list:
-                foreach (ExprNode element in list.Elements)
+            case CelListNode list:
+                foreach (CelExprNode element in list.Elements)
                 {
                     Collect(element, constants);
                 }
 
                 break;
-            case StructNode structure:
-                foreach (StructEntry entry in structure.Entries)
+            case CelMapNode map:
+                foreach (CelMapEntryNode entry in map.Entries)
                 {
-                    if (entry.Key is not null)
-                    {
-                        Collect(entry.Key, constants);
-                    }
-
+                    Collect(entry.Key, constants);
                     Collect(entry.Value, constants);
                 }
 
                 break;
-            case ComprehensionNode comprehension:
+            case CelComprehensionNode comprehension:
                 Collect(comprehension.IterRange, constants);
                 Collect(comprehension.AccuInit, constants);
                 Collect(comprehension.LoopCondition, constants);

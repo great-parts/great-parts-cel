@@ -24,7 +24,7 @@ public sealed class ParserLimitsTests
     [InlineData("'", "€", 21845, "")]
     public static void TextOfAtMost65536Bytes_IsParsedOrHasNoLengthError(string head, string unit, int count, string tail)
     {
-        ParseResult result = Parser.Parse(head + Repeat(unit, count) + tail);
+        CelParseResult result = Parser.Parse(head + Repeat(unit, count) + tail);
 
         Assert.DoesNotContain(result.Errors, error => error.Code == CelErrorCode.ExpressionTooLong);
     }
@@ -54,7 +54,7 @@ public sealed class ParserLimitsTests
     [InlineData("a < (b + (", "c", "))", 83)]
     public static void NestingOf250_IsParsed(string open, string inner, string close, int count)
     {
-        ParseResult result = Parser.Parse(Repeat(open, count) + inner + Repeat(close, count));
+        CelParseResult result = Parser.Parse(Repeat(open, count) + inner + Repeat(close, count));
 
         Assert.True(result.IsSuccess, string.Join(" | ", result.Errors.Select(Format)));
     }
@@ -167,7 +167,7 @@ public sealed class ParserLimitsTests
     public static void ParsingOnASmallStack_IsInsufficientStackInsteadOfAnOverflow()
     {
         string text = Repeat("(", 249) + "1" + Repeat(")", 249);
-        ParseResult? result = null;
+        CelParseResult? result = null;
         var thread = new Thread(() => result = ParseOnExhaustedStack(text), 256 * 1024);
 
         thread.Start();
@@ -181,7 +181,7 @@ public sealed class ParserLimitsTests
 
     // Descends until the runtime reports that the stack is nearly used up, then parses there.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static ParseResult ParseOnExhaustedStack(string text)
+    private static CelParseResult ParseOnExhaustedStack(string text)
     {
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {
@@ -190,7 +190,7 @@ public sealed class ParserLimitsTests
 
         Span<byte> frame = stackalloc byte[256];
         frame.Fill(1);
-        ParseResult result = ParseOnExhaustedStack(text);
+        CelParseResult result = ParseOnExhaustedStack(text);
         Assert.Equal((byte)1, frame[^1]);
         return result;
     }

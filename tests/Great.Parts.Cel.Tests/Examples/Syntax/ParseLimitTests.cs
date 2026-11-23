@@ -25,7 +25,7 @@ public sealed class ParseLimitTests
     [InlineData("x", 0x20, 65535, "")]
     public void TextOfExactly65536Bytes_IsParsed(string head, int character, int count, string tail)
     {
-        ParseResult result = environment.Parse(head + new string((char)character, count) + tail);
+        CelParseResult result = environment.Parse(head + new string((char)character, count) + tail);
 
         Assert.True(result.IsSuccess);
     }
@@ -163,7 +163,7 @@ public sealed class ParseLimitTests
     {
         const string Text = "(\n(\n(\n1)))";
 
-        ParseResult result = ParseOnExhaustedStack(Text);
+        CelParseResult result = ParseOnExhaustedStack(Text);
 
         Assert.False(result.IsSuccess);
         CelError error = Assert.Single(result.Errors);
@@ -174,7 +174,7 @@ public sealed class ParseLimitTests
 
     // Descends until the runtime reports that the stack is nearly used up, then parses there.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private ParseResult ParseOnExhaustedStack(string text)
+    private CelParseResult ParseOnExhaustedStack(string text)
     {
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {
@@ -183,14 +183,14 @@ public sealed class ParseLimitTests
 
         Span<byte> frame = stackalloc byte[1024];
         frame.Fill(1);
-        ParseResult result = ParseOnExhaustedStack(text);
+        CelParseResult result = ParseOnExhaustedStack(text);
         Assert.Equal((byte)1, frame[^1]);
         return result;
     }
 
     private ImmutableArray<CelError> Errors(string text)
     {
-        ParseResult result = environment.Parse(text);
+        CelParseResult result = environment.Parse(text);
 
         Assert.False(result.IsSuccess);
         Assert.All(result.Errors, error => Assert.Equal(CelErrorStage.Parse, error.Stage));

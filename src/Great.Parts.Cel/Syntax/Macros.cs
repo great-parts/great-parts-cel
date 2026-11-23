@@ -72,6 +72,56 @@ internal sealed class MacroTable
     internal static MacroTable Empty { get; } = new([]);
 
     /// <summary>
+    /// Every macro of the library: the standard ones and those of every extension set. The expansion of a macro does not depend on
+    /// the environment, so a tree can be built for a macro that an environment brings.
+    /// </summary>
+    internal static MacroTable All { get; } = Create(
+    [
+        .. Standard.Macros.ToArray(),
+        .. ExtensionMacros.Math,
+        .. ExtensionMacros.Lists,
+        .. ExtensionMacros.Bindings,
+        .. ExtensionMacros.Protos,
+        .. ExtensionMacros.Optional,
+        .. ExtensionMacros.Block,
+        .. ExtensionMacros.TwoVariableComprehensions,
+    ]);
+
+    /// <summary>
+    /// Finds a macro by the name that a text calls it by, such as <c>exists</c> or <c>cel.bind</c>: the entry with exactly that
+    /// number of arguments, otherwise the entry for any number. A macro of a namespace is called with the namespace in the name and
+    /// without a target; any other macro is called with a target when it takes a receiver.
+    /// </summary>
+    /// <param name="name">The name, qualified by the namespace for a macro of a namespace.</param>
+    /// <param name="argumentCount">The number of arguments.</param>
+    /// <param name="hasTarget">Whether the call has a target other than the namespace.</param>
+    /// <returns>The macro, or <see langword="null"/> when no macro has the name, the number of arguments and the style.</returns>
+    internal Macro? FindQualified(string name, int argumentCount, bool hasTarget)
+    {
+        Macro? forAnyNumber = null;
+        foreach (Macro macro in _macros)
+        {
+            bool styleMatches = macro.Namespace is null ? macro.IsReceiver == hasTarget : !hasTarget;
+            if (!styleMatches || !string.Equals(macro.QualifiedName, name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (macro.ArgumentCount == argumentCount)
+            {
+                return macro;
+            }
+
+            if (macro.ArgumentCount == Macro.AnyArgumentCount)
+            {
+                forAnyNumber = macro;
+            }
+        }
+
+        return forAnyNumber;
+    }
+
+    /// <summary>
     /// Finds the macro of a call: the entry with exactly that number of arguments, otherwise the entry for any number.
     /// </summary>
     /// <param name="function">The name of the function of the call.</param>
@@ -111,7 +161,7 @@ internal sealed class MacroTable
 /// <param name="arguments">The arguments.</param>
 /// <param name="offset">The offset of the <c>(</c> of the call, which every node created has.</param>
 /// <returns>The expansion.</returns>
-internal delegate ExprNode MacroExpansion(NodeFactory nodes, ExprNode? target, ImmutableArray<ExprNode> arguments, int offset);
+internal delegate CelExprNode MacroExpansion(NodeFactory nodes, CelExprNode? target, ImmutableArray<CelExprNode> arguments, int offset);
 
 /// <summary>
 /// What a macro says about a call: it does not apply, the arguments are wrong, or the call is expanded.
@@ -120,7 +170,7 @@ internal readonly struct MacroCheck
 {
     private readonly byte _answer;
 
-    private MacroCheck(byte answer, string? detail, ExprNode? place)
+    private MacroCheck(byte answer, string? detail, CelExprNode? place)
     {
         _answer = answer;
         Detail = detail;
@@ -155,7 +205,7 @@ internal readonly struct MacroCheck
     /// <summary>
     /// The node at which an error is reported; <see langword="null"/> for the <c>(</c> of the call.
     /// </summary>
-    internal ExprNode? Place { get; }
+    internal CelExprNode? Place { get; }
 
     /// <summary>
     /// The arguments are wrong.
@@ -163,7 +213,7 @@ internal readonly struct MacroCheck
     /// <param name="detail">The detail of the error.</param>
     /// <param name="place">The node of its place, or <see langword="null"/> for the call.</param>
     /// <returns>The answer.</returns>
-    internal static MacroCheck Error(string detail, ExprNode? place) => new(2, detail, place);
+    internal static MacroCheck Error(string detail, CelExprNode? place) => new(2, detail, place);
 }
 
 /// <summary>
@@ -223,12 +273,13 @@ internal sealed class Macro
     private const string LegacyAccumulatorName = "__result__";
 
     private readonly MacroKind _kind;
-    private readonly Func<ExprNode?, ImmutableArray<ExprNode>, MacroCheck>? _check;
+    private readonly Func<CelExprNode?, ImmutableArray<CelExprNode>, MacroCheck>? _check;
     private readonly MacroExpansion? _expand;
 
     internal Macro(string name, int argumentCount, bool isReceiver, MacroKind kind)
     {
         Name = name;
+        QualifiedName = name;
         ArgumentCount = argumentCount;
         IsReceiver = isReceiver;
         _kind = kind;
@@ -251,10 +302,11 @@ internal sealed class Macro
         string? @namespace,
         int argumentCount,
         bool isReceiver,
-        Func<ExprNode?, ImmutableArray<ExprNode>, MacroCheck> check,
+        Func<CelExprNode?, ImmutableArray<CelExprNode>, MacroCheck> check,
         MacroExpansion expand)
     {
         Name = name;
+        QualifiedName = @namespace is null ? name : @namespace + "." + name;
         Namespace = @namespace;
         ArgumentCount = argumentCount;
         IsReceiver = isReceiver;
@@ -272,6 +324,22 @@ internal sealed class Macro
     /// The name of the function of the call.
     /// </summary>
     internal string Name { get; }
+
+    /// <summary>
+    /// The name that the text calls the macro by: <see cref="Name"/>, and for a macro of a namespace, such as
+    /// <c>math.greatest</c>, the namespace and the name joined by a dot.
+    /// </summary>
+    internal string QualifiedName { get; }
+
+    /// <summary>
+    /// The record of a call of this macro as the text writes it: the receiver of a macro of a namespace, which is the
+    /// identifier of the namespace, is part of the name.
+    /// </summary>
+    /// <param name="target">The target of the call; <see langword="null"/> for a global macro.</param>
+    /// <param name="arguments">The arguments.</param>
+    /// <returns>The record.</returns>
+    internal CelMacroCall Recorded(CelExprNode? target, ImmutableArray<CelExprNode> arguments) =>
+        new(QualifiedName, Namespace is null ? target : null, arguments);
 
     /// <summary>
     /// The number of arguments of the call, or <see cref="AnyArgumentCount"/>.
@@ -311,12 +379,12 @@ internal sealed class Macro
     /// Not applicable when the call stays a call; an error with the detail of <see cref="CelErrorCode.InvalidMacroCall"/> and
     /// the node of its place, the call itself for a standard macro; otherwise that the call is expanded.
     /// </returns>
-    internal MacroCheck Check(ExprNode? target, ImmutableArray<ExprNode> arguments)
+    internal MacroCheck Check(CelExprNode? target, ImmutableArray<CelExprNode> arguments)
     {
         if (_check is not null)
         {
             // A macro with a namespace applies only to a call on the identifier of that name, as in cel-go.
-            if (Namespace is not null && !(target is IdentNode identifier && string.Equals(identifier.Name, Namespace, StringComparison.Ordinal)))
+            if (Namespace is not null && !(target is CelIdentNode identifier && string.Equals(identifier.Name, Namespace, StringComparison.Ordinal)))
             {
                 return MacroCheck.NotApplicable;
             }
@@ -326,13 +394,13 @@ internal sealed class Macro
 
         if (_kind == MacroKind.Has)
         {
-            return arguments[0] is SelectNode ? MacroCheck.Expand : MacroCheck.Error("argument must be a field selection", null);
+            return arguments[0] is CelSelectNode ? MacroCheck.Expand : MacroCheck.Error("argument must be a field selection", null);
         }
 
         return arguments[0] switch
         {
-            IdentNode { Name: LegacyAccumulatorName } => MacroCheck.Error("iteration variable overwrites accumulator variable", null),
-            IdentNode => MacroCheck.Expand,
+            CelIdentNode { Name: LegacyAccumulatorName } => MacroCheck.Error("iteration variable overwrites accumulator variable", null),
+            CelIdentNode => MacroCheck.Expand,
             _ => MacroCheck.Error("argument must be a simple name", null),
         };
     }
@@ -346,7 +414,7 @@ internal sealed class Macro
     /// <param name="arguments">The arguments.</param>
     /// <param name="offset">The offset of the <c>(</c> of the call.</param>
     /// <returns>The expansion: a presence test for <c>has</c>, otherwise a comprehension.</returns>
-    internal ExprNode Expand(NodeFactory nodes, ExprNode? target, ImmutableArray<ExprNode> arguments, int offset)
+    internal CelExprNode Expand(NodeFactory nodes, CelExprNode? target, ImmutableArray<CelExprNode> arguments, int offset)
     {
         if (_expand is not null)
         {
@@ -355,7 +423,7 @@ internal sealed class Macro
 
         if (_kind == MacroKind.Has)
         {
-            var select = (SelectNode)arguments[0];
+            var select = (CelSelectNode)arguments[0];
             return nodes.Select(select.Operand, select.Field, isPresenceTest: true, offset);
         }
 
@@ -378,99 +446,99 @@ internal sealed class Macro
         // The position of the first argument after the names of the iteration variables.
         private int Body => twoVariables ? 2 : 1;
 
-        internal ComprehensionNode All(ExprNode range, ImmutableArray<ExprNode> arguments)
+        internal CelComprehensionNode All(CelExprNode range, ImmutableArray<CelExprNode> arguments)
         {
-            ExprNode init = Constant(CelValue.FromBoolean(true));
-            ExprNode condition = Call("@not_strictly_false", Accumulator());
-            ExprNode step = Call("_&&_", Accumulator(), arguments[Body]);
+            CelExprNode init = Constant(CelValue.FromBoolean(true));
+            CelExprNode condition = Call("@not_strictly_false", Accumulator());
+            CelExprNode step = Call("_&&_", Accumulator(), arguments[Body]);
             return Comprehension(range, arguments, init, condition, step, Accumulator());
         }
 
-        internal ComprehensionNode Exists(ExprNode range, ImmutableArray<ExprNode> arguments)
+        internal CelComprehensionNode Exists(CelExprNode range, ImmutableArray<CelExprNode> arguments)
         {
-            ExprNode init = Constant(CelValue.FromBoolean(false));
-            ExprNode condition = Call("@not_strictly_false", Call("!_", Accumulator()));
-            ExprNode step = Call("_||_", Accumulator(), arguments[Body]);
+            CelExprNode init = Constant(CelValue.FromBoolean(false));
+            CelExprNode condition = Call("@not_strictly_false", Call("!_", Accumulator()));
+            CelExprNode step = Call("_||_", Accumulator(), arguments[Body]);
             return Comprehension(range, arguments, init, condition, step, Accumulator());
         }
 
-        internal ComprehensionNode ExistsOne(ExprNode range, ImmutableArray<ExprNode> arguments)
+        internal CelComprehensionNode ExistsOne(CelExprNode range, ImmutableArray<CelExprNode> arguments)
         {
-            ExprNode init = Constant(CelValue.FromInt64(0));
-            ExprNode condition = Constant(CelValue.FromBoolean(true));
-            ExprNode step = Call("_?_:_", arguments[Body], Call("_+_", Accumulator(), Constant(CelValue.FromInt64(1))), Accumulator());
-            ExprNode result = Call("_==_", Accumulator(), Constant(CelValue.FromInt64(1)));
+            CelExprNode init = Constant(CelValue.FromInt64(0));
+            CelExprNode condition = Constant(CelValue.FromBoolean(true));
+            CelExprNode step = Call("_?_:_", arguments[Body], Call("_+_", Accumulator(), Constant(CelValue.FromInt64(1))), Accumulator());
+            CelExprNode result = Call("_==_", Accumulator(), Constant(CelValue.FromInt64(1)));
             return Comprehension(range, arguments, init, condition, step, result);
         }
 
         // r.map(v, f) and r.map(v, p, f); with two variables, r.transformList(i, v, t) and r.transformList(i, v, p, t).
-        internal ComprehensionNode Map(ExprNode range, ImmutableArray<ExprNode> arguments)
+        internal CelComprehensionNode Map(CelExprNode range, ImmutableArray<CelExprNode> arguments)
         {
-            ExprNode init = nodes.List([], [], offset);
-            ExprNode condition = Constant(CelValue.FromBoolean(true));
-            ExprNode step = Filtered(arguments, Append(arguments[^1]));
+            CelExprNode init = nodes.List([], [], offset);
+            CelExprNode condition = Constant(CelValue.FromBoolean(true));
+            CelExprNode step = Filtered(arguments, Append(arguments[^1]));
             return Comprehension(range, arguments, init, condition, step, Accumulator());
         }
 
         // r.transformMap(i, v, t) and r.transformMap(i, v, p, t): the accumulator is a map, and the step inserts the pair of the
         // first variable and the transformation. The read of the first variable is an identifier of its own.
-        internal ComprehensionNode TransformMap(ExprNode range, ImmutableArray<ExprNode> arguments)
+        internal CelComprehensionNode TransformMap(CelExprNode range, ImmutableArray<CelExprNode> arguments)
         {
-            ExprNode init = nodes.Struct(string.Empty, [], offset);
-            ExprNode condition = Constant(CelValue.FromBoolean(true));
-            ExprNode step = Call(
+            CelExprNode init = nodes.Map([], offset);
+            CelExprNode condition = Constant(CelValue.FromBoolean(true));
+            CelExprNode step = Call(
                 ExtensionMacros.MapInsertFunction,
                 Accumulator(),
-                nodes.Ident(((IdentNode)arguments[0]).Name, offset),
+                nodes.Ident(((CelIdentNode)arguments[0]).Name, offset),
                 arguments[^1]);
             return Comprehension(range, arguments, init, condition, Filtered(arguments, step), Accumulator());
         }
 
         // r.transformMapEntry(i, v, t) and r.transformMapEntry(i, v, p, t): the step inserts the pairs of the map that the
         // transformation gives.
-        internal ComprehensionNode TransformMapEntry(ExprNode range, ImmutableArray<ExprNode> arguments)
+        internal CelComprehensionNode TransformMapEntry(CelExprNode range, ImmutableArray<CelExprNode> arguments)
         {
-            ExprNode init = nodes.Struct(string.Empty, [], offset);
-            ExprNode condition = Constant(CelValue.FromBoolean(true));
-            ExprNode step = Call(ExtensionMacros.MapInsertFunction, Accumulator(), arguments[^1]);
+            CelExprNode init = nodes.Map([], offset);
+            CelExprNode condition = Constant(CelValue.FromBoolean(true));
+            CelExprNode step = Call(ExtensionMacros.MapInsertFunction, Accumulator(), arguments[^1]);
             return Comprehension(range, arguments, init, condition, Filtered(arguments, step), Accumulator());
         }
 
         // The step keeps the identifier node of the first argument.
-        internal ComprehensionNode Filter(ExprNode range, ImmutableArray<ExprNode> arguments)
+        internal CelComprehensionNode Filter(CelExprNode range, ImmutableArray<CelExprNode> arguments)
         {
-            ExprNode init = nodes.List([], [], offset);
-            ExprNode condition = Constant(CelValue.FromBoolean(true));
-            ExprNode step = Call("_?_:_", arguments[1], Append(arguments[0]), Accumulator());
+            CelExprNode init = nodes.List([], [], offset);
+            CelExprNode condition = Constant(CelValue.FromBoolean(true));
+            CelExprNode step = Call("_?_:_", arguments[1], Append(arguments[0]), Accumulator());
             return Comprehension(range, arguments, init, condition, step, Accumulator());
         }
 
         // @result + [element]
-        private CallNode Append(ExprNode element) => Call("_+_", Accumulator(), nodes.List([element], [], offset));
+        private CelCallNode Append(CelExprNode element) => Call("_+_", Accumulator(), nodes.List([element], [], offset));
 
         // With a filter, the third argument of a macro of one variable and the fourth of two, the step runs only when it is true.
-        private ExprNode Filtered(ImmutableArray<ExprNode> arguments, ExprNode step) =>
+        private CelExprNode Filtered(ImmutableArray<CelExprNode> arguments, CelExprNode step) =>
             arguments.Length == Body + 2 ? Call("_?_:_", arguments[Body], step, Accumulator()) : step;
 
-        private ComprehensionNode Comprehension(
-            ExprNode range,
-            ImmutableArray<ExprNode> arguments,
-            ExprNode init,
-            ExprNode condition,
-            ExprNode step,
-            ExprNode result)
+        private CelComprehensionNode Comprehension(
+            CelExprNode range,
+            ImmutableArray<CelExprNode> arguments,
+            CelExprNode init,
+            CelExprNode condition,
+            CelExprNode step,
+            CelExprNode result)
         {
-            string first = ((IdentNode)arguments[0]).Name;
+            string first = ((CelIdentNode)arguments[0]).Name;
             return twoVariables
-                ? nodes.Comprehension(first, ((IdentNode)arguments[1]).Name, range, AccumulatorName, init, condition, step, result, offset)
+                ? nodes.Comprehension(first, ((CelIdentNode)arguments[1]).Name, range, AccumulatorName, init, condition, step, result, offset)
                 : nodes.Comprehension(first, range, AccumulatorName, init, condition, step, result, offset);
         }
 
-        private IdentNode Accumulator() => nodes.Ident(AccumulatorName, offset);
+        private CelIdentNode Accumulator() => nodes.Ident(AccumulatorName, offset);
 
-        private ConstantNode Constant(CelValue value) => nodes.Constant(value, offset);
+        private CelConstantNode Constant(CelValue value) => nodes.Constant(value, offset);
 
-        private CallNode Call(string function, params ReadOnlySpan<ExprNode> arguments) =>
+        private CelCallNode Call(string function, params ReadOnlySpan<CelExprNode> arguments) =>
             nodes.Call(function, null, [.. arguments], offset);
     }
 }

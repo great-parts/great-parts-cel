@@ -10,7 +10,7 @@ namespace Great.Parts.Cel.Checking;
 internal sealed class CheckedExpression
 {
     internal CheckedExpression(
-        ParsedExpression parsed,
+        CelParsedExpr parsed,
         IReadOnlyDictionary<int, Reference> references,
         IReadOnlyDictionary<int, CelType> types)
     {
@@ -20,7 +20,7 @@ internal sealed class CheckedExpression
         ResultType = types[parsed.Root.Id];
     }
 
-    internal ParsedExpression Parsed { get; }
+    internal CelParsedExpr Parsed { get; }
 
     internal IReadOnlyDictionary<int, Reference> References { get; }
 

@@ -263,9 +263,9 @@ public sealed class MessageLiteralPlanTests
 
     private static CelValue RunWithoutTypeCheck(CelEnvironment environment, string expression)
     {
-        ParseResult parsed = environment.Parse(expression);
+        CelParseResult parsed = environment.Parse(expression);
         Assert.True(parsed.IsSuccess, expression);
-        Plan plan = Planner.PlanWithoutTypeCheck(parsed.Expression, environment.Declarations);
+        Plan plan = Planner.PlanWithoutTypeCheck(parsed.ParsedExpr, environment.Declarations);
         return plan.Run(plan.CreateFrame(new Dictionary<string, CelValue>(), null, CancellationToken.None));
     }
 }

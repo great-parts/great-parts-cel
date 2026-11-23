@@ -85,7 +85,7 @@ public sealed class MapInsertFunctionTests
     public static void KeyOfAnotherKind_IsUnsupportedMapKeyType()
     {
         var nodes = new NodeFactory();
-        ExprNode root = Insert(nodes, nodes.Struct(string.Empty, [], 15), nodes.Constant(CelValue.FromDouble(1.5), 20), Int(nodes, 1));
+        CelExprNode root = Insert(nodes, nodes.Map([], 15), nodes.Constant(CelValue.FromDouble(1.5), 20), Int(nodes, 1));
 
         CelError error = Error(Run(root, nodes, Bindings()));
 
@@ -99,8 +99,8 @@ public sealed class MapInsertFunctionTests
     public static void KeyOfAnotherKindThatIsEqual_IsDuplicateMapKey()
     {
         var nodes = new NodeFactory();
-        ExprNode first = nodes.Struct(string.Empty, [nodes.Entry(Int(nodes, 1), Int(nodes, 5), false, 18)], 15);
-        ExprNode root = Insert(nodes, first, nodes.Constant(CelValue.FromUInt64(1), 22), Int(nodes, 6));
+        CelExprNode first = nodes.Map([nodes.Entry(Int(nodes, 1), Int(nodes, 5), false, 18)], 15);
+        CelExprNode root = Insert(nodes, first, nodes.Constant(CelValue.FromUInt64(1), 22), Int(nodes, 6));
 
         CelError error = Error(PlanWithoutTypeCheck(root, nodes).Evaluate(Bindings().Values, null, CancellationToken.None));
 
@@ -199,7 +199,7 @@ public sealed class MapInsertFunctionTests
     public static void Call_IsTypedAsAMapOfTheArguments()
     {
         var nodes = new NodeFactory();
-        ExprNode first = nodes.Struct(string.Empty, [nodes.Entry(Str(nodes, "a"), Int(nodes, 1), false, 18)], 15);
+        CelExprNode first = nodes.Map([nodes.Entry(Str(nodes, "a"), Int(nodes, 1), false, 18)], 15);
 
         CheckResult result = TwoVarEnvironment.Environment.Check(nodes.Build(Insert(nodes, first, Str(nodes, "c"), Int(nodes, 3)), new LineTable(Source)));
 
@@ -232,17 +232,17 @@ public sealed class MapInsertFunctionTests
         return map;
     }
 
-    private static CelValue Run(ExprNode root, NodeFactory nodes, CelBindings bindings) =>
+    private static CelValue Run(CelExprNode root, NodeFactory nodes, CelBindings bindings) =>
         PlanOf(root, nodes).Evaluate(bindings.Values, null, CancellationToken.None);
 
-    private static Plan PlanOf(ExprNode root, NodeFactory nodes)
+    private static Plan PlanOf(CelExprNode root, NodeFactory nodes)
     {
         CheckResult result = TwoVarEnvironment.Environment.Check(nodes.Build(root, new LineTable(Source)));
         Assert.True(result.IsSuccess, string.Join("; ", result.Errors));
         return Planner.Plan(result.Expression!, TwoVarEnvironment.Environment.Declarations);
     }
 
-    private static Plan PlanWithoutTypeCheck(ExprNode root, NodeFactory nodes) =>
+    private static Plan PlanWithoutTypeCheck(CelExprNode root, NodeFactory nodes) =>
         Planner.PlanWithoutTypeCheck(nodes.Build(root, new LineTable(Source)), TwoVarEnvironment.Environment.Declarations);
 
     private static CelValue Evaluate(Plan plan, ulong limit) => plan.Evaluate(Bindings().Values, limit, CancellationToken.None);
@@ -253,19 +253,18 @@ public sealed class MapInsertFunctionTests
         return error;
     }
 
-    private static CallNode Insert(NodeFactory nodes, params ExprNode[] arguments) =>
+    private static CelCallNode Insert(NodeFactory nodes, params CelExprNode[] arguments) =>
         nodes.Call(ExtensionMacros.MapInsertFunction, null, [.. arguments], CallOffset);
 
     // The map {first: 26, second: 25}, the second argument of the two-map form.
-    private static StructNode SecondMap(NodeFactory nodes, string first, string second) =>
-        nodes.Struct(
-            string.Empty,
+    private static CelMapNode SecondMap(NodeFactory nodes, string first, string second) =>
+        nodes.Map(
             [nodes.Entry(Str(nodes, first), Int(nodes, 26), false, 30), nodes.Entry(Str(nodes, second), Int(nodes, 25), false, 40)],
             28);
 
-    private static ConstantNode Int(NodeFactory nodes, long value) => nodes.Constant(CelValue.FromInt64(value), 20);
+    private static CelConstantNode Int(NodeFactory nodes, long value) => nodes.Constant(CelValue.FromInt64(value), 20);
 
-    private static ConstantNode Str(NodeFactory nodes, string value) => nodes.Constant(CelValue.FromString(value), 20);
+    private static CelConstantNode Str(NodeFactory nodes, string value) => nodes.Constant(CelValue.FromString(value), 20);
 
     private static string Name(CelValue value) => value.TryGetString(out string? text) ? text : throw new InvalidOperationException(value.Kind.ToString());
 

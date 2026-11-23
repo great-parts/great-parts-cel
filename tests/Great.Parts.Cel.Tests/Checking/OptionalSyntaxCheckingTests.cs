@@ -161,7 +161,7 @@ public sealed class OptionalSyntaxCheckingTests
     public static void SecondArgumentThatIsNotAStringLiteral_IsNoMatchingOverloadAtTheCall()
     {
         var nodes = new NodeFactory();
-        ExprNode call = nodes.Call("_?._", null, [nodes.Ident("m", 0), nodes.Ident("name", 5)], 1);
+        CelExprNode call = nodes.Call("_?._", null, [nodes.Ident("m", 0), nodes.Ident("name", 5)], 1);
 
         CheckResult result = Messages.Check(nodes.Build(call, new LineTable("m.?name_")));
 
@@ -175,7 +175,7 @@ public sealed class OptionalSyntaxCheckingTests
     public static void SecondArgumentThatIsNotAString_IsNoMatchingOverloadOfTheCandidates()
     {
         var nodes = new NodeFactory();
-        ExprNode call = nodes.Call("_?._", null, [nodes.Ident("m", 0), nodes.Constant(CelValue.FromInt64(1), 5)], 1);
+        CelExprNode call = nodes.Call("_?._", null, [nodes.Ident("m", 0), nodes.Constant(CelValue.FromInt64(1), 5)], 1);
 
         CheckResult result = Messages.Check(nodes.Build(call, new LineTable("m.?name_")));
 
@@ -188,7 +188,7 @@ public sealed class OptionalSyntaxCheckingTests
     public static void SecondArgumentThatIsAStringLiteral_IsTypedByTheRuleOfTheSelection()
     {
         var nodes = new NodeFactory();
-        ExprNode call = nodes.Call("_?._", null, [nodes.Ident("m", 0), nodes.Constant(CelValue.FromString("a"), 5)], 1);
+        CelExprNode call = nodes.Call("_?._", null, [nodes.Ident("m", 0), nodes.Constant(CelValue.FromString("a"), 5)], 1);
 
         CheckResult result = Messages.Check(nodes.Build(call, new LineTable("m.?a")));
 
@@ -262,10 +262,10 @@ public sealed class OptionalSyntaxCheckingTests
         Assert.Equal(type, result.Expression!.ResultType.ToString());
     }
 
-    private static ParsedExpression Parse(string expression)
+    private static CelParsedExpr Parse(string expression)
     {
-        ParseResult parsed = Messages.Parse(expression);
+        CelParseResult parsed = Messages.Parse(expression);
         Assert.True(parsed.IsSuccess, expression);
-        return parsed.Expression;
+        return parsed.ParsedExpr;
     }
 }

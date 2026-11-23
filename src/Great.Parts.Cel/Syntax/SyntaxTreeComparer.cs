@@ -26,13 +26,13 @@ internal static class SyntaxTreeComparer
     /// <see langword="null"/> for equal trees; otherwise the path from the roots to the first difference with both
     /// values, such as <c>root.arguments[1].function: "_+_" vs "_-_"</c>.
     /// </returns>
-    internal static string? Difference(ExprNode left, ExprNode right)
+    internal static string? Difference(CelExprNode left, CelExprNode right)
     {
         return Node(left, right) is { } difference ? "root" + difference : null;
     }
 
     // The difference of two nodes as a path relative to them, such as ".function: ...", or null.
-    private static string? Node(ExprNode left, ExprNode right)
+    private static string? Node(CelExprNode left, CelExprNode right)
     {
         if (left.GetType() != right.GetType())
         {
@@ -41,22 +41,23 @@ internal static class SyntaxTreeComparer
 
         return (left, right) switch
         {
-            (ConstantNode a, ConstantNode b) => Constant(a.Value, b.Value),
-            (IdentNode a, IdentNode b) => Text(".name", a.Name, b.Name),
-            (SelectNode a, SelectNode b) => Select(a, b),
-            (CallNode a, CallNode b) => Call(a, b),
-            (ListNode a, ListNode b) => List(a, b),
-            (StructNode a, StructNode b) => Struct(a, b),
-            _ => Comprehension((ComprehensionNode)left, (ComprehensionNode)right),
+            (CelConstantNode a, CelConstantNode b) => Constant(a.Value, b.Value),
+            (CelIdentNode a, CelIdentNode b) => Text(".name", a.Name, b.Name),
+            (CelSelectNode a, CelSelectNode b) => Select(a, b),
+            (CelCallNode a, CelCallNode b) => Call(a, b),
+            (CelListNode a, CelListNode b) => List(a, b),
+            (CelMapNode a, CelMapNode b) => Map(a, b),
+            (CelStructNode a, CelStructNode b) => Struct(a, b),
+            _ => Comprehension((CelComprehensionNode)left, (CelComprehensionNode)right),
         };
     }
 
-    private static string? Select(SelectNode left, SelectNode right) =>
+    private static string? Select(CelSelectNode left, CelSelectNode right) =>
         Text(".field", left.Field, right.Field)
             ?? Flag(".isPresenceTest", left.IsPresenceTest, right.IsPresenceTest)
             ?? Child(".operand", left.Operand, right.Operand);
 
-    private static string? Call(CallNode left, CallNode right)
+    private static string? Call(CelCallNode left, CelCallNode right)
     {
         if (Text(".function", left.Function, right.Function) is { } function)
         {
@@ -72,7 +73,7 @@ internal static class SyntaxTreeComparer
             ?? Nodes(".arguments", left.Arguments, right.Arguments);
     }
 
-    private static string? List(ListNode left, ListNode right)
+    private static string? List(CelListNode left, CelListNode right)
     {
         if (!left.OptionalIndices.AsSpan().SequenceEqual(right.OptionalIndices.AsSpan()))
         {
@@ -82,13 +83,8 @@ internal static class SyntaxTreeComparer
         return Nodes(".elements", left.Elements, right.Elements);
     }
 
-    private static string? Struct(StructNode left, StructNode right)
+    private static string? Map(CelMapNode left, CelMapNode right)
     {
-        if (Text(".messageName", left.MessageName, right.MessageName) is { } name)
-        {
-            return name;
-        }
-
         if (Count(".entries", left.Entries.Length, right.Entries.Length) is { } count)
         {
             return count;
@@ -96,7 +92,9 @@ internal static class SyntaxTreeComparer
 
         for (int i = 0; i < left.Entries.Length; i++)
         {
-            if (Entry(left.Entries[i], right.Entries[i]) is { } difference)
+            CelMapEntryNode a = left.Entries[i];
+            CelMapEntryNode b = right.Entries[i];
+            if ((Flag(".isOptional", a.IsOptional, b.IsOptional) ?? Child(".key", a.Key, b.Key) ?? Child(".value", a.Value, b.Value)) is { } difference)
             {
                 return ".entries[" + i.ToString(CultureInfo.InvariantCulture) + "]" + difference;
             }
@@ -105,23 +103,32 @@ internal static class SyntaxTreeComparer
         return null;
     }
 
-    private static string? Entry(StructEntry left, StructEntry right)
+    private static string? Struct(CelStructNode left, CelStructNode right)
     {
-        if (Flag(".isOptional", left.IsOptional, right.IsOptional) is { } optional)
+        if (Text(".messageName", left.TypeName, right.TypeName) is { } name)
         {
-            return optional;
+            return name;
         }
 
-        if (left.FieldName is not null || right.FieldName is not null)
+        if (Count(".entries", left.Fields.Length, right.Fields.Length) is { } count)
         {
-            return Text(".fieldName", left.FieldName ?? "null", right.FieldName ?? "null")
-                ?? Child(".value", left.Value, right.Value);
+            return count;
         }
 
-        return Child(".key", left.Key, right.Key) ?? Child(".value", left.Value, right.Value);
+        for (int i = 0; i < left.Fields.Length; i++)
+        {
+            CelStructFieldNode a = left.Fields[i];
+            CelStructFieldNode b = right.Fields[i];
+            if ((Flag(".isOptional", a.IsOptional, b.IsOptional) ?? Text(".fieldName", a.Name, b.Name) ?? Child(".value", a.Value, b.Value)) is { } difference)
+            {
+                return ".entries[" + i.ToString(CultureInfo.InvariantCulture) + "]" + difference;
+            }
+        }
+
+        return null;
     }
 
-    private static string? Comprehension(ComprehensionNode left, ComprehensionNode right) =>
+    private static string? Comprehension(CelComprehensionNode left, CelComprehensionNode right) =>
         Text(".iterVar", left.IterVar, right.IterVar)
             ?? Text(".iterVar2", left.IterVar2 ?? "null", right.IterVar2 ?? "null")
             ?? Text(".accuVar", left.AccuVar, right.AccuVar)
@@ -150,8 +157,14 @@ internal static class SyntaxTreeComparer
         CelValueKind.String => string.Equals(AsString(left), AsString(right), StringComparison.Ordinal),
         CelValueKind.Bytes => AsBytes(left).Span.SequenceEqual(AsBytes(right).Span),
         CelValueKind.Bool => AsBoolean(left) == AsBoolean(right),
+        CelValueKind.Duration => AsDuration(left) == AsDuration(right),
+        CelValueKind.Timestamp => AsTimestamp(left) == AsTimestamp(right),
         _ => true,
     };
+
+    private static CelDuration AsDuration(CelValue value) => value.TryGetDuration(out CelDuration result) ? result : default;
+
+    private static CelTimestamp AsTimestamp(CelValue value) => value.TryGetTimestamp(out CelTimestamp result) ? result : default;
 
     private static long AsInt64(CelValue value) => value.TryGetInt64(out long result) ? result : 0;
 
@@ -178,7 +191,7 @@ internal static class SyntaxTreeComparer
 
     private static bool AsBoolean(CelValue value) => value.TryGetBoolean(out bool result) && result;
 
-    private static string? Nodes(string path, ImmutableArray<ExprNode> left, ImmutableArray<ExprNode> right)
+    private static string? Nodes(string path, ImmutableArray<CelExprNode> left, ImmutableArray<CelExprNode> right)
     {
         if (Count(path, left.Length, right.Length) is { } count)
         {
@@ -196,7 +209,7 @@ internal static class SyntaxTreeComparer
         return null;
     }
 
-    private static string? Child(string path, ExprNode left, ExprNode right) =>
+    private static string? Child(string path, CelExprNode left, CelExprNode right) =>
         Node(left, right) is { } difference ? path + difference : null;
 
     private static string? Count(string path, int left, int right) =>

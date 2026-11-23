@@ -83,7 +83,7 @@ internal static class PendingFile
             Divergence divergence = found.Divergence;
             string message = string.Create(
                 CultureInfo.InvariantCulture,
-                $"new divergence signature '{divergence.Signature}' ({divergence.Kind.Severity()}): cel-go returns {divergence.Oracle.Describe()}, we return {divergence.Library.Describe()}; seed {found.Seed}, case {found.Number}");
+                $"new divergence signature '{divergence.Signature}' ({divergence.Kind.Severity()}): {divergence.OraclePhrase} {divergence.Oracle.Describe()}, {divergence.LibraryPhrase} {divergence.Library.Describe()}; seed {found.Seed}, case {found.Number}");
             findings.Add(new Finding(Path, pending.TestLines[index], TestColumn, FindingSeverity.Error, EngCodes.Eng820, message));
         }
 

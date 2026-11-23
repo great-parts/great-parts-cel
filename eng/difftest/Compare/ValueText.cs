@@ -99,6 +99,7 @@ internal static class ValueText
     {
         CompileStage.Parse => "parse",
         CompileStage.Check => "check",
+        CompileStage.Load => "load",
         _ => "program",
     };
 

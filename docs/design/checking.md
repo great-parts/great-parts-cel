@@ -8,6 +8,8 @@
 | `src/Great.Parts.Cel/Checking/DeclarationIndex.cs` | the declarations of an environment, indexed for lookups |
 | `src/Great.Parts.Cel/Checking/Reference.cs` | what an identifier, a selection or a call refers to |
 | `src/Great.Parts.Cel/Checking/CheckedExpression.cs` | the result: tree, reference map, type map, type of the expression |
+| `src/Great.Parts.Cel/Checking/CelCheckedExpr.cs`, `CelReference.cs` | the public checked expression and its references, built over the result ([ast-protobuf](ast-protobuf.md#checked-expression)) |
+| `src/Great.Parts.Cel/Checking/Protobuf/` | writing `CheckedExpr` as protobuf ([ast-protobuf](ast-protobuf.md)) |
 | `src/Great.Parts.Cel/Checking/CheckResult.cs` | the result of the internal entry point `CelEnvironment.Check` (see [facade](facade.md)) |
 | `src/Great.Parts.Cel/Checking/CheckErrors.cs` | the messages of the check errors |
 
@@ -232,6 +234,8 @@ An enumeration constant is an `int`, so `TestAllTypes{standalone_enum: TestAllTy
 ## Checked expression
 
 `CheckedExpression` holds the parsed expression (tree, positions and line table), the reference map, the type map with every type parameter replaced — free ones by `dyn` — and `ResultType`, the type of the root, which `CelProgram<T>.ResultType` reports.
+
+`CelCheckedExpr`, which `CelValidationResult.CheckedExpr` gives for a valid expression, is the public view of it: the parsed tree that was checked (the same object), `TypeMap` and `ReferenceMap` by node id, built on the first read, and `ToProtobuf`. A reference that holds a constant of an enumeration records its full name, and a reference of a name written with a leading dot records whether a comprehension variable of the first part of the name is in scope at the node; the names with dots that a tree in the form of cel-go has — an identifier `acme.limit`, a global call `math.abs` — resolve as the written chain and the qualified function do. The details are in [ast-protobuf](ast-protobuf.md).
 
 ## Constant arguments
 

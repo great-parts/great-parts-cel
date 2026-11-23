@@ -401,7 +401,7 @@ public sealed class BuilderOrderTests
             null,
             2,
             isReceiver: true,
-            static (_, arguments) => arguments[0] is IdentNode ? MacroCheck.Expand : MacroCheck.Error("argument is not an identifier", arguments[0]),
+            static (_, arguments) => arguments[0] is CelIdentNode ? MacroCheck.Expand : MacroCheck.Error("argument is not an identifier", arguments[0]),
             static (nodes, target, _, offset) => nodes.Call("size", null, [target!], offset));
         return new CatalogExtension(
             "lst",

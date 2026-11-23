@@ -101,8 +101,8 @@ public sealed class ObjectCheckingTests
 
     private static CheckResult Check(CelEnvironment environment, string expression)
     {
-        ParseResult parsed = environment.Parse(expression);
+        CelParseResult parsed = environment.Parse(expression);
         Assert.True(parsed.IsSuccess);
-        return environment.Check(parsed.Expression);
+        return environment.Check(parsed.ParsedExpr);
     }
 }

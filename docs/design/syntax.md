@@ -7,9 +7,11 @@
 | `Syntax/Lexer.cs`, `Token.cs`, `TokenKind.cs`, `Literals.cs` | tokens and the values of literals |
 | `Syntax/Parser.cs` | recursive descent, limits, recovery |
 | `Syntax/SyntaxOptions.cs`, `Macros.cs` | the syntax options; the macro table and the standard macros |
-| `Syntax/NodeFactory.cs`, `ParsedExpression.cs`, `ExprNode.cs`, `MacroCall.cs`, one file per node class | the tree |
-| `Syntax/Printer.cs`, `SyntaxTreeComparer.cs` | printing and tree equality |
-| `Syntax/ParseResult.cs` | the result of the internal entry point `CelEnvironment.Parse` ([facade](facade.md)) |
+| `Syntax/NodeFactory.cs`, `CelParsedExpr.cs`, `CelExprNode.cs`, `CelMacroCall.cs`, one file per node class | the tree, public ([public-ast](public-ast.md)) |
+| `Syntax/CelExprFactory.cs`, `TreeInput.cs` | the public factory of nodes and the check of a tree from another source ([public-ast](public-ast.md)) |
+| `Syntax/Protobuf/` | reading and writing `ParsedExpr` ([ast-protobuf](ast-protobuf.md)) |
+| `Syntax/Printer.cs`, `SyntaxTreeComparer.cs` | printing (also `CelSyntax.Format`) and tree equality |
+| `Syntax/CelParseResult.cs` | the result of `CelEnvironment.Parse` ([facade](facade.md)) |
 | `Diagnostics/LineTable.cs` | line table, shared with the checker, the evaluator and the JSON reader |
 
 ## Syntax options
@@ -87,20 +89,21 @@ Levels from the lowest; the operands of a level are expressions of the next one.
 
 ## Syntax tree
 
-The tree follows `syntax.proto` of cel-spec. Nodes are immutable classes with an id unique in the tree. The tree holds no types.
+The tree follows `syntax.proto` of cel-spec. Nodes are immutable sealed classes with an id unique in the tree; the classes are public and their constructors internal ([public-ast](public-ast.md)). The tree holds no types.
 
 | `syntax.proto` | Class |
 | :- | :- |
-| `ParsedExpr` | `ParsedExpression`: the root node, positions by id, the line table, macro calls by id |
-| `Expr`, field `id` | `ExprNode`, abstract, property `Id` |
-| `Constant` | `ConstantNode`: a `CelValue` of the kind `Null`, `Bool`, `Int`, `UInt`, `Double`, `String` or `Bytes` |
-| `Expr.Ident` | `IdentNode`: the name |
-| `Expr.Select` | `SelectNode`: the operand, the field, `IsPresenceTest`, set only by `has` |
-| `Expr.Call` | `CallNode`: the function name, the target or `null`, the arguments; operators included |
-| `Expr.CreateList` | `ListNode`: the elements, `OptionalIndices` |
-| `Expr.CreateStruct` | `StructNode`: the message name, empty for a map; entries `StructEntry` with an id, a field name or a key, a value and `IsOptional` |
-| `Expr.Comprehension` | `ComprehensionNode`: `IterVar`, `IterRange`, `AccuVar`, `AccuInit`, `LoopCondition`, `LoopStep`, `Result` |
-| `SourceInfo` | positions and macro calls in `ParsedExpression`; `MacroCall`: function, target, arguments as written; `LineTable` |
+| `ParsedExpr` | `CelParsedExpr`: the root node, positions by id, the line table, macro calls by id |
+| `Expr`, field `id` | `CelExprNode`, abstract, properties `Id`, `Kind` (`CelExprKind`), `Children` |
+| `Constant` | `CelConstantNode`: a `CelValue` of the kind `Null`, `Bool`, `Int`, `UInt`, `Double`, `String`, `Bytes` or, from another source of trees, `Decimal` |
+| `Expr.Ident` | `CelIdentNode`: the name |
+| `Expr.Select` | `CelSelectNode`: the operand, the field, `IsPresenceTest`, set only by `has` |
+| `Expr.Call` | `CelCallNode`: the function name, the target or `null`, the arguments; operators included |
+| `Expr.CreateList` | `CelListNode`: the elements, `OptionalIndices` |
+| `Expr.CreateStruct` without a message name | `CelMapNode`: entries `CelMapEntryNode` with an id, a key, a value and `IsOptional` |
+| `Expr.CreateStruct` with a message name | `CelStructNode`: the type name; fields `CelStructFieldNode` with an id, a name, a value and `IsOptional` |
+| `Expr.Comprehension` | `CelComprehensionNode`: `IterVar`, `IterVar2`, `IterRange`, `AccuVar`, `AccuInit`, `LoopCondition`, `LoopStep`, `Result` |
+| `SourceInfo` | positions and macro calls in `CelParsedExpr`; `CelMacroCall`: function, target, arguments as written; `LineTable` |
 
 The class names differ from the `syntax.proto` messages so that the conformance runner can use both without ambiguity.
 
@@ -182,13 +185,13 @@ All have the stage `Parse`.
 
 ## Printing and tree equality
 
-Both serve the property "parse, print, parse gives the same tree" ([tests](tests.md#properties-of-the-parser-and-the-checker)). They are internal classes of `Syntax`, as `parser/unparser.go` belongs to the cel-go parser, and use the grammar table of the parser. Both recurse without the stack check: they serve tests on trees within the limits.
+Both serve the property "parse, print, parse gives the same tree" ([tests](tests.md#properties-of-the-parser-and-the-checker)). They are internal classes of `Syntax`, as `parser/unparser.go` belongs to the cel-go parser, and use the grammar table of the parser. `Printer` serves the public `CelSyntax.Format`: it checks the stack and the depth at each recursive step and throws `ArgumentException` for a tree without a text form ([public-ast](public-ast.md#printing)); `SyntaxTreeComparer` recurses without the stack check and serves tests on trees within the limits.
 
 `Printer.Print(ParsedExpression)` gives a text that parses, with the same options, into an equal tree:
 
 - Binary operators and `?:` with single spaces; `[a, ?b]`, `{k: v}`, `a.b{f: v}`, `.?f`, `[?i]`; a field that is not a `SELECTOR` in backticks.
 - Parentheses only where the tree needs them: an operand of a lower level than its place requires; the right operand of a left-associative level at the same level; an operand of `_&&_` or `_||_` that is the same operator — balanced chains are not rebuilt; the operand of `!_` or `-_` that is a numeric constant, a call of `!_` or `-_`, or of a lower level; a numeric constant or a call of an operator below level 8 as the target of a selection, an index or a receiver call.
-- A comprehension or a presence test is printed as its recorded macro call; without the record `Print` throws `InvalidOperationException`.
+- A comprehension or a presence test is printed as its recorded macro call, and so is any other expansion that has one: `math.greatest(1, 2)`, not `math.@max([1, 2])`, which does not parse back; without the record a comprehension or a presence test cannot be printed (`ArgumentException` of `Format`).
 - `int` in decimal; `uint` with `u`; `double` in the shortest round-trip invariant form (for a power of two that .NET writes with digits that read back to the double below, the digits of `DoubleTextRules`), with `.0` appended when it has neither a point nor an exponent; a string in double quotes with `\\`, `\"`, `\n`, `\r`, `\t` and `\u00HH` for the other control characters, as the key text of [evaluation](evaluation.md) errors; bytes as `b"…"`, printable ASCII other than `"` and `\` as it is, other bytes as `\xHH`.
 
 `SyntaxTreeComparer.Difference(ExprNode, ExprNode)` returns `null` for equal trees, otherwise the path to the first difference with both values. Equal trees have the same node classes, children in the same order, names, functions, fields, flags (presence test, optional indices and entries) and comprehension variables, and constants of the same kind and value, doubles by their bits. Ids, positions and macro calls are not compared.

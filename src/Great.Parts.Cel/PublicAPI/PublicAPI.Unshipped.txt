@@ -94,3 +94,115 @@ static Great.Parts.Cel.Diagnostics.CelSourceSpan.operator ==(Great.Parts.Cel.Dia
 static Great.Parts.Cel.Values.CelTimeZoneDatabase.FromSystem() -> Great.Parts.Cel.Values.CelTimeZoneDatabase!
 static Great.Parts.Cel.Values.CelValue.FromDecimal(decimal value) -> Great.Parts.Cel.Values.CelValue
 virtual Great.Parts.Cel.Values.CelObjectType<TInstance>.FieldReadCost(in TInstance instance, int number) -> long
+Great.Parts.Cel.CelEnvironment.CompileParsed<T>(Great.Parts.Cel.Syntax.CelParsedExpr! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelCompileResult<T>!
+Great.Parts.Cel.CelEnvironment.Parse(string! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.Syntax.CelParseResult!
+Great.Parts.Cel.CelEnvironment.ValidateParsed(Great.Parts.Cel.Syntax.CelParsedExpr! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelValidationResult!
+Great.Parts.Cel.CelEnvironment.ValidateParsed<T>(Great.Parts.Cel.Syntax.CelParsedExpr! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelValidationResult!
+Great.Parts.Cel.CelValidationResult.CheckedExpr.get -> Great.Parts.Cel.Checking.CelCheckedExpr?
+Great.Parts.Cel.Checking.CelCheckedExpr
+Great.Parts.Cel.Checking.CelCheckedExpr.ParsedExpr.get -> Great.Parts.Cel.Syntax.CelParsedExpr!
+Great.Parts.Cel.Checking.CelCheckedExpr.ReferenceMap.get -> System.Collections.Generic.IReadOnlyDictionary<int, Great.Parts.Cel.Checking.CelReference!>!
+Great.Parts.Cel.Checking.CelCheckedExpr.ResultType.get -> Great.Parts.Cel.Types.CelType!
+Great.Parts.Cel.Checking.CelCheckedExpr.ToProtobuf() -> byte[]!
+Great.Parts.Cel.Checking.CelCheckedExpr.TypeMap.get -> System.Collections.Generic.IReadOnlyDictionary<int, Great.Parts.Cel.Types.CelType!>!
+Great.Parts.Cel.Checking.CelReference
+Great.Parts.Cel.Checking.CelReference.Name.get -> string!
+Great.Parts.Cel.Checking.CelReference.OverloadIds.get -> System.Collections.Immutable.ImmutableArray<string!>
+Great.Parts.Cel.Checking.CelReference.Value.get -> Great.Parts.Cel.Values.CelValue?
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidProtobuf = 1009 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidSyntaxTree = 1008 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Syntax.CelCallNode
+Great.Parts.Cel.Syntax.CelCallNode.Arguments.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Syntax.CelExprNode!>
+Great.Parts.Cel.Syntax.CelCallNode.Function.get -> string!
+Great.Parts.Cel.Syntax.CelCallNode.Target.get -> Great.Parts.Cel.Syntax.CelExprNode?
+Great.Parts.Cel.Syntax.CelComprehensionNode
+Great.Parts.Cel.Syntax.CelComprehensionNode.AccuInit.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelComprehensionNode.AccuVar.get -> string!
+Great.Parts.Cel.Syntax.CelComprehensionNode.IterRange.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelComprehensionNode.IterVar.get -> string!
+Great.Parts.Cel.Syntax.CelComprehensionNode.IterVar2.get -> string?
+Great.Parts.Cel.Syntax.CelComprehensionNode.LoopCondition.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelComprehensionNode.LoopStep.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelComprehensionNode.Result.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelConstantNode
+Great.Parts.Cel.Syntax.CelConstantNode.Value.get -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Syntax.CelExprFactory
+Great.Parts.Cel.Syntax.CelExprFactory.Build(Great.Parts.Cel.Syntax.CelExprNode! root) -> Great.Parts.Cel.Syntax.CelParsedExpr!
+Great.Parts.Cel.Syntax.CelExprFactory.Call(string! function, params System.ReadOnlySpan<Great.Parts.Cel.Syntax.CelExprNode!> arguments) -> Great.Parts.Cel.Syntax.CelCallNode!
+Great.Parts.Cel.Syntax.CelExprFactory.CelExprFactory() -> void
+Great.Parts.Cel.Syntax.CelExprFactory.CelExprFactory(string! sourceText) -> void
+Great.Parts.Cel.Syntax.CelExprFactory.Comprehension(string! iterVar, Great.Parts.Cel.Syntax.CelExprNode! iterRange, string! accuVar, Great.Parts.Cel.Syntax.CelExprNode! accuInit, Great.Parts.Cel.Syntax.CelExprNode! loopCondition, Great.Parts.Cel.Syntax.CelExprNode! loopStep, Great.Parts.Cel.Syntax.CelExprNode! result) -> Great.Parts.Cel.Syntax.CelComprehensionNode!
+Great.Parts.Cel.Syntax.CelExprFactory.Comprehension(string! iterVar, string! iterVar2, Great.Parts.Cel.Syntax.CelExprNode! iterRange, string! accuVar, Great.Parts.Cel.Syntax.CelExprNode! accuInit, Great.Parts.Cel.Syntax.CelExprNode! loopCondition, Great.Parts.Cel.Syntax.CelExprNode! loopStep, Great.Parts.Cel.Syntax.CelExprNode! result) -> Great.Parts.Cel.Syntax.CelComprehensionNode!
+Great.Parts.Cel.Syntax.CelExprFactory.Constant(Great.Parts.Cel.Values.CelValue value) -> Great.Parts.Cel.Syntax.CelConstantNode!
+Great.Parts.Cel.Syntax.CelExprFactory.Copy(Great.Parts.Cel.Syntax.CelParsedExpr! source, Great.Parts.Cel.Syntax.CelExprNode! node, System.Func<Great.Parts.Cel.Syntax.CelExprNode!, Great.Parts.Cel.Syntax.CelExprNode?>? replace = null, System.Func<int, int>? mapOffset = null) -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelExprFactory.ExpandMacro(string! name, Great.Parts.Cel.Syntax.CelExprNode? target, params System.ReadOnlySpan<Great.Parts.Cel.Syntax.CelExprNode!> arguments) -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelExprFactory.Ident(string! name) -> Great.Parts.Cel.Syntax.CelIdentNode!
+Great.Parts.Cel.Syntax.CelExprFactory.List(System.ReadOnlySpan<Great.Parts.Cel.Syntax.CelExprNode!> elements, System.ReadOnlySpan<int> optionalIndices = default(System.ReadOnlySpan<int>)) -> Great.Parts.Cel.Syntax.CelListNode!
+Great.Parts.Cel.Syntax.CelExprFactory.Map(System.ReadOnlySpan<Great.Parts.Cel.Syntax.CelMapEntryNode!> entries) -> Great.Parts.Cel.Syntax.CelMapNode!
+Great.Parts.Cel.Syntax.CelExprFactory.MapEntry(Great.Parts.Cel.Syntax.CelExprNode! key, Great.Parts.Cel.Syntax.CelExprNode! value, bool isOptional = false) -> Great.Parts.Cel.Syntax.CelMapEntryNode!
+Great.Parts.Cel.Syntax.CelExprFactory.MemberCall(string! function, Great.Parts.Cel.Syntax.CelExprNode! target, params System.ReadOnlySpan<Great.Parts.Cel.Syntax.CelExprNode!> arguments) -> Great.Parts.Cel.Syntax.CelCallNode!
+Great.Parts.Cel.Syntax.CelExprFactory.Position.get -> System.Range?
+Great.Parts.Cel.Syntax.CelExprFactory.Position.set -> void
+Great.Parts.Cel.Syntax.CelExprFactory.PresenceTest(Great.Parts.Cel.Syntax.CelExprNode! operand, string! field) -> Great.Parts.Cel.Syntax.CelSelectNode!
+Great.Parts.Cel.Syntax.CelExprFactory.Select(Great.Parts.Cel.Syntax.CelExprNode! operand, string! field) -> Great.Parts.Cel.Syntax.CelSelectNode!
+Great.Parts.Cel.Syntax.CelExprFactory.SourceText.get -> string?
+Great.Parts.Cel.Syntax.CelExprFactory.Struct(string! typeName, System.ReadOnlySpan<Great.Parts.Cel.Syntax.CelStructFieldNode!> fields) -> Great.Parts.Cel.Syntax.CelStructNode!
+Great.Parts.Cel.Syntax.CelExprFactory.StructField(string! name, Great.Parts.Cel.Syntax.CelExprNode! value, bool isOptional = false) -> Great.Parts.Cel.Syntax.CelStructFieldNode!
+Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprKind.Call = 4 -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprKind.Comprehension = 8 -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprKind.Constant = 1 -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprKind.Ident = 2 -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprKind.List = 5 -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprKind.Map = 6 -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprKind.Select = 3 -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprKind.Struct = 7 -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelExprNode
+Great.Parts.Cel.Syntax.CelExprNode.Children.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Syntax.CelExprNode!>
+Great.Parts.Cel.Syntax.CelExprNode.DescendantsAndSelf() -> System.Collections.Generic.IEnumerable<Great.Parts.Cel.Syntax.CelExprNode!>!
+Great.Parts.Cel.Syntax.CelExprNode.Id.get -> int
+Great.Parts.Cel.Syntax.CelExprNode.Kind.get -> Great.Parts.Cel.Syntax.CelExprKind
+Great.Parts.Cel.Syntax.CelIdentNode
+Great.Parts.Cel.Syntax.CelIdentNode.Name.get -> string!
+Great.Parts.Cel.Syntax.CelListNode
+Great.Parts.Cel.Syntax.CelListNode.Elements.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Syntax.CelExprNode!>
+Great.Parts.Cel.Syntax.CelListNode.OptionalIndices.get -> System.Collections.Immutable.ImmutableArray<int>
+Great.Parts.Cel.Syntax.CelMacroCall
+Great.Parts.Cel.Syntax.CelMacroCall.Arguments.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Syntax.CelExprNode!>
+Great.Parts.Cel.Syntax.CelMacroCall.Function.get -> string!
+Great.Parts.Cel.Syntax.CelMacroCall.Target.get -> Great.Parts.Cel.Syntax.CelExprNode?
+Great.Parts.Cel.Syntax.CelMapEntryNode
+Great.Parts.Cel.Syntax.CelMapEntryNode.Id.get -> int
+Great.Parts.Cel.Syntax.CelMapEntryNode.IsOptional.get -> bool
+Great.Parts.Cel.Syntax.CelMapEntryNode.Key.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelMapEntryNode.Value.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelMapNode
+Great.Parts.Cel.Syntax.CelMapNode.Entries.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Syntax.CelMapEntryNode!>
+Great.Parts.Cel.Syntax.CelParsedExpr
+Great.Parts.Cel.Syntax.CelParsedExpr.FindNode(int id) -> Great.Parts.Cel.Syntax.CelExprNode?
+Great.Parts.Cel.Syntax.CelParsedExpr.FindParent(int id) -> Great.Parts.Cel.Syntax.CelExprNode?
+Great.Parts.Cel.Syntax.CelParsedExpr.GetMacroCall(int id) -> Great.Parts.Cel.Syntax.CelMacroCall?
+Great.Parts.Cel.Syntax.CelParsedExpr.GetSpan(int id) -> Great.Parts.Cel.Diagnostics.CelSourceSpan
+Great.Parts.Cel.Syntax.CelParsedExpr.Root.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelParsedExpr.SourceName.get -> string?
+Great.Parts.Cel.Syntax.CelParsedExpr.ToProtobuf() -> byte[]!
+Great.Parts.Cel.Syntax.CelParseResult
+Great.Parts.Cel.Syntax.CelParseResult.Errors.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelError!>
+Great.Parts.Cel.Syntax.CelParseResult.GetParsedExprOrThrow() -> Great.Parts.Cel.Syntax.CelParsedExpr!
+Great.Parts.Cel.Syntax.CelParseResult.IsSuccess.get -> bool
+Great.Parts.Cel.Syntax.CelParseResult.ParsedExpr.get -> Great.Parts.Cel.Syntax.CelParsedExpr?
+Great.Parts.Cel.Syntax.CelSelectNode
+Great.Parts.Cel.Syntax.CelSelectNode.Field.get -> string!
+Great.Parts.Cel.Syntax.CelSelectNode.IsPresenceTest.get -> bool
+Great.Parts.Cel.Syntax.CelSelectNode.Operand.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelStructFieldNode
+Great.Parts.Cel.Syntax.CelStructFieldNode.Id.get -> int
+Great.Parts.Cel.Syntax.CelStructFieldNode.IsOptional.get -> bool
+Great.Parts.Cel.Syntax.CelStructFieldNode.Name.get -> string!
+Great.Parts.Cel.Syntax.CelStructFieldNode.Value.get -> Great.Parts.Cel.Syntax.CelExprNode!
+Great.Parts.Cel.Syntax.CelStructNode
+Great.Parts.Cel.Syntax.CelStructNode.Fields.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Syntax.CelStructFieldNode!>
+Great.Parts.Cel.Syntax.CelStructNode.TypeName.get -> string!
+static Great.Parts.Cel.CelSyntax.Format(Great.Parts.Cel.Syntax.CelParsedExpr! expression) -> string!
+static Great.Parts.Cel.Syntax.CelParsedExpr.FromCheckedExprProtobuf(System.ReadOnlySpan<byte> checkedExpr, string? sourceText = null) -> Great.Parts.Cel.Syntax.CelParseResult!
+static Great.Parts.Cel.Syntax.CelParsedExpr.FromProtobuf(System.ReadOnlySpan<byte> parsedExpr, string? sourceText = null) -> Great.Parts.Cel.Syntax.CelParseResult!

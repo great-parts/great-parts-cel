@@ -13,7 +13,16 @@ namespace Great.Parts.Cel.Eng.Difftest.Compare;
 /// <param name="Case">The minimized case.</param>
 /// <param name="Library">The outcome of the minimized case on the library.</param>
 /// <param name="Oracle">The outcome of the minimized case on cel-go.</param>
-internal sealed record Divergence(string Signature, DivergenceKind Kind, GeneratedCase Case, SideOutcome Library, SideOutcome Oracle);
+/// <param name="OraclePhrase">Who gave <paramref name="Oracle"/>, with the verb, for the message of the finding.</param>
+/// <param name="LibraryPhrase">Who gave <paramref name="Library"/>, with the verb, for the message of the finding.</param>
+internal sealed record Divergence(
+    string Signature,
+    DivergenceKind Kind,
+    GeneratedCase Case,
+    SideOutcome Library,
+    SideOutcome Oracle,
+    string OraclePhrase = "cel-go returns",
+    string LibraryPhrase = "we return");
 
 /// <summary>
 /// The signature of a divergence, <c>&lt;node&gt;(&lt;types&gt;) &lt;kind&gt;</c> of the root of the minimized case

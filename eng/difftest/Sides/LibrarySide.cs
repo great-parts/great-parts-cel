@@ -10,6 +10,7 @@ using Great.Parts.Cel.Configuration;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Eng.Difftest.Profile;
 using Great.Parts.Cel.Protobuf;
+using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
@@ -20,7 +21,7 @@ namespace Great.Parts.Cel.Eng.Difftest.Sides;
 /// environment of the run manifest with the time zone database of the data file, <c>Compile&lt;CelValue&gt;</c> and
 /// <c>Evaluate</c>. An exception from the library counts as an error of the step it escaped from, and the message names its type.
 /// </summary>
-internal sealed class LibrarySide : ICaseSide
+internal sealed class LibrarySide : ICaseSide, ICheckedSide
 {
     // The offset of a zone at an instant, through the public API: the six fields of the local time, which the calendar of the
     // library gives for the instant s in the zone z (docs/design/eng-difftest.md, "Findings and output").
@@ -121,6 +122,66 @@ internal sealed class LibrarySide : ICaseSide
             return SideOutcome.CompileError(CompileStage.Check, "the library threw " + Describe(exception));
         }
 
+        return Run(compiled, bindings);
+    }
+
+    /// <summary>
+    /// Parses and checks a text and writes its checked expression with <c>CelCheckedExpr.ToProtobuf</c>: the bytes of the
+    /// result of cel-go from our bytes (docs/design/ast-protobuf.md, "Exchange with cel-go").
+    /// </summary>
+    /// <param name="expression">The expression as CEL source.</param>
+    /// <returns>The bytes, that the text does not compile, or the exception of the library as an outcome.</returns>
+    public CheckedAttempt Check(string expression)
+    {
+        try
+        {
+            CelValidationResult validated = environment.Validate<CelValue>(expression);
+            if (!validated.IsValid)
+            {
+                return CheckedAttempt.NotCompiled;
+            }
+
+            return validated.CheckedExpr is { } checkedExpr
+                ? CheckedAttempt.Made(checkedExpr.ToProtobuf())
+                : CheckedAttempt.Failed(SideOutcome.CompileError(CompileStage.Check, "the library gives no checked expression for a valid one"));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return CheckedAttempt.Failed(SideOutcome.CompileError(CompileStage.Check, "the library threw " + Describe(exception)));
+        }
+    }
+
+    /// <summary>
+    /// Loads the bytes of a checked expression that cel-go wrote — <c>CelParsedExpr.FromCheckedExprProtobuf</c> — compiles the tree in
+    /// the environment — <c>CompileParsed</c> — and evaluates it: our result from the bytes of cel-go.
+    /// </summary>
+    /// <param name="checkedExpr">The bytes of a <c>CheckedExpr</c> message.</param>
+    /// <param name="bindings">The bound variables.</param>
+    /// <returns>The outcome; the bytes that the library does not read are a compile error of the stage load.</returns>
+    public SideOutcome EvaluateChecked(byte[] checkedExpr, IReadOnlyDictionary<string, Value> bindings)
+    {
+        CelCompileResult<CelValue> compiled;
+        try
+        {
+            CelParseResult loaded = CelParsedExpr.FromCheckedExprProtobuf(checkedExpr);
+            if (!loaded.IsSuccess || loaded.ParsedExpr is null)
+            {
+                return SideOutcome.CompileError(CompileStage.Load, Messages(loaded.Errors));
+            }
+
+            compiled = environment.CompileParsed<CelValue>(loaded.ParsedExpr);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return SideOutcome.CompileError(CompileStage.Load, "the library threw " + Describe(exception));
+        }
+
+        return Run(compiled, bindings);
+    }
+
+    // The outcome of a compiled program on the bindings: a compile error with its stage, an error of evaluation or a value.
+    private static SideOutcome Run(CelCompileResult<CelValue> compiled, IReadOnlyDictionary<string, Value> bindings)
+    {
         if (!compiled.IsSuccess || compiled.Program is null)
         {
             CompileStage stage = compiled.Errors.Any(error => error.Stage == CelErrorStage.Parse) ? CompileStage.Parse : CompileStage.Check;

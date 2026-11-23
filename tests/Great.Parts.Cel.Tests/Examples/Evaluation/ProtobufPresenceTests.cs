@@ -236,10 +236,10 @@ public sealed class ProtobufPresenceTests
     public void FieldThatTheMessageDoesNotHave_IsEvalNoSuchFieldWithoutTheTypeCheck(string expression, int offset)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        ParseResult parsed = environment.Parse(expression);
+        CelParseResult parsed = environment.Parse(expression);
         Assert.True(parsed.IsSuccess);
 
-        CelEvalResult<CelValue> result = environment.EvaluateWithoutTypeCheck(parsed.Expression, bindings);
+        CelEvalResult<CelValue> result = environment.EvaluateWithoutTypeCheck(parsed.ParsedExpr, bindings);
 
         CelError error = Assert.Single(result.Errors);
         string type = expression[0] == 'n' ? "cel.expr.conformance.proto3.NestedTestAllTypes" : "cel.expr.conformance.proto3.TestAllTypes";

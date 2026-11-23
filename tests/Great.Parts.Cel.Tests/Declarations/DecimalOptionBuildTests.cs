@@ -32,9 +32,9 @@ public sealed class DecimalOptionBuildTests
         Assert.False(without.Syntax.DecimalLiterals);
         Assert.False(Builder().Build().GetEnvironmentOrThrow().Syntax.DecimalLiterals);
 
-        ParseResult parsed = with.Parse("-12.50m");
+        CelParseResult parsed = with.Parse("-12.50m");
         Assert.True(parsed.IsSuccess);
-        Assert.Equal(CelValueKind.Decimal, Assert.IsType<ConstantNode>(parsed.Expression.Root).Value.Kind);
+        Assert.Equal(CelValueKind.Decimal, Assert.IsType<CelConstantNode>(parsed.ParsedExpr.Root).Value.Kind);
         Assert.Equal(CelErrorCode.SyntaxNotEnabled, Assert.Single(without.Parse("-12.50m").Errors).Code);
     }
 

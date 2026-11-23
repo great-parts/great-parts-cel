@@ -30,8 +30,8 @@ public sealed class CheckedEqualsUncheckedTests
         }
 
         CelEvalResult<CelValue> checkedResult = compiled.Program.Evaluate(testCase.Bindings);
-        ParseResult parsed = environment.Parse(testCase.Text);
-        CelEvalResult<CelValue> uncheckedResult = environment.EvaluateWithoutTypeCheck(parsed.Expression!, testCase.Bindings);
+        CelParseResult parsed = environment.Parse(testCase.Text);
+        CelEvalResult<CelValue> uncheckedResult = environment.EvaluateWithoutTypeCheck(parsed.ParsedExpr!, testCase.Bindings);
 
         if (checkedResult.IsSuccess && uncheckedResult.IsSuccess)
         {

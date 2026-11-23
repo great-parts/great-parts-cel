@@ -21,7 +21,9 @@ internal sealed class Reference
         CelObjectType? objectType = null,
         int fieldNumber = -1,
         long? constant = null,
-        object? prepared = null)
+        object? prepared = null,
+        string? resolvedName = null,
+        bool needsDot = false)
     {
         Variable = variable;
         TypeValue = typeValue;
@@ -31,6 +33,8 @@ internal sealed class Reference
         FieldNumber = fieldNumber;
         Constant = constant;
         Prepared = prepared;
+        ResolvedName = resolvedName;
+        NeedsDot = needsDot;
     }
 
     // The declared variable of an identifier or of a selection chain resolved as its qualified name; null
@@ -62,9 +66,33 @@ internal sealed class Reference
     // for a call without a constant argument and for every other reference.
     internal object? Prepared { get; }
 
-    internal static Reference ToVariable(CelVariableDecl variable) => new(variable, null, null, []);
+    // The full name of the type identifier or of the enumeration constant that the name resolved to, without a leading dot; null for
+    // any other reference.
+    internal string? ResolvedName { get; }
 
-    internal static Reference ToTypeIdentifier(CelType typeValue) => new(null, typeValue, null, []);
+    // Whether the name was written with a leading dot while a variable of an enclosing comprehension has the same first part: the dot
+    // tells the global name from the variable of the comprehension and stays in the name of the reference, as in cel-go.
+    internal bool NeedsDot { get; }
+
+    // The name that a variable, a type identifier or an enumeration constant is written under in the checked form of the tree: the
+    // full name, with a leading dot when the written name needs one; null for any other reference.
+    internal string? IdentifierName
+    {
+        get
+        {
+            string? name = Variable?.Name ?? ResolvedName;
+            return name is not null && NeedsDot ? "." + name : name;
+        }
+    }
+
+    // Whether the reference is a field of an object type, which the checked form of the tree does not give a reference.
+    internal bool IsField => ObjectType is not null && FieldNumber >= 0;
+
+    internal static Reference ToVariable(CelVariableDecl variable, bool needsDot = false) =>
+        new(variable, null, null, [], needsDot: needsDot);
+
+    internal static Reference ToTypeIdentifier(CelType typeValue, string name, bool needsDot = false) =>
+        new(null, typeValue, null, [], resolvedName: name, needsDot: needsDot);
 
     internal static Reference ToLocal(string name) => new(null, null, name, []);
 
@@ -73,7 +101,8 @@ internal sealed class Reference
     // A message literal: the description of the type it creates; the entries have ToField with the number of their field.
     internal static Reference ToMessage(CelObjectType objectType) => new(null, null, null, [], objectType);
 
-    internal static Reference ToConstant(long value) => new(null, null, null, [], constant: value);
+    internal static Reference ToConstant(long value, string name, bool needsDot = false) =>
+        new(null, null, null, [], constant: value, resolvedName: name, needsDot: needsDot);
 
     internal static Reference ToCandidates(ImmutableArray<OverloadBinding> candidates, object? prepared = null) =>
         new(null, null, null, candidates, prepared: prepared);

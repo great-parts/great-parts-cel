@@ -37,7 +37,7 @@ public sealed class TwoVariableTreeTests
     public static void MacroCall_PrintsAsItIsWrittenAndParsesBack(string expression, string printed)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        ParsedExpression parsed = Parse(expression);
+        CelParsedExpr parsed = Parse(expression);
 
         string text = Printer.Print(parsed);
 
@@ -67,10 +67,10 @@ public sealed class TwoVariableTreeTests
         Assert.Equal(difference, SyntaxTreeComparer.Difference(Parse(left).Root, Parse(right).Root));
     }
 
-    private static ParsedExpression Parse(string expression)
+    private static CelParsedExpr Parse(string expression)
     {
-        ParseResult result = Parser.Parse(expression, WithTheSet);
+        CelParseResult result = Parser.Parse(expression, WithTheSet);
         Assert.True(result.IsSuccess, expression + ": " + string.Join(" | ", result.Errors.Select(error => error.Code + " " + error.Message)));
-        return result.Expression;
+        return result.ParsedExpr;
     }
 }

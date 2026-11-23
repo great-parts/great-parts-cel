@@ -173,15 +173,15 @@ public sealed class PrinterTests
     public static void ExpansionWithoutRecordedCall_Throws()
     {
         var nodes = new NodeFactory();
-        IdentNode range = nodes.Ident("xs", 0);
-        ConstantNode init = nodes.Constant(CelValue.FromBoolean(true), 1);
-        IdentNode accumulator = nodes.Ident(Macro.AccumulatorName, 1);
-        ComprehensionNode loop = nodes.Comprehension("e", range, Macro.AccumulatorName, init, init, accumulator, accumulator, 1);
-        SelectNode presence = nodes.Select(range, "f", isPresenceTest: true, 2);
+        CelIdentNode range = nodes.Ident("xs", 0);
+        CelConstantNode init = nodes.Constant(CelValue.FromBoolean(true), 1);
+        CelIdentNode accumulator = nodes.Ident(Macro.AccumulatorName, 1);
+        CelComprehensionNode loop = nodes.Comprehension("e", range, Macro.AccumulatorName, init, init, accumulator, accumulator, 1);
+        CelSelectNode presence = nodes.Select(range, "f", isPresenceTest: true, 2);
         var lines = new LineTable("xs");
 
-        Assert.Throws<InvalidOperationException>(() => Printer.Print(nodes.Build(loop, lines)));
-        Assert.Throws<InvalidOperationException>(() => Printer.Print(nodes.Build(presence, lines)));
+        Assert.Throws<ArgumentException>(() => Printer.Print(nodes.Build(loop, lines)));
+        Assert.Throws<ArgumentException>(() => Printer.Print(nodes.Build(presence, lines)));
     }
 
     // The text of 2^-25 and 2^-958 in the form "R" of .NET 10 reads back to the double below them, whose gap is half as
@@ -225,16 +225,16 @@ public sealed class PrinterTests
         Printer.AppendConstant(text, CelValue.FromDouble(value));
         string printed = text.ToString();
 
-        ParsedExpression parsed = Parse(printed, SyntaxOptions.Standard);
+        CelParsedExpr parsed = Parse(printed, SyntaxOptions.Standard);
 
-        var constant = Assert.IsType<ConstantNode>(parsed.Root);
+        var constant = Assert.IsType<CelConstantNode>(parsed.Root);
         Assert.True(constant.Value.TryGetDouble(out double readBack), printed);
         Assert.Equal(BitConverter.DoubleToInt64Bits(value), BitConverter.DoubleToInt64Bits(readBack));
     }
 
     private static void AssertPrintsAndParsesBack(string expression, string printed, SyntaxOptions syntax)
     {
-        ParsedExpression parsed = Parse(expression, syntax);
+        CelParsedExpr parsed = Parse(expression, syntax);
 
         string text = Printer.Print(parsed);
 
@@ -242,11 +242,11 @@ public sealed class PrinterTests
         Assert.Null(SyntaxTreeComparer.Difference(parsed.Root, Parse(text, syntax).Root));
     }
 
-    private static ParsedExpression Parse(string expression, SyntaxOptions syntax)
+    private static CelParsedExpr Parse(string expression, SyntaxOptions syntax)
     {
-        ParseResult result = Parser.Parse(expression, syntax);
+        CelParseResult result = Parser.Parse(expression, syntax);
         Assert.True(result.IsSuccess, expression + ": " + string.Join(" | ", result.Errors.Select(Format)));
-        return result.Expression;
+        return result.ParsedExpr;
     }
 
     private static string Format(CelError error) => error.Code + " " + error.Message;

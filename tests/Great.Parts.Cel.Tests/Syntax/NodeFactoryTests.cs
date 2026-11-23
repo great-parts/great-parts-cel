@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Immutable;
 using System.Linq;
 using Great.Parts.Cel.Diagnostics;
@@ -17,17 +16,17 @@ public sealed class NodeFactoryTests
     {
         var nodes = new NodeFactory();
 
-        ConstantNode constant = nodes.Constant(CelValue.FromInt64(1), 10);
-        IdentNode ident = nodes.Ident("x", 20);
-        SelectNode select = nodes.Select(ident, "f", isPresenceTest: true, 30);
-        CallNode call = nodes.Call("g", select, [constant], 40);
-        ListNode list = nodes.List([call], [0], 50);
-        StructEntry mapEntry = nodes.Entry(constant, list, isOptional: true, 60);
-        StructNode map = nodes.Struct(string.Empty, [mapEntry], 70);
-        StructEntry fieldEntry = nodes.Entry("f", map, isOptional: false, 80);
-        StructNode message = nodes.Struct("a.B", [fieldEntry], 90);
-        ComprehensionNode comprehension = nodes.Comprehension("v", message, "@result", constant, ident, select, call, 100);
-        ParsedExpression parsed = nodes.Build(comprehension, new LineTable("x"));
+        CelConstantNode constant = nodes.Constant(CelValue.FromInt64(1), 10);
+        CelIdentNode ident = nodes.Ident("x", 20);
+        CelSelectNode select = nodes.Select(ident, "f", isPresenceTest: true, 30);
+        CelCallNode call = nodes.Call("g", select, [constant], 40);
+        CelListNode list = nodes.List([call], [0], 50);
+        CelMapEntryNode mapEntry = nodes.Entry(constant, list, isOptional: true, 60);
+        CelMapNode map = nodes.Map([mapEntry], 70);
+        CelStructFieldNode fieldEntry = nodes.Field("f", map, isOptional: false, 80);
+        CelStructNode message = nodes.Struct("a.B", [fieldEntry], 90);
+        CelComprehensionNode comprehension = nodes.Comprehension("v", message, "@result", constant, ident, select, call, 100);
+        CelParsedExpr parsed = nodes.Build(comprehension, new LineTable("x"));
 
         Assert.Equal(
             Enumerable.Range(1, 10),
@@ -42,29 +41,28 @@ public sealed class NodeFactoryTests
     public static void Nodes_HoldTheirParts()
     {
         var nodes = new NodeFactory();
-        ConstantNode one = nodes.Constant(CelValue.FromInt64(1), 0);
-        IdentNode x = nodes.Ident(".x", 1);
+        CelConstantNode one = nodes.Constant(CelValue.FromInt64(1), 0);
+        CelIdentNode x = nodes.Ident(".x", 1);
 
-        SelectNode select = nodes.Select(x, "a-b", isPresenceTest: true, 2);
-        CallNode call = nodes.Call("f", x, [one, select], 3);
-        ListNode list = nodes.List([one, x, select], [0, 2], 4);
-        StructEntry mapEntry = nodes.Entry(one, x, isOptional: true, 5);
-        StructEntry fieldEntry = nodes.Entry("f", one, isOptional: false, 6);
-        StructNode message = nodes.Struct(".a.B", [fieldEntry], 7);
-        ComprehensionNode comprehension = nodes.Comprehension("v", list, "@result", one, x, select, call, 8);
+        CelSelectNode select = nodes.Select(x, "a-b", isPresenceTest: true, 2);
+        CelCallNode call = nodes.Call("f", x, [one, select], 3);
+        CelListNode list = nodes.List([one, x, select], [0, 2], 4);
+        CelMapEntryNode mapEntry = nodes.Entry(one, x, isOptional: true, 5);
+        CelStructFieldNode fieldEntry = nodes.Field("f", one, isOptional: false, 6);
+        CelStructNode message = nodes.Struct(".a.B", [fieldEntry], 7);
+        CelComprehensionNode comprehension = nodes.Comprehension("v", list, "@result", one, x, select, call, 8);
 
         Assert.Equal((".x", "a-b", true), (x.Name, select.Field, select.IsPresenceTest));
         Assert.Same(x, select.Operand);
-        Assert.Equal(("f", (ExprNode?)x), (call.Function, call.Target));
-        Assert.Equal(new ExprNode[] { one, select }, call.Arguments.AsEnumerable());
+        Assert.Equal(("f", (CelExprNode?)x), (call.Function, call.Target));
+        Assert.Equal(new CelExprNode[] { one, select }, call.Arguments.AsEnumerable());
         Assert.Equal([0, 2], list.OptionalIndices.AsEnumerable());
-        Assert.Equal(((ExprNode)one, (ExprNode)x, true, (string?)null), (mapEntry.Key, mapEntry.Value, mapEntry.IsOptional, mapEntry.FieldName));
-        Assert.Equal(((string?)"f", (ExprNode)one, false), (fieldEntry.FieldName, fieldEntry.Value, fieldEntry.IsOptional));
-        Assert.Throws<InvalidOperationException>(() => fieldEntry.Key);
-        Assert.Equal(".a.B", message.MessageName);
-        Assert.Same(fieldEntry, Assert.Single(message.Entries));
+        Assert.Equal(((CelExprNode)one, (CelExprNode)x, true), (mapEntry.Key, mapEntry.Value, mapEntry.IsOptional));
+        Assert.Equal(("f", (CelExprNode)one, false), (fieldEntry.Name, fieldEntry.Value, fieldEntry.IsOptional));
+        Assert.Equal(".a.B", message.TypeName);
+        Assert.Same(fieldEntry, Assert.Single(message.Fields));
         Assert.Equal(
-            ("v", (ExprNode)list, "@result", (ExprNode)one, (ExprNode)x, (ExprNode)select, (ExprNode)call),
+            ("v", (CelExprNode)list, "@result", (CelExprNode)one, (CelExprNode)x, (CelExprNode)select, (CelExprNode)call),
             (comprehension.IterVar, comprehension.IterRange, comprehension.AccuVar, comprehension.AccuInit, comprehension.LoopCondition, comprehension.LoopStep, comprehension.Result));
     }
 
@@ -76,8 +74,8 @@ public sealed class NodeFactoryTests
         var second = new NodeFactory();
 
         _ = first.Ident("a", 0);
-        ImmutableArray<ExprNode> none = [];
-        CallNode call = second.Call("f", null, none, 5);
+        ImmutableArray<CelExprNode> none = [];
+        CelCallNode call = second.Call("f", null, none, 5);
 
         Assert.Equal(1, call.Id);
         Assert.Equal(5, second.Build(call, new LineTable("f()")).GetOffset(1));

@@ -8,7 +8,7 @@
 | :- | :- |
 | Path | `eng/oracle/`, not part of the .NET solution |
 | `go.mod` | `module github.com/great-parts/great-parts-cel/eng/oracle`; `go 1.27.4`, the version of Go of the oracle ([Version of Go](#version-of-go)); requires `cel.dev/cel-go` v0.33.4, `cel.dev/expr` v0.25.1 and `google.golang.org/protobuf` v1.36.10 — the last two at the versions that cel-go v0.33.4 itself requires; `go.sum` is committed |
-| Direct imports | `cel.dev/cel-go/cel`, `cel.dev/cel-go/common/env`, `cel.dev/cel-go/common/types`, `cel.dev/cel-go/ext`; `cel.dev/expr` and `cel.dev/expr/conformance/...` for `Value` and `SimpleTest`; `google.golang.org/protobuf/encoding/protojson` and `prototext`; the Go standard library |
+| Direct imports | `cel.dev/cel-go/cel`, `cel.dev/cel-go/common/env`, `cel.dev/cel-go/common/types`, `cel.dev/cel-go/ext`; `cel.dev/expr` and `cel.dev/expr/conformance/...` for `Value` and `SimpleTest`; `google.golang.org/protobuf/encoding/protojson` and `prototext`; `google.golang.org/genproto/googleapis/api/expr/v1alpha1` for the message `CheckedExpr` of the request `checked` (a direct requirement since then, at the version and with the `go.sum` lines it had as a requirement of cel-go); the Go standard library |
 | Tests | none in Go: the oracle is checked by the steps of the launcher and by every run; the comparison is tested on the .NET side with fake sides, see [eng-difftest.md](eng-difftest.md#tests) |
 
 | File | Contents |
@@ -71,12 +71,14 @@ In the handshake, `go` is the Go that built the oracle, `runtime.Version()`.
 | `eval` | `id`, `expr`, `bindings`: name → `cel.expr.Value` | `outcome` and its fields, below |
 | `case` | the fields of `eval`, `name`, `description` | `textproto`: a `SimpleTest` in text format |
 | `offset` | `id`, `zone`: the name of a zone of the file, `instant`: whole seconds since 1970-01-01T00:00:00Z, no other field | `outcome` `offset` with `seconds`, or `zone-error` with `message` |
+| `checked` | `id`, and either `expr` or `checked` (base64 of the bytes of a `CheckedExpr`); with `checked` also `bindings` | with `expr`: `outcome` `checked` with `checked`, or `compile-error`; with `checked`: the outcomes of `eval` |
 
 | `outcome` | When | Fields |
 | :- | :- | :- |
-| `compile-error` | `Parse`, `Check` or `Program` of the environment fails | `stage` — `parse`, `check` or `program`; `message` |
+| `compile-error` | `Parse`, `Check` or `Program` of the environment fails, or the bytes of a `checked` request are not read | `stage` — `parse`, `check`, `program` or `load`; `message` |
 | `eval-error` | `Eval` returns an error or an error value | `message` |
 | `value` | otherwise | `value` |
+| `checked` | the answer to the request `checked` with `expr` | `checked`: the bytes of `cel.AstToCheckedExpr` of the check of the expression, base64 |
 | `offset` | the answer to the request `offset` | `seconds`: the offset in seconds that `time.LoadLocation` of the zone gives at the instant |
 | `zone-error` | `time.LoadLocation` does not load the zone | `message` of Go |
 
@@ -85,6 +87,10 @@ In the handshake, `go` is the Go that built the oracle, `runtime.Version()`.
 - The text of the `case` answer is the output of `prototext`, which is not stable on purpose: its spaces change across builds of the oracle (https://pkg.go.dev/google.golang.org/protobuf/encoding/prototext, read on 2026-10-29). `eng/difftest` copies it unchanged and never compares it byte for byte; only the empty form of `pending.textproto` is exact ([eng-difftest.md](eng-difftest.md#known-signatures-and-the-corpus)).
 - A malformed request, or a result without a `cel.expr.Value` form, ends the process with exit code 1 and a message on standard error. A result without that form is a value of an abstract type (`net.IP`, `net.CIDR`) and a string that is not valid UTF-8: `%s` of `bytes` that are not valid UTF-8 gives cel-go a Go string with the raw bytes (`proto: field cel.expr.Value.string_value contains invalid UTF-8`). The profile of `eng/difftest` makes neither ([eng-difftest.md](eng-difftest.md#profile-of-the-extension-sets)); the oracle does not hide either, since a value that it cannot send is a case that cannot be compared. One exception: an optional as the whole result, which cel-go gives for an expression that its checker types as another type — a presence test `has(e.f)` over an optional operand that is a call — is the outcome `eval-error` with the message `the result is an optional and has no cel.expr.Value form: <the optional>`, so the comparison names the divergence from the library, which gives a `bool`, and the run goes on; an optional inside a list or a map still ends the process.
 - The request `offset` is `ENG822` of [eng-difftest.md](eng-difftest.md#findings-and-output): the oracle loads each zone once from the archive of `ZONEINFO` and answers the offset of `time.Unix(instant, 0)` in it. A value of time is `object_value`, an `Any` of `google.protobuf.Timestamp` or `google.protobuf.Duration`, in the protojson of the answer.
+
+## Checked expressions
+
+The request `checked` serves the exchange of checked expressions with the library ([ast-protobuf](ast-protobuf.md#exchange-with-cel-go)). With `expr` it parses and checks the expression in the environment of the manifest, as `eval` does, and answers the bytes of `cel.AstToCheckedExpr`; a parse or check failure is the `compile-error` of `eval`, with the same stage and message. With `checked` it reads the bytes into the `CheckedExpr` of `genproto` (the message of `google.api.expr.v1alpha1`, which has the field numbers of `cel.expr`), makes the `Ast` with `cel.CheckedExprToAstWithSource`, which is `CheckedExprToAst` with the error, plans it with `Program` in the environment of the manifest and evaluates it on the bindings: from there the outcomes are those of `eval`. Bytes that do not read, or that `CheckedExprToAst` refuses, are the `compile-error` of the stage `load`; a refusal of `Program` is the stage `program`. A request with both `expr` and `checked`, with neither, with `bindings` next to `expr`, or `checked` in another request is malformed and ends the process like any malformed request.
 
 ## One-time run of test files
 

@@ -201,6 +201,7 @@ internal static class Program
 
         // Step 4: cases 0, 1, 2, … until the budget is spent, or the one case of --case.
         DivergenceSearch search = new(library, oracle, oracle, KnownSignatures.Read(root));
+        search.AddExchanges(Exchanges(library, oracle));
         ulong cases = 0;
         for (ulong number = options.Case ?? 0; options.Case is not null ? cases == 0 : spent.Elapsed < options.Budget; number++)
         {
@@ -229,6 +230,13 @@ internal static class Program
         setup.Output.WriteLine(JournalLine(options, commit, oracle.Handshake, cases, search.NewSignatures, search.KnownSignaturesFound.Count));
         return findings.Any(finding => finding.Severity == FindingSeverity.Error) ? 1 : 0;
     }
+
+    // The two comparisons of the exchange of a checked expression (docs/design/ast-protobuf.md, "Exchange with cel-go"); a library side
+    // that cannot write and load one, such as the fake side of a test, gives none.
+    private static IReadOnlyList<ExchangeChannel> Exchanges(ICaseSide library, OracleConnection oracle) =>
+        library is ICheckedSide checkedLibrary
+            ? ExchangeChannel.Both(new ExchangeParty(library, checkedLibrary), new ExchangeParty(oracle, oracle))
+            : [];
 
     // Checks one case. A failed oracle names the case in progress, by the seed and the number alone: the log of the oracle is not
     // in the public log, and the number is what reproduces the case, with its minimization requests included.

@@ -187,7 +187,7 @@ public sealed class ParserProperties
 
     private static string? Violation(ParserCase testCase)
     {
-        ParseResult result;
+        CelParseResult result;
         try
         {
             result = Environment.Parse(testCase.Text, testCase.OptionalSyntax ? WithOptionalSyntax : SyntaxOptions.Standard);
@@ -203,7 +203,7 @@ public sealed class ParserProperties
 
     // The rules for every result: a tree or errors; no InternalError; parse errors within the text; at most 100 errors and
     // TooManyErrors as the 101st; the errors by offset, except the last one, which may have stopped parsing.
-    private static string? Invalid(ParseResult result, int length)
+    private static string? Invalid(CelParseResult result, int length)
     {
         ImmutableArray<CelError> errors = result.Errors;
         if (result.IsSuccess != errors.IsEmpty)
@@ -270,20 +270,20 @@ public sealed class ParserProperties
     {
         try
         {
-            ParseResult parsed = Environment.Parse(text, WithOptionalSyntax);
+            CelParseResult parsed = Environment.Parse(text, WithOptionalSyntax);
             if (!parsed.IsSuccess)
             {
                 return "the text does not parse: " + string.Join(", ", parsed.Errors.Select(Format));
             }
 
-            string printed = Printer.Print(parsed.Expression);
-            ParseResult again = Environment.Parse(printed, WithOptionalSyntax);
+            string printed = Printer.Print(parsed.ParsedExpr);
+            CelParseResult again = Environment.Parse(printed, WithOptionalSyntax);
             if (!again.IsSuccess)
             {
                 return $"the printed text {Quoted(printed)} does not parse: " + string.Join(", ", again.Errors.Select(Format));
             }
 
-            return SyntaxTreeComparer.Difference(parsed.Expression.Root, again.Expression.Root) is { } difference
+            return SyntaxTreeComparer.Difference(parsed.ParsedExpr.Root, again.ParsedExpr.Root) is { } difference
                 ? $"the printed text {Quoted(printed)} parses into another tree: {difference}"
                 : null;
         }

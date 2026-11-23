@@ -136,7 +136,7 @@ public sealed class CheckerTests
         CheckResult result = Check(Declared, "n + n");
 
         Assert.True(result.IsSuccess);
-        var call = (CallNode)result.Expression.Parsed.Root;
+        var call = (CelCallNode)result.Expression.Parsed.Root;
         Assert.All(
             call.Arguments,
             argument => Assert.Equal("n", result.Expression.References[argument.Id].Variable?.Name));
@@ -195,11 +195,11 @@ public sealed class CheckerTests
 
     private static CheckResult Check(CelEnvironment environment, string expression) => environment.Check(Parse(expression));
 
-    private static ParsedExpression Parse(string expression)
+    private static CelParsedExpr Parse(string expression)
     {
-        ParseResult parsed = Parser.Parse(expression);
+        CelParseResult parsed = Parser.Parse(expression);
         Assert.True(parsed.IsSuccess, expression);
-        return parsed.Expression;
+        return parsed.ParsedExpr;
     }
 
     private static string Text(int number) => number.ToString(CultureInfo.InvariantCulture);

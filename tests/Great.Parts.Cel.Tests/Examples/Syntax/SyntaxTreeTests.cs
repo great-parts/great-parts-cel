@@ -180,22 +180,27 @@ public sealed class SyntaxTreeTests
     {
         ArgumentNullException.ThrowIfNull(expression);
 
-        ParsedExpression parsed = Parse(syntax, expression);
-        StructNode node = Assert.IsType<StructNode>(parsed.Root);
+        CelParsedExpr parsed = Parse(syntax, expression);
+        (string typeName, int[] entryIds) = parsed.Root switch
+        {
+            CelStructNode message => (message.TypeName, message.Fields.Select(field => field.Id).ToArray()),
+            CelMapNode map => (string.Empty, map.Entries.Select(entry => entry.Id).ToArray()),
+            _ => throw new UnreachableException("The expression is a map or a message literal."),
+        };
 
-        Assert.Equal(messageName, node.MessageName);
+        Assert.Equal(messageName, typeName);
         Assert.Equal(
             offsets,
-            string.Join(' ', node.Entries.Select(entry => entry.Id).Prepend(node.Id).Select(id => Offset(parsed, id))));
+            string.Join(' ', entryIds.Prepend(parsed.Root.Id).Select(id => Offset(parsed, id))));
     }
 
-    private ParsedExpression Parse(string syntax, string expression)
+    private CelParsedExpr Parse(string syntax, string expression)
     {
-        ParseResult result = environment.Parse(expression.Replace("\\n", "\n", StringComparison.Ordinal), Options(syntax));
+        CelParseResult result = environment.Parse(expression.Replace("\\n", "\n", StringComparison.Ordinal), Options(syntax));
 
         Assert.True(result.IsSuccess, expression + ": " + string.Join("; ", result.Errors.Select(error => error.Message)));
-        Assert.NotNull(result.Expression);
-        return result.Expression;
+        Assert.NotNull(result.ParsedExpr);
+        return result.ParsedExpr;
     }
 
     private static SyntaxOptions? Options(string syntax) => syntax switch
@@ -221,20 +226,20 @@ public sealed class SyntaxTreeTests
 
     private static string[] Lines(string table) => table.ReplaceLineEndings("\n").Split('\n');
 
-    private static string Notation(ParsedExpression parsed) => Notation(parsed, parsed.Root);
+    private static string Notation(CelParsedExpr parsed) => Notation(parsed, parsed.Root);
 
-    private static string Notation(ParsedExpression parsed, ExprNode node)
+    private static string Notation(CelParsedExpr parsed, CelExprNode node)
     {
         string text = node switch
         {
-            IdentNode ident => ident.Name,
-            ConstantNode constant => Constant(constant.Value),
-            SelectNode select => Notation(parsed, select.Operand) + "." + select.Field + (select.IsPresenceTest ? "~test-only" : ""),
-            CallNode { Target: { } target } call => Notation(parsed, target) + "." + call.Function + "(" + Join(parsed, call.Arguments) + ")",
-            CallNode call => call.Function + "(" + Join(parsed, call.Arguments) + ")",
-            ListNode list => "[" + string.Join(", ", list.Elements.Select((element, index) =>
+            CelIdentNode ident => ident.Name,
+            CelConstantNode constant => Constant(constant.Value),
+            CelSelectNode select => Notation(parsed, select.Operand) + "." + select.Field + (select.IsPresenceTest ? "~test-only" : ""),
+            CelCallNode { Target: { } target } call => Notation(parsed, target) + "." + call.Function + "(" + Join(parsed, call.Arguments) + ")",
+            CelCallNode call => call.Function + "(" + Join(parsed, call.Arguments) + ")",
+            CelListNode list => "[" + string.Join(", ", list.Elements.Select((element, index) =>
                 (list.OptionalIndices.Contains(index) ? "?" : "") + Notation(parsed, element))) + "]",
-            ComprehensionNode loop => "comprehension(" + string.Join(
+            CelComprehensionNode loop => "comprehension(" + string.Join(
                 ", ",
                 loop.IterVar,
                 Notation(parsed, loop.IterRange),
@@ -248,7 +253,7 @@ public sealed class SyntaxTreeTests
         return text + "@" + Offset(parsed, node.Id);
     }
 
-    private static string Join(ParsedExpression parsed, ImmutableArray<ExprNode> nodes) =>
+    private static string Join(CelParsedExpr parsed, ImmutableArray<CelExprNode> nodes) =>
         string.Join(", ", nodes.Select(node => Notation(parsed, node)));
 
     private static string Constant(CelValue value) => value.Kind switch
@@ -261,6 +266,6 @@ public sealed class SyntaxTreeTests
         _ => throw new UnreachableException(),
     };
 
-    private static string Offset(ParsedExpression parsed, int id) =>
+    private static string Offset(CelParsedExpr parsed, int id) =>
         parsed.GetOffset(id).ToString(CultureInfo.InvariantCulture);
 }

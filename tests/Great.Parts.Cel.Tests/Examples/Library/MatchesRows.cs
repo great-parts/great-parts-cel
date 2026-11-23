@@ -157,13 +157,13 @@ internal static class MatchesRows
         }
         else
         {
-            ParseResult parsed = environment.Parse(expression);
+            CelParseResult parsed = environment.Parse(expression);
             if (!parsed.IsSuccess)
             {
                 return "parse " + parsed.Errors[0].Code;
             }
 
-            result = environment.EvaluateWithoutTypeCheck(parsed.Expression, bindings ?? new CelBindings());
+            result = environment.EvaluateWithoutTypeCheck(parsed.ParsedExpr, bindings ?? new CelBindings());
         }
 
         if (result.IsSuccess)

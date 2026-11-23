@@ -15,8 +15,8 @@ public sealed class PlanBoundaryTests
 
     private static Planner PlannerOf(string expression)
     {
-        ParseResult parsed = TestEnvironment.Parse(expression);
-        CheckResult checkedResult = TestEnvironment.Check(parsed.Expression!);
+        CelParseResult parsed = TestEnvironment.Parse(expression);
+        CheckResult checkedResult = TestEnvironment.Check(parsed.ParsedExpr!);
         Assert.True(checkedResult.IsSuccess, expression);
         return Planner.For(checkedResult.Expression, TestEnvironment.Declarations, TestEnvironment.TimeZones);
     }

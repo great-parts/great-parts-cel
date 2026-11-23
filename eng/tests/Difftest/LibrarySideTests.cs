@@ -104,7 +104,52 @@ public sealed class LibrarySideTests
         Assert.Equal(OutcomeClass.EvaluationError, empty.Class);
     }
 
+    // The exchange of a checked expression (docs/design/ast-protobuf.md, "Exchange with cel-go"): the library writes the bytes of a
+    // check and reads them back, as it reads those of cel-go.
+    [Fact]
+    public void LibrarySide_WritesAndLoadsACheckedExpression()
+    {
+        using TempDirectory root = new();
+        LibrarySide side = Build(WriteZones(root, ("Asia/Kolkata", Tzif([], [], [19_800], "IST-5:30"))));
+        Dictionary<string, Value> bindings = new() { ["gp.q"] = new Value { Int64Value = 1 }, ["i1"] = new Value { Int64Value = 41 } };
+
+        CheckedAttempt made = side.Check("q + i1");
+
+        Assert.NotNull(made.Bytes);
+        Assert.Null(made.Failure);
+        SideOutcome loaded = side.EvaluateChecked(made.Bytes, bindings);
+        Assert.Equal(new Value { Int64Value = 42 }, loaded.Result);
+        Assert.Equal(side.Evaluate("q + i1", bindings).Result, loaded.Result);
+    }
+
+    [Fact]
+    public void LibrarySide_TextThatDoesNotCompile_HasNoCheckedExpression()
+    {
+        using TempDirectory root = new();
+        LibrarySide side = Build(WriteZones(root, ("Asia/Kolkata", Tzif([], [], [19_800], "IST-5:30"))));
+
+        CheckedAttempt parse = side.Check("1 +");
+        CheckedAttempt check = side.Check("i1 + b1");
+
+        Assert.Same(CheckedAttempt.NotCompiled, parse);
+        Assert.Same(CheckedAttempt.NotCompiled, check);
+    }
+
+    [Fact]
+    public void LibrarySide_BytesThatAreNoCheckedExpression_AreACompileErrorOfTheLoadStage()
+    {
+        using TempDirectory root = new();
+        LibrarySide side = Build(WriteZones(root, ("Asia/Kolkata", Tzif([], [], [19_800], "IST-5:30"))));
+
+        SideOutcome outcome = side.EvaluateChecked(NotAMessage, new Dictionary<string, Value>());
+
+        Assert.Equal((OutcomeClass.CompileError, CompileStage.Load), (outcome.Class, outcome.Stage));
+    }
+
     // ---- Helpers ----
+
+    // A tag with the wire type 7, which no protobuf message has.
+    private static readonly byte[] NotAMessage = [0x0F];
 
     private static Value Time(Timestamp timestamp) => new() { ObjectValue = Any.Pack(timestamp) };
 

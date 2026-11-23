@@ -19,9 +19,10 @@
       "Syntax/Parser.cs",
       "Syntax/Token.cs",
       "Syntax/TokenKind.cs",
-      "Syntax/ParseResult.cs",
+      "Syntax/CelParseResult.cs",
+      "Syntax/TreeInput.cs",
       "Syntax/SyntaxOptions.cs",
-      "Syntax/ParsedExpression.cs"
+      "Syntax/CelParsedExpr.cs"
     ],
     "thresholds": {
       "high": 80,

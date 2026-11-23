@@ -41,7 +41,7 @@ public sealed class CheckerProperties
     // Check returns for a text that parses; no exception escapes, no error is InternalError, every error lies within the text.
     private static string? NeverThrowsViolation(string text)
     {
-        ParseResult parsed = TypedExpressions.Environment.Parse(text);
+        CelParseResult parsed = TypedExpressions.Environment.Parse(text);
         if (!parsed.IsSuccess)
         {
             return null;
@@ -50,7 +50,7 @@ public sealed class CheckerProperties
         CheckResult result;
         try
         {
-            result = TypedExpressions.Environment.Check(parsed.Expression);
+            result = TypedExpressions.Environment.Check(parsed.ParsedExpr);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
@@ -76,13 +76,13 @@ public sealed class CheckerProperties
     // A text of the generator parses and checks without errors, and its type is assignable to its target type.
     private static string? WellTypedViolation(TypedCase testCase)
     {
-        ParseResult parsed = TypedExpressions.Environment.Parse(testCase.Text);
+        CelParseResult parsed = TypedExpressions.Environment.Parse(testCase.Text);
         if (!parsed.IsSuccess)
         {
             return $"parse error: {parsed.Errors[0].Message}";
         }
 
-        CheckResult result = TypedExpressions.Environment.Check(parsed.Expression);
+        CheckResult result = TypedExpressions.Environment.Check(parsed.ParsedExpr);
         if (!result.IsSuccess)
         {
             return $"check error {result.Errors[0].Code} at {result.Errors[0].Location.Offset}: {result.Errors[0].Message}";

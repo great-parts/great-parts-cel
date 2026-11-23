@@ -39,10 +39,10 @@ public sealed class WithoutTypeCheckTests
 
     private CelError SingleError(string expression)
     {
-        ParseResult parsed = environment.Parse(expression);
+        CelParseResult parsed = environment.Parse(expression);
         Assert.True(parsed.IsSuccess);
 
-        CelEvalResult<CelValue> result = environment.EvaluateWithoutTypeCheck(parsed.Expression, new CelBindings());
+        CelEvalResult<CelValue> result = environment.EvaluateWithoutTypeCheck(parsed.ParsedExpr, new CelBindings());
 
         Assert.False(result.IsSuccess);
         CelError error = Assert.Single(result.Errors);

@@ -26,6 +26,9 @@ internal enum CompileStage
 
     /// <summary>Creating the program; cel-go only.</summary>
     Program,
+
+    /// <summary>Loading the bytes of a checked expression, which only the exchange of a checked expression has.</summary>
+    Load,
 }
 
 /// <summary>

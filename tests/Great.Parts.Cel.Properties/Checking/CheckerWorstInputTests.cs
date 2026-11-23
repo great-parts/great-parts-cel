@@ -63,7 +63,7 @@ public sealed class CheckerWorstInputTests
     }
 
     private static CheckResult ParseAndCheck(CelEnvironment environment, string text) =>
-        environment.Check(environment.Parse(text).Expression!);
+        environment.Check(environment.Parse(text).ParsedExpr!);
 
     // The inputs of the parser that parse (the chains of <, + and * fill 64 KB past the depth of the syntax tree and do not), list literals filling 64 KB whose elements make the checker work hardest, a chain of
     // 250 additions of empty lists, comprehensions nested as deep as the parser allows, and a selection chain in a container.

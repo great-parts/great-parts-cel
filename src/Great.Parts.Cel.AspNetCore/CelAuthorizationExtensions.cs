@@ -18,8 +18,9 @@ namespace Great.Parts.Cel.AspNetCore;
 /// <para>
 /// The handler derives its environments from the one registered with the dependency injection package: one for the user and
 /// one per resource type, each with a compilation cache, so each expression is compiled once. <see langword="true"/> allows access.
-/// <see langword="false"/>, a compilation error and an evaluation error deny it with a reason that has the code of the
-/// error; no exception is thrown and an error never allows access.
+/// An error in an expression (compilation, evaluation, a false value) denies access with a reason that has the code of the
+/// error and throws no exception. A CEL environment that is not registered is an error of the configuration: the first
+/// authorization throws the <see cref="InvalidOperationException"/> of the service provider and access is not given.
 /// </para>
 /// </remarks>
 public static class CelAuthorizationExtensions
@@ -32,7 +33,8 @@ public static class CelAuthorizationExtensions
     /// <remarks>
     /// The environment must be registered too; the handler declares the variables <c>user</c> and <c>resource</c> in an
     /// environment derived from it, so the registered environment must not declare variables with these names. A second call
-    /// adds no services.
+    /// adds no services. If the environment is not registered, the first authorization throws the
+    /// <see cref="InvalidOperationException"/> of the service provider and access is not given; the check does not run at start.
     /// </remarks>
     /// <param name="services">The service collection.</param>
     /// <param name="environmentName">

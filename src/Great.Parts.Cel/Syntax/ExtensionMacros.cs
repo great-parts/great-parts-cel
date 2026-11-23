@@ -64,7 +64,7 @@ internal static class ExtensionMacros
         CelNamespace,
         3,
         isReceiver: true,
-        static (_, arguments) => arguments[0] is IdentNode
+        static (_, arguments) => arguments[0] is CelIdentNode
             ? MacroCheck.Expand
             : MacroCheck.Error("cel.bind() variable names must be simple identifiers", arguments[0]),
         static (nodes, _, arguments, offset) => ExpandBind(nodes, arguments, offset));
@@ -123,7 +123,7 @@ internal static class ExtensionMacros
         CelNamespace,
         2,
         isReceiver: true,
-        static (_, arguments) => arguments[0] is ListNode
+        static (_, arguments) => arguments[0] is CelListNode
             ? MacroCheck.Expand
             : MacroCheck.Error("cel.block requires the first arg to be a list literal", arguments[0]),
         static (nodes, _, arguments, offset) => nodes.Call(BlockFunction, null, arguments, offset));
@@ -230,14 +230,14 @@ internal static class ExtensionMacros
 
     // The names of the two iteration variables, in the order of cel-go: the first is an identifier, then the second, then they
     // differ — the error is at the second — then the first and the second are not the accumulator.
-    private static MacroCheck CheckVariables(ImmutableArray<ExprNode> arguments)
+    private static MacroCheck CheckVariables(ImmutableArray<CelExprNode> arguments)
     {
-        if (arguments[0] is not IdentNode first)
+        if (arguments[0] is not CelIdentNode first)
         {
             return MacroCheck.Error("argument must be a simple name", arguments[0]);
         }
 
-        if (arguments[1] is not IdentNode second)
+        if (arguments[1] is not CelIdentNode second)
         {
             return MacroCheck.Error("argument must be a simple name", arguments[1]);
         }
@@ -257,32 +257,32 @@ internal static class ExtensionMacros
             : MacroCheck.Expand;
     }
 
-    private static ComprehensionNode ExpandExistsOne(NodeFactory nodes, ExprNode? target, ImmutableArray<ExprNode> arguments, int offset) =>
+    private static CelComprehensionNode ExpandExistsOne(NodeFactory nodes, CelExprNode? target, ImmutableArray<CelExprNode> arguments, int offset) =>
         new Macro.Expansion(nodes, offset, twoVariables: true).ExistsOne(target!, arguments);
 
-    private static ComprehensionNode ExpandTransformList(NodeFactory nodes, ExprNode? target, ImmutableArray<ExprNode> arguments, int offset) =>
+    private static CelComprehensionNode ExpandTransformList(NodeFactory nodes, CelExprNode? target, ImmutableArray<CelExprNode> arguments, int offset) =>
         new Macro.Expansion(nodes, offset, twoVariables: true).Map(target!, arguments);
 
-    private static ComprehensionNode ExpandTransformMap(NodeFactory nodes, ExprNode? target, ImmutableArray<ExprNode> arguments, int offset) =>
+    private static CelComprehensionNode ExpandTransformMap(NodeFactory nodes, CelExprNode? target, ImmutableArray<CelExprNode> arguments, int offset) =>
         new Macro.Expansion(nodes, offset, twoVariables: true).TransformMap(target!, arguments);
 
-    private static ComprehensionNode ExpandTransformMapEntry(NodeFactory nodes, ExprNode? target, ImmutableArray<ExprNode> arguments, int offset) =>
+    private static CelComprehensionNode ExpandTransformMapEntry(NodeFactory nodes, CelExprNode? target, ImmutableArray<CelExprNode> arguments, int offset) =>
         new Macro.Expansion(nodes, offset, twoVariables: true).TransformMapEntry(target!, arguments);
 
     // The second argument of getExt and hasExt is a chain of selections that ends in an identifier — a.b.c — with at least one
     // selection and no presence test among them: a bare identifier, a call, a constant, a list or a has() is not one. The error is
     // at the argument.
-    private static MacroCheck CheckExtension(ImmutableArray<ExprNode> arguments)
+    private static MacroCheck CheckExtension(ImmutableArray<CelExprNode> arguments)
     {
-        ExprNode node = arguments[1];
+        CelExprNode node = arguments[1];
         int selections = 0;
-        while (node is SelectNode { IsPresenceTest: false } select)
+        while (node is CelSelectNode { IsPresenceTest: false } select)
         {
             selections++;
             node = select.Operand;
         }
 
-        return selections > 0 && node is IdentNode
+        return selections > 0 && node is CelIdentNode
             ? MacroCheck.Expand
             : MacroCheck.Error("invalid extension field", arguments[1]);
     }
@@ -290,18 +290,18 @@ internal static class ExtensionMacros
     // The selection of the field named by the chain — the names joined by dots, a leading dot of the root kept as it is — on the
     // first argument, as a selection or a presence test. It is the selection of an escaped field name, m.`a.b.c`, so checking and
     // evaluation need nothing for it; the nodes of the chain are not part of it.
-    private static SelectNode ExpandExtension(NodeFactory nodes, ImmutableArray<ExprNode> arguments, int offset, bool isPresenceTest)
+    private static CelSelectNode ExpandExtension(NodeFactory nodes, ImmutableArray<CelExprNode> arguments, int offset, bool isPresenceTest)
     {
         // The chain is walked from its last selection to its root, so its depth does not use the stack.
         List<string> fields = [];
-        ExprNode node = arguments[1];
-        while (node is SelectNode select)
+        CelExprNode node = arguments[1];
+        while (node is CelSelectNode select)
         {
             fields.Add(select.Field);
             node = select.Operand;
         }
 
-        var name = new StringBuilder(((IdentNode)node).Name);
+        var name = new StringBuilder(((CelIdentNode)node).Name);
         for (int i = fields.Count - 1; i >= 0; i--)
         {
             name.Append('.').Append(fields[i]);
@@ -313,7 +313,7 @@ internal static class ExtensionMacros
     // The checks of math.greatest and math.least by the kind of the node, in the order of the rows of the table of errors: no
     // argument, then one argument that is neither a number nor a non-empty list literal of numbers, then the first argument of
     // several that is not a number. Whether an expression is a number is left to the overloads of the expansion.
-    private static MacroCheck CheckExtreme(string name, ExprNode? target, ImmutableArray<ExprNode> arguments)
+    private static MacroCheck CheckExtreme(string name, CelExprNode? target, ImmutableArray<CelExprNode> arguments)
     {
         if (arguments.Length == 0)
         {
@@ -327,7 +327,7 @@ internal static class ExtensionMacros
                 : MacroCheck.Error("math." + name + "() invalid single argument value", arguments[0]);
         }
 
-        foreach (ExprNode argument in arguments)
+        foreach (CelExprNode argument in arguments)
         {
             if (!IsNumeric(argument))
             {
@@ -339,27 +339,27 @@ internal static class ExtensionMacros
     }
 
     // One argument: math.@max(a); two: math.@max(a, b); three or more: math.@max([a, b, …]) with a list literal of the arguments.
-    private static CallNode ExpandExtreme(string function, NodeFactory nodes, ImmutableArray<ExprNode> arguments, int offset)
+    private static CelCallNode ExpandExtreme(string function, NodeFactory nodes, ImmutableArray<CelExprNode> arguments, int offset)
     {
         if (arguments.Length <= 2)
         {
             return nodes.Call(function, null, arguments, offset);
         }
 
-        ListNode list = nodes.List(arguments, [], offset);
+        CelListNode list = nodes.List(arguments, [], offset);
         return nodes.Call(function, null, [list], offset);
     }
 
     // The receiver of sortBy is a list literal, an identifier, a selection, a comprehension or a call; the name is an identifier that
     // is not the accumulator. The first fault is the error: the receiver is its place for the kind, the argument for the name.
-    private static MacroCheck CheckSortBy(ExprNode target, ImmutableArray<ExprNode> arguments)
+    private static MacroCheck CheckSortBy(CelExprNode target, ImmutableArray<CelExprNode> arguments)
     {
-        if (target is not (ListNode or IdentNode or SelectNode or ComprehensionNode or CallNode))
+        if (target is not (CelListNode or CelIdentNode or CelSelectNode or CelComprehensionNode or CelCallNode))
         {
             return MacroCheck.Error("sortBy can only be applied to a list, identifier, comprehension, call or select expression", target);
         }
 
-        if (arguments[0] is not IdentNode name)
+        if (arguments[0] is not CelIdentNode name)
         {
             return MacroCheck.Error("argument is not an identifier", arguments[0]);
         }
@@ -371,49 +371,49 @@ internal static class ExtensionMacros
 
     // The receiver bound to the hidden name by a comprehension over the empty list that takes no step, whose result sorts it by the
     // keys of a map of the receiver: r.map(v, k), as the standard macro builds it, over the hidden name.
-    private static ComprehensionNode ExpandSortBy(NodeFactory nodes, ExprNode target, ImmutableArray<ExprNode> arguments, int offset)
+    private static CelComprehensionNode ExpandSortBy(NodeFactory nodes, CelExprNode target, ImmutableArray<CelExprNode> arguments, int offset)
     {
-        ListNode range = nodes.List([], [], offset);
-        ConstantNode condition = nodes.Constant(CelValue.FromBoolean(false), offset);
-        IdentNode step = nodes.Ident(SortByInput, offset);
-        IdentNode receiver = nodes.Ident(SortByInput, offset);
-        IdentNode keysRange = nodes.Ident(SortByInput, offset);
-        ComprehensionNode keys = new Macro.Expansion(nodes, offset).Map(keysRange, arguments);
+        CelListNode range = nodes.List([], [], offset);
+        CelConstantNode condition = nodes.Constant(CelValue.FromBoolean(false), offset);
+        CelIdentNode step = nodes.Ident(SortByInput, offset);
+        CelIdentNode receiver = nodes.Ident(SortByInput, offset);
+        CelIdentNode keysRange = nodes.Ident(SortByInput, offset);
+        CelComprehensionNode keys = new Macro.Expansion(nodes, offset).Map(keysRange, arguments);
 
         // The map of the keys is recorded as the standard macro map, which the planner charges as it charges that macro: 1 for the empty
         // list, 1 for each step with the expression of the key, and 1 for each key added.
-        nodes.RecordMacroCall(keys, new MacroCall("map", keysRange, arguments, isWritten: false));
-        CallNode result = nodes.Call(SortByFunction, receiver, [keys], offset);
+        nodes.RecordMacroCall(keys, new CelMacroCall("map", keysRange, arguments, isWritten: false));
+        CelCallNode result = nodes.Call(SortByFunction, receiver, [keys], offset);
         return nodes.Comprehension(UnusedVariable, range, SortByInput, target, condition, step, result, offset);
     }
 
     // A comprehension over the empty list: the variable is the accumulator, the initial value is the bound expression, the
     // condition is false so that no step runs, and the result is the third argument. The parts are created in the order of cel-go:
     // the range, the condition, the step, the comprehension.
-    private static ComprehensionNode ExpandBind(NodeFactory nodes, ImmutableArray<ExprNode> arguments, int offset)
+    private static CelComprehensionNode ExpandBind(NodeFactory nodes, ImmutableArray<CelExprNode> arguments, int offset)
     {
-        string name = ((IdentNode)arguments[0]).Name;
-        ListNode range = nodes.List([], [], offset);
-        ConstantNode condition = nodes.Constant(CelValue.FromBoolean(false), offset);
-        IdentNode step = nodes.Ident(name, offset);
+        string name = ((CelIdentNode)arguments[0]).Name;
+        CelListNode range = nodes.List([], [], offset);
+        CelConstantNode condition = nodes.Constant(CelValue.FromBoolean(false), offset);
+        CelIdentNode step = nodes.Ident(name, offset);
         return nodes.Comprehension(UnusedVariable, range, name, arguments[1], condition, step, arguments[2], offset);
     }
 
     // An int literal of at least 0: 1u, 1.0, -1 and any other node are not numbers.
-    private static bool IsNonNegativeInt(ExprNode node) =>
-        node is ConstantNode constant && constant.Value.TryGetInt64(out long number) && number >= 0;
+    private static bool IsNonNegativeInt(CelExprNode node) =>
+        node is CelConstantNode constant && constant.Value.TryGetInt64(out long number) && number >= 0;
 
     // The digits of a number that IsNonNegativeInt accepted.
-    private static string NumberOf(ExprNode node)
+    private static string NumberOf(CelExprNode node)
     {
-        ((ConstantNode)node).Value.TryGetInt64(out long number);
+        ((CelConstantNode)node).Value.TryGetInt64(out long number);
         return number.ToString(CultureInfo.InvariantCulture);
     }
 
     // Two numbers, the first that is wrong being the error.
-    private static MacroCheck CheckNumberPair(string name, ImmutableArray<ExprNode> arguments)
+    private static MacroCheck CheckNumberPair(string name, ImmutableArray<CelExprNode> arguments)
     {
-        foreach (ExprNode argument in arguments)
+        foreach (CelExprNode argument in arguments)
         {
             if (!IsNonNegativeInt(argument))
             {
@@ -425,8 +425,8 @@ internal static class ExtensionMacros
     }
 
     // The only fault of optMap and optFlatMap is a first argument that is not an identifier: the variable of the body.
-    private static MacroCheck CheckOptional(string name, ImmutableArray<ExprNode> arguments) =>
-        arguments[0] is IdentNode
+    private static MacroCheck CheckOptional(string name, ImmutableArray<CelExprNode> arguments) =>
+        arguments[0] is CelIdentNode
             ? MacroCheck.Expand
             : MacroCheck.Error(name + "() variable name must be a simple identifier", arguments[0]);
 
@@ -434,51 +434,51 @@ internal static class ExtensionMacros
     // c is a comprehension over the empty list that binds v to x.value() as its accumulator and takes no step, so its result is e with v in
     // scope. A target that is not an identifier is evaluated once, by one more such comprehension that binds it to the hidden name
     // @target and whose result is the conditional with @target in place of x. The nodes are created in the order of cel-go.
-    private static ExprNode ExpandOptional(NodeFactory nodes, ExprNode target, ImmutableArray<ExprNode> arguments, int offset, bool flat)
+    private static CelExprNode ExpandOptional(NodeFactory nodes, CelExprNode target, ImmutableArray<CelExprNode> arguments, int offset, bool flat)
     {
-        string name = ((IdentNode)arguments[0]).Name;
-        bool isIdentifier = target is IdentNode;
-        ExprNode subject = isIdentifier ? target : nodes.Ident(OptionalTarget, offset);
-        CallNode hasValue = nodes.Call("hasValue", subject, [], offset);
-        ListNode range = nodes.List([], [], offset);
-        IdentNode copy = nodes.Ident(isIdentifier ? ((IdentNode)target).Name : OptionalTarget, offset);
-        CallNode value = nodes.Call("value", copy, [], offset);
-        ConstantNode condition = nodes.Constant(CelValue.FromBoolean(false), offset);
-        IdentNode step = nodes.Ident(name, offset);
-        ComprehensionNode held = nodes.Comprehension(UnusedVariable, range, name, value, condition, step, arguments[1], offset);
-        ExprNode present = flat ? held : nodes.Call(OptionalOfFunction, null, [held], offset);
-        CallNode absent = nodes.Call(OptionalNoneFunction, null, [], offset);
-        CallNode conditional = nodes.Call(ConditionalFunction, null, [hasValue, present, absent], offset);
+        string name = ((CelIdentNode)arguments[0]).Name;
+        bool isIdentifier = target is CelIdentNode;
+        CelExprNode subject = isIdentifier ? target : nodes.Ident(OptionalTarget, offset);
+        CelCallNode hasValue = nodes.Call("hasValue", subject, [], offset);
+        CelListNode range = nodes.List([], [], offset);
+        CelIdentNode copy = nodes.Ident(isIdentifier ? ((CelIdentNode)target).Name : OptionalTarget, offset);
+        CelCallNode value = nodes.Call("value", copy, [], offset);
+        CelConstantNode condition = nodes.Constant(CelValue.FromBoolean(false), offset);
+        CelIdentNode step = nodes.Ident(name, offset);
+        CelComprehensionNode held = nodes.Comprehension(UnusedVariable, range, name, value, condition, step, arguments[1], offset);
+        CelExprNode present = flat ? held : nodes.Call(OptionalOfFunction, null, [held], offset);
+        CelCallNode absent = nodes.Call(OptionalNoneFunction, null, [], offset);
+        CelCallNode conditional = nodes.Call(ConditionalFunction, null, [hasValue, present, absent], offset);
         if (isIdentifier)
         {
             return conditional;
         }
 
-        ListNode outerRange = nodes.List([], [], offset);
-        ConstantNode outerCondition = nodes.Constant(CelValue.FromBoolean(false), offset);
-        IdentNode outerStep = nodes.Ident(OptionalTarget, offset);
+        CelListNode outerRange = nodes.List([], [], offset);
+        CelConstantNode outerCondition = nodes.Constant(CelValue.FromBoolean(false), offset);
+        CelIdentNode outerStep = nodes.Ident(OptionalTarget, offset);
         return nodes.Comprehension(UnusedVariable, outerRange, OptionalTarget, target, outerCondition, outerStep, conditional, offset);
     }
 
     // A constant int, uint or double, or any node that is not a constant and not a list, map or message literal: an identifier,
     // a selection, a call such as dyn(5.4), an operator or a comprehension. The decision is by the kind of the node, not by the
     // type.
-    private static bool IsNumeric(ExprNode node) => node switch
+    private static bool IsNumeric(CelExprNode node) => node switch
     {
-        ConstantNode constant => OrderingRules.IsNumber(constant.Value.Kind),
-        ListNode or StructNode => false,
+        CelConstantNode constant => OrderingRules.IsNumber(constant.Value.Kind),
+        CelListNode or CelMapNode or CelStructNode => false,
         _ => true,
     };
 
     // A list literal with at least one element, every element numeric.
-    private static bool IsNumericList(ExprNode node)
+    private static bool IsNumericList(CelExprNode node)
     {
-        if (node is not ListNode { Elements.Length: > 0 } list)
+        if (node is not CelListNode { Elements.Length: > 0 } list)
         {
             return false;
         }
 
-        foreach (ExprNode element in list.Elements)
+        foreach (CelExprNode element in list.Elements)
         {
             if (!IsNumeric(element))
             {

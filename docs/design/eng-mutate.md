@@ -135,22 +135,24 @@ The configuration of a part is `eng/stryker-parts/<part>.json`: the settings of 
 | `library-core` | `Library/*.cs` without `Conversions.cs`, `NumberText.cs` and `StandardLibraryV1.cs`, and `Library/Text/**/*.cs` |
 | `library-numbers` | `Library/Conversions.cs`, `Library/NumberText.cs`, `Library/StandardLibraryV1.cs` |
 | `library-types` | `Types/**/*.cs` |
-| `syntax-parser` | `Syntax/Parser.cs`, `Token.cs`, `TokenKind.cs`, `ParseResult.cs`, `SyntaxOptions.cs`, `ParsedExpression.cs` |
-| `syntax-macros` | `Syntax/ExtensionMacros.cs`, `Macros.cs`, `MacroCall.cs`, `ComprehensionNode.cs`, `Literals.cs` |
-| `syntax-text` | `Syntax/Printer.cs`, `Lexer.cs`, `SyntaxTreeComparer.cs`, `NodeFactory.cs` and the node types `StructEntry.cs`, `StructNode.cs`, `CallNode.cs`, `SelectNode.cs`, `ListNode.cs`, `ConstantNode.cs`, `IdentNode.cs`, `ExprNode.cs` |
+| `syntax-parser` | `Syntax/Parser.cs`, `Token.cs`, `TokenKind.cs`, `CelParseResult.cs`, `TreeInput.cs`, `SyntaxOptions.cs`, `CelParsedExpr.cs` |
+| `syntax-macros` | `Syntax/ExtensionMacros.cs`, `Macros.cs`, `CelMacroCall.cs`, `CelComprehensionNode.cs`, `Literals.cs` |
+| `syntax-text` | `Syntax/Printer.cs`, `Lexer.cs`, `SyntaxTreeComparer.cs`, `NodeFactory.cs`, `CelExprFactory.cs` and the node types `CelMapEntryNode.cs`, `CelMapNode.cs`, `CelStructFieldNode.cs`, `CelStructNode.cs`, `CelCallNode.cs`, `CelSelectNode.cs`, `CelListNode.cs`, `CelConstantNode.cs`, `CelIdentNode.cs`, `CelExprNode.cs`, `CelExprKind.cs` |
+| `protobuf-reading` | `Syntax/Protobuf/ProtoReader.cs`, `ExprReader.cs`, `TreeLoader.cs`, `SourceInfoReader.cs`, `CheckedMessageValidator.cs`, `ProtoErrors.cs` |
+| `protobuf-writing` | `Syntax/Protobuf/ProtoWriter.cs`, `ExprWriter.cs`, `ExprData.cs`, `ExprForm.cs`, `ParsedExprCodec.cs`, `Checking/Protobuf/**/*.cs` |
 | `evaluation` | `Evaluation/**/*.cs` |
 | `declarations` | `Declarations/**/*.cs` |
 | `root-diagnostics` | `*.cs` (the files of the project directory), `Diagnostics/**/*.cs`, `SimpleEntry/**/*.cs` |
-| `checking-configuration` | `Checking/**/*.cs`, `Configuration/**/*.cs` |
+| `checking-configuration` | `Checking/**/*.cs` without `Checking/Protobuf/**/*.cs` (the pattern `!Checking/Protobuf/**/*.cs`), `Configuration/**/*.cs` |
 
 `values-o-z` also has `Values/P*.cs` and `Values/S*.cs`.
 
-The size of a part is about 1,000 to 1,250 lines of code without blanks and comments, which is about 500 to 700 mutants (0.5 to 0.6 mutants a line). In a run of the parts on `main` three parts were stopped by the limit, `library-regex` (2,480 mutants to check), `syntax` (1,569) and `library-core` (1,279), while `values-cel` (475 mutants) took 2 h 48 min with the build and the first run of the tests, 21 s a mutant at most; at that rate a part of 700 mutants ends in about four hours. The three were cut again, `library-regex` into the four `regex-*` parts of 1,130 to 1,250 lines, `syntax` into the three `syntax-*` of 880 to 1,000 lines, and `library-core` into `library-core` (986), `library-numbers` (764) and `library-types` (519). The new parts together hold the files of the three old ones. A part that is cut again checks its size by the lines of its files and, after its first run, by its time.
+The size of a part is about 1,000 to 1,250 lines of code without blanks and comments, which is about 500 to 700 mutants (0.5 to 0.6 mutants a line). In a run of the parts on `main` three parts were stopped by the limit, `library-regex` (2,480 mutants to check), `syntax` (1,569) and `library-core` (1,279), while `values-cel` (475 mutants) took 2 h 48 min with the build and the first run of the tests, 21 s a mutant at most; at that rate a part of 700 mutants ends in about four hours. The three were cut again, `library-regex` into the four `regex-*` parts of 1,130 to 1,250 lines, `syntax` into the three `syntax-*` of 880 to 1,000 lines, and `library-core` into `library-core` (986), `library-numbers` (764) and `library-types` (519). The new parts together hold the files of the three old ones. The codec of the protobuf messages ([ast-protobuf](ast-protobuf.md)) is two parts of its own, reading (about 1,150 lines) and writing, with the codec of `CheckedExpr` (about 1,230 lines); it is not part of `checking-configuration`. A part that is cut again checks its size by the lines of its files and, after its first run, by its time.
 
 - Two tests of `eng/tests` keep the cut of the parts: every `.cs` file of the project is in exactly one part, so a new directory or file that no part names fails `eng/test`, and a part file differs from `stryker-config.json` only in `mutate`, so a change of a common setting is made in every file, as for the control set ([Control set](#control-set)).
 - `since` and `mutate` work together in the tool: a part mutates the changed files that its patterns name. Stryker.NET marks the other files' mutants `Removed by mutate filter`; `eng/checks mutation` knows the patterns, so a changed file outside them is no `ENG504` in this part, and one inside them that the report lacks is ([mutation](#mutation)).
 - A part that is stopped by the limit of 6 hours is cut again: its patterns are divided between files, as the three parts above were. The time of a part was not known when the parts were first cut, as the one-job run showed no progress; the log of a run of the parts gives the time of each part.
-- The patterns use `*`, `**` and `?` only, as the check understands only them; the documentation of Stryker.NET names no other syntax for a name, and a span after a file (`File.cs{10..100}`) is left out by the check.
+- The patterns use `*`, `**` and `?`, and a leading `!` for an exclusion (`checking-configuration` excludes `Checking/Protobuf/`), as the check understands only them; the documentation of Stryker.NET names no other syntax for a name, and a span after a file (`File.cs{10..100}`) is left out by the check.
 
 ## Test projects and since
 

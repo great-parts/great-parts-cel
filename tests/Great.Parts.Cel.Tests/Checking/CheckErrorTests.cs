@@ -57,13 +57,13 @@ public sealed class CheckErrorTests
     public static void LoopConditionAndStepOfTheWrongTypes_AreTypeMismatchAtEach()
     {
         var nodes = new NodeFactory();
-        ExprNode range = nodes.Ident("nums", 0);
-        ExprNode init = nodes.Constant(CelValue.FromInt64(0), 5);
-        ExprNode condition = nodes.Constant(CelValue.FromString("c"), 8);
-        ExprNode step = nodes.Ident("s", 12);
-        ExprNode result = nodes.Ident("acc", 14);
-        ExprNode root = nodes.Comprehension("x", range, "acc", init, condition, step, result, 4);
-        ParsedExpression parsed = nodes.Build(root, new LineTable("nums(0, 'c', s, acc)"));
+        CelExprNode range = nodes.Ident("nums", 0);
+        CelExprNode init = nodes.Constant(CelValue.FromInt64(0), 5);
+        CelExprNode condition = nodes.Constant(CelValue.FromString("c"), 8);
+        CelExprNode step = nodes.Ident("s", 12);
+        CelExprNode result = nodes.Ident("acc", 14);
+        CelExprNode root = nodes.Comprehension("x", range, "acc", init, condition, step, result, 4);
+        CelParsedExpr parsed = nodes.Build(root, new LineTable("nums(0, 'c', s, acc)"));
 
         CheckResult checkedResult = Checker.Check(parsed, Declared);
 
@@ -78,10 +78,10 @@ public sealed class CheckErrorTests
     public static void Errors_AreOrderedByOffsetAndStableAtOneOffset()
     {
         var nodes = new NodeFactory();
-        ExprNode second = nodes.Ident("second", 6);
-        ExprNode third = nodes.Ident("third", 6);
-        ExprNode first = nodes.Ident("first", 1);
-        ParsedExpression parsed = nodes.Build(nodes.List([second, third, first], [], 0), new LineTable("[first, …]"));
+        CelExprNode second = nodes.Ident("second", 6);
+        CelExprNode third = nodes.Ident("third", 6);
+        CelExprNode first = nodes.Ident("first", 1);
+        CelParsedExpr parsed = nodes.Build(nodes.List([second, third, first], [], 0), new LineTable("[first, …]"));
 
         CheckResult result = Checker.Check(parsed, Declared);
 
@@ -149,7 +149,7 @@ public sealed class CheckErrorTests
     public static void CheckingWithoutStack_IsInsufficientStackAtTheRoot()
     {
         CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1).Build().GetEnvironmentOrThrow();
-        ParsedExpression parsed = CheckingIndex.Parse("\n  {'k': [missing]}");
+        CelParsedExpr parsed = CheckingIndex.Parse("\n  {'k': [missing]}");
 
         CheckResult result = CheckOnExhaustedStack(environment, parsed);
 
@@ -168,10 +168,10 @@ public sealed class CheckErrorTests
     {
         CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1).Build().GetEnvironmentOrThrow();
         var nodes = new NodeFactory();
-        ExprNode key = nodes.Ident("missing", 1);
-        ExprNode broken = nodes.Call("f", nodes.Ident("missing", 11), default, 13);
-        StructEntry entry = nodes.Entry(key, broken, false, 8);
-        ParsedExpression parsed = nodes.Build(nodes.Struct(string.Empty, [entry], 0), new LineTable("{missing:\n missing.f()}"));
+        CelExprNode key = nodes.Ident("missing", 1);
+        CelExprNode broken = nodes.Call("f", nodes.Ident("missing", 11), default, 13);
+        CelMapEntryNode entry = nodes.Entry(key, broken, false, 8);
+        CelParsedExpr parsed = nodes.Build(nodes.Map([entry], 0), new LineTable("{missing:\n missing.f()}"));
 
         CheckResult result = environment.Check(parsed);
 
@@ -191,7 +191,7 @@ public sealed class CheckErrorTests
     {
         CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1).Build().GetEnvironmentOrThrow();
         var nodes = new NodeFactory();
-        ParsedExpression broken = nodes.Build(nodes.Call("f", null, default, 0), new LineTable("f()"));
+        CelParsedExpr broken = nodes.Build(nodes.Call("f", null, default, 0), new LineTable("f()"));
 
         Assert.Equal(CelErrorCode.InternalError, Assert.Single(environment.Check(broken).Errors).Code);
         Assert.True(environment.Check(CheckingIndex.Parse("1 + 2")).IsSuccess);
@@ -219,7 +219,7 @@ public sealed class CheckErrorTests
 
     // Descends until the runtime reports that the stack is nearly used up, then checks there.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static CheckResult CheckOnExhaustedStack(CelEnvironment environment, ParsedExpression parsed)
+    private static CheckResult CheckOnExhaustedStack(CelEnvironment environment, CelParsedExpr parsed)
     {
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
         {

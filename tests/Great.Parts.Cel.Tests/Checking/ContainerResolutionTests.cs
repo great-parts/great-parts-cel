@@ -73,8 +73,8 @@ public sealed class ContainerResolutionTests
         CheckResult result = Check("r.s.u");
 
         Assert.True(result.IsSuccess);
-        var outer = (SelectNode)result.Expression.Parsed.Root;
-        var prefix = (SelectNode)outer.Operand;
+        var outer = (CelSelectNode)result.Expression.Parsed.Root;
+        var prefix = (CelSelectNode)outer.Operand;
         Assert.Equal("r.s", result.Expression.References[prefix.Id].Variable?.Name);
         Assert.Equal(CelType.MapOf(CelType.String, CelType.Bool), result.Expression.Types[prefix.Id]);
         Assert.False(result.Expression.Types.ContainsKey(prefix.Operand.Id));
@@ -123,7 +123,7 @@ public sealed class ContainerResolutionTests
         CheckResult result = Check("p.q.g(1)");
 
         Assert.True(result.IsSuccess);
-        var call = (CallNode)result.Expression.Parsed.Root;
+        var call = (CelCallNode)result.Expression.Parsed.Root;
         Assert.False(result.Expression.Types.ContainsKey(call.Target!.Id));
     }
 

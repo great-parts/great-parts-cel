@@ -60,10 +60,10 @@ internal static class CheckingIndex
     internal static OverloadBinding Receiver(string function, string overloadId, CelType receiverType, ImmutableArray<CelType> parameterTypes, CelType resultType) =>
         new(function, new CelOverloadDecl(overloadId, true, [receiverType, .. parameterTypes], resultType), null, 1, null, "test");
 
-    internal static ParsedExpression Parse(string expression, SyntaxOptions? syntax = null)
+    internal static CelParsedExpr Parse(string expression, SyntaxOptions? syntax = null)
     {
-        ParseResult parsed = Parser.Parse(expression, syntax);
+        CelParseResult parsed = Parser.Parse(expression, syntax);
         Assert.True(parsed.IsSuccess, expression);
-        return parsed.Expression;
+        return parsed.ParsedExpr;
     }
 }

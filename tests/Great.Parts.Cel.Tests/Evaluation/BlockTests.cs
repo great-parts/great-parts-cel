@@ -29,8 +29,8 @@ public sealed class BlockTests
     {
         int[] calls = [0];
         var nodes = new NodeFactory();
-        ExprNode result = Add(nodes, Add(nodes, Slot(nodes, 0), Slot(nodes, 0)), Slot(nodes, 0));
-        ExprNode root = Block(nodes, [Call(nodes, "count", Int(nodes, 1))], result);
+        CelExprNode result = Add(nodes, Add(nodes, Slot(nodes, 0), Slot(nodes, 0)), Slot(nodes, 0));
+        CelExprNode root = Block(nodes, [Call(nodes, "count", Int(nodes, 1))], result);
 
         CelValue value = Evaluate(root, nodes, calls);
 
@@ -43,9 +43,9 @@ public sealed class BlockTests
     {
         int[] calls = [0];
         var nodes = new NodeFactory();
-        ExprNode counted = Call(nodes, "count", Int(nodes, 1));
-        ExprNode failing = nodes.Call("_/_", null, [Int(nodes, 1), Int(nodes, 0)], 0);
-        ExprNode root = Block(nodes, [counted, failing], Int(nodes, 7));
+        CelExprNode counted = Call(nodes, "count", Int(nodes, 1));
+        CelExprNode failing = nodes.Call("_/_", null, [Int(nodes, 1), Int(nodes, 0)], 0);
+        CelExprNode root = Block(nodes, [counted, failing], Int(nodes, 7));
 
         CelValue value = Evaluate(root, nodes, calls);
 
@@ -58,8 +58,8 @@ public sealed class BlockTests
     public static void Slot_MayReadALaterSlot()
     {
         var nodes = new NodeFactory();
-        ExprNode first = Add(nodes, Slot(nodes, 1), Int(nodes, 1));
-        ExprNode root = Block(nodes, [first, Int(nodes, 10)], Slot(nodes, 0));
+        CelExprNode first = Add(nodes, Slot(nodes, 1), Int(nodes, 1));
+        CelExprNode root = Block(nodes, [first, Int(nodes, 10)], Slot(nodes, 0));
 
         Assert.Equal(CelValue.FromInt64(11), Evaluate(root, nodes));
     }
@@ -72,9 +72,9 @@ public sealed class BlockTests
     public static void SlotThatReadsItself_IsUnboundForItsOwnName(int slots)
     {
         var nodes = new NodeFactory();
-        ExprNode reading = slots == 1 ? nodes.Ident("@index0", 5) : nodes.Ident("@index1", 5);
-        ExprNode[] expressions = slots == 1 ? [reading] : [reading, nodes.Ident("@index0", 9)];
-        ExprNode root = Block(nodes, expressions, nodes.Ident("@index0", 20));
+        CelExprNode reading = slots == 1 ? nodes.Ident("@index0", 5) : nodes.Ident("@index1", 5);
+        CelExprNode[] expressions = slots == 1 ? [reading] : [reading, nodes.Ident("@index0", 9)];
+        CelExprNode root = Block(nodes, expressions, nodes.Ident("@index0", 20));
 
         CelError error = Plans.Error(Evaluate(root, nodes));
 
@@ -89,13 +89,13 @@ public sealed class BlockTests
     {
         int[] calls = [0];
         var nodes = new NodeFactory();
-        ExprNode failing = nodes.Call("_/_", null, [Call(nodes, "count", Int(nodes, 1)), Int(nodes, 0)], 0);
-        ExprNode absorbed = nodes.Call(
+        CelExprNode failing = nodes.Call("_/_", null, [Call(nodes, "count", Int(nodes, 1)), Int(nodes, 0)], 0);
+        CelExprNode absorbed = nodes.Call(
             "_||_",
             null,
             [nodes.Call("_||_", null, [Slot(nodes, 0), Slot(nodes, 0)], 0), nodes.Constant(CelValue.FromBoolean(true), 0)],
             0);
-        ExprNode root = Block(nodes, [failing], absorbed);
+        CelExprNode root = Block(nodes, [failing], absorbed);
 
         Assert.Equal(CelValue.FromBoolean(true), Evaluate(root, nodes, calls));
         Assert.Equal(1, calls[0]);
@@ -105,8 +105,8 @@ public sealed class BlockTests
     public static void ErrorOfASlot_IsTheErrorOfItsReads()
     {
         var nodes = new NodeFactory();
-        ExprNode failing = nodes.Call("_/_", null, [Int(nodes, 1), Int(nodes, 0)], 6);
-        ExprNode root = Block(nodes, [failing], Add(nodes, Slot(nodes, 0), Slot(nodes, 0)));
+        CelExprNode failing = nodes.Call("_/_", null, [Int(nodes, 1), Int(nodes, 0)], 6);
+        CelExprNode root = Block(nodes, [failing], Add(nodes, Slot(nodes, 0), Slot(nodes, 0)));
 
         CelError error = Plans.Error(Evaluate(root, nodes));
 
@@ -118,8 +118,8 @@ public sealed class BlockTests
     public static void InnerBlock_ShadowsTheOuterOneForTheNumbersItHas()
     {
         var nodes = new NodeFactory();
-        ExprNode inner = Block(nodes, [Int(nodes, 10)], Add(nodes, Slot(nodes, 0), Slot(nodes, 1)));
-        ExprNode root = Block(nodes, [Int(nodes, 1), Int(nodes, 2)], inner);
+        CelExprNode inner = Block(nodes, [Int(nodes, 10)], Add(nodes, Slot(nodes, 0), Slot(nodes, 1)));
+        CelExprNode root = Block(nodes, [Int(nodes, 1), Int(nodes, 2)], inner);
 
         Assert.Equal(CelValue.FromInt64(12), Evaluate(root, nodes));
     }
@@ -129,8 +129,8 @@ public sealed class BlockTests
     public static void SlotOfTheInnerBlock_ReadsTheOuterBlock()
     {
         var nodes = new NodeFactory();
-        ExprNode inner = Block(nodes, [Add(nodes, Slot(nodes, 1), Int(nodes, 1))], Slot(nodes, 0));
-        ExprNode root = Block(nodes, [Int(nodes, 7), Int(nodes, 8)], inner);
+        CelExprNode inner = Block(nodes, [Add(nodes, Slot(nodes, 1), Int(nodes, 1))], Slot(nodes, 0));
+        CelExprNode root = Block(nodes, [Int(nodes, 7), Int(nodes, 8)], inner);
 
         Assert.Equal(CelValue.FromInt64(9), Evaluate(root, nodes));
     }
@@ -141,9 +141,9 @@ public sealed class BlockTests
     public static void SlotThatReadsItself_GoesOutwardThroughEveryEnclosingBlock()
     {
         var nodes = new NodeFactory();
-        ExprNode innermost = Block(nodes, [Add(nodes, Slot(nodes, 0), Int(nodes, 100))], Slot(nodes, 0));
-        ExprNode middle = Block(nodes, [Add(nodes, Slot(nodes, 0), Int(nodes, 10))], innermost);
-        ExprNode root = Block(nodes, [Int(nodes, 1)], middle);
+        CelExprNode innermost = Block(nodes, [Add(nodes, Slot(nodes, 0), Int(nodes, 100))], Slot(nodes, 0));
+        CelExprNode middle = Block(nodes, [Add(nodes, Slot(nodes, 0), Int(nodes, 10))], innermost);
+        CelExprNode root = Block(nodes, [Int(nodes, 1)], middle);
 
         Assert.Equal(CelValue.FromInt64(111), Evaluate(root, nodes));
     }
@@ -154,9 +154,9 @@ public sealed class BlockTests
     public static void SlotReadThatGoesOutward_HasRoomOnTheStack()
     {
         var nodes = new NodeFactory();
-        ExprNode outerSlot = nodes.List([Int(nodes, 1), Int(nodes, 2), Int(nodes, 3)], [], 0);
-        ExprNode innerSlot = nodes.List([Int(nodes, 10), Int(nodes, 20), Int(nodes, 30), Slot(nodes, 0)], [], 0);
-        ExprNode root = Block(nodes, [outerSlot], Block(nodes, [innerSlot], Slot(nodes, 0)));
+        CelExprNode outerSlot = nodes.List([Int(nodes, 1), Int(nodes, 2), Int(nodes, 3)], [], 0);
+        CelExprNode innerSlot = nodes.List([Int(nodes, 10), Int(nodes, 20), Int(nodes, 30), Slot(nodes, 0)], [], 0);
+        CelExprNode root = Block(nodes, [outerSlot], Block(nodes, [innerSlot], Slot(nodes, 0)));
 
         CelValue value = Evaluate(root, nodes);
 
@@ -172,7 +172,7 @@ public sealed class BlockTests
     public static void Cost_OfAReadThatEndsUnbound_IsOne()
     {
         var nodes = new NodeFactory();
-        ExprNode root = Block(nodes, [Slot(nodes, 0)], Slot(nodes, 0));
+        CelExprNode root = Block(nodes, [Slot(nodes, 0)], Slot(nodes, 0));
         Plan plan = PlanOf(root, nodes, []);
 
         Assert.Equal(CelErrorCode.Unbound, Plans.Error(plan.Evaluate(NoBindings, 2, CancellationToken.None)).Code);
@@ -185,13 +185,13 @@ public sealed class BlockTests
     public static void BlockInTheBodyOfAComprehension_IsFreshAtEachElement()
     {
         var nodes = new NodeFactory();
-        ExprNode range = nodes.List([Int(nodes, 1), Int(nodes, 2), Int(nodes, 3)], [], 0);
-        ExprNode init = nodes.List([], [], 0);
-        ExprNode condition = nodes.Constant(CelValue.FromBoolean(true), 0);
-        ExprNode slot = nodes.Call("_*_", null, [nodes.Ident("x", 0), Int(nodes, 10)], 0);
-        ExprNode body = Block(nodes, [slot], Add(nodes, Slot(nodes, 0), Slot(nodes, 0)));
-        ExprNode step = nodes.Call("_+_", null, [nodes.Ident("acc", 0), nodes.List([body], [], 0)], 0);
-        ExprNode root = nodes.Comprehension("x", range, "acc", init, condition, step, nodes.Ident("acc", 0), 0);
+        CelExprNode range = nodes.List([Int(nodes, 1), Int(nodes, 2), Int(nodes, 3)], [], 0);
+        CelExprNode init = nodes.List([], [], 0);
+        CelExprNode condition = nodes.Constant(CelValue.FromBoolean(true), 0);
+        CelExprNode slot = nodes.Call("_*_", null, [nodes.Ident("x", 0), Int(nodes, 10)], 0);
+        CelExprNode body = Block(nodes, [slot], Add(nodes, Slot(nodes, 0), Slot(nodes, 0)));
+        CelExprNode step = nodes.Call("_+_", null, [nodes.Ident("acc", 0), nodes.List([body], [], 0)], 0);
+        CelExprNode root = nodes.Comprehension("x", range, "acc", init, condition, step, nodes.Ident("acc", 0), 0);
 
         CelValue value = Evaluate(root, nodes);
 
@@ -203,7 +203,7 @@ public sealed class BlockTests
     public static void EmptyBlock_IsItsResult()
     {
         var nodes = new NodeFactory();
-        ExprNode root = Block(nodes, [], Int(nodes, 5));
+        CelExprNode root = Block(nodes, [], Int(nodes, 5));
 
         Plan plan = PlanOf(root, nodes, []);
 
@@ -219,8 +219,8 @@ public sealed class BlockTests
     {
         const ulong units = 4;
         var nodes = new NodeFactory();
-        ExprNode slot = Add(nodes, Int(nodes, 1), Int(nodes, 2));
-        ExprNode root = Block(nodes, [slot], Add(nodes, Slot(nodes, 0), Slot(nodes, 0)));
+        CelExprNode slot = Add(nodes, Int(nodes, 1), Int(nodes, 2));
+        CelExprNode root = Block(nodes, [slot], Add(nodes, Slot(nodes, 0), Slot(nodes, 0)));
         Plan plan = PlanOf(root, nodes, []);
 
         Assert.Equal(units, ChargedUnits(plan));
@@ -232,7 +232,7 @@ public sealed class BlockTests
     public static void Cost_OfASlotNobodyReadsIsZero()
     {
         var nodes = new NodeFactory();
-        ExprNode root = Block(nodes, [Add(nodes, Int(nodes, 1), Int(nodes, 2)), Add(nodes, Int(nodes, 3), Int(nodes, 4))], Int(nodes, 5));
+        CelExprNode root = Block(nodes, [Add(nodes, Int(nodes, 1), Int(nodes, 2)), Add(nodes, Int(nodes, 3), Int(nodes, 4))], Int(nodes, 5));
 
         Assert.Equal(0UL, ChargedUnits(PlanOf(root, nodes, [])));
     }
@@ -243,8 +243,8 @@ public sealed class BlockTests
     public static void Cost_OfASlotThatReadsAnotherIsTheReadsAndItsOwnExpression()
     {
         var nodes = new NodeFactory();
-        ExprNode first = Add(nodes, Slot(nodes, 1), Int(nodes, 1));
-        ExprNode root = Block(nodes, [first, Int(nodes, 10)], Slot(nodes, 0));
+        CelExprNode first = Add(nodes, Slot(nodes, 1), Int(nodes, 1));
+        CelExprNode root = Block(nodes, [first, Int(nodes, 10)], Slot(nodes, 0));
 
         Assert.Equal(3UL, ChargedUnits(PlanOf(root, nodes, [])));
     }
@@ -254,7 +254,7 @@ public sealed class BlockTests
     public static void Cost_OfEachReadIsOne()
     {
         var nodes = new NodeFactory();
-        ExprNode root = Block(nodes, [Int(nodes, 1)], Add(nodes, Add(nodes, Slot(nodes, 0), Slot(nodes, 0)), Slot(nodes, 0)));
+        CelExprNode root = Block(nodes, [Int(nodes, 1)], Add(nodes, Add(nodes, Slot(nodes, 0), Slot(nodes, 0)), Slot(nodes, 0)));
 
         Assert.Equal(5UL, ChargedUnits(PlanOf(root, nodes, [])));
     }
@@ -264,7 +264,7 @@ public sealed class BlockTests
     public static void FirstArgumentThatIsNotAListLiteral_IsEvalNoMatchingOverloadAtTheCall()
     {
         var nodes = new NodeFactory();
-        ExprNode root = nodes.Call("cel.@block", null, [Int(nodes, 5), Int(nodes, 6)], 3);
+        CelExprNode root = nodes.Call("cel.@block", null, [Int(nodes, 5), Int(nodes, 6)], 3);
 
         CelError error = Plans.Error(Evaluate(root, nodes));
 
@@ -275,7 +275,7 @@ public sealed class BlockTests
     public static void FirstArgumentThatIsAVariableList_IsEvalNoMatchingOverload()
     {
         var nodes = new NodeFactory();
-        ExprNode root = nodes.Call("cel.@block", null, [nodes.Ident("xs", 4), Int(nodes, 6)], 3);
+        CelExprNode root = nodes.Call("cel.@block", null, [nodes.Ident("xs", 4), Int(nodes, 6)], 3);
         Dictionary<string, CelValue> bindings = new() { ["xs"] = CelValue.FromList(CelList.Create(CelValue.FromInt64(1))) };
 
         CelError error = Plans.Error(PlanOf(root, nodes, []).EvaluateOn(bindings));
@@ -296,7 +296,7 @@ public sealed class BlockTests
     public static void OtherNames_AreOrdinaryIdentifiers(string name)
     {
         var nodes = new NodeFactory();
-        ExprNode root = Block(nodes, [Int(nodes, 5)], nodes.Ident(name, 0));
+        CelExprNode root = Block(nodes, [Int(nodes, 5)], nodes.Ident(name, 0));
         Dictionary<string, CelValue> bindings = new() { [name] = CelValue.FromInt64(77) };
 
         Assert.Equal(CelValue.FromInt64(77), PlanOf(root, nodes, []).EvaluateOn(bindings));
@@ -308,9 +308,9 @@ public sealed class BlockTests
     public static void SlotReadInsideAListLiteral_HasRoomOnTheStack()
     {
         var nodes = new NodeFactory();
-        ExprNode slot = nodes.List([Int(nodes, 1), Int(nodes, 2), Int(nodes, 3)], [], 0);
-        ExprNode result = nodes.List([Int(nodes, 10), Int(nodes, 20), Int(nodes, 30), Slot(nodes, 0)], [], 0);
-        ExprNode root = Block(nodes, [slot], result);
+        CelExprNode slot = nodes.List([Int(nodes, 1), Int(nodes, 2), Int(nodes, 3)], [], 0);
+        CelExprNode result = nodes.List([Int(nodes, 10), Int(nodes, 20), Int(nodes, 30), Slot(nodes, 0)], [], 0);
+        CelExprNode root = Block(nodes, [slot], result);
 
         CelValue value = Evaluate(root, nodes);
 
@@ -325,7 +325,7 @@ public sealed class BlockTests
     public static void CheckedBlock_HasTheTypeOfItsResult_AndIsPlannedAsABlock()
     {
         var nodes = new NodeFactory();
-        ExprNode root = Block(nodes, [Add(nodes, Int(nodes, 1), Int(nodes, 2))], nodes.Constant(CelValue.FromString("a"), 0));
+        CelExprNode root = Block(nodes, [Add(nodes, Int(nodes, 1), Int(nodes, 2))], nodes.Constant(CelValue.FromString("a"), 0));
         CelEnvironment environment = BlockEnvironment();
 
         CheckResult checkedResult = environment.Check(nodes.Build(root, new LineTable(Text)));
@@ -343,7 +343,7 @@ public sealed class BlockTests
     public static void CheckedBlock_WithAListThatIsNotALiteral_IsNoMatchingOverloadAtTheCall()
     {
         var nodes = new NodeFactory();
-        ExprNode root = nodes.Call("cel.@block", null, [nodes.Ident("xs", 4), Int(nodes, 1)], 3);
+        CelExprNode root = nodes.Call("cel.@block", null, [nodes.Ident("xs", 4), Int(nodes, 1)], 3);
 
         CheckResult checkedResult = BlockEnvironment().Check(nodes.Build(root, new LineTable(Text)));
 
@@ -359,7 +359,7 @@ public sealed class BlockTests
     public static void CheckedBlock_WithASlotReference_IsAnUndeclaredReference()
     {
         var nodes = new NodeFactory();
-        ExprNode root = Block(nodes, [Int(nodes, 1)], nodes.Ident("@index0", 12));
+        CelExprNode root = Block(nodes, [Int(nodes, 1)], nodes.Ident("@index0", 12));
 
         CheckResult checkedResult = BlockEnvironment().Check(nodes.Build(root, new LineTable(Text)));
 
@@ -372,11 +372,11 @@ public sealed class BlockTests
         .Build()
         .GetEnvironmentOrThrow();
 
-    private static CelValue Evaluate(ExprNode root, NodeFactory nodes, int[]? calls = null) =>
+    private static CelValue Evaluate(CelExprNode root, NodeFactory nodes, int[]? calls = null) =>
         PlanOf(root, nodes, calls ?? [0]).EvaluateOn(NoBindings);
 
     // The plan of the tree without type checking, with the overload count(x) that counts its calls into the first element of the array.
-    private static Plan PlanOf(ExprNode root, NodeFactory nodes, int[] calls)
+    private static Plan PlanOf(CelExprNode root, NodeFactory nodes, int[] calls)
     {
         OverloadBinding counter = new(
             "count",
@@ -413,14 +413,14 @@ public sealed class BlockTests
         return items;
     }
 
-    private static ConstantNode Int(NodeFactory nodes, long value) => nodes.Constant(CelValue.FromInt64(value), 0);
+    private static CelConstantNode Int(NodeFactory nodes, long value) => nodes.Constant(CelValue.FromInt64(value), 0);
 
-    private static IdentNode Slot(NodeFactory nodes, int number) => nodes.Ident("@index" + number, 0);
+    private static CelIdentNode Slot(NodeFactory nodes, int number) => nodes.Ident("@index" + number, 0);
 
-    private static CallNode Add(NodeFactory nodes, ExprNode left, ExprNode right) => nodes.Call("_+_", null, [left, right], 0);
+    private static CelCallNode Add(NodeFactory nodes, CelExprNode left, CelExprNode right) => nodes.Call("_+_", null, [left, right], 0);
 
-    private static CallNode Call(NodeFactory nodes, string function, ExprNode argument) => nodes.Call(function, null, [argument], 0);
+    private static CelCallNode Call(NodeFactory nodes, string function, CelExprNode argument) => nodes.Call(function, null, [argument], 0);
 
-    private static CallNode Block(NodeFactory nodes, ExprNode[] slots, ExprNode result) =>
+    private static CelCallNode Block(NodeFactory nodes, CelExprNode[] slots, CelExprNode result) =>
         nodes.Call("cel.@block", null, [nodes.List([.. slots], [], 0), result], 0);
 }
