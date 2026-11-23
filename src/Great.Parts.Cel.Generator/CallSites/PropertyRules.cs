@@ -27,6 +27,12 @@ internal static class PropertyRules
 
     private const string Guid = "System.Guid";
 
+    private const string Int128 = "System.Int128";
+
+    private const string UInt128 = "System.UInt128";
+
+    private const string BigInteger = "System.Numerics.BigInteger";
+
     private const string DateTimeOffset = "System.DateTimeOffset";
 
     private const string DateTime = "System.DateTime";
@@ -133,10 +139,12 @@ internal static class PropertyRules
             case SpecialType.System_UInt64:
             case SpecialType.System_Double:
             case SpecialType.System_String:
+            case SpecialType.System_Char:
                 return true;
         }
 
         return IsBytes(type)
+            || IsWide(type)
             || IsNamed(type, Guid)
             || IsNamed(type, DateTimeOffset)
             || IsNamed(type, DateTime)
@@ -152,6 +160,10 @@ internal static class PropertyRules
             && IsNamed(memory, WellKnown.ReadOnlyMemory)
             && memory.TypeArguments[0].SpecialType == SpecialType.System_Byte);
 
+    // The integers wider than 64 bits.
+    private static bool IsWide(ITypeSymbol type) =>
+        IsNamed(type, Int128) || IsNamed(type, UInt128) || IsNamed(type, BigInteger);
+
     // The elements of a list and the values of a dictionary: the list of elements of the type mapping, a subset of the scalars.
     private static bool IsElement(ITypeSymbol type)
     {
@@ -165,10 +177,11 @@ internal static class PropertyRules
             case SpecialType.System_Double:
             case SpecialType.System_String:
             case SpecialType.System_Object:
+            case SpecialType.System_Char:
                 return true;
         }
 
-        if (IsBytes(type) || IsNamed(type, Guid) || IsNamed(type, JsonElement) || IsNamed(type, CelValue) || IsNamed(type, CelList) || IsNamed(type, CelMap))
+        if (IsBytes(type) || IsWide(type) || IsNamed(type, Guid) || IsNamed(type, JsonElement) || IsNamed(type, CelValue) || IsNamed(type, CelList) || IsNamed(type, CelMap))
         {
             return true;
         }
@@ -187,10 +200,11 @@ internal static class PropertyRules
             case SpecialType.System_Int64:
             case SpecialType.System_UInt64:
             case SpecialType.System_Double:
+            case SpecialType.System_Char:
                 return true;
         }
 
-        return (IsBytes(type) && type.IsValueType) || IsNamed(type, Guid) || IsNamed(type, JsonElement) || IsNamed(type, CelValue);
+        return (IsBytes(type) && type.IsValueType) || IsWide(type) || IsNamed(type, Guid) || IsNamed(type, JsonElement) || IsNamed(type, CelValue);
     }
 
     // X[], List<X>, IReadOnlyList<X>, ImmutableArray<X>, Dictionary<string, XV> and IReadOnlyDictionary<string, XV>.

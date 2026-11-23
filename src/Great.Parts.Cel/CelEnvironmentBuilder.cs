@@ -41,7 +41,7 @@ namespace Great.Parts.Cel;
 /// returns a builder with the declarations of an environment, for an environment that adds declarations.
 /// </para>
 /// </remarks>
-public sealed class CelEnvironmentBuilder
+public sealed partial class CelEnvironmentBuilder
 {
     private readonly CelStandardLibrary _standardLibrary;
     // A declaration repeated by a call is one declaration: it keeps the source that comes first by the source text and the
@@ -815,7 +815,8 @@ public sealed class CelEnvironmentBuilder
             _timeZoneConflict,
             _decimalLiterals,
             [.. _inputTypes],
-            _defaultCostLimit);
+            _defaultCostLimit,
+            _crossTypeNumericComparisons);
         LibraryDeclarations library = _standardLibrary.Declarations;
         ImmutableArray<CelError> errors = DeclarationChecks.Check(
             declarations,
@@ -834,7 +835,14 @@ public sealed class CelEnvironmentBuilder
 
         var patternCache = new PatternCache();
         DeclarationIndex index = DeclarationIndex.Create(
-            [.. library.Overloads, .. overloads], variables, TypeIdentifiers(library, extensions), container, types, patternCache, inputType);
+            [.. library.Overloads, .. overloads],
+            variables,
+            TypeIdentifiers(library, extensions),
+            container,
+            types,
+            patternCache,
+            inputType,
+            declarations.CrossTypeNumericComparisons);
         return new(new CelEnvironment(_standardLibrary, declarations, index, SyntaxOf(extensions, declarations), patternCache));
     }
 
@@ -877,6 +885,7 @@ public sealed class CelEnvironmentBuilder
         _decimalLiterals = declarations.DecimalLiterals;
         _inputTypes.AddRange(declarations.InputTypes);
         _defaultCostLimit = declarations.DefaultCostLimit;
+        _crossTypeNumericComparisons = declarations.CrossTypeNumericComparisons;
     }
 
     // The declarations of variables collected so far, in the order of the calls, each once.

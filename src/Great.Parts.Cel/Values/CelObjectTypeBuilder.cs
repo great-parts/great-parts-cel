@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 
@@ -26,10 +27,11 @@ namespace Great.Parts.Cel.Values;
 /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/runtime-types.md">Types described at run time</see>.
 /// </para>
 /// </remarks>
-public sealed class CelObjectTypeBuilder
+public sealed partial class CelObjectTypeBuilder
 {
     private readonly string _name;
     private readonly FieldList _fields = new();
+    private bool _allowLiterals;
 
     internal CelObjectTypeBuilder(string name)
     {
@@ -68,14 +70,30 @@ public sealed class CelObjectTypeBuilder
     /// fields do not change descriptions built before.
     /// </summary>
     /// <returns>The description, with <see cref="CelObjectType.ClrType"/> <see langword="null"/>.</returns>
-    public CelObjectType Build() => new DictionaryObjectType(_name, _fields.ToArray());
+    public CelObjectType Build() => new DictionaryObjectType(_name, _fields.ToArray(), _allowLiterals);
 
     // A type described at run time over the dictionary carrier: a field is the entry with the field name as its key.
-    private sealed class DictionaryObjectType(string name, ReadOnlySpan<CelObjectField> fields) : CelObjectType(name, fields)
+    private sealed class DictionaryObjectType(string name, ReadOnlySpan<CelObjectField> fields, bool allowLiterals) : CelObjectType(name, fields)
     {
         internal override bool Belongs(object instance) => instance is IReadOnlyDictionary<string, object?>;
 
         internal override bool IsDictionaryCarrier => true;
+
+        internal override LiteralCostRule LiteralCost => LiteralCostRule.None;
+
+        protected internal override bool IsConstructible => allowLiterals;
+
+        // The literal makes a new read-only dictionary whose entries are the values as CelValue, which the read takes as they are.
+        protected internal override CelValue CreateInstance(ReadOnlySpan<int> fieldNumbers, ReadOnlySpan<CelValue> fieldValues)
+        {
+            var entries = new Dictionary<string, object?>(fieldNumbers.Length, StringComparer.Ordinal);
+            for (int i = 0; i < fieldNumbers.Length; i++)
+            {
+                entries[Fields[fieldNumbers[i]].Name] = fieldValues[i];
+            }
+
+            return CelValue.FromObject(this, new ReadOnlyDictionary<string, object?>(entries));
+        }
 
         protected internal override CelValue GetField(object instance, int number) =>
             TryReadField(instance, number, out CelValue value) ? value : ObjectRules.FieldNotSet(this, number);

@@ -17,7 +17,7 @@ namespace Great.Parts.Cel.Tests.Examples.Checking;
 // acme.crm.Person has the field name (string); x is int.
 public sealed class ObjectCheckTests
 {
-    private const string NotConstructible = "type 'acme.crm.Deal' cannot be created by an expression: object literals are supported only for protobuf messages";
+    private const string NotConstructible = "type 'acme.crm.Deal' cannot be created by an expression: object literals are supported for protobuf messages and for types that allow them";
 
     private static readonly CelObjectType Deal = CelObjectTypeBuilder.ForDictionary("acme.crm.Deal")
         .AddField("amount", CelType.Int)

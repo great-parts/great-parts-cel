@@ -56,7 +56,7 @@ namespace Acme
                     case "aged": return "Acme.OldType is marked [Obsolete]";
                     case "body": return "streams are not data";
                     case "grid": return "multidimensional arrays are not supported; use an array of arrays or a list";
-                    case "letter": return "char is a UTF-16 code unit, not a code point; use string";
+                    case "kind": return "System.Type is not data";
                     case "link": return "System.Uri has no CEL type; use a string or your own type";
                     case "mixed": return "set elements must be numbers, bool, string, bytes, timestamp, duration or decimal, which CEL orders";
                     case "old": return "the member is marked [Obsolete]";

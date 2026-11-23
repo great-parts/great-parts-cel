@@ -71,6 +71,10 @@ internal sealed class ValueReader
         ScalarKind.Bool => Factory("FromBoolean", v.Use()),
         ScalarKind.String => Checked(v, shape.Nullability, Factory("FromString", v.Use())),
         ScalarKind.Guid => Factory("FromString", v.Use() + ".ToString(\"D\")"),
+        ScalarKind.Char => Helper("FromChar", v),
+        ScalarKind.Int128 => Helper("FromInt128", v),
+        ScalarKind.UInt128 => Helper("FromUInt128", v),
+        ScalarKind.BigInteger => Helper("FromBigInteger", v),
         ScalarKind.Bytes => Checked(v, shape.Nullability, Factory("FromBytes", v.Use())),
         ScalarKind.BytesMemory => Factory("FromBytes", v.Use()),
         ScalarKind.Timestamp => Factory("FromTimestamp", v.Use()),
@@ -80,6 +84,8 @@ internal sealed class ValueReader
         ScalarKind.TimeSpan => Helper("FromTimeSpan", v),
         ScalarKind.Decimal128 => Helper("FromDecimal128", v),
         ScalarKind.Decimal => "FromDecimal(" + v.Use() + ")",
+        ScalarKind.Date => "FromDate(" + v.Use() + ")",
+        ScalarKind.TimeOfDay => "FromTimeOfDay(" + v.Use() + ")",
         ScalarKind.CelValue => v.Use(),
         ScalarKind.Object => Checked(v, shape.Nullability, Helper("FromDynamic", v)),
         ScalarKind.JsonElement => Helper("FromDynamic", v),
@@ -104,7 +110,7 @@ internal sealed class ValueReader
     private string Absent(Shape underlying) => underlying switch
     {
         CollectionShape => Unexpected(),
-        ScalarShape { Kind: ScalarKind.Timestamp or ScalarKind.DateTimeOffset or ScalarKind.DateTime or ScalarKind.Duration or ScalarKind.TimeSpan or ScalarKind.Decimal128 or ScalarKind.Decimal } => Unexpected(),
+        ScalarShape { Kind: ScalarKind.Timestamp or ScalarKind.DateTimeOffset or ScalarKind.DateTime or ScalarKind.Duration or ScalarKind.TimeSpan or ScalarKind.Decimal128 or ScalarKind.Decimal or ScalarKind.Date or ScalarKind.TimeOfDay } => Unexpected(),
         _ => NullValue,
     };
 

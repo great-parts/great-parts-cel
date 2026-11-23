@@ -15,6 +15,7 @@ internal static class DiagnosticIds
     internal const string ContextTooLarge = "GPCEL009";
     internal const string SimpleEntryDataType = "GPCEL010";
     internal const string SimpleEntryPropertyType = "GPCEL011";
+    internal const string ObjectLiteralType = "GPCEL012";
 }
 
 // The descriptors of the diagnostics: the identifier, the severity, the title and the message are those of the page
@@ -116,6 +117,15 @@ internal static class Descriptors
         isEnabledByDefault: true,
         helpLinkUri: HelpPage + "#gpcel011");
 
+    internal static readonly DiagnosticDescriptor ObjectLiteralType = new(
+        DiagnosticIds.ObjectLiteralType,
+        "Type cannot be created by CEL object literals",
+        "Type '{0}' is listed with AllowObjectLiterals = true but cannot be created by an object literal: {1}",
+        Category,
+        DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        helpLinkUri: HelpPage + "#gpcel012");
+
     internal static DiagnosticDescriptor Find(string id) => id switch
     {
         DiagnosticIds.UnsupportedType => UnsupportedType,
@@ -127,6 +137,7 @@ internal static class Descriptors
         DiagnosticIds.LanguageVersion => LanguageVersion,
         DiagnosticIds.ContextTooLarge => ContextTooLarge,
         DiagnosticIds.SimpleEntryDataType => SimpleEntryDataType,
+        DiagnosticIds.ObjectLiteralType => ObjectLiteralType,
         _ => SimpleEntryPropertyType,
     };
 }

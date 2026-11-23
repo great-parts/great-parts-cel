@@ -31,6 +31,32 @@ internal static partial class DecimalPlatform
     // The value of parts that a double gave, rounded half to even to the scale 28 and 96 bits; false when the integer part does not fit.
     internal static bool TryRound(DecimalParts parts, out PlatformDecimal result) => DecimalNumberRules.ToSystemDecimal(parts, out result);
 
+    // The result of round or quantize, whose exponent is the one asked for: a positive exponent is folded into the coefficient, since
+    // the platform keeps none, and a zero then has the exponent 0 and keeps its sign. false, which is Overflow, when the coefficient
+    // is then above 96 bits. No exponent below -28 comes here, since none is asked for.
+    internal static bool TryFromRounded(DecimalParts parts, out PlatformDecimal result)
+    {
+        UInt128 coefficient = parts.Coefficient;
+        result = 0m;
+        if (parts.Exponent > 0 && coefficient != UInt128.Zero)
+        {
+            if (parts.Exponent >= DecimalParts.Powers.Length || coefficient > MaxCoefficient / DecimalParts.Powers[parts.Exponent])
+            {
+                return false;
+            }
+
+            coefficient *= DecimalParts.Powers[parts.Exponent];
+        }
+
+        if (coefficient > MaxCoefficient)
+        {
+            return false;
+        }
+
+        result = DecimalNumberRules.MakeSystemDecimal(parts.Negative, coefficient, -Math.Min(parts.Exponent, 0));
+        return true;
+    }
+
     // false for an overflow: Overflow.
     internal static bool TryAdd(PlatformDecimal left, PlatformDecimal right, out PlatformDecimal result)
     {

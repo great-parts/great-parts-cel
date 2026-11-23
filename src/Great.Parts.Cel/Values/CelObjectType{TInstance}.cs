@@ -60,6 +60,9 @@ public abstract class CelObjectType<TInstance> : CelObjectType
     /// <returns>The units of cost.</returns>
     protected internal virtual long FieldReadCost(in TInstance instance, int number) => 0;
 
+    // A literal of a description over a .NET type is charged for the elements its created code copies into the members.
+    internal override LiteralCostRule LiteralCost => LiteralCostRule.CopiedElements;
+
     /// <summary>Calls <see cref="GetField(in TInstance, int)"/> with the instance unboxed.</summary>
     /// <param name="instance">An instance of <typeparamref name="TInstance"/>.</param>
     /// <param name="number">The number of a field.</param>

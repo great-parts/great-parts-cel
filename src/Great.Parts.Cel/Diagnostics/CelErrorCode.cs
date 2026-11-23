@@ -160,15 +160,18 @@ public enum CelErrorCode
     /// <summary>
     /// A member of an application type is not available to expressions: the source generator excluded
     /// it (its kind of .NET type is not read, or it is marked obsolete or experimental, among other
-    /// reasons), or it is described as <c>decimal</c> and the <c>decimal</c> extension is not added to
-    /// the environment. The message gives the reason; for <c>decimal</c> it names the extension.
-    /// Location: the field selection.
+    /// reasons); it is described as <c>decimal</c>, <c>date</c> or <c>time_of_day</c> and the <c>decimal</c> or
+    /// <c>calendar</c> extension is not added to the environment; or an object literal sets a field that literals of
+    /// its type cannot set, such as a member without a public <c>set</c> or <c>init</c> accessor. The message gives the
+    /// reason; for an extension it names the extension. Location: the field selection, or the field of the literal.
     /// </summary>
     FieldNotAccessible = 2007,
 
     /// <summary>
-    /// An object literal for a .NET type or for a type described at run time; object literals are
-    /// supported only for protobuf messages. Location: the literal.
+    /// An object literal for a type that does not allow object literals: a .NET type listed without
+    /// <c>AllowObjectLiterals = true</c> on its <c>CelObjectAttribute</c>, a type that the generator only
+    /// reached through members, or a type described at run time whose builder did not allow literals. Protobuf messages
+    /// always allow them. Location: the literal.
     /// </summary>
     TypeNotConstructible = 2008,
 
@@ -191,6 +194,13 @@ public enum CelErrorCode
     /// call of <c>format</c>; for an element whose type does not fit its specifier, that element of the list literal.
     /// </summary>
     InvalidFormatString = 2010,
+
+    /// <summary>
+    /// An object literal does not set a field that every literal of its type must set: a <c>required</c> member of a .NET
+    /// type, or a parameter without a default value of the constructor that the generated code calls. The subject is the
+    /// field; the message names the type and the field. Location: the literal.
+    /// </summary>
+    RequiredFieldNotSet = 2011,
 
     // Evaluation: 3000-3999.
 
@@ -236,7 +246,8 @@ public enum CelErrorCode
 
     /// <summary>
     /// The result of arithmetic is out of the range of its type: <c>int</c>, <c>uint</c>, <c>duration</c>,
-    /// <c>timestamp</c> or <c>decimal</c>. The ranges are on the
+    /// <c>timestamp</c> or <c>decimal</c>; also a <c>round</c> or <c>quantize</c> whose result needs more digits
+    /// or a larger exponent than the platform holds. The ranges are on the
     /// page <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see>. Location:
     /// the call.
     /// </summary>
@@ -255,8 +266,9 @@ public enum CelErrorCode
     /// An argument of the right type with an invalid value: a string that does not parse as
     /// <c>int</c>, <c>double</c>, <c>decimal</c>, <c>timestamp</c> or <c>duration</c>, including a
     /// constant such as <c>duration('…')</c>, which is reported at evaluation; an invalid argument of
-    /// an extension function. A time string that parses but is out of range is
-    /// <see cref="ConversionRange"/>. Location: the call.
+    /// an extension function, such as a rounding mode of <c>round</c> or <c>quantize</c> that is not one of the
+    /// seven (<c>invalid argument to 'round': unknown rounding mode "banker"</c>). A time string that parses but is
+    /// out of range is <see cref="ConversionRange"/>. Location: the call.
     /// </summary>
     InvalidArgument = 3008,
 
@@ -436,8 +448,9 @@ public enum CelErrorCode
 
     /// <summary>
     /// Two different descriptions have the same CEL type name, or one .NET type is described by two
-    /// type sources. Identical descriptions from two generated type contexts are one declaration, not an
-    /// error. The message names both sources.
+    /// type sources; or a variable has the name of an abstract type that an added extension set declares,
+    /// such as <c>decimal</c>, <c>date</c> or <c>time_of_day</c>. Identical descriptions from two generated
+    /// type contexts are one declaration, not an error. The message names both sources.
     /// </summary>
     DuplicateType = 4001,
 

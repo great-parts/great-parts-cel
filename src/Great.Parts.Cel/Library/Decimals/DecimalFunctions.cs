@@ -21,6 +21,11 @@ internal static class DecimalFunctions
     private const string DoubleName = "double";
     private const string DecimalOverflow = "decimal overflow";
     private const string DivisionByZero = "division by zero";
+    private const string RoundName = "round";
+    private const string QuantizeName = "quantize";
+
+    // What the preparer keeps for a mode string that names no mode, as the program holds it for the call.
+    private static readonly object NotAMode = new();
 
     // The texts of a double that is no number, as string(double) writes them.
     private const string NotANumber = "NaN";
@@ -33,6 +38,11 @@ internal static class DecimalFunctions
         static error => (error.Second as string ?? TextOf((PlatformDecimal)error.Second!)) + " is out of the range of " + (string)error.First!,
         expectedType: static error => ValueTypeRules.TypeOfName((string)error.First!),
         actualType: static error => error.Second is string ? CelType.String : CelType.Decimal);
+
+    // The function is the first part and the string that is no mode the second, as written.
+    private static readonly ErrorTemplate UnknownModeText = new(
+        static error => "invalid argument to '" + (string)error.First! + "': unknown rounding mode \"" + (string)error.Second! + "\"",
+        subject: static error => (string)error.First!);
 
     // The string is the second part, as written.
     private static readonly ErrorTemplate CannotParseText = new(
@@ -206,6 +216,88 @@ internal static class DecimalFunctions
 
         return CelValue.FromString(new string(text[..length]));
     }
+
+    // decimal_round_int64, x.round(n) -> decimal: n digits after the point by half to even; no zeros are added.
+    internal static CelValue Round(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
+        arguments[0].TryGetPlatformDecimal(out PlatformDecimal value) && arguments[1].TryGetInt64(out long digits)
+            ? RoundTo(value, digits, DecimalRoundingMode.HalfEven, in site)
+            : site.NoMatchingOverload(arguments);
+
+    // decimal_round_int64_string, x.round(n, mode) -> decimal: the same by a mode, one of the seven names; another string is
+    // InvalidArgument, a constant one too, at evaluation.
+    internal static CelValue RoundWithMode(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        if (!arguments[0].TryGetPlatformDecimal(out PlatformDecimal value)
+            || !arguments[1].TryGetInt64(out long digits)
+            || !arguments[2].TryGetString(out string? name))
+        {
+            return site.NoMatchingOverload(arguments);
+        }
+
+        return TryGetMode(name, in site, RoundName, out DecimalRoundingMode mode, out CelValue refused)
+            ? RoundTo(value, digits, mode, in site)
+            : refused;
+    }
+
+    // decimal_quantize_decimal, x.quantize(q) -> decimal: x with the exponent of q by half to even; the value of q does not matter.
+    internal static CelValue Quantize(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
+        TryGetPair(arguments, out PlatformDecimal value, out PlatformDecimal quantum)
+            ? QuantizeTo(value, quantum, DecimalRoundingMode.HalfEven, in site)
+            : site.NoMatchingOverload(arguments);
+
+    // decimal_quantize_decimal_string, x.quantize(q, mode) -> decimal.
+    internal static CelValue QuantizeWithMode(ReadOnlySpan<CelValue> arguments, in CallSite site)
+    {
+        if (!arguments[0].TryGetPlatformDecimal(out PlatformDecimal value)
+            || !arguments[1].TryGetPlatformDecimal(out PlatformDecimal quantum)
+            || !arguments[2].TryGetString(out string? name))
+        {
+            return site.NoMatchingOverload(arguments);
+        }
+
+        return TryGetMode(name, in site, QuantizeName, out DecimalRoundingMode mode, out CelValue refused)
+            ? QuantizeTo(value, quantum, mode, in site)
+            : refused;
+    }
+
+    // The preparer of the mode when the call has a string constant there: the mode is found once, with the program, and a string that is
+    // no mode is kept as it is, so that the call refuses it at evaluation. It charges nothing and does not throw.
+    internal static readonly ConstantPreparer ModePreparer = static (name, _) =>
+        ConstantPreparation.Success(DecimalRoundingRules.TryParseMode(name, out DecimalRoundingMode mode) ? mode : NotAMode);
+
+    // The constant argument of the two overloads that take a mode: the receiver is 0, the number or the quantum is 1, the mode is 2.
+    internal static ConstantArgument ModeArgument { get; } = new(2, ModePreparer);
+
+    // The mode of the call: the one that the program prepared, or the one that the string names. A string that is none is
+    // InvalidArgument naming the function and the string.
+    private static bool TryGetMode(string name, in CallSite site, string function, out DecimalRoundingMode mode, out CelValue refused)
+    {
+        refused = default;
+        if (site.Prepared is DecimalRoundingMode prepared)
+        {
+            mode = prepared;
+            return true;
+        }
+
+        if (DecimalRoundingRules.TryParseMode(name, out mode))
+        {
+            return true;
+        }
+
+        refused = site.Error(CelErrorCode.InvalidArgument, UnknownModeText, function, name);
+        return false;
+    }
+
+    private static CelValue RoundTo(PlatformDecimal value, long digits, DecimalRoundingMode mode, in CallSite site) =>
+        DecimalPlatform.TryFromRounded(DecimalRoundingRules.Round(DecimalPlatform.ToParts(value), digits, mode), out PlatformDecimal result)
+            ? CelValue.FromPlatformDecimal(result)
+            : site.Error(CelErrorCode.Overflow, DecimalOverflow);
+
+    private static CelValue QuantizeTo(PlatformDecimal value, PlatformDecimal quantum, DecimalRoundingMode mode, in CallSite site) =>
+        DecimalRoundingRules.TryQuantize(DecimalPlatform.ToParts(value), DecimalPlatform.ToParts(quantum).Exponent, mode, out DecimalParts rounded)
+        && DecimalPlatform.TryFromRounded(rounded, out PlatformDecimal result)
+            ? CelValue.FromPlatformDecimal(result)
+            : site.Error(CelErrorCode.Overflow, DecimalOverflow);
 
     // The two values of a binary overload; false when either is not a decimal.
     private static bool TryGetPair(ReadOnlySpan<CelValue> arguments, out PlatformDecimal left, out PlatformDecimal right)

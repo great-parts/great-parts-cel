@@ -46,7 +46,7 @@ The variable is declared with the CEL type of the description, `dealType.Type`, 
 | A field that has no value is read as the error `FieldNotSet` (3018) with the names of the type and the field: a silent zero would hide a gap in the data. An expression tests `has()` first. |
 | A value of another type than the declared one is the error `FieldTypeMismatch` (3019) with the names of the type and the field. |
 | An exception of `read` or `has` is the error `ApplicationException` (3014) with the original exception. |
-| An object literal of such a type, `acme.crm.Deal{…}`, is not supported: it is the type checking error `TypeNotConstructible` (2008). |
+| An object literal of such a type, `acme.crm.Deal{…}`, is the type checking error `TypeNotConstructible` (2008) unless the builder allows literals. `AllowObjectLiterals()` of the builder over a dictionary makes the literal create a read-only dictionary with an entry for each field it sets, so `has()` of a field it does not set is `false`. `AllowObjectLiterals(create)` of the builder over a carrier calls `create` with a new dictionary of the fields the literal sets and takes its result as the value; an exception of `create` is `ApplicationException` (3014), and a `null` carrier is `UnexpectedNull` (3017). A literal costs 1 + n for n fields. |
 
 The builders are not thread-safe. The descriptions they build are immutable and can be shared between threads and environments, and the delegates of the application must allow calls from many threads at once.
 

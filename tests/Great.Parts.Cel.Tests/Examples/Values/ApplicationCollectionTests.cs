@@ -191,7 +191,7 @@ public sealed class ApplicationCollectionTests
         Assert.True(Evaluate<bool>("mv[1] == 1 && mv[1u] == 1 && !(-1 in mv)", new CelBindings().Add("mv", unsigned)));
         Assert.True(Evaluate<bool>("mv[true] == 1 && !(1 in mv)", new CelBindings().Add("mv", flags)));
         Assert.Throws<ArgumentException>(() => CelMap.CreateView(new Dictionary<double, long>(), CelValue.FromInt64, keepSourceOrder: false));
-        Assert.Throws<ArgumentException>(() => CelMap.CreateView(new Dictionary<char, long>(), CelValue.FromInt64, keepSourceOrder: false));
+        Assert.Throws<ArgumentException>(() => CelMap.CreateView(new Dictionary<Int128, long>(), CelValue.FromInt64, keepSourceOrder: false));
         Assert.Throws<ArgumentException>(() => CelMap.CreateView(new Dictionary<DateTime, long>(), CelValue.FromInt64, keepSourceOrder: false));
     }
 

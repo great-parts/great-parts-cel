@@ -211,6 +211,16 @@ internal static class ValueText
                 _ = value.TryGetDuration(out CelDuration duration);
                 text.Append("duration(\"").Append(duration.ToString()).Append("\")");
                 break;
+            case CelValueKind.Date:
+                _ = value.TryGetDate(out DateOnly date);
+                Span<char> dateText = stackalloc char[CalendarTextRules.DateLength];
+                text.Append("date(\"").Append(dateText[..CalendarTextRules.WriteDate(date, dateText)]).Append("\")");
+                break;
+            case CelValueKind.TimeOfDay:
+                _ = value.TryGetTimeOfDay(out TimeOnly time);
+                Span<char> timeText = stackalloc char[CalendarTextRules.MaxTimeOfDayLength];
+                text.Append("time_of_day(\"").Append(timeText[..CalendarTextRules.WriteTimeOfDay(time, timeText)]).Append("\")");
+                break;
             case CelValueKind.Type:
                 _ = value.TryGetType(out CelType? type);
                 text.Append(type!.ToString());

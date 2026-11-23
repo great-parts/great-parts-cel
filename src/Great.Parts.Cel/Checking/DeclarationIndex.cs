@@ -49,10 +49,12 @@ internal sealed class DeclarationIndex
         string container,
         TypeIndex types,
         object? patternCache,
-        CelObjectType? inputType)
+        CelObjectType? inputType,
+        bool crossTypeNumericComparisons)
     {
         AllOverloads = allOverloads;
         InputType = inputType;
+        CrossTypeNumericComparisons = crossTypeNumericComparisons;
         _variables = variables;
         _variablesBySpan = variables.GetAlternateLookup<ReadOnlySpan<char>>();
         _typeIdentifiers = typeIdentifiers;
@@ -80,6 +82,10 @@ internal sealed class DeclarationIndex
     // The cache of patterns that the environment created with its index; null for an index made without one, for the tests of
     // checking and evaluation.
     internal object? PatternCache { get; }
+
+    // Whether the ordering overloads across int, uint and double, which the standard library declares, are candidates when the static
+    // types of both operands are known, as they are when an operand is dyn; set by EnableCrossTypeNumericComparisons.
+    internal bool CrossTypeNumericComparisons { get; }
 
     // The description of the input type of the environment (UseInput), whose fields are variables read from the input of the
     // evaluation; null without an input.
@@ -113,7 +119,8 @@ internal sealed class DeclarationIndex
         string container,
         TypeIndex? types = null,
         object? patternCache = null,
-        CelObjectType? inputType = null)
+        CelObjectType? inputType = null,
+        bool crossTypeNumericComparisons = false)
     {
         types ??= TypeIndex.Empty;
         if (types.ObjectTypes.Count != 0)
@@ -152,7 +159,8 @@ internal sealed class DeclarationIndex
             container,
             types,
             patternCache,
-            inputType);
+            inputType,
+            crossTypeNumericComparisons);
     }
 
     internal bool TryGetVariable(string name, [NotNullWhen(true)] out CelVariableDecl? variable) =>

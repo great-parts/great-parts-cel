@@ -43,7 +43,7 @@ namespace Great.Parts.Cel.Values;
 /// immutable, and every member can be called from any number of threads at once.
 /// </para>
 /// </remarks>
-public abstract class CelObjectType
+public abstract partial class CelObjectType
 {
     // The fields by name; the names come from the description, never from an expression.
     private readonly FrozenDictionary<string, CelObjectField> _fieldsByName;
@@ -240,9 +240,12 @@ public abstract class CelObjectType
     /// Whether an expression can create an instance with an object literal such as <c>M{f: 1}</c>.
     /// </summary>
     /// <remarks>
-    /// The default is <see langword="false"/>: object literals are supported only for protobuf messages,
-    /// and a literal of another type is a type checking error <see cref="CelErrorCode.TypeNotConstructible"/>.
-    /// A derived class that returns <see langword="true"/> overrides <see cref="CreateInstance"/>.
+    /// The default is <see langword="false"/>, and a literal of the type is a type checking error
+    /// <see cref="CelErrorCode.TypeNotConstructible"/>. Protobuf messages, .NET types listed with
+    /// <see cref="CelObjectAttribute.AllowObjectLiterals"/> and types whose builder allows literals return
+    /// <see langword="true"/>. A derived class that returns <see langword="true"/> overrides <see cref="CreateInstance"/>,
+    /// and type checking asks it which fields a literal can set and must set: <see cref="CanSetField"/> and
+    /// <see cref="IsRequiredField"/>.
     /// </remarks>
     protected internal virtual bool IsConstructible => false;
 
@@ -457,6 +460,11 @@ public abstract class CelObjectType
     /// <c>FieldTypeMismatch</c>.
     /// </summary>
     internal virtual bool IsDictionaryCarrier => false;
+
+    /// <summary>
+    /// How an object literal of this type is charged beyond its unit and one unit for each field it sets.
+    /// </summary>
+    internal virtual LiteralCostRule LiteralCost => LiteralCostRule.WrittenLength;
 
     /// <summary>
     /// Reads a field when it is present, for the equality of two instances: by <see cref="HasField"/>, then

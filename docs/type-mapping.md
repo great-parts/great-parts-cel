@@ -18,6 +18,11 @@ An error of a conversion is an error of the result, not an exception, except the
 | `bool` | `bool` | as it is |
 | `string` | `string` | the same instance, without a copy; a `null` reference is the value `null` |
 | `Guid` | `string` | the format `D`, in lower case |
+| `char` | `string` | a string of one UTF-16 unit, made when the value is read. A lone surrogate (U+D800 to U+DFFF) is no CEL string: the evaluation error `InvalidArgument` (3008) that names the type and the member, and an `ArgumentException` of `CelBindings.Add` |
+| `Int128`, `BigInteger` | `int` | exactly when the value is in the range of `long`, otherwise the evaluation error `ConversionRange` (3007) that names the type and the member, and an `ArgumentException` of `CelBindings.Add`; never a truncated number. The CEL type follows the .NET type, so a `BigInteger` above `long.MaxValue` is out of range even where it would fit a `uint` |
+| `UInt128` | `uint` | exactly up to `ulong.MaxValue`, otherwise as above |
+| `DateOnly` | `date` | exactly, from 0001-01-01 to 9999-12-31. The type `date` is declared by the [`calendar` extension](extensions.md#set-calendar-version-1): without the set, selecting such a member is `FieldNotAccessible` (2007) that names the set, and a variable of the type is `TypeNotDeclared` (4008). A `DateOnly?` has the type `date` too, since CEL has no wrapper of it: a member without a value is `UnexpectedNull` and `has()` is false |
+| `TimeOnly` | `time_of_day` | exactly, with a precision of 100 nanoseconds, the precision of `TimeOnly`; as `DateOnly` in every other respect |
 | an enumeration, also `[Flags]` | `int` | the underlying value. The value of an enumeration on `ulong` above the range of `int` is the evaluation error `ConversionRange` (3007) |
 | `byte[]`, `ReadOnlyMemory<byte>` | `bytes` | without a copy; a `null` array is the value `null`. The application does not change the buffer while an evaluation reads it |
 | `CelTimestamp` | `timestamp` | as it is, to the nanosecond |
@@ -50,15 +55,15 @@ These rows apply wherever the rows above do: a binding, `AddVariable<T>`, and th
 | any other `IReadOnlyCollection<X>`, such as `Queue<X>` | `list(E)` | a copy in the order of enumeration, made when the value enters the expression |
 | `IReadOnlyDictionary<K, X>`, `IDictionary<K, X>`, `Dictionary<K, X>` | `map(K', E)`, `X` to `E` by the rows above | a lazy view that finds a key with one lookup in the dictionary and converts a value at each read. The order of enumeration is that of the dictionary for `Dictionary`, `OrderedDictionary`, `SortedDictionary`, `SortedList` and `ImmutableSortedDictionary`, and ascending by key for every other dictionary |
 
-The keys `K` of a dictionary and their CEL types: `string` is `string`; `Guid` is `string`, written in the format `D` in lower case; `long` and `int` are `int`; `ulong` and `uint` are `uint`; `bool` is `bool`.
+The keys `K` of a dictionary and their CEL types: `string` is `string`; `Guid` is `string`, written in the format `D` in lower case; `char` is `string` of one UTF-16 unit, found only by a string of exactly one unit that is not a surrogate, and a key that is a lone surrogate gives an error value `InvalidArgument` when the dictionary is enumerated, as an element of a list that is a lone surrogate does; `long` and `int` are `int`; `ulong` and `uint` are `uint`; `bool` is `bool`. The integers wider than 64 bits are no keys.
 
 A key is found back from the CEL key. A CEL key of another kind than the key type gives, or one outside its range, finds nothing and is not an error; numeric keys meet on one number line, so a dictionary over `int` finds the key `1` by `1`, `1u` and `1.0`. A `Guid` key is found only by its canonical string: 36 characters, the format `D`, lower case, exactly the string that the enumeration gives. A string in upper case, with braces, or in the formats `N`, `B` or `P` finds nothing, so a map of `Guid` keys behaves as a map of its canonical strings.
 
 **Which types the rows take.** The generic inputs — `AddVariable<T>`, `CelBindings.Add<T>`, the delegate forms of `AddFunction` and the result of a typed delegate — take a closed list of collections one step deep, because a closed generic type that is known only at run time cannot be built under Native AOT:
 
-- `X` of an array, a list, a set and a collection, and the value of a dictionary, is one of `bool`, `long`, `int`, `ulong`, `uint`, `double`, `string`, `Guid`, `byte[]`, `ReadOnlyMemory<byte>`, the `Nullable<>` of those, `CelValue`, `object`, `CelList`, `CelMap` and `JsonElement`;
+- `X` of an array, a list, a set and a collection, and the value of a dictionary, is one of `bool`, `long`, `int`, `ulong`, `uint`, `double`, `string`, `Guid`, `char`, `Int128`, `UInt128`, `BigInteger`, `DateOnly`, `TimeOnly`, `byte[]`, `ReadOnlyMemory<byte>`, the `Nullable<>` of those, `CelValue`, `object`, `CelList`, `CelMap` and `JsonElement`;
 - a dictionary is an `IReadOnlyDictionary<K, X>`, an `IDictionary<K, X>` or a `Dictionary<K, X>`; another dictionary class, such as `ImmutableDictionary<K, X>`, `SortedDictionary<K, X>` or `ReadOnlyDictionary<K, X>`, is outside the rows and is passed with the type of an interface or as `object`;
-- the key `K` of a dictionary is one of `string`, `Guid`, `long`, `int`, `ulong`, `uint` and `bool`;
+- the key `K` of a dictionary is one of `string`, `Guid`, `char`, `long`, `int`, `ulong`, `uint` and `bool`;
 - the element of an array, an `IReadOnlyList<X>`, an `IList<X>` and a collection without an index is also a class, a record or an interface of the application that is not in `System`: the list is read as a list of `object` and has the type `list(E)` of the object type that a type source describes for that class. An `IList<X>` of such an `X` also has to be an `IReadOnlyList<X>`. A set and a dictionary of such an `X` are outside the rows;
 - anything else, such as `IReadOnlyList<IReadOnlyList<long>>`, `IReadOnlyDictionary<string, Order>`, `IReadOnlyList<MyStruct>` or a collection of an enumeration, is outside the rows: `TypeNotDeclared` for `AddVariable<T>` and the delegate forms of `AddFunction`, `ImplementationSignatureMismatch` (4011) for the result of `AddFunctionImplementation<…, TResult>`, and an `ArgumentException` for `CelBindings.Add<T>`. The application passes such data as a `CelList` or a `CelMap` that `CelList.CreateView` or `CelMap.CreateView` makes with a converter. The same list gives the results of `Compile<T>` below, where a class of the application is not an `X` either.
 
@@ -85,7 +90,7 @@ A source that is changed during an evaluation gives an undefined result: a view 
 - a list or a dictionary with `string` keys of the closed list above — an array, `List<X>`, `IReadOnlyList<X>`, `ImmutableArray<X>`, `Dictionary<string, X>`, `IReadOnlyDictionary<string, X>` and the other types of those rows, `X` one of the elements listed above — is `list(E)` or `map(string, V)`, a lazy view as with `Add<T>`. A list of objects is such only when its elements are exactly `object`: a `List<Order>` is an object, not a `list(dyn)`;
 - any other instance is an object value: an object of the application that a type source of the environment describes is read as that object, also in a place of the type `dyn`; a .NET collection outside the list, such as a `HashSet<X>`, is the evaluation error `TypeNotAccessible` (3012) where the expression reads it;
 - the type of the value is checked against the declared type of the variable when the expression reads it: a mismatch is `BindingTypeMismatch` (3011);
-- what `Add<T>` refuses, the indexer refuses with the same `ArgumentException`: a `DateTime` that is not of the kind `Utc`, a `Decimal128` NaN or infinity, a default `JsonElement`. A value type is boxed by the indexer; for evaluation without allocation use `Add<T>` on bindings that are cleared with `Clear()` and filled again, or the input of the environment.
+- what `Add<T>` refuses, the indexer refuses with the same `ArgumentException`: a `DateTime` that is not of the kind `Utc`, a `char` that is a lone surrogate, an `Int128`, a `UInt128` or a `BigInteger` out of range, a `Decimal128` NaN or infinity, a default `JsonElement`. A value type is boxed by the indexer; for evaluation without allocation use `Add<T>` on bindings that are cleared with `Clear()` and filled again, or the input of the environment.
 
 The getter returns the value as the result `T = object` would give it, see [Results](#results); a name that is not bound is an `ArgumentException`. `Clear()` removes all values and keeps the capacity, so a loop that fills the same bindings allocates for the values only.
 
@@ -99,13 +104,15 @@ The getter returns the value as the result `T = object` would give it, see [Resu
 | `long`, `int`, `short`, `sbyte` | `int` |
 | `ulong`, `uint`, `ushort`, `byte` | `uint` |
 | `double` | `double` |
-| `string`, `Guid` | `string` |
+| `string`, `Guid`, `char` | `string` |
+| `Int128`, `BigInteger` | `int`; a value out of the range of `long` is an `ArgumentException`, as for `CelBindings.Add` |
+| `UInt128` | `uint`; a value above `ulong.MaxValue` is an `ArgumentException` |
 | `byte[]`, `ReadOnlyMemory<byte>` | `bytes` (a `byte[]` is bytes, not a list) |
 | `DateTimeOffset`, a `DateTime` of the kind `Utc` | `timestamp`; another kind of `DateTime` is an `ArgumentException`, as for `CelBindings.Add` |
 | `TimeSpan` | `duration` |
 | `JsonElement`, `CelValue` | `dyn` |
 | `CelList`, `CelMap` | `list(dyn)`, `map(dyn, dyn)` |
-| a list: an array, `List<X>`, `IReadOnlyList<X>`, `ImmutableArray<X>` and the other list rows of the [input table](#input-a-net-type-to-a-cel-type), `X` one of `bool`, `long`, `int`, `ulong`, `uint`, `double`, `string`, `Guid`, `byte[]`, `ReadOnlyMemory<byte>`, their `Nullable<>`, `CelValue`, `object`, `CelList`, `CelMap`, `JsonElement` | `list(E)`, `E` the CEL type of `X`; `list(dyn)` for `object` |
+| a list: an array, `List<X>`, `IReadOnlyList<X>`, `ImmutableArray<X>` and the other list rows of the [input table](#input-a-net-type-to-a-cel-type), `X` one of `bool`, `long`, `int`, `ulong`, `uint`, `double`, `string`, `Guid`, `char`, `Int128`, `UInt128`, `BigInteger`, `DateOnly`, `TimeOnly`, `byte[]`, `ReadOnlyMemory<byte>`, their `Nullable<>`, `CelValue`, `object`, `CelList`, `CelMap`, `JsonElement` | `list(E)`, `E` the CEL type of `X`; `list(dyn)` for `object` |
 | a dictionary: `Dictionary<string, X>`, `IReadOnlyDictionary<string, X>` and the other dictionary rows with `string` keys, `X` as above | `map(string, V)`, `V` the CEL type of `X`; `map(string, dyn)` for `object` |
 | `null` | `dyn`, bound to `null` |
 
@@ -125,13 +132,13 @@ The registry is keyed by the type, so a call through a generic method or an `obj
 
 A property of an anonymous object has one of these types; any other type is the error [`GPCEL011`](generator-diagnostics.md#gpcel011) with the name and the type of the property:
 
-- `bool`, `long`, `int`, `short`, `sbyte`, `ulong`, `uint`, `ushort`, `byte`, `double`, `string`, `Guid`, `byte[]`, `ReadOnlyMemory<byte>`, `DateTimeOffset`, `DateTime` of the kind `Utc`, `TimeSpan`, `JsonElement`, `CelValue`, `CelList` and `CelMap`, with the CEL types of the rows above;
+- `bool`, `long`, `int`, `short`, `sbyte`, `ulong`, `uint`, `ushort`, `byte`, `double`, `string`, `Guid`, `char`, `Int128`, `UInt128`, `BigInteger`, `byte[]`, `ReadOnlyMemory<byte>`, `DateTimeOffset`, `DateTime` of the kind `Utc`, `TimeSpan`, `JsonElement`, `CelValue`, `CelList` and `CelMap`, with the CEL types of the rows above;
 - `Nullable<X>` of a value type of that list;
-- `X[]`, `List<X>`, `IReadOnlyList<X>` and `ImmutableArray<X>` as a `list`, and `Dictionary<string, XV>` and `IReadOnlyDictionary<string, XV>` as a `map` with string keys, where `X` and `XV` are `bool`, `long`, `int`, `ulong`, `uint`, `double`, `string`, `Guid`, `byte[]`, `ReadOnlyMemory<byte>`, `CelValue`, `CelList`, `CelMap`, `JsonElement`, `object` or a `Nullable<>` of the value types among them.
+- `X[]`, `List<X>`, `IReadOnlyList<X>` and `ImmutableArray<X>` as a `list`, and `Dictionary<string, XV>` and `IReadOnlyDictionary<string, XV>` as a `map` with string keys, where `X` and `XV` are `bool`, `long`, `int`, `ulong`, `uint`, `double`, `string`, `Guid`, `char`, `Int128`, `UInt128`, `BigInteger`, `byte[]`, `ReadOnlyMemory<byte>`, `CelValue`, `CelList`, `CelMap`, `JsonElement`, `object` or a `Nullable<>` of the value types among them.
 
-A class or a structure of the application, a nested anonymous object, `object`, `float`, `char`, `decimal` and an enumeration are not on the list: build an environment with a type source and `UseInput<T>` for them. The name of a property is a variable of the top level, so it has to be an identifier of CEL: a reserved word such as `for` is the error `GPCEL011`.
+A class or a structure of the application, a nested anonymous object, `object`, `float`, `decimal`, `DateOnly`, `TimeOnly` and an enumeration are not on the list: build an environment with a type source and `UseInput<T>` for them. The name of a property is a variable of the top level, so it has to be an identifier of CEL: a reserved word such as `for` is the error `GPCEL011`.
 
-**Errors.** Every error is a `CelException` with all the errors found; a failed build of the hidden environment is not cached. A value of a type outside the list is `TypeNotDeclared` (4008) with the full name of the .NET type: for a dictionary, with the name of the key; for an object passed as `data` that is not a dictionary and not a registered anonymous type, with the name `data`. That covers a class or a structure of the application, a `decimal`, a message of protobuf, a `float`, a `char`, an enumeration, a set, a dictionary with keys that are not `string` and a collection of an element type outside the list. The advice in the message is to build a `CelEnvironment` with a type source or an extension set, for `decimal` with the set `decimal`. For an anonymous type that no call registered, the name is the one the compiler gave it, `<>f__AnonymousType…`, and the advice is to pass the anonymous object to `Evaluate` directly or to pass a dictionary. The hidden environment has the standard library version 1 and no extension set, so a function of a set, such as `upperAscii()`, is `UndeclaredReference` (2000).
+**Errors.** Every error is a `CelException` with all the errors found; a failed build of the hidden environment is not cached. A value of a type outside the list is `TypeNotDeclared` (4008) with the full name of the .NET type: for a dictionary, with the name of the key; for an object passed as `data` that is not a dictionary and not a registered anonymous type, with the name `data`. That covers a class or a structure of the application, a `decimal`, a message of protobuf, a `float`, an enumeration, a set, a dictionary with keys that are not `string` and a collection of an element type outside the list. The advice in the message is to build a `CelEnvironment` with a type source or an extension set, for `decimal` with the set `decimal`. For an anonymous type that no call registered, the name is the one the compiler gave it, `<>f__AnonymousType…`, and the advice is to pass the anonymous object to `Evaluate` directly or to pass a dictionary. The hidden environment has the standard library version 1 and no extension set, so a function of a set, such as `upperAscii()`, is `UndeclaredReference` (2000).
 
 ## The type of an object
 
@@ -203,6 +210,23 @@ The type `optional_type(E)` of the set [optional](extensions.md#set-optional-ver
 - **`object` and `CelValue`.** With `T = object` the result is a `CelOptional<object?>` whose held value is the natural mapping of its kind; with `T = CelValue` it is the value as it is, of the kind `Optional`, read by `CelValue.TryGetOptional`.
 - **A binding whose held value does not convert** is an error value where the variable is read, as any other value that cannot enter the expression is: `CelBindings.Add` of a `CelOptional<X>` whose `X` has no row is an `ArgumentException`.
 
+## Object literals
+
+An expression creates an instance of a .NET type with the syntax of a message literal, `acme.Money{amount: 10.5m}`, when the type context lists the type with `[CelObject(typeof(Money), AllowObjectLiterals = true)]`. A type that is only reached through the members of another type, and a type listed without the argument, is the type checking error `TypeNotConstructible` (2008). A type that the generated code cannot create is the build error [`GPCEL012`](generator-diagnostics.md#gpcel012).
+
+The generated code calls a public constructor without parameters or, when there is none, the only public constructor whose parameters are members of the type (the name matches ignoring case, as in a positional `record`). A parameter that the literal does not set gets its default value; a parameter without one is a required field. Then it sets the members that the literal names: a property with a public `set` or `init` accessor, or a public field that is not `readonly`. A member that the literal does not name keeps the value that the constructor and the initializers gave it. No reflection is used, so literals work under trimming and Native AOT.
+
+| Member | What a literal does |
+| :- | :- |
+| a `required` member | it is a required field: the literal must name it, otherwise the type checking error `RequiredFieldNotSet` (2011) names the type and the field |
+| an `init` member that is not `required` | it is set after the constructor, through its `init` accessor; a member that is not named keeps its initializer |
+| a member with no public `set` or `init`, a private `set`, and a member of a type that has no row below | a literal that names it is the type checking error `FieldNotAccessible` (2007) with the reason `cannot be set by an object literal` |
+| a member of an enumeration, `object`, `JsonElement`, `Decimal128` (a type of `net11.0`), a set (`HashSet<T>`, `ISet<T>`) or a collection of collections | not set by a literal either: the same error, because the rows below do not create it (an enumeration is not one of the types that an argument of a function of the application can have) |
+
+A value is converted by the rows of the input table in the other direction: `int` and `uint` to the integer type of the member, `double` to `double`, `float` and `Half`, `string` to `string`, `char` (one UTF-16 code unit), `Guid` and the strings of the type, `bytes` to `byte[]` and `ReadOnlyMemory<byte>`, `timestamp` and `duration` to the time types, `decimal`, `date` and `time_of_day`, an `int` to `Int128` and `BigInteger`, a `uint` to `UInt128`, an object of the context whose .NET type fits the member, `Nullable<T>` of these (`null` is no value), and `T[]`, `List<T>`, `IReadOnlyList<T>`, `IList<T>`, `ImmutableArray<T>`, `Dictionary<K, V>` and `IReadOnlyDictionary<K, V>` of these, one level deep. A value that does not fit — an `int` outside the range of an `int` member, a string that is not one code unit for a `char` — is an evaluation error of the field, `ConversionRange` (3007) or `InvalidArgument` (3008), never a truncated number. An exception of the constructor or of a setter is `ApplicationException` (3014).
+
+A literal costs 1 + n for n fields and 1 for each element and pair of a collection that the generated code copies; the code of the application is not charged.
+
 ## Protobuf messages
 
 The package `Great.Parts.Cel.Protobuf` describes the messages of `.proto` files, and a message enters an expression as the instance of its generated class, as an object of the rows above, without a copy. The fields of a message are read by these rows; the page [Protobuf messages](protobuf.md) has the details, the presence rules, the object literals, `Any` and the equality of messages.
@@ -234,9 +258,6 @@ A type in the namespace `System` or in a namespace below it that has no row on t
 | a class, a structure or an interface of `System` without a row: `Uri`, `Version`, `IPAddress`, `Regex`, `Exception`, `CultureInfo`, `CancellationToken`, `KeyValuePair<K, V>`, `ValueTuple<…>`, `Tuple<…>` | read as an object, it would be a random set of properties | a string, or a type of the application with the fields that are needed |
 | `Task`, `Stream`, delegates, `Type`, pointers | not data: reading would run code of the application or input and output | — |
 | `IEnumerable<T>` that is not an `IReadOnlyCollection<T>`, and the collections without a type of elements (`ArrayList`, `Hashtable`) | the size and the index are unknown, and the enumeration may never end or may have side effects | an array or a list |
-| `char` | a unit of UTF-16, not a code point; a lone surrogate is no CEL string | `string` |
-| `Int128`, `UInt128`, `BigInteger` | CEL has no integer wider than 64 bits, so an error of range would show only on data | `long` or `string` |
-| `DateOnly`, `TimeOnly` | not supported in 1.0; they can be added in a minor version | `DateTimeOffset`, or a string |
 | `JsonDocument`, `JsonNode` | a `JsonDocument` is disposed by the application and a `JsonNode` can be changed | the `RootElement` as a `JsonElement` |
 
 A `string`, a `Guid`, an enumeration, the collections and the types of the rows above are read through their own rows, and the classes of the application that are not in `System` are objects.
@@ -332,13 +353,15 @@ The value of the root is converted to the type `T` by the rows below. A value wh
 | CEL type of the value | Allowed `T` | Rule | Refused |
 | :- | :- | :- | :- |
 | `bool` | `bool` | as it is | a value of another type |
-| `int` | `long`, `int` | `long` as it is; `int` with a check of the range | outside `Int32` with `T = int` |
-| `uint` | `ulong`, `uint` | `ulong` as it is; `uint` with a check of the range | outside `UInt32` with `T = uint` |
+| `int` | `long`, `int`, `Int128`, `BigInteger` | `long`, `Int128` and `BigInteger` as it is; `int` with a check of the range | outside `Int32` with `T = int` |
+| `uint` | `ulong`, `uint`, `UInt128` | `ulong` and `UInt128` as it is; `uint` with a check of the range | outside `UInt32` with `T = uint` |
 | `double` | `double` | as it is | a value of another type |
-| `string` | `string` | as it is | a value of another type |
+| `string` | `string`, `char` | `string` as it is; `char` only for a string of exactly one UTF-16 unit that is not a surrogate | `T = char` for a string of another length: `ResultConversion` at the root |
 | `bytes` | `ReadOnlyMemory<byte>`, `byte[]` | `ReadOnlyMemory<byte>` without a copy; `byte[]` as a copy | a value of another type |
 | `timestamp` | `CelTimestamp`, `DateTimeOffset` | `CelTimestamp` exactly; `DateTimeOffset` with offset 0 | `T = DateTimeOffset` when the nanoseconds are not a multiple of 100: `ResultConversion` at the root, never rounded |
 | `duration` | `CelDuration`, `TimeSpan` | `CelDuration` exactly; `TimeSpan` exactly | `T = TimeSpan` when the nanoseconds are not a multiple of 100 |
+| `date` | `DateOnly`, `DateOnly?` | exactly | a value of another type |
+| `time_of_day` | `TimeOnly`, `TimeOnly?` | exactly | a value of another type |
 | `decimal` | `System.Decimal`; `Decimal128` on .NET 11 | `System.Decimal` as it is on .NET 10 and rounded half to even to 28 places and 96 bits on .NET 11; `Decimal128` exactly | `T = System.Decimal` outside its range (.NET 11): `ResultConversion` at the root |
 | `null_type` | reference types, `Nullable<>`, `object`, `CelValue` | `null`; for `CelValue` the value `null`. `CelEvalResult<T>.Value` is `null` also after `IsSuccess` is checked when the result is `null` for a reference `T`; `GetValueOrThrow()` returns `null` too | `T` a value type without `?` |
 | `list(E)` | `IReadOnlyList<X>` with `E` to `X` by this table, one step deep; `CelList` | a lazy view when no element can fail its conversion and the list is a collection of the library, after a check of the value; otherwise an immutable copy made at the end of the evaluation | an element that does not convert to `X`, at the root; a value that fails the check before the view |

@@ -8,8 +8,8 @@ namespace Great.Parts.Cel.Generator.Tests.Examples;
 
 // The contexts that the snapshots of the created code are made for (the specification of the tests, "Snapshots"): the smallest
 // context of the page of the created code, every input row of the type mapping, the collection families, the kinds of object
-// types, the naming policies and the name rules, the excluded members, a member that is a message of protobuf, Decimal128 and
-// the project without the nullable context. The developer writes the files of the snapshots from the created text, each after
+// types, the naming policies and the name rules, the excluded members, a member that is a message of protobuf, Decimal128,
+// DateOnly and TimeOnly, types that object literals create, and the project without the nullable context. The developer writes the files of the snapshots from the created text, each after
 // a read of it against the page of the created code; the sources are not changed. A context that is not compiled holds a stub
 // of what the process lacks (Decimal128), and its created text is a snapshot only.
 internal sealed record SnapshotContext(
@@ -123,11 +123,44 @@ internal static class SnapshotContexts
             [Obsolete] public class OldType { public long A { get; set; } }
             public class Holder
             {
-                public long Kept { get; set; } public System.IO.Stream? Body { get; set; } [Obsolete] public long Old { get; set; } public char Letter { get; set; }
+                public long Kept { get; set; } public System.IO.Stream? Body { get; set; } [Obsolete] public long Old { get; set; } public System.Type? Kind { get; set; }
                 public OldType Aged { get; set; } = new(); public int[,] Grid { get; set; } = new int[0, 0]; public Dictionary<double, long> Weights { get; set; } = [];
                 public HashSet<object> Mixed { get; set; } = []; public List<System.IO.Stream> Streams { get; set; } = []; public Uri? Link { get; set; }
                 [CelIgnore] public System.IO.Stream? Hidden { get; set; }
             }
+            """),
+
+        new("Wide", Header + """
+            [CelObject(typeof(Wide))] public partial class WideContext : CelTypeContext { }
+            public class Wide
+            {
+                public char Letter { get; set; } public char? Mark { get; set; } public IReadOnlyList<char> Letters { get; set; } = [];
+                public Int128 I { get; set; } public UInt128 U { get; set; } public System.Numerics.BigInteger B { get; set; } public Int128? N { get; set; }
+                public Dictionary<char, long> ByLetter { get; set; } = []; public List<System.Numerics.BigInteger?> Bigs { get; set; } = [];
+                public HashSet<char> Marks { get; set; } = [];
+            }
+            """),
+
+        new("Calendar", Header + """
+            [CelObject(typeof(Shipment))] public partial class ShipmentContext : CelTypeContext { }
+            public class Shipment
+            {
+                public DateOnly ShipDate { get; set; } public TimeOnly Cutoff { get; set; } public DateOnly? Delivered { get; set; } public TimeOnly? Window { get; set; }
+                public IReadOnlyList<DateOnly> Holidays { get; set; } = []; public Dictionary<string, TimeOnly> Slots { get; set; } = []; public HashSet<DateOnly> Closed { get; set; } = [];
+            }
+            """),
+
+        new("Literals", Header + """
+            [CelObject(typeof(Money), AllowObjectLiterals = true)]
+            [CelObject(typeof(Price), AllowObjectLiterals = true)]
+            [CelObject(typeof(Order), AllowObjectLiterals = true)]
+            public partial class ShopContext : CelTypeContext { }
+            public sealed class Money
+            {
+                public decimal Amount { get; set; } public string Currency { get; init; } = "RUB"; public int Scale { get; set; } = 2; public string Display => Currency + ":" + Scale;
+            }
+            public sealed record Price(decimal Amount, string Currency = "RUB");
+            public sealed class Order { public required string Id { get; init; } public Money Total { get; set; } = new(); }
             """),
 
         new("Message", Header + """
@@ -227,7 +260,7 @@ public sealed class SnapshotContextTests
         GeneratorDriverRunResult result = GeneratorExample.Run(GeneratorExample.Compile(SnapshotContexts.Get("Excluded").Source));
 
         string[] members = [.. GeneratorExample.Reported(result).Select(diagnostic => GeneratorExample.Place(diagnostic))];
-        string[] excluded = ["Body", "Old", "Letter", "Aged", "Grid", "Weights", "Mixed", "Streams", "Link"];
+        string[] excluded = ["Body", "Old", "Kind", "Aged", "Grid", "Weights", "Mixed", "Streams", "Link"];
         Assert.Equal(excluded.Order(System.StringComparer.Ordinal), members.Order(System.StringComparer.Ordinal));
         Assert.All(GeneratorExample.Reported(result), diagnostic => Assert.Equal("GPCEL002", diagnostic.Id));
     }

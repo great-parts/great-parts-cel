@@ -20,12 +20,12 @@ internal static class CelTypes
         bool nullable = scalar.Nullability != Nullability.NotNull;
         return scalar.Kind switch
         {
-            ScalarKind.Int => CelTypeModel.Of(CelTypeKind.Int),
-            ScalarKind.UInt => CelTypeModel.Of(CelTypeKind.UInt),
+            ScalarKind.Int or ScalarKind.Int128 or ScalarKind.BigInteger => CelTypeModel.Of(CelTypeKind.Int),
+            ScalarKind.UInt or ScalarKind.UInt128 => CelTypeModel.Of(CelTypeKind.UInt),
             ScalarKind.Double => CelTypeModel.Of(CelTypeKind.Double),
             ScalarKind.Bool => CelTypeModel.Of(CelTypeKind.Bool),
             ScalarKind.String => Wrapped(CelTypeKind.String, nullable),
-            ScalarKind.Guid => CelTypeModel.Of(CelTypeKind.String),
+            ScalarKind.Guid or ScalarKind.Char => CelTypeModel.Of(CelTypeKind.String),
             ScalarKind.Bytes => Wrapped(CelTypeKind.Bytes, nullable),
             ScalarKind.BytesMemory => CelTypeModel.Of(CelTypeKind.Bytes),
             ScalarKind.CelList => CelTypeModel.ListOf(CelTypeModel.Of(CelTypeKind.Dyn)),
@@ -39,6 +39,8 @@ internal static class CelTypes
         ScalarKind.Timestamp or ScalarKind.DateTimeOffset or ScalarKind.DateTime => CelTypeModel.Of(CelTypeKind.Timestamp),
         ScalarKind.Duration or ScalarKind.TimeSpan => CelTypeModel.Of(CelTypeKind.Duration),
         ScalarKind.Decimal128 or ScalarKind.Decimal => CelTypeModel.Of(CelTypeKind.Decimal),
+        ScalarKind.Date => CelTypeModel.Of(CelTypeKind.Date),
+        ScalarKind.TimeOfDay => CelTypeModel.Of(CelTypeKind.TimeOfDay),
         _ => CelTypeModel.Of(CelTypeKind.Dyn),
     };
 
@@ -46,7 +48,7 @@ internal static class CelTypes
         nullable ? CelTypeModel.WrapperOf(CelTypeModel.Of(kind)) : CelTypeModel.Of(kind);
 
     // Nullable<T>: the wrapper of the CEL type of T when it has one (bool, bytes, double, int, uint, string), the object type
-    // of a structure, and the CEL type of T otherwise (timestamp, duration, decimal).
+    // of a structure, and the CEL type of T otherwise (timestamp, duration, decimal, date, time_of_day).
     private static CelTypeModel OfNullable(NullableShape shape)
     {
         CelTypeModel inner = Of(shape.Underlying);

@@ -51,6 +51,7 @@ The cost depends on the expression and the data, not on the limit: the same eval
 | Logic | `&&`, `\|\|`, `?:` | 0 beyond the operands; only the operand that is needed is evaluated |
 | List | creating a list of n elements: a literal, also the empty `[]`, a concatenation, a copy | 1 + n |
 | Map | creating a map of n pairs: a literal, a copy | 1 + 2n, and ⌈L/10⌉ for each string key of length L |
+| Object literal | creating a value of a .NET type that the generator describes, or of a type described at run time, with a literal of n entries (`AllowObjectLiterals`) | 1 + n, and for a .NET type 1 more for each element of a list and each pair of a map among the values, which the generated code copies into members; the constructor, `set` and `init` of the application are not charged, as a getter is not |
 | Message | creating a protobuf message with a literal of n entries, a field named twice counted each time | 1 + n, and ⌈L/10⌉ for the sum L of the lengths of the values written directly in the fields that are strings, in UTF-16 code units, and bytes; for `google.protobuf.Any{…}` the lengths of the `type_url` and of the `value` count |
 | Map insertion | the insertion of a pair into a map that the expansion of a macro builds (`@mapInsert`) | 2 for each pair, and ⌈L/10⌉ for a string key of length L |
 | Macro step | one iteration of a macro | 1 beyond the body; the body is the expressions that the user wrote |
@@ -346,7 +347,33 @@ A call is 1 unit. Only two overloads grow with a text, and one has a unit of its
 | `string_to_decimal` | 1 + ⌈Lₐ/10⌉, with Lₐ the length of the string, charged before the string is read, so a string that does not parse has been paid for |
 | `decimal_to_string` | 1 + ⌈Lᵣ/10⌉, with Lᵣ the length of the text, at most 42, charged before the string is created |
 
+Version 2 adds `decimal_round_int64`, `decimal_round_int64_string`, `decimal_quantize_decimal` and `decimal_quantize_decimal_string`, 1 unit each: the value is kept without allocation, the mode is a string of at most nine characters, and a longer string is refused before it is compared, so the cost does not grow with it. `(1.5m).round(0)` costs 1.
+
 A decimal literal costs 0, as every literal does. For example, `string(1.5m + decimal('0.25'))` costs the sum 1, the conversion of the string `'0.25'` 1 + 1, and the text 1 + 1: 5 in all. An error is charged as its call: `1m / 0m` costs 1.
+
+### Set `calendar`
+
+A call is 1 unit. A date and a time of day take no memory beyond the 32 bytes of a value, so the equality of two dates, of a date and a time of day, and of a date and a value of another kind, is 1, and the ordering, the receivers, the shifts, the differences and the identities are 1 each. The overloads that read or write a text add `⌈L/10⌉`, as the functions of time do.
+
+| Overloads | Units |
+| :- | :- |
+| `int64_int64_int64_to_date`, `timestamp_to_date`, `timestamp_to_time_of_day`, `date_to_date`, `time_of_day_to_time_of_day`, `date_time_of_day_to_timestamp`, `date_to_year`, `date_to_month`, `date_to_day_of_month_1_based`, `date_to_day_of_month`, `date_to_day_of_week`, `date_to_day_of_year`, `time_of_day_to_hours`, `time_of_day_to_minutes`, `time_of_day_to_seconds`, `time_of_day_to_milliseconds`, `date_add_days`, `date_add_months`, `date_add_years`, `subtract_date_date`, `subtract_time_of_day_time_of_day`, `less_date`, `less_equals_date`, `greater_date`, `greater_equals_date`, `less_time_of_day`, `less_equals_time_of_day`, `greater_time_of_day`, `greater_equals_time_of_day` | 1 |
+| `string_to_date`, `string_to_time_of_day` | 1 + ⌈Lₐ/10⌉, with Lₐ the length of the string, charged before the string is read |
+| `timestamp_to_date_with_tz`, `timestamp_to_time_of_day_with_tz`, `date_time_of_day_to_timestamp_with_tz` | 1 + ⌈L/10⌉, with L the length of the name of the time zone, and the charge of the time zone database of the operating system when the environment uses it, as the receivers of a timestamp with a time zone |
+| `date_to_string` | 1 + 1: the text has 10 characters, charged before the string is created |
+| `time_of_day_to_string` | 1 + ⌈Lᵣ/10⌉, with Lᵣ the length of the text, 8 to 16, charged before the string is created |
+
+For example, `date('2026-11-19')` costs 1 + ⌈10/10⌉ = 2; `date(t, 'Europe/Moscow')` costs the read of `t` 1, the call 1 and ⌈13/10⌉ = 2, which is 4; `date('2026-11-19').addDays(1)` costs 2 + 1 = 3, and `string(date('2026-11-19'))` 2 + 1 + 1 = 4. An error is charged as its call.
+
+### Set `formats`
+
+A call is 1 unit and adds ⌈Lₐ/10⌉ for the length of the receiver, charged before the function runs; the `bool` and the `int` that some overloads take add nothing. A function of the set reads the string once and builds nothing, so no row has a part for a result, and a string of another format, for which the answer is `false`, costs the same as one of the format.
+
+| Overloads | Units |
+| :- | :- |
+| `string_is_email`, `string_is_hostname`, `string_is_host_and_port_bool`, `string_is_ip_prefix`, `string_is_ip_prefix_int`, `string_is_ip_prefix_bool`, `string_is_ip_prefix_int_bool`, `string_is_uri`, `string_is_uri_ref` | 1 + ⌈Lₐ/10⌉, with Lₐ the length of the receiver in UTF-16 code units |
+
+For example, `'foo@example.com'.isEmail()` costs 1 + ⌈15/10⌉ = 3, and `'10.0.0.0/8'.isIpPrefix(4, true)` costs 1 + ⌈10/10⌉ = 2.
 
 ## Data of the application
 

@@ -40,6 +40,7 @@ Each namespace of the assembly is a directory, and the namespace of a file equal
 | `src/Great.Parts.Cel/Library/Extensions/` | `Great.Parts.Cel.Library.Extensions` | internal | yes |
 | `src/Great.Parts.Cel/Library/Extensions/Strings/` | `Great.Parts.Cel.Library.Extensions.Strings` | internal | yes |
 | `src/Great.Parts.Cel/Library/Extensions/Network/` | `Great.Parts.Cel.Library.Extensions.Network` | internal | yes |
+| `src/Great.Parts.Cel/Library/Extensions/Formats/` | `Great.Parts.Cel.Library.Extensions.Formats` | internal | yes |
 | `src/Great.Parts.Cel/Evaluation/` | `Great.Parts.Cel.Evaluation` | internal | yes |
 | `src/Great.Parts.Cel/PublicAPI/` | public API snapshot files | — | no |
 
@@ -94,6 +95,10 @@ The set [decimal](extension-decimal.md) has its files in `Values/` and a directo
 | `src/Great.Parts.Cel/Library/Decimals/**` | the set: the table of overloads, the implementations, the cost functions | yes: `Library/**` |
 
 A defect in a core file is a wrong answer for a decimal and no visible error, but `eng/difftest` cannot see it: cel-go has no `decimal`. Its guard is the exact reference of [tests](tests.md#tests-of-decimal), which a change of these files must pass: it is accepted by the comparison with that reference, and the differential run finds nothing about it by construction.
+
+## Types of 2.0 and the formats
+
+The set [calendar](calendar.md) (`Library/Time/CalendarExtension.cs`, `CalendarFunctions.cs`, `CalendarCosts.cs`), the set [formats](extension-formats.md) (`Library/Extensions/Formats/**`) and the rounding of `decimal` ([decimal-rounding](decimal-rounding.md)) are in `Library/**` and `Values/*Rules.cs`, which the paths below cover: `Values/CalendarTextRules.cs`, `WideRules.cs`, `DecimalRoundingRules.cs`, `ConversionRules.Calendar.cs`, `ConversionRules.Wide.cs`. Not core: the model files `CelValue.Delta.cs`, `CelObjectType.Delta.cs`, `CelType.Delta.cs` and the files of the generator, whose decisions are in the rule files and in [object-literals](object-literals.md).
 
 ## Regex and Unicode
 

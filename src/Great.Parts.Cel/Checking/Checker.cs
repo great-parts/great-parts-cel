@@ -484,9 +484,9 @@ internal sealed class Checker
             return null;
         }
 
-        // A field of the type decimal is usable only where the environment declares the type: the description is valid in
-        // every environment, and the selection is where it is refused. The node has no type and no reference.
-        if (RefusesDecimalField(description, declared, place))
+        // A field of the type decimal, date or time_of_day is usable only where the environment declares the type: the description is
+        // valid in every environment, and the selection is where it is refused. The node has no type and no reference.
+        if (RefusesSetTypeField(description, declared, place))
         {
             return null;
         }
@@ -502,36 +502,46 @@ internal sealed class Checker
     // The reason of FieldNotAccessible for a field of the type decimal in an environment without the set decimal.
     private const string DecimalFieldReason = "the CEL type decimal needs the extension set 'decimal'";
 
-    // A field whose type mentions decimal, in an environment that has no set decimal, is FieldNotAccessible at the place; true when it
-    // was reported.
-    private bool RefusesDecimalField(CelObjectType description, CelObjectField field, CelSourceSpan place)
+    // A field whose type mentions decimal, in an environment that has no set decimal, or date or time_of_day, in one that has no set
+    // calendar, is FieldNotAccessible at the place; true when it was reported.
+    private bool RefusesSetTypeField(CelObjectType description, CelObjectField field, CelSourceSpan place)
     {
-        if (_declarations.Types.DecimalDeclared || !MentionsDecimal(field.Type))
+        string? reason = null;
+        if (!_declarations.Types.DecimalDeclared && MentionsKind(field.Type, CelTypeKind.Decimal) is not null)
+        {
+            reason = DecimalFieldReason;
+        }
+        else if (!_declarations.Types.CalendarDeclared && MentionsKind(field.Type, CelTypeKind.Date, CelTypeKind.TimeOfDay) is { } calendarType)
+        {
+            reason = "the CEL type " + calendarType.Name + " needs the extension set 'calendar'";
+        }
+
+        if (reason is null)
         {
             return false;
         }
 
-        _errors.Add(CheckErrors.FieldNotAccessible(field.Name, description.Name, DecimalFieldReason, place));
+        _errors.Add(CheckErrors.FieldNotAccessible(field.Name, description.Name, reason, place));
         return true;
     }
 
-    // Whether the type is decimal or has it at any depth: list(decimal), map(string, decimal), optional_type(decimal).
-    private static bool MentionsDecimal(CelType type)
+    // The first type of one of the kinds that the type is or has at any depth: list(decimal), map(string, decimal), optional_type(date).
+    private static CelType? MentionsKind(CelType type, CelTypeKind first, CelTypeKind second = CelTypeKind.Decimal)
     {
-        if (type.Kind == CelTypeKind.Decimal)
+        if (type.Kind == first || type.Kind == second)
         {
-            return true;
+            return type;
         }
 
         foreach (CelType parameter in type.Parameters)
         {
-            if (MentionsDecimal(parameter))
+            if (MentionsKind(parameter, first, second) is { } found)
             {
-                return true;
+                return found;
             }
         }
 
-        return false;
+        return null;
     }
 
     // optional_type(T).
@@ -692,7 +702,7 @@ internal sealed class Checker
         _candidateResults.Clear();
         foreach (OverloadBinding overload in overloads)
         {
-            if (overload.DynOnly && !HasDynArgument(argumentTypes))
+            if (overload.DynOnly && !_declarations.CrossTypeNumericComparisons && !HasDynArgument(argumentTypes))
             {
                 continue;
             }
@@ -1040,13 +1050,17 @@ internal sealed class Checker
     }
 
     // The fields of a literal of a constructible description, each at the colon of its entry: no such field is NoSuchField, or
-    // FieldNotAccessible when the description gives a reason; a value whose type is not assignable to the type of its field is
-    // TypeMismatch. The checks go on after an error. The reference map records the description for the literal and the number
-    // of the field for each entry whose field exists, which the planner binds. The type of the literal is the type of the
-    // description, also when an entry has an error, so the errors of the rest of the expression are not lost.
+    // FieldNotAccessible when the description gives a reason; a field that the description cannot set is FieldNotAccessible; a
+    // value whose type is not assignable to the type of its field is TypeMismatch. The checks go on after an error. Then each field
+    // that the description requires and no entry names is RequiredFieldNotSet at the literal. The reference map records the
+    // description for the literal and the number of the field for each entry whose field exists, which the planner binds. The type
+    // of the literal is the type of the description, also when an entry has an error, so the errors of the rest of the expression
+    // are not lost.
     private CelType CheckMessageFields(CelStructNode message, CelObjectType description, CelType?[] valueTypes)
     {
         _references.Add(message.Id, Reference.ToMessage(description));
+        int[] named = valueTypes.Length == 0 ? [] : new int[valueTypes.Length];
+        int namedCount = 0;
         for (int i = 0; i < valueTypes.Length; i++)
         {
             CelStructFieldNode entry = message.Fields[i];
@@ -1062,6 +1076,13 @@ internal sealed class Checker
             }
 
             _references.Add(entry.Id, Reference.ToField(description, declared.Number));
+            named[namedCount++] = declared.Number;
+            if (!description.CanSetField(declared.Number))
+            {
+                _errors.Add(CheckErrors.FieldNotAccessible(field, description.Name, CannotBeSetReason, place));
+                continue;
+            }
+
             if (valueTypes[i] is not { } valueType)
             {
                 continue;
@@ -1079,7 +1100,22 @@ internal sealed class Checker
             }
         }
 
+        ReportRequiredFields(message, description, named.AsSpan(0, namedCount));
         return description.Type;
+    }
+
+    private const string CannotBeSetReason = "cannot be set by an object literal";
+
+    // A field that the description requires and no entry of the literal names: RequiredFieldNotSet at the literal.
+    private void ReportRequiredFields(CelStructNode message, CelObjectType description, ReadOnlySpan<int> named)
+    {
+        for (int number = 0; number < description.Fields.Length; number++)
+        {
+            if (description.IsRequiredField(number) && !named.Contains(number))
+            {
+                _errors.Add(CheckErrors.RequiredFieldNotSet(description.Name, description.Fields[number].Name, Place(message)));
+            }
+        }
     }
 
     // The range and the accumulator initializer in the enclosing scopes; the loop condition and the step

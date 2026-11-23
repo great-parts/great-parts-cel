@@ -16,7 +16,10 @@ public sealed class CultureFitnessTests
     private static readonly bool InvariantGlobalization =
         AppContext.TryGetSwitch("System.Globalization.Invariant", out bool on) && on;
 
-    private static readonly CelEnvironment Environment = new CelEnvironmentBuilder(CelStandardLibrary.V1).Build().GetEnvironmentOrThrow();
+    private static readonly CelEnvironment Environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+        .AddExtension(CelExtensions.Calendar(1))
+        .Build()
+        .GetEnvironmentOrThrow();
 
     [Theory]
     [InlineData("tr-TR", "string(1.5)", "1.5")]
@@ -66,6 +69,14 @@ public sealed class CultureFitnessTests
     [InlineData("tr-TR", "matches('1.5', '^[0-9]+[.][0-9]+$')", true)]
     public static void Matches_IgnoresTheCulture(string culture, string expression, bool expected) =>
         InCulture(culture, () => Assert.Equal(expected, Environment.Evaluate<bool>(expression, new CelBindings()).GetValueOrThrow()));
+
+    // The text of a date and of a time of day is the library's own, and so are the parts and the shifts, whatever the culture.
+    [Theory]
+    [InlineData("tr-TR", "string(date('2026-11-19'))", "2026-11-19")]
+    [InlineData("tr-TR", "string(time_of_day('09:30:15.12'))", "09:30:15.12")]
+    [InlineData("tr-TR", "string(date('2026-11-19').addMonths(1))", "2026-12-19")]
+    public static void CalendarText_IsInvariant(string culture, string expression, string expected) =>
+        InCulture(culture, () => Assert.Equal(expected, Environment.Evaluate<string>(expression, new CelBindings()).GetValueOrThrow()));
 
     [Theory]
     [InlineData("tr-TR", "[1, 2][1234]", null, CelErrorCode.IndexOutOfRange, "index 1234 out of range [0, 2)")]

@@ -21,10 +21,6 @@ internal static class Reasons
 
     internal const string NonGeneric = "non-generic collections have no element type; use a typed collection";
 
-    internal const string CharType = "char is a UTF-16 code unit, not a code point; use string";
-
-    internal const string WideInteger = "CEL has no integers wider than 64 bits; use long or string";
-
     internal const string JsonDocumentType = "JsonDocument is released by the application; use JsonElement";
 
     internal const string JsonNodeType = "JsonNode is mutable; use JsonElement";
@@ -44,8 +40,6 @@ internal static class Reasons
     internal const string SetElement = "set elements must be numbers, bool, string, bytes, timestamp, duration or decimal, which CEL orders";
 
     internal static string NoSize(string type) => type + " has no size and no index; use an array, a list or a collection with a size";
-
-    internal static string DateTimeType(string type) => type + " is not supported; use DateTimeOffset or string";
 
     internal static string NoCelType(string type) => type + " has no CEL type; use a string or your own type";
 
@@ -67,4 +61,23 @@ internal static class Reasons
         "implements " + collectionInterface + " for more than one element type";
 
     internal static string InvalidTypeName(string name) => "'" + name + "' is not a valid CEL qualified type name";
+
+    // The reasons of GPCEL012, a type that AllowObjectLiterals lists and the created code cannot create ("Object literals" of the page
+    // of the created code): {t} is the display name of the type, which the callers pass where the reason names a member.
+    internal const string LiteralInterface = "an interface cannot be created";
+
+    internal const string LiteralAbstract = "an abstract class cannot be created";
+
+    internal const string LiteralNoConstructor = "it has no public constructor";
+
+    internal const string LiteralSeveralConstructors = "it has no public parameterless constructor and more than one public constructor with parameters";
+
+    internal static string LiteralParameterWithoutField(string parameter) =>
+        "the parameter '" + parameter + "' of its only public constructor matches no field";
+
+    internal static string LiteralParameterType(string parameter) =>
+        "the type of the parameter '" + parameter + "' of its only public constructor differs from the type of its field";
+
+    internal static string LiteralRequiredMember(string member) =>
+        "the required member '" + member + "' cannot be set by an object literal";
 }

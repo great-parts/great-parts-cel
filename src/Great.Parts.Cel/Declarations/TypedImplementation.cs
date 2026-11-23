@@ -87,7 +87,7 @@ internal static class TypedImplementation
     // A set is sorted and a collection without an index copied, charged to the meter of the call; an error value that the
     // conversion makes — a set whose elements CEL cannot sort, an undefined JSON element — has the place of the call.
     private static CelValue Result<T>(T value, string overloadId, in CallSite site) =>
-        site.Placed(ConversionRules.FromResult(value, overloadId, site.Meter));
+        site.Placed(ConversionRules.FromResult(value, overloadId, site.Meter, site.Function));
 
     // The message of ArgumentConversion to T: the overload identifier is the first part, the function name the
     // second, the number of the argument the number and the kind of its value the byte.

@@ -78,8 +78,8 @@ public sealed class CelBindingsTests
     {
         var bindings = new CelBindings();
 
-        // A System.Decimal is a row on both targets, so the type here is one that is never read.
-        Assert.Throws<ArgumentException>(() => bindings.Add("d", Int128.One));
+        // A System.Decimal and an Int128 are rows on both targets, so the type here is one that is never read.
+        Assert.Throws<ArgumentException>(() => bindings.Add("d", new Version(1, 0)));
         Assert.Empty(bindings.Values);
     }
 }

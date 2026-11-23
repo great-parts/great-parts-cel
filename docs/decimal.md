@@ -41,7 +41,7 @@ new CelEnvironmentBuilder(CelStandardLibrary.V1)
     .Build()
 ```
 
-- **The set.** `CelExtensions.Decimal(1)` adds the type and the 18 overloads below. The set has one version, 1; another number is the build error `UnknownExtensionVersion` (4004), `extension 'decimal' has no version 2; available versions: 1`. It needs no other set, and the same set added twice is one set. The set cannot be named in an [environment description in JSON](environment-json.md): the name `decimal` is not the name of a set of the catalog (`InvalidConfiguration`, 4009); add the set in code.
+- **The set.** `CelExtensions.Decimal(1)` adds the type and the 18 overloads below; `CelExtensions.Decimal(2)` adds them and the four of [rounding](#rounding). The set has the versions 1 and 2; another number is the build error `UnknownExtensionVersion` (4004), `extension 'decimal' has no version 3; available versions: 1, 2`, and the two versions in one environment are `ExtensionVersionConflict` (4003). It needs no other set, and the same set added twice is one set. The set cannot be named in an [environment description in JSON](environment-json.md): the name `decimal` is not the name of a set of the catalog (`InvalidConfiguration`, 4009); add the set in code.
 - **The literal option.** `EnableDecimalLiterals()` lets the expressions of the environment write `12.34m`. It needs the set: the option without it is the build error `MissingExtensionDependency` (4005), `the decimal literal option requires extension 'decimal', which is not added to the environment`. The function `decimal('12.34')` needs the set only. The option has no key in a description in JSON.
 - **The order of the calls does not matter**, as for every call of the builder, and `ToBuilder` keeps the set and the option.
 
@@ -72,7 +72,7 @@ There is no sign in the token, no `_` and no hexadecimal form. The value is exac
 
 ## Operators and conversions
 
-The set has 18 overloads. All are global functions or operators, and each answers `EvalNoMatchingOverload` for a value of another kind, whatever the static types say. The arithmetic and the comparison are those of the platform type: `Decimal128` on .NET 11, `System.Decimal` on .NET 10; the figures below are those of .NET 11 where the two differ, and the table above says how .NET 10 differs.
+Version 1 has 18 overloads. All are global functions or operators, and each answers `EvalNoMatchingOverload` for a value of another kind, whatever the static types say. The arithmetic and the comparison are those of the platform type: `Decimal128` on .NET 11, `System.Decimal` on .NET 10; the figures below are those of .NET 11 where the two differ, and the table above says how .NET 10 differs.
 
 | Overload | Function | Signature | What it does | Errors | Units |
 | :- | :- | :- | :- | :- | :- |
@@ -156,9 +156,26 @@ The outcome is the same on both targets (a `Decimal128` exists on .NET 11 only):
 | a boxed `System.Decimal` or `Decimal128` in a `dyn` place | `TypeNotAccessible` (3012) at the node that reads it |
 | a `decimal` key in a map literal | `UnsupportedMapKeyType` (3027), with the set too |
 
+## Rounding
+
+Version 2 of the set adds four overloads, called on a decimal: `x.round(n)`, `x.round(n, mode)`, `x.quantize(q)` and `x.quantize(q, mode)`. Version 1 does not have them and does not change. A call costs 1. The rules work on the sign, the coefficient and the exponent, so they are one code for both targets, and none of them uses the arithmetic of the platform type.
+
+- **`round(n)`** gives `x` with `n` digits after the point: `(1.245m).round(2)` is `1.24`. A negative `n` rounds to tens, hundreds and so on: `(1234m).round(-2)` is 1200. No zeros are added: `(1.5m).round(3)` is `1.5`, and an `n` at or beyond the digits that `x` has returns `x` itself, whatever the size of `n` (`(1.5m).round(9223372036854775807)` is `1.5`).
+- **`quantize(q)`** gives `x` the exponent of `q`, and only the exponent: the value of `q` does not matter, so `(1.5m).quantize(0.001m)` is `1.500`, `(1.2345m).quantize(0.01m)` is `1.23`, and `(1.2345m).quantize(0.05m)` is `1.23` too, to hundredths and not to a step of 0.05 (write `(x * 20m).round(0) / 20m` for that). A smaller exponent adds zeros exactly.
+- **The mode** is a string, compared exactly: `half_even`, the default, rounds to the nearest and a tie to the even digit; `half_up` a tie away from zero; `half_down` a tie toward zero; `down` toward zero; `up` away from zero; `floor` toward the lesser value; `ceiling` toward the greater one. `(2.5m).round(0, 'half_up')` is `3`, `(-2.5m).round(0, 'floor')` is `-3`. Another string, such as `'banker'` or `'HALF_UP'`, and a string longer than nine characters, is `InvalidArgument` (3008), `invalid argument to 'round': unknown rounding mode "banker"`, also for a constant: the program is made and the call refuses it. A constant mode is looked up once, with the program.
+- **The sign of a zero is kept**: `(-0.4m).round(0)` is `-0`.
+- **Overflow.** A result that needs more digits than the platform holds is `Overflow` (3006), `decimal overflow`: `(1e30m).quantize(1e-10m)` on .NET 11 is 41 digits. An exponent above the largest one that the platform keeps, which is 0 on .NET 10 and 6111 on .NET 11, is the same value with the zeros folded into the coefficient when that fits, and is `Overflow` when it does not; a zero keeps its sign and takes that largest exponent.
+
+| Example | .NET 11, `Decimal128` | .NET 10, `System.Decimal` |
+| :- | :- | :- |
+| `string((1234m).round(-2))` | `"1.2E+3"` | `"1200"`: no positive exponent is kept, and the values are equal on both |
+| `string((1.5m).round(-100))` | `"0E+100"` | `"0"` |
+| `string((1.5m).round(-100, 'up'))` | `"1E+100"` | `Overflow`: 10¹⁰⁰ does not fit 96 bits |
+| `decimal('12345678901234567890').quantize(decimal('1e-10'))` | `12345678901234567890.0000000000` | `Overflow`: 30 digits do not fit 96 bits |
+
 ## What version 1 does not have
 
-The set has no `%`, no `round` and no `quantize`, no function of the other sets and no overload that mixes a decimal with an `int` or a `double`; a later version of the set may add them, and the functions of version 1 do not change. The set is not in the manifest of the oracle runs, since cel-go has no `decimal`: its checks are the examples of this page and a property test against an exact reference over big integers, with the precision of each target.
+Version 1 has no `%`, no `round` and no `quantize` (version 2 has the last two), no function of the other sets and no overload that mixes a decimal with an `int` or a `double`; a later version of the set may add them, and the functions of an existing version do not change. The set is not in the manifest of the oracle runs, since cel-go has no `decimal`: its checks are the examples of this page and a property test against an exact reference over big integers, with the precision of each target.
 
 ## What is inside the set
 

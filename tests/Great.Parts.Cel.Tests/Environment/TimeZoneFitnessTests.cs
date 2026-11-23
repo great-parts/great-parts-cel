@@ -16,6 +16,7 @@ public sealed class TimeZoneFitnessTests
     private const string ProcessZone = "Asia/Kathmandu";
 
     private static readonly CelEnvironment Environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+        .AddExtension(CelExtensions.Calendar(1))
         .UseTimeZones(ZoneInfoFile.Database())
         .AddVariable<DateTimeOffset>("offset")
         .AddVariable<DateTime>("utc")
@@ -55,6 +56,18 @@ public sealed class TimeZoneFitnessTests
     [InlineData("timestamp('2023-07-01T00:00:00Z').getHours('America/New_York')", 20)]
     public static void ReceiversWithAZone_UseTheZoneOfTheCallAndNotOfTheProcess(string expression, long expected) =>
         InProcessZone(() => Assert.Equal(expected, Environment.Evaluate<long>(expression, new CelBindings()).GetValueOrThrow()));
+
+    // The set calendar: a date in a zone and the instant of a local time in a zone come from the zone of the call, and the zone of the
+    // process, +05:45 here, changes neither. Kathmandu is the zone of the call in the first two rows; the others have no zone, so the
+    // date and the time of day are those in UTC.
+    [Theory]
+    [InlineData("string(date(timestamp('2026-11-19T22:30:00Z'), 'Asia/Kathmandu'))", "2026-11-20")]
+    [InlineData("string(timestamp(date('2026-11-19'), time_of_day('09:30'), 'Asia/Kathmandu'))", "2026-11-19T03:45:00Z")]
+    [InlineData("string(date(timestamp('2026-11-19T22:30:00Z')))", "2026-11-19")]
+    [InlineData("string(time_of_day(timestamp('2026-11-19T22:30:00Z')))", "22:30:00")]
+    [InlineData("string(timestamp(date('2026-11-19'), time_of_day('09:30')))", "2026-11-19T09:30:00Z")]
+    public static void CalendarConversions_UseTheZoneOfTheCallAndNotOfTheProcess(string expression, string expected) =>
+        InProcessZone(() => Assert.Equal(expected, Environment.Evaluate<string>(expression, new CelBindings()).GetValueOrThrow()));
 
     [Fact]
     public static void Timestamp_IsTextInUtc() =>

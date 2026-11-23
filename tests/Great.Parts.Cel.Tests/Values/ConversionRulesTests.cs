@@ -145,10 +145,10 @@ public sealed class ConversionRulesTests
     [Fact]
     public void TypeOutsideTheInputRows_IsNoInputType()
     {
-        Assert.Null(ConversionRules.InputType<Int128?>());
+        Assert.Null(ConversionRules.InputType<Version>());
         Assert.Null(ConversionRules.InputType<CelValue?>());
-        Assert.False(ConversionRules.TryFromClr<Int128?>(null, out _));
-        Assert.Equal(CelErrorCode.TypeNotDeclared, Assert.Single(new CelEnvironmentBuilder(CelStandardLibrary.V1).AddVariable<Int128>("v").Build().Errors).Code);
+        Assert.False(ConversionRules.TryFromClr<Version?>(null, out _));
+        Assert.Equal(CelErrorCode.TypeNotDeclared, Assert.Single(new CelEnvironmentBuilder(CelStandardLibrary.V1).AddVariable<Version>("v").Build().Errors).Code);
         Assert.True(ConversionRules.TryFromClr<object>(new List<int>(), out CelValue collection));
         Assert.Equal(CelValueKind.Object, collection.Kind);
     }

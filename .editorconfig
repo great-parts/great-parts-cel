@@ -78,6 +78,8 @@ dotnet_diagnostic.CA1034.severity = none
 dotnet_diagnostic.CA1028.severity = none
 # An enumeration without a member of value zero.
 dotnet_diagnostic.CA1008.severity = none
+# A public instance field: the sample of a member that is a field, which an object literal sets.
+dotnet_diagnostic.CA1051.severity = none
 
 [tests/Great.Parts.Cel.Generator.Tests/Examples/**.cs]
 # These examples came from the specification without a build against the analyzers, and they are not changed in the repository.

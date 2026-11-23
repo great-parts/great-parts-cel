@@ -77,18 +77,61 @@ internal sealed class MessagePlanNode : PlanNode
         }
 
         Begin(frame);
+        CelObjectType? description = _description;
+        int[]? resolved = null;
+        CelValue result;
+        if (description is null && !TryResolve(frame, out description, out resolved, out result))
+        {
+            frame.Pop(stored);
+            return result;
+        }
+
         if (frame.Metered)
         {
-            ulong units = ((LengthOfWrittenData(frame.Peek(stored)) + 9) / 10) + (_optional.IsDefault ? 0UL : (ulong)stored);
+            ulong units = DataUnits(description, frame.Peek(stored)) + (_optional.IsDefault ? 0UL : (ulong)stored);
             if (units != 0)
             {
                 frame.Charge(units);
             }
         }
 
-        CelValue result = CreateFromStored(frame, kept, stored);
+        result = CreateFromStored(frame, description, resolved, kept, stored);
         frame.Pop(stored);
         return result;
+    }
+
+    // The charge that depends on the data the literal writes: by the length of its strings and bytes for a message, by the elements and
+    // pairs of its lists and maps for a type that the created code copies into members, none for a type over a carrier.
+    private static ulong DataUnits(CelObjectType description, ReadOnlySpan<CelValue> values)
+    {
+        switch (description.LiteralCost)
+        {
+            case LiteralCostRule.CopiedElements:
+                return CopiedElementsOf(values);
+            case LiteralCostRule.None:
+                return 0;
+            default:
+                return (LengthOfWrittenData(values) + 9) / 10;
+        }
+    }
+
+    // The elements of the lists and the pairs of the maps that are the values of the fields.
+    private static ulong CopiedElementsOf(ReadOnlySpan<CelValue> values)
+    {
+        ulong count = 0;
+        foreach (CelValue value in values)
+        {
+            if (value.TryGetList(out CelList? list))
+            {
+                count += (ulong)list.Count;
+            }
+            else if (value.TryGetMap(out CelMap? map))
+            {
+                count += (ulong)map.Count;
+            }
+        }
+
+        return count;
     }
 
     // Evaluates the values from left to right onto the stack. The values of the entries that are stored are on the stack and
@@ -141,22 +184,18 @@ internal sealed class MessagePlanNode : PlanNode
     }
 
     // Creates the instance from the values that are on the stack, one for each field number of the entries that were stored.
-    private CelValue CreateFromStored(Frame frame, int[]? kept, int stored)
+    // The description is the checked one, or the one found by the name when resolved holds the field numbers by the field names.
+    private CelValue CreateFromStored(Frame frame, CelObjectType description, int[]? resolved, int[]? kept, int stored)
     {
-        if (_description is not null)
+        if (resolved is null)
         {
             if (kept is null)
             {
-                return Create(frame, _description, _numbers.AsSpan(), _hasRepeat, stored);
+                return Create(frame, description, _numbers.AsSpan(), _hasRepeat, stored);
             }
 
             int[] storedNumbers = Gather(_numbers.AsSpan(), kept, stored);
-            return Create(frame, _description, storedNumbers, HasRepeat(storedNumbers), stored);
-        }
-
-        if (!TryResolve(frame, out CelObjectType? description, out int[]? resolved, out CelValue error))
-        {
-            return error;
+            return Create(frame, description, storedNumbers, HasRepeat(storedNumbers), stored);
         }
 
         int[] numbers = kept is null ? resolved : Gather(resolved, kept, stored);

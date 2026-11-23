@@ -26,7 +26,8 @@ namespace Great.Parts.Cel.Values;
 /// would hide missing data. An expression tests presence with <c>has()</c> first. A read delegate that
 /// returns a value not of the declared type of the field gives an error
 /// <see cref="CelErrorCode.FieldTypeMismatch"/>; an exception of a delegate becomes an error
-/// <see cref="CelErrorCode.ApplicationException"/>. Object literals of such types are not supported. The rules
+/// <see cref="CelErrorCode.ApplicationException"/>. Object literals of such a type need
+/// <see cref="AllowObjectLiterals"/>. The rules
 /// of reading a field, of presence and of <c>null</c> are on the page
 /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/runtime-types.md">Types described at run time</see>.
 /// </para>
@@ -35,13 +36,14 @@ namespace Great.Parts.Cel.Values;
 /// threads, and the delegates must allow calls from many threads at once.
 /// </para>
 /// </remarks>
-public sealed class CelObjectTypeBuilder<TCarrier>
+public sealed partial class CelObjectTypeBuilder<TCarrier>
     where TCarrier : class
 {
     private readonly string _name;
     private readonly FieldList _fields = new();
     private readonly List<Func<TCarrier, CelValue>> _reads = [];
     private readonly List<Func<TCarrier, bool>?> _has = [];
+    private Func<IReadOnlyDictionary<string, CelValue>, TCarrier>? _create;
 
     /// <summary>
     /// Starts the description of a type.
@@ -85,7 +87,7 @@ public sealed class CelObjectTypeBuilder<TCarrier>
     /// fields do not change descriptions built before.
     /// </summary>
     /// <returns>The description, with <see cref="CelObjectType.ClrType"/> <see langword="null"/>.</returns>
-    public CelObjectType Build() => new CarrierObjectType(_name, _fields.ToArray(), [.. _reads], [.. _has]);
+    public CelObjectType Build() => new CarrierObjectType(_name, _fields.ToArray(), [.. _reads], [.. _has], _create);
 
     // A type described at run time over the carrier class: each field is read and tested by its delegates. It derives from the typed
     // description, so the carrier is read by reference; it has no .NET type of its own, because many types share the carrier class.
@@ -93,12 +95,30 @@ public sealed class CelObjectTypeBuilder<TCarrier>
         string name,
         ReadOnlySpan<CelObjectField> fields,
         Func<TCarrier, CelValue>[] reads,
-        Func<TCarrier, bool>?[] has)
+        Func<TCarrier, bool>?[] has,
+        Func<IReadOnlyDictionary<string, CelValue>, TCarrier>? create)
         : CelObjectType<TCarrier>(name, fields, null)
     {
         internal override bool Belongs(object instance) => instance is TCarrier;
 
         internal override bool IsDictionaryCarrier => typeof(TCarrier) == typeof(IReadOnlyDictionary<string, object?>);
+
+        internal override LiteralCostRule LiteralCost => LiteralCostRule.None;
+
+        protected internal override bool IsConstructible => create is not null;
+
+        // The delegate of the application gets a new dictionary of the fields the literal sets; its carrier is the value.
+        protected internal override CelValue CreateInstance(ReadOnlySpan<int> fieldNumbers, ReadOnlySpan<CelValue> fieldValues)
+        {
+            var set = new Dictionary<string, CelValue>(fieldNumbers.Length, StringComparer.Ordinal);
+            for (int i = 0; i < fieldNumbers.Length; i++)
+            {
+                set[Fields[fieldNumbers[i]].Name] = fieldValues[i];
+            }
+
+            TCarrier? carrier = create!(set);
+            return carrier is null ? ObjectRules.NullCarrier(this) : CelValue.FromObject(this, carrier);
+        }
 
         protected internal override CelValue GetField(in TCarrier instance, int number) =>
             ObjectRules.TryReadCarrierField(this, number, instance, reads[number], has[number], out CelValue value) ? value : ObjectRules.FieldNotSet(this, number);

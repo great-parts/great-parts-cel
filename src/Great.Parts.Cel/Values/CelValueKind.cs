@@ -117,4 +117,16 @@ public enum CelValueKind
     /// <see cref="CelValue"/>.
     /// </summary>
     Abstract = 16,
+
+    /// <summary>
+    /// A <c>date</c> of the <c>calendar</c> extension: a calendar date; read with
+    /// <see cref="CelValue.TryGetDate(out System.DateOnly)"/>.
+    /// </summary>
+    Date = 17,
+
+    /// <summary>
+    /// A <c>time_of_day</c> of the <c>calendar</c> extension: a time of day with a precision of 100 nanoseconds; read with
+    /// <see cref="CelValue.TryGetTimeOfDay(out System.TimeOnly)"/>.
+    /// </summary>
+    TimeOfDay = 18,
 }

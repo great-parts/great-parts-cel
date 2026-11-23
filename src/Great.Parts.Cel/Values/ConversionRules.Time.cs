@@ -12,7 +12,7 @@ namespace Great.Parts.Cel.Values;
 internal static partial class ConversionRules
 {
     // The marker in the second part of an error that a conversion made without a name: the node that reads the value names it.
-    private static readonly object UnnamedRefusal = new();
+    internal static readonly object UnnamedRefusal = new();
 
     private static readonly ErrorTemplate TicksOutOfRangeText = new(
         static error => error.Number.ToString(CultureInfo.InvariantCulture) + " ticks is out of the range of duration",
@@ -70,17 +70,30 @@ internal static partial class ConversionRules
     }
 
     /// <summary>
-    /// The exception message of <c>CelBindings.Add</c> for a value that has no CEL value: an undefined JSON element, or a
-    /// <see cref="DateTime"/> that is not an instant in UTC.
+    /// The exception message of <c>CelBindings.Add</c> for a value that has no CEL value: an undefined JSON element, a
+    /// <see cref="DateTime"/> that is not an instant in UTC, a lone surrogate as a <see cref="char"/>, or an integer wider than 64
+    /// bits out of range.
     /// </summary>
     /// <param name="refused">The error value that the conversion gave.</param>
     /// <returns>The message.</returns>
-    internal static string BindingsRefusalMessage(CelValue refused) =>
-        refused.TryGetError(out CelError? error) && ReferenceEquals(error.Second, UnnamedRefusal)
+    internal static string BindingsRefusalMessage(CelValue refused)
+    {
+        if (!refused.TryGetError(out CelError? error))
+        {
+            return "The value is an undefined JsonElement, which has no CEL value.";
+        }
+
+        if (WideRules.IsOutOfRange(refused))
+        {
+            return "The value " + error.Message + ".";
+        }
+
+        return ReferenceEquals(error.Second, UnnamedRefusal)
             ? "The value is " + (string)error.First! + "."
             : "The value is an undefined JsonElement, which has no CEL value.";
+    }
 
-    private static string Refusal(string? name, string text) => name is null ? text : "invalid argument to '" + name + "': " + text;
+    internal static string Refusal(string? name, string text) => name is null ? text : "invalid argument to '" + name + "': " + text;
 
     // CelTimestamp, DateTimeOffset, DateTime, CelDuration, TimeSpan by their static type.
     private static bool TryFromTime<T>(T value, out CelValue result)

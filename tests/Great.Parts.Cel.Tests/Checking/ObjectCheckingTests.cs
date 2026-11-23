@@ -67,7 +67,7 @@ public sealed class ObjectCheckingTests
         "Contact{}",
         7,
         CelErrorCode.TypeNotConstructible,
-        "type 'acme.crm.Contact' cannot be created by an expression: object literals are supported only for protobuf messages")]
+        "type 'acme.crm.Contact' cannot be created by an expression: object literals are supported for protobuf messages and for types that allow them")]
     public static void MessageLiteral_ResolvesItsNameByTheContainer_AndIsAnErrorAtTheBrace(string expression, int brace, CelErrorCode code, string message)
     {
         CelError error = Assert.Single(Check(InContainer, expression).Errors);

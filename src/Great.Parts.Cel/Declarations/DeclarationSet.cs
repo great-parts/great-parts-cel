@@ -21,9 +21,11 @@ internal sealed class DeclarationSet
         bool timeZoneConflict = false,
         bool decimalLiterals = false,
         ImmutableArray<Type> inputTypes = default,
-        ulong? defaultCostLimit = null)
+        ulong? defaultCostLimit = null,
+        bool crossTypeNumericComparisons = false)
     {
         InputTypes = inputTypes.IsDefault ? [] : inputTypes;
+        CrossTypeNumericComparisons = crossTypeNumericComparisons;
         DefaultCostLimit = defaultCostLimit;
         Variables = variables;
         Functions = functions;
@@ -68,4 +70,7 @@ internal sealed class DeclarationSet
 
     // The cost limit of evaluations without a limit of their own that SetDefaultCostLimit set; null without one.
     internal ulong? DefaultCostLimit { get; }
+
+    // Whether the builder enabled the ordering between numeric types of known static types, EnableCrossTypeNumericComparisons.
+    internal bool CrossTypeNumericComparisons { get; }
 }

@@ -124,7 +124,7 @@ public sealed class DecimalBuilderOrderTests
             {
                 if (index == 0)
                 {
-                    builder.AddExtension(CelExtensions.Decimal(2));
+                    builder.AddExtension(CelExtensions.Decimal(3));
                 }
                 else
                 {
@@ -140,7 +140,7 @@ public sealed class DecimalBuilderOrderTests
             Assert.Equal(expected, actual);
         }
 
-        Assert.Contains(expected!, line => line.StartsWith("4004 extension 'decimal' has no version 2; available versions: 1", StringComparison.Ordinal));
+        Assert.Contains(expected!, line => line.StartsWith("4004 extension 'decimal' has no version 3; available versions: 1, 2", StringComparison.Ordinal));
         Assert.Contains(expected!, line => line.StartsWith("4005 ", StringComparison.Ordinal));
     }
 

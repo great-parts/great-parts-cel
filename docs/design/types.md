@@ -26,7 +26,7 @@ The rule files follow the naming and the content rules of [core](core.md).
 
 `WrapperOf` takes `bool`, `bytes`, `double`, `int`, `uint` and `string`; any other type is `ArgumentException`. `TypeOf(Dyn)` is the type of any type value; the identifier `type` has the static type `type(type(dyn))`. `ObjectNamed` only creates the reference: the environment rejects it as `TypeNotDeclared` while no type source describes it (see [declarations](declarations.md)). The text form is what error messages show; it is the notation of the language definition, and cel-go writes wrappers the same way.
 
-`OptionalOf` is the type of the set `optional` ([below](#optional-types-in-the-rules)); `Decimal` is the type of the set `decimal`, on `net11.0` only ([below](#decimal)). `Any` and the names of protobuf are on the two sections below.
+`OptionalOf` is the type of the set `optional` ([below](#optional-types-in-the-rules)); `Decimal` is the type of the set `decimal`, on `net11.0` only ([below](#decimal)); `Date` and `TimeOfDay` are the types of the set [calendar](calendar.md) ([below](#date-and-time_of_day)). `Any` and the names of protobuf are on the two sections below.
 
 Inside type checking two more forms exist and never leave it:
 
@@ -40,6 +40,10 @@ The type belongs to the set [decimal](extension-decimal.md) and exists on `net11
 **`AssignabilityRules.TakesNull`** has `Decimal`, on both targets: a static `null` is assignable to `decimal`, as to every abstract (opaque) type, because the type is the abstract type `decimal` of `checked.proto` and cel-go takes every opaque type as nullable. So `price == null` for a `price` of type `decimal` checks and is `false` at run time, and a `null` value fits no decimal ([values](values.md#decimal)). `(CelTypeKind.Decimal, CelTypeKind.Decimal)` needs no case: the last row of the switch, `from.Kind == to.Kind`, decides it, as for `timestamp`; the join and the most general type, whose rule 4 reads `TakesNull`, follow it. A decimal is assignable to no other type but `dyn`, a type parameter and `decimal`: `[1, 1.5m]` is `list(dyn)` and `1 + 1.5m` is no overload.
 
 The kind is declared by the set, so a variable, a field or an overload of the type without the set is `TypeNotDeclared` ([declarations](declarations.md#decimal-without-the-set-and-the-literal-option)), except a field, which is `FieldNotAccessible` when an expression selects it ([checking](checking.md#decimal-without-the-set)).
+
+## `date` and `time_of_day`
+
+The types belong to the set [calendar](calendar.md). `CelType.Date` and `CelType.TimeOfDay` are static instances of the kinds `Date` (20) and `TimeOfDay` (21), named `date` and `time_of_day`, with no parameters; equality, hash and substitution are those of the model. `AssignabilityRules.TakesNull` has both kinds, as every abstract type: a static `null` is assignable to `date`. The kinds are declared by the set, so a variable, a field or an overload of the type without the set is `TypeNotDeclared` or `FieldNotAccessible`, as for `decimal`.
 
 ## Substitution
 

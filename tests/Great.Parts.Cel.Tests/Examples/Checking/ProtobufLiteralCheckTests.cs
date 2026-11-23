@@ -116,7 +116,7 @@ public sealed class ProtobufLiteralCheckTests
 
         Assert.Equal((CelErrorCode.TypeNotConstructible, CelErrorStage.Check, offset), (error.Code, error.Stage, error.Location.Offset));
         Assert.Equal(
-            "type 'acme.crm.Deal' cannot be created by an expression: object literals are supported only for protobuf messages",
+            "type 'acme.crm.Deal' cannot be created by an expression: object literals are supported for protobuf messages and for types that allow them",
             error.Message);
         Assert.True(environment.Compile<CelValue>("TestAllTypes{single_int32: 1}").IsSuccess);
     }

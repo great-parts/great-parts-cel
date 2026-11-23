@@ -17,6 +17,8 @@ internal static class CelTypeExpressions
         CelTypeKind.Timestamp => TypeClass + ".Timestamp",
         CelTypeKind.Duration => TypeClass + ".Duration",
         CelTypeKind.Decimal => TypeClass + ".Decimal",
+        CelTypeKind.Date => TypeClass + ".Date",
+        CelTypeKind.TimeOfDay => TypeClass + ".TimeOfDay",
         CelTypeKind.Wrapper => TypeClass + ".WrapperOf(" + Of(type.First!) + ")",
         CelTypeKind.List => TypeClass + ".ListOf(" + Of(type.First!) + ")",
         CelTypeKind.Map => TypeClass + ".MapOf(" + Of(type.First!) + ", " + Of(type.Second!) + ")",

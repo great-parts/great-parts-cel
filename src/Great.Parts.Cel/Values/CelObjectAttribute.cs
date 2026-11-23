@@ -20,7 +20,7 @@ namespace Great.Parts.Cel.Values;
 /// </para>
 /// </remarks>
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
-public sealed class CelObjectAttribute : Attribute
+public sealed partial class CelObjectAttribute : Attribute
 {
     /// <summary>
     /// Lists <paramref name="type"/> as readable by expressions.

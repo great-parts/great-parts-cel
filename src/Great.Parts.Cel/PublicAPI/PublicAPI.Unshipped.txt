@@ -94,6 +94,32 @@ static Great.Parts.Cel.Diagnostics.CelSourceSpan.operator ==(Great.Parts.Cel.Dia
 static Great.Parts.Cel.Values.CelTimeZoneDatabase.FromSystem() -> Great.Parts.Cel.Values.CelTimeZoneDatabase!
 static Great.Parts.Cel.Values.CelValue.FromDecimal(decimal value) -> Great.Parts.Cel.Values.CelValue
 virtual Great.Parts.Cel.Values.CelObjectType<TInstance>.FieldReadCost(in TInstance instance, int number) -> long
+Great.Parts.Cel.Diagnostics.CelErrorCode.RequiredFieldNotSet = 2011 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Types.CelTypeKind.Date = 20 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Types.CelTypeKind.TimeOfDay = 21 -> Great.Parts.Cel.Types.CelTypeKind
+Great.Parts.Cel.Values.CelObjectAttribute.AllowObjectLiterals.get -> bool
+Great.Parts.Cel.Values.CelObjectAttribute.AllowObjectLiterals.set -> void
+Great.Parts.Cel.Values.CelObjectType.FromBigInteger(int number, System.Numerics.BigInteger value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.FromChar(int number, char value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.FromInt128(int number, System.Int128 value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectType.FromUInt128(int number, System.UInt128 value) -> Great.Parts.Cel.Values.CelValue
+Great.Parts.Cel.Values.CelObjectTypeBuilder.AllowObjectLiterals() -> Great.Parts.Cel.Values.CelObjectTypeBuilder!
+Great.Parts.Cel.Values.CelObjectTypeBuilder<TCarrier>.AllowObjectLiterals(System.Func<System.Collections.Generic.IReadOnlyDictionary<string!, Great.Parts.Cel.Values.CelValue>!, TCarrier!>! create) -> Great.Parts.Cel.Values.CelObjectTypeBuilder<TCarrier!>!
+Great.Parts.Cel.Values.CelValue.TryGetDate(out System.DateOnly value) -> bool
+Great.Parts.Cel.Values.CelValue.TryGetTimeOfDay(out System.TimeOnly value) -> bool
+Great.Parts.Cel.Values.CelValueKind.Date = 17 -> Great.Parts.Cel.Values.CelValueKind
+Great.Parts.Cel.Values.CelValueKind.TimeOfDay = 18 -> Great.Parts.Cel.Values.CelValueKind
+static Great.Parts.Cel.CelExtensions.Calendar(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
+static Great.Parts.Cel.Types.CelType.Date.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Types.CelType.TimeOfDay.get -> Great.Parts.Cel.Types.CelType!
+static Great.Parts.Cel.Values.CelObjectType.FromDate(System.DateOnly value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelObjectType.FromTimeOfDay(System.TimeOnly value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromDate(System.DateOnly value) -> Great.Parts.Cel.Values.CelValue
+static Great.Parts.Cel.Values.CelValue.FromTimeOfDay(System.TimeOnly value) -> Great.Parts.Cel.Values.CelValue
+virtual Great.Parts.Cel.Values.CelObjectType.CanSetField(int number) -> bool
+virtual Great.Parts.Cel.Values.CelObjectType.IsRequiredField(int number) -> bool
+Great.Parts.Cel.CelEnvironmentBuilder.EnableCrossTypeNumericComparisons() -> Great.Parts.Cel.CelEnvironmentBuilder!
+static Great.Parts.Cel.CelExtensions.Formats(uint version) -> Great.Parts.Cel.Declarations.CelExtension!
 Great.Parts.Cel.CelEnvironment.CompileParsed<T>(Great.Parts.Cel.Syntax.CelParsedExpr! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelCompileResult<T>!
 Great.Parts.Cel.CelEnvironment.Parse(string! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.Syntax.CelParseResult!
 Great.Parts.Cel.CelEnvironment.ValidateParsed(Great.Parts.Cel.Syntax.CelParsedExpr! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelValidationResult!

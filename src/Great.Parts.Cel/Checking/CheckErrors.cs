@@ -81,9 +81,18 @@ internal static class CheckErrors
     internal static CelError TypeNotConstructible(string type, CelSourceSpan place) =>
         Create(
             CelErrorCode.TypeNotConstructible,
-            "type '" + type + "' cannot be created by an expression: object literals are supported only for protobuf messages",
+            "type '" + type + "' cannot be created by an expression: object literals are supported for protobuf messages and for types that allow them",
             place,
             type);
+
+    // RequiredFieldNotSet (2011): an object literal that does not name a field every literal of its type must set; the field is the
+    // subject, the place is the literal.
+    internal static CelError RequiredFieldNotSet(string type, string field, CelSourceSpan place) =>
+        Create(
+            CelErrorCode.RequiredFieldNotSet,
+            "object literal of type '" + type + "' does not set the required field '" + field + "'",
+            place,
+            field);
 
     // InvalidFormatString (2010): the answer of the validator of a call of format; the function is the subject.
     internal static CelError InvalidFormatString(string detail, CelSourceSpan place) =>

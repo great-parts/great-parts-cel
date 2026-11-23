@@ -126,7 +126,7 @@ In a program with top-level statements, the type declarations go after the state
 - One input type per environment; a different second type is the build error `InputConflict`. A type that no added context describes is `TypeNotDeclared`. A field with the name of another variable is `DuplicateVariable`.
 - Other variables can be declared next to the input and bound by name: `program.EvaluateInput(order, bindings)`. With no bindings, pass the options by name: `EvaluateInput(order, options: new CelEvalOptions { CostLimit = 10_000 })`.
 - `EvaluateInput` is the name of the one-step calls with an input, on `CelProgram<T>`, `CelEnvironment`, `CelCompilationCache` and `ICelEvaluator`; `Evaluate` is for bindings.
-- The generator reports its warnings and errors as `GPCEL001` to `GPCEL011` (`GPCEL007` is not used); the page of the generator diagnostics says what each one means and what to do.
+- The generator reports its warnings and errors as `GPCEL001` to `GPCEL012` (`GPCEL007` is not used); the page of the generator diagnostics says what each one means and what to do.
 
 ## Validate an expression without running it
 

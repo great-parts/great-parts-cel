@@ -31,7 +31,7 @@ namespace Great.Parts.Cel.Properties.Declarations;
 // providers of protobuf as well, the set protos, variables of message types and the container of the proto3 package: a provider
 // describes the well-known types, so two of them in one model give DuplicateType for each of their names, and both orders must
 // report those errors alike. The pool has the set optional of the library too, at its version 2 and at version 1, which it does not
-// have. On .NET 11 the pool has the set decimal as well, at its version 1 and at version 2, which it does not have, and the option of
+// have. On .NET 11 the pool has the set decimal as well, at its version 1 and at version 3, which it does not have, and the option of
 // the decimal literals, which needs the set. The sources of types include the type contexts of the generator (the samples): two that
 // reach the same types, one that names a shared type another way and one whose messages need a provider, with the provider of the
 // message of the samples and the variables of their types; the shared types are one declaration in every order, a context that
@@ -622,7 +622,7 @@ public sealed class BuilderOrderTests
             }
             else if (random.Next(4) == 0)
             {
-                Add("AddExtension(decimal 2)", builder => builder.AddExtension(CelExtensions.Decimal(2)));
+                Add("AddExtension(decimal 3)", builder => builder.AddExtension(CelExtensions.Decimal(3)));
             }
             else
             {

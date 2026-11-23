@@ -186,7 +186,7 @@ internal static partial class ConversionRules
     private static bool IsOrderedKind(CelValueKind kind) =>
         kind is CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Double or CelValueKind.String or CelValueKind.Bytes
             or CelValueKind.Timestamp or CelValueKind.Duration
-            or CelValueKind.Decimal
+            or CelValueKind.Decimal or CelValueKind.Date or CelValueKind.TimeOfDay
         ;
 
     internal static bool IsMapKeyType<TKey>() => KeyOf<TKey>.IsSupported;
@@ -271,8 +271,9 @@ internal static partial class ConversionRules
         }
     }
 
-    // A value of an element or of a result, as the value of its static type X by the input rows.
-    internal static CelValue FromResult<T>(T value, string overloadId, IEvaluationMeter? meter)
+    // A value of an element or of a result, as the value of its static type X by the input rows. The function names the result of an
+    // application function: an integer wider than 64 bits out of range is then an error that names the function and its overload.
+    internal static CelValue FromResult<T>(T value, string overloadId, IEvaluationMeter? meter, string? function = null)
     {
         if (ShapeOf<T>.IsCollection && InputRowOf<T>.Row is { } row)
         {
@@ -292,12 +293,13 @@ internal static partial class ConversionRules
         }
 
         _ = TryFromClr(value, out CelValue result);
-        return NameRefusal(result, overloadId);
+        result = NameRefusal(result, overloadId);
+        return function is null ? result : WideRules.NameResult(result, function, overloadId);
     }
 
     // Whether a refusal of CelBindings.Add names an undefined JsonElement, which has no CEL value.
     internal static bool IsRefusedByBindings(CelValue value) =>
-        value.TryGetError(out CelError? error) && error.Code == CelErrorCode.InvalidArgument;
+        value.TryGetError(out CelError? error) && (error.Code == CelErrorCode.InvalidArgument || WideRules.IsOutOfRange(value));
 
     // A list or a dictionary with string keys of the closed list of the input table, by the run-time type of the value: the part of
     // FromRuntimeValue that the simple entry uses after its own closed list of scalar rows; false for any other value.
@@ -469,7 +471,7 @@ internal static partial class ConversionRules
     private static class KeyOf<TKey>
     {
         internal static readonly bool IsSupported = typeof(TKey) == typeof(string) || typeof(TKey) == typeof(Guid) || typeof(TKey) == typeof(bool)
-            || IsSigned<TKey>() || IsUnsigned<TKey>() || typeof(TKey).IsEnum;
+            || typeof(TKey) == typeof(char) || IsSigned<TKey>() || IsUnsigned<TKey>() || typeof(TKey).IsEnum;
 
         internal static CelValue ToCel(TKey key)
         {
@@ -488,6 +490,18 @@ internal static partial class ConversionRules
                 {
                     string native = text;
                     result = Unsafe.As<string, TKey>(ref native);
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (typeof(TKey) == typeof(char))
+            {
+                if (key.TryGetString(out string? text) && text.Length == 1 && !char.IsSurrogate(text[0]))
+                {
+                    char unit = text[0];
+                    result = Unsafe.As<char, TKey>(ref unit);
                     return true;
                 }
 
@@ -693,6 +707,10 @@ internal static partial class ConversionRules
         {
             longest = 36;
         }
+        else if (typeof(TKey) == typeof(char))
+        {
+            longest = 1;
+        }
         else if (typeof(TKey) == typeof(string))
         {
             foreach (KeyValuePair<TKey, TValue> entry in source)
@@ -715,6 +733,11 @@ internal static partial class ConversionRules
     // The length of a string or bytes element in code units or bytes; 0 for any other value.
     private static int LengthOf<T>(T item)
     {
+        if (typeof(T) == typeof(char))
+        {
+            return 1;
+        }
+
         if (typeof(T) == typeof(string))
         {
             return Unsafe.As<T, string?>(ref item)?.Length ?? 0;
@@ -951,6 +974,18 @@ internal static partial class ConversionRules
             Add<double?>(rows);
             Add<Guid?>(rows);
             Add<ReadOnlyMemory<byte>?>(rows);
+            Add<char>(rows);
+            Add<Int128>(rows);
+            Add<UInt128>(rows);
+            Add<BigInteger>(rows);
+            Add<char?>(rows);
+            Add<Int128?>(rows);
+            Add<UInt128?>(rows);
+            Add<BigInteger?>(rows);
+            Add<DateOnly>(rows);
+            Add<TimeOnly>(rows);
+            Add<DateOnly?>(rows);
+            Add<TimeOnly?>(rows);
             Add<CelValue>(rows);
             Add<object>(rows);
             Add<CelList>(rows);
@@ -1005,6 +1040,7 @@ internal static partial class ConversionRules
             AddMap<ulong, X>(rows, CelType.UInt, element);
             AddMap<uint, X>(rows, CelType.UInt, element);
             AddMap<bool, X>(rows, CelType.Bool, element);
+            AddMap<char, X>(rows, CelType.String, element);
         }
 
         private static void AddMap<TKey, TValue>(Dictionary<Type, InputRow> rows, CelType key, CelType value)

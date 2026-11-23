@@ -88,7 +88,7 @@ internal sealed class OverloadBinding
     internal bool IsApplication { get; }
 
     // Whether the overload is a candidate only when an argument has the static type dyn: the ordering
-    // across int, uint and double.
+    // across int, uint and double, unless the environment enables EnableCrossTypeNumericComparisons.
     internal bool DynOnly { get; }
 
     // Whether the planner marks no argument for the check at depth, whatever its static type: Matches checks the top level of
@@ -99,8 +99,8 @@ internal sealed class OverloadBinding
     // overload of the standard library.
     internal CallValidator? Validator { get; }
 
-    // The argument that is prepared once when a call has a string literal there; null for every overload but matches and
-    // matches_string. An overload of the application never has one.
+    // The argument that is prepared once when a call has a string literal there; null for every overload but matches, matches_string
+    // and the two overloads of round and quantize that take a mode. An overload of the application never has one.
     internal ConstantArgument? ConstantArgument { get; }
 
     // Whether argument values fit the declared parameter types: the top level of every argument, and at

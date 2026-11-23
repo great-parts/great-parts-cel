@@ -10,8 +10,6 @@ namespace Great.Parts.Cel.Generator.Tests.Examples.Diagnostics;
 // the primitives, the arguments of a generic type in angle brackets, no `global::`). A kind that the page lists has one row.
 public sealed class UnsupportedRootTests
 {
-    private const string Cel = "CEL has no integers wider than 64 bits; use long or string";
-
     private const string NoType = " has no CEL type; use a string or your own type";
 
     [Theory]
@@ -27,12 +25,12 @@ public sealed class UnsupportedRootTests
     [InlineData("System.IO.MemoryStream", "", "System.IO.MemoryStream", "streams are not data")]
     [InlineData("System.Collections.Generic.IEnumerable<int>", "", "System.Collections.Generic.IEnumerable<int>", "System.Collections.Generic.IEnumerable<int> has no size and no index; use an array, a list or a collection with a size")]
     [InlineData("System.Collections.ArrayList", "", "System.Collections.ArrayList", "non-generic collections have no element type; use a typed collection")]
-    [InlineData("char", "", "char", "char is a UTF-16 code unit, not a code point; use string")]
-    [InlineData("System.Int128", "", "System.Int128", Cel)]
-    [InlineData("System.UInt128", "", "System.UInt128", Cel)]
-    [InlineData("System.Numerics.BigInteger", "", "System.Numerics.BigInteger", Cel)]
-    [InlineData("System.DateOnly", "", "System.DateOnly", "System.DateOnly is not supported; use DateTimeOffset or string")]
-    [InlineData("System.TimeOnly", "", "System.TimeOnly", "System.TimeOnly is not supported; use DateTimeOffset or string")]
+    [InlineData("char", "", "char", "char has its own CEL type")]
+    [InlineData("System.Int128", "", "System.Int128", "System.Int128 has its own CEL type")]
+    [InlineData("System.UInt128", "", "System.UInt128", "System.UInt128 has its own CEL type")]
+    [InlineData("System.Numerics.BigInteger", "", "System.Numerics.BigInteger", "System.Numerics.BigInteger has its own CEL type")]
+    [InlineData("System.DateOnly", "", "System.DateOnly", "System.DateOnly has its own CEL type")]
+    [InlineData("System.TimeOnly", "", "System.TimeOnly", "System.TimeOnly has its own CEL type")]
     [InlineData("System.Text.Json.JsonDocument", "", "System.Text.Json.JsonDocument", "JsonDocument is released by the application; use JsonElement")]
     [InlineData("System.Text.Json.Nodes.JsonNode", "", "System.Text.Json.Nodes.JsonNode", "JsonNode is mutable; use JsonElement")]
     [InlineData("System.Text.Json.Nodes.JsonObject", "", "System.Text.Json.Nodes.JsonObject", "JsonNode is mutable; use JsonElement")]

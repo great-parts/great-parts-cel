@@ -217,16 +217,16 @@ public sealed class BuildChecksTests
                 .AddFunctionImplementation("rate_int", First));
         AssertSingle(
             CelErrorCode.TypeNotDeclared,
-            "variable 'when' has type 'System.Int128', which no type source or extension of the environment declares",
-            Builder().AddVariable<Int128>("when"));
+            "variable 'when' has type 'System.Uri', which no type source or extension of the environment declares",
+            Builder().AddVariable<Uri>("when"));
         AssertSingle(
             CelErrorCode.TypeNotDeclared,
-            "overload 'early_System.Int128' has type 'System.Int128', which no type source or extension of the environment declares",
-            Builder().AddFunction<Int128, bool>("early", value => value < 9));
+            "overload 'early_System.Uri' has type 'System.Uri', which no type source or extension of the environment declares",
+            Builder().AddFunction<Uri, bool>("early", value => value.IsAbsoluteUri));
         AssertSingle(
             CelErrorCode.TypeNotDeclared,
-            "overload 'stamp_int' has type 'System.Int128', which no type source or extension of the environment declares",
-            Builder().AddFunction<long, Int128>("stamp", ticks => ticks));
+            "overload 'stamp_int' has type 'System.Uri', which no type source or extension of the environment declares",
+            Builder().AddFunction<long, Uri>("stamp", ticks => new Uri("urn:" + ticks, UriKind.Absolute)));
     }
 
     [Fact]

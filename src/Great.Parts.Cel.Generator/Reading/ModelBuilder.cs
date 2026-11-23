@@ -113,7 +113,8 @@ internal static class ModelBuilder
             symbol.IsAbstract,
             className,
             entry.Fields,
-            entry.Excluded);
+            entry.Excluded,
+            entry.Literal);
     }
 
     private static EnumModel EnumModelOf(EnumEntry entry, string fieldName)

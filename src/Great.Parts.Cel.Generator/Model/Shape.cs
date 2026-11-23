@@ -9,7 +9,9 @@ internal enum Nullability : byte
     Oblivious,
 }
 
-// The scalar rows of the input table of the type mapping. Int and UInt cover every integer width; Double covers float and Half.
+// The scalar rows of the input table of the type mapping. Int and UInt cover every integer width up to 64 bits; Double covers float and
+// Half. Char is a string of one UTF-16 unit; Int128 and BigInteger are int and UInt128 is uint, read with a range check. Date and
+// TimeOfDay are DateOnly and TimeOnly, the types date and time_of_day of the calendar set.
 internal enum ScalarKind : byte
 {
     Int,
@@ -18,6 +20,12 @@ internal enum ScalarKind : byte
     Bool,
     String,
     Guid,
+    Char,
+    Int128,
+    UInt128,
+    BigInteger,
+    Date,
+    TimeOfDay,
 
     // byte[]
     Bytes,

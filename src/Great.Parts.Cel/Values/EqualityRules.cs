@@ -148,7 +148,7 @@ internal static class EqualityRules
     // The kinds whose values have no content to walk.
     private static bool HasNoContent(CelValueKind kind) =>
         kind is CelValueKind.Null or CelValueKind.Bool or CelValueKind.Timestamp or CelValueKind.Duration
-            or CelValueKind.Decimal
+            or CelValueKind.Decimal or CelValueKind.Date or CelValueKind.TimeOfDay
         ;
 
     // Two optionals: 1 unit; two empty ones are equal, an empty and a non-empty one are not, and two that hold values are equal when the

@@ -278,7 +278,7 @@ internal static class AssignabilityRules
     // an abstract type of checked.proto and so nullable in the checker, as every opaque type is.
     private static bool TakesNull(CelType type) => type.Kind is CelTypeKind.Null or CelTypeKind.Wrapper or CelTypeKind.Object
         or CelTypeKind.Timestamp or CelTypeKind.Duration or CelTypeKind.Any or CelTypeKind.Optional or CelTypeKind.Abstract
-        or CelTypeKind.Decimal
+        or CelTypeKind.Decimal or CelTypeKind.Date or CelTypeKind.TimeOfDay
         ;
 
     // The least upper bound of two types after the substitution.

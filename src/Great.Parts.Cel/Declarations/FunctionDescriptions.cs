@@ -123,6 +123,8 @@ internal static class FunctionDescriptions
 
         // The set decimal.
         ["decimal"] = "Converts an int, a uint, a double, a string or a decimal to a decimal.",
+        ["round"] = "Rounds a decimal to a number of digits after the decimal point, half to even or by a named rounding mode, without adding zeros.",
+        ["quantize"] = "Gives a decimal the exponent of another decimal, rounding half to even or by a named rounding mode; the value of the other decimal does not matter.",
     }.ToFrozenDictionary(StringComparer.Ordinal);
 
     // The description of a function of the library; null for a name without one, such as an operator or an internal name.

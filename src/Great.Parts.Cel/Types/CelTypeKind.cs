@@ -126,4 +126,15 @@ public enum CelTypeKind
     /// functions of its set create and read. <see cref="CelType.Name"/> is its full name.
     /// </summary>
     Abstract = 19,
+
+    /// <summary>
+    /// <c>date</c>: a calendar date, <see cref="CelType.Date"/>. Only in environments with the <c>calendar</c> extension.
+    /// </summary>
+    Date = 20,
+
+    /// <summary>
+    /// <c>time_of_day</c>: a time of day, <see cref="CelType.TimeOfDay"/>. Only in environments with the <c>calendar</c>
+    /// extension.
+    /// </summary>
+    TimeOfDay = 21,
 }

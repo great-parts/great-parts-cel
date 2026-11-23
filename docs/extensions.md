@@ -33,9 +33,11 @@ new CelEnvironmentBuilder(CelStandardLibrary.V1)
 | `network` | `network` | `Network(version)` | 1 | none |
 | `protos` | `protos` | `Protos(version)` | 0 | none |
 | `optional` | `optional` | `Optional(version)` | 2 | none |
-| `decimal` | none: a description cannot add it | `Decimal(version)` | 1 | none |
+| `decimal` | none: a description cannot add it | `Decimal(version)` | 1, 2 | none |
+| `calendar` | none: a description cannot add it | `Calendar(version)` | 1 | none |
+| `formats` | none: a description cannot add it | `Formats(version)` | 1 | none |
 
-- **Versions are those of cel-go.** The number of a version is the number of the same set in cel-go, the CEL implementation in Go, and a version has the declarations that cel-go gives it; `decimal`, which cel-go does not have, has a number of its own. This release has one version of each set. A version that the table does not have is not a number to try: it is the build error `UnknownExtensionVersion`.
+- **Versions are those of cel-go.** The number of a version is the number of the same set in cel-go, the CEL implementation in Go, and a version has the declarations that cel-go gives it; `decimal`, which cel-go does not have, has a number of its own. This release has one version of each set, except `decimal`, which has versions 1 and 2. A version that the table does not have is not a number to try: it is the build error `UnknownExtensionVersion`.
 - **The functions of a version never change.** A function that cel-go adds in a later version comes as that version, and an environment that names the versions it was built with means the same after the library is updated. A fix of the behavior of a function applies to the version that has it.
 - **Each function of a set has a description.** One English sentence from the documentation of the set, the same for each overload of the function, shown by `CelEnvironment.Functions` as `CelOverloadDecl.Description`. The description is not part of the signature: type checking and evaluation do not read it, and two declarations of one overload that differ only by the description are one declaration.
 - **The sets do not depend on each other.** None of the sets above needs another, so the build error `MissingExtensionDependency` can only come from a set of the application.
@@ -76,7 +78,7 @@ A macro that cannot expand a call because of its arguments is the parse error `I
 
 ## In an environment description
 
-The key `extensions` of an [environment description in JSON](environment-json.md) adds a set by its name and version, as `AddExtension(CelExtensions.<Set>(version))`. The names are those of the catalog above, except that `decimal` has no name in a description and is added in code; the full names of cel-go such as `cel.lib.ext.strings` are not names. A version is a string of decimal digits, and `Build` reports a version that the set does not have, with the place of its element.
+The key `extensions` of an [environment description in JSON](environment-json.md) adds a set by its name and version, as `AddExtension(CelExtensions.<Set>(version))`. The names are those of the catalog above, except that `decimal`, `calendar` and `formats` have no name in a description and are added in code; the full names of cel-go such as `cel.lib.ext.strings` are not names. A version is a string of decimal digits, and `Build` reports a version that the set does not have, with the place of its element.
 
 ## Optional syntax
 
@@ -399,7 +401,7 @@ The type `decimal`, a decimal128 number of 34 significant digits, with `+`, `-`,
 
 - **Not in a description.** The set is added in code, `CelExtensions.Decimal(1)`. It has no name in the catalog of an [environment description in JSON](environment-json.md): the name `decimal` there is `InvalidConfiguration` (4009), `'decimal' is not the name of an extension set of the library`.
 - **The type.** The set declares the type identifier `decimal`; without the set `decimal('1')` and `type(x) == decimal` are `UndeclaredReference` (2000).
-- **The version.** The set has the one version 1: `CelExtensions.Decimal(2)` is the build error `UnknownExtensionVersion`, `extension 'decimal' has no version 2; available versions: 1`. The same instance added twice, or `Decimal(1)` twice, is one set. The set needs no other set and brings no macro, no variable and no syntax; the literal is enabled by `CelEnvironmentBuilder.EnableDecimalLiterals()`, which needs the set (`MissingExtensionDependency`, 4005).
+- **The versions.** The set has the versions 1 and 2, the second adding rounding ([below](#set-decimal-version-2)): `CelExtensions.Decimal(3)` is the build error `UnknownExtensionVersion`, `extension 'decimal' has no version 3; available versions: 1, 2`, and the two versions in one environment are `ExtensionVersionConflict` (4003), `extension 'decimal' is added in versions 1 and 2`. The same instance added twice, or `Decimal(1)` twice, is one set. The set needs no other set and brings no macro, no variable and no syntax; the literal is enabled by `CelEnvironmentBuilder.EnableDecimalLiterals()`, which needs the set (`MissingExtensionDependency`, 4005).
 
 | Overload | Call | Errors |
 | :- | :- | :- |
@@ -419,3 +421,91 @@ decimal('1.50') + 1.5m                // 3.00
 decimal(1) / decimal(3)               // 0.3333333333333333333333333333333333
 int(decimal('9.99'))                  // 9
 ```
+
+## Set `decimal`, version 2
+
+`CelExtensions.Decimal(2)` is the 18 overloads of version 1, unchanged, and four more: 22 overloads. The new ones are called on a decimal, so `round` does not meet `math.round` of the set `math`. The modes, the results on both targets and the errors are on the page [Decimal](decimal.md#rounding); each overload costs 1 ([Cost](cost.md#set-decimal)).
+
+| Overload | Call | Errors |
+| :- | :- | :- |
+| `decimal_round_int64`, `decimal_round_int64_string` | `x.round(n)`, `x.round(n, mode)` | `InvalidArgument` (3008) for a mode that is not one of the seven, `Overflow` (3006) |
+| `decimal_quantize_decimal`, `decimal_quantize_decimal_string` | `x.quantize(q)`, `x.quantize(q, mode)` | `InvalidArgument`, `Overflow` |
+
+```text
+(1.245m).round(2)                     // 1.24, half to even
+(1.245m).round(2, 'half_up')          // 1.25
+(1.5m).quantize(0.001m)               // 1.500
+```
+
+## Set `calendar`, version 1
+
+The types `date`, a calendar date from 0001-01-01 to 9999-12-31, and `time_of_day`, a time of day from 00:00 to 23:59:59.9999999 with a precision of 100 nanoseconds: 36 overloads. They are the CEL side of the .NET types `DateOnly` and `TimeOnly`; the [type mapping](type-mapping.md) says how a member, a variable and a result convert, and the units are on the page [Cost](cost.md#set-calendar). The set exists on both targets and has the same declarations on both; cel-go has no such set.
+
+- **Not in a description.** The set is added in code, `CelExtensions.Calendar(1)`; its name in a description of an environment in JSON is `InvalidConfiguration` (4009), as the name `decimal` is.
+- **The types.** The set declares the type identifiers `date` and `time_of_day`: without the set `date('2026-11-19')` and `type(x) == date` are `UndeclaredReference` (2000), a member of a .NET type that has the type of the set is `FieldNotAccessible` (2007), and a variable of the type is `TypeNotDeclared` (4008). A variable or a type of the application with the name `date` or `time_of_day` is `DuplicateType` (4001), `type 'date' is declared by both extension calendar v1 and variable of application`; a qualified name such as `acme.date` is another name, and without the set the name is free. The set declares no literal: a date and a time of day are made by the functions below.
+- **The version.** The set has the one version 1: `CelExtensions.Calendar(2)` is the build error `UnknownExtensionVersion`, `extension 'calendar' has no version 2; available versions: 1`. The same instance added twice, or `Calendar(1)` twice, is one set. The set needs no other set and brings no macro, no variable and no syntax.
+- **Text.** A date is written exactly `YYYY-MM-DD`: four ASCII digits for the year from 0001 to 9999, two for the month and two for a day that the month has. A time of day is written `HH:MM`, `HH:MM:SS` or `HH:MM:SS.f` with one to seven digits of fraction; `24:00` is not a time. Anything else is `InvalidArgument` (3008). `string(x)` writes `HH:MM:SS` and, when the fraction is not zero, the fraction without the zeros at its end: `09:30:15.12`. The text does not depend on the culture of the process.
+- **Time zones.** The functions that take a time zone find it as the receivers of a timestamp do: `UTC`, a fixed offset `[+-]HH:MM` or a name of the time zone database of the environment; a name that is not found is `TimeZoneNotFound` (3022), one that is not valid `InvalidTimeZone` (3023). The result does not depend on the time zone of the process. `time_of_day(t)` drops the nanoseconds below 100.
+- **A local date and time.** `timestamp(d, x, z)` is the instant of the local date `d` and time `x` in the zone `z`. A local time that the zone skips (the start of daylight saving time) is moved forward by the length of the gap: `timestamp(date('2018-11-04'), time_of_day('00:30'), 'America/Sao_Paulo')` is 2018-11-04T03:30:00Z, the 01:30 of the zone. A local time that the zone repeats takes the earlier offset: `timestamp(date('2014-10-26'), time_of_day('01:30'), 'Europe/Moscow')` is 2014-10-25T21:30:00Z. An instant outside the range of `timestamp` is `Overflow` (3006).
+- **Dates.** `getMonth` and `getDayOfMonth` count from 0, `getDate` from 1, `getDayOfWeek` from 0 for Sunday and `getDayOfYear` from 0, as the receivers of a timestamp do. `addMonths` and `addYears` keep the day of the month, and a day that the target month does not have becomes its last day: `date('2026-01-31').addMonths(1)` is 2026-02-28. A result outside 0001-01-01 to 9999-12-31 is `Overflow`, and so is `date(t, z)` for an instant at the edge of the range whose date in `z` is outside it. `d1 - d2` is the number of days as an `int`; `x1 - x2` is a `duration` with a sign, never across midnight. There is no `d + duration`.
+- **Equality and order.** A date equals only a date and a time of day only a time of day: `dyn(date('2026-11-19')) == '2026-11-19'` is `false`, and the order of two kinds is `EvalNoMatchingOverload` (3000) for a `dyn` value and `NoMatchingOverload` (2001) at the check. A date is no key of a map: `{date('2026-11-19'): 1}` is `UnsupportedMapKeyType` (3027). `CelValue.ToString()` writes `date("2026-11-19")` and `time_of_day("09:30:00")`.
+
+| Overload | Call | Errors |
+| :- | :- | :- |
+| `string_to_date` | `date(s)` | `InvalidArgument` |
+| `int64_int64_int64_to_date` | `date(year, month, day)` | `InvalidArgument` for a year outside 1 to 9999 or a day that does not exist |
+| `timestamp_to_date`, `timestamp_to_date_with_tz` | `date(t)`, `date(t, z)` | `TimeZoneNotFound`, `InvalidTimeZone`, `Overflow` |
+| `date_to_date` | `date(d)` | none |
+| `string_to_time_of_day` | `time_of_day(s)` | `InvalidArgument` |
+| `timestamp_to_time_of_day`, `timestamp_to_time_of_day_with_tz` | `time_of_day(t)`, `time_of_day(t, z)` | `TimeZoneNotFound`, `InvalidTimeZone` |
+| `time_of_day_to_time_of_day` | `time_of_day(x)` | none |
+| `date_to_string`, `time_of_day_to_string` | `string(d)`, `string(x)` | none |
+| `date_time_of_day_to_timestamp`, `date_time_of_day_to_timestamp_with_tz` | `timestamp(d, x)`, `timestamp(d, x, z)` | `TimeZoneNotFound`, `InvalidTimeZone`, `Overflow` |
+| `date_to_year`, `date_to_month`, `date_to_day_of_month_1_based`, `date_to_day_of_month`, `date_to_day_of_week`, `date_to_day_of_year` | `d.getFullYear()`, `d.getMonth()`, `d.getDate()`, `d.getDayOfMonth()`, `d.getDayOfWeek()`, `d.getDayOfYear()` | none |
+| `time_of_day_to_hours`, `time_of_day_to_minutes`, `time_of_day_to_seconds`, `time_of_day_to_milliseconds` | `x.getHours()`, `x.getMinutes()`, `x.getSeconds()`, `x.getMilliseconds()` | none |
+| `date_add_days`, `date_add_months`, `date_add_years` | `d.addDays(n)`, `d.addMonths(n)`, `d.addYears(n)` | `Overflow` |
+| `subtract_date_date`, `subtract_time_of_day_time_of_day` | `d1 - d2`, `x1 - x2` | none |
+| `less_date`, `less_equals_date`, `greater_date`, `greater_equals_date` | `d1 < d2`, `d1 <= d2`, `d1 > d2`, `d1 >= d2` | none |
+| `less_time_of_day`, `less_equals_time_of_day`, `greater_time_of_day`, `greater_equals_time_of_day` | `x1 < x2`, `x1 <= x2`, `x1 > x2`, `x1 >= x2` | none |
+
+```text
+date('2026-11-19').addDays(12)                          // 2026-12-01
+date('2026-12-01') - date('2026-11-19')                  // 12
+timestamp(date('2026-11-19'), time_of_day('09:30'), 'Europe/Moscow')   // 2026-11-19T06:30:00Z
+```
+
+## Set `formats`, version 1
+
+Six functions that tell whether a string has a text format, nine overloads in all, each a method of `string`: `isEmail`, `isHostname`, `isHostAndPort`, `isIpPrefix`, `isUri` and `isUriRef`. A call gives a `bool`: `true` when the whole string has the format and `false` for any other string, the empty one and one with a space at its end included; no function of the set gives an error for the text it reads. cel-go has no such set, and the units are on the page [Cost](cost.md#set-formats).
+
+- **Not in a description.** The set is added in code, `CelExtensions.Formats(1)`; its name in a description of an environment in JSON is `InvalidConfiguration` (4009), as the name `decimal` is.
+- **The version.** The set has the one version 1: `CelExtensions.Formats(2)` is the build error `UnknownExtensionVersion`, `extension 'formats' has no version 2; available versions: 1`. The same instance added twice, or `Formats(1)` twice, is one set. The set needs no other set and brings no type, macro, variable or syntax; a function of the application with the signature of one of these, such as `AddMethod<string, bool>("isEmail", …)`, is `OverlappingOverloads` (4002).
+- **Without the set** `'a@b.c'.isEmail()` is `UndeclaredReference` (2000). The set does not depend on the set `network`, whose `isIP`, `isCIDR` and `isMask` are other functions: both sets can be added to one environment.
+- **One pass, the same result everywhere.** Each check reads the string once from left to right, so its time is linear in the length of the string, and its result is the same on every platform and in every version of .NET: the library does not use `System.Uri`, `System.Net.IPAddress`, `System.Net.Mail.MailAddress` or regular expressions for it, which accept other texts and differ between versions. A character above U+007F makes a text of an ASCII format `false`; a call on a value that is not a string, such as `dyn(1).isEmail()`, is `EvalNoMatchingOverload` (3000).
+
+| Overload | Call | Is `true` for |
+| :- | :- | :- |
+| `string_is_email` | `s.isEmail()` | a "valid e-mail address" of the HTML standard (not RFC 5322) |
+| `string_is_hostname` | `s.isHostname()` | a host name |
+| `string_is_host_and_port_bool` | `s.isHostAndPort(portRequired)` | a host and an optional port, a port required when the argument is `true` |
+| `string_is_ip_prefix`, `string_is_ip_prefix_int`, `string_is_ip_prefix_bool`, `string_is_ip_prefix_int_bool` | `s.isIpPrefix()`, `s.isIpPrefix(version)`, `s.isIpPrefix(strict)`, `s.isIpPrefix(version, strict)` | an IP address with the length of a prefix |
+| `string_is_uri` | `s.isUri()` | a URI with a scheme, by RFC 3986 |
+| `string_is_uri_ref` | `s.isUriRef()` | a URI or a relative reference, by RFC 3986 |
+
+```text
+'foo@example.com'.isEmail()                       // true
+'10.0.0.0/8'.isIpPrefix(4, true)                  // true
+'10.1.2.3/8'.isIpPrefix(true)                     // false: the bits after the prefix are not zero
+'example.com:8080'.isHostAndPort(true)            // true
+'./foo?bar=1#top'.isUriRef()                      // true
+```
+
+**`isEmail`.** A local part of one or more ASCII letters, digits and the characters ``.!#$%&'*+/=?^_`{|}~-``, then `@` and labels separated by dots. A label has 1 to 63 letters, digits and hyphens and neither starts nor ends with a hyphen; unlike a host name, the last label may be all digits (`foo@example` and `foo@1.2.3.4` are `true`). A quoted local part, a comment, a name before `<`, an IP literal in brackets, a trailing dot and a space are not part of the format, and there is no limit on the length of the local part or of the domain.
+
+**`isHostname`.** Labels of 1 to 63 ASCII letters, digits and hyphens, not starting or ending with a hyphen and separated by dots; the last label is not all digits, so `1.2.3.4` is `false` and `com1` is `true`; at most 253 characters, not counting one trailing dot, which is allowed (`a.` is `true`, `.` and `a..` are `false`).
+
+**`isHostAndPort`.** The host is a host name by the rules above, an IPv4 address or an IPv6 address in square brackets, with an optional zone: `%` and one or more characters other than NUL (`[::1%eth0]`); an IPv4 address or a name in brackets is `false`. The port follows `:`: decimal digits with no sign and no leading zero unless it is `0`, at most 65535, so `a:080`, `a:+1`, `a:65536` and `a:` are `false`. Without the port the text is only the host; with `isHostAndPort(true)` it has to have one.
+
+**`isIpPrefix`.** An address, `/` and the length of the prefix in decimal, with no sign and no leading zero unless it is `0`, at most 32 for IPv4 and 128 for IPv6. An IPv4 address is four decimal fields, each of 1 to 3 digits, at most 255, with no leading zero unless the field is `0`. An IPv6 address is the text of RFC 4291: eight groups of 1 to 4 hexadecimal digits of either case, at most one `::` that stands for at least one group of zeros (`1:2:3:4:5:6:7::` is valid, `1:2:3:4:5:6:7:8::` is not), and the last 32 bits may be an IPv4 address. A zone is not allowed. The optional `int` is the version: `0`, the default, for either family, `4` or `6` for that family only; any other number gives `false`. With `true` the bits of the address after the length must all be zero: `'10.0.0.0/8'` and `'8000::/1'` are `true`, `'10.0.0.1/8'` and `'c000::/1'` are `false`. The `bool` argument comes after the version, and a single `bool` is the strict form for either family.
+
+**`isUri` and `isUriRef`.** The grammar of RFC 3986: `isUri` accepts a URI, which has a scheme, and `isUriRef` also a relative reference, so `''` is a reference and is not a URI, and `//host/path` and `./a:b` are references. The scheme is a letter and then letters, digits, `+`, `-` and `.`. The authority is optional user information, a host and a port: the host is a registered name, which may be empty, or an IP literal in brackets, an IPv6 address with an optional zone written `%25` and an identifier (RFC 6874), or `v` and hexadecimal digits, `.` and more characters (IPvFuture); the port is any number of digits. A path, a query and a fragment have the characters of RFC 3986, and a percent-encoding is `%` and two hexadecimal digits of either case. The octets of the percent-encodings of a host name and of the zone of an IP literal have to form UTF-8, as the RFC asks of a registered name (`http://a%c3%96` is `true`, `http://a%c3x` and `http://a%ff` are `false`); elsewhere an encoding stands for any octet. A character outside the sets, such as a space, `^`, `\`, `|` or a character above U+007F, makes the text `false`.

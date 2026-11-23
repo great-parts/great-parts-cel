@@ -37,7 +37,8 @@ internal sealed record ObjectTypeModel(
     bool IsAbstract,
     string ClassName,
     EquatableArray<FieldModel> Fields,
-    EquatableArray<ExcludedMemberModel> Excluded);
+    EquatableArray<ExcludedMemberModel> Excluded,
+    LiteralModel? Literal = null);
 
 // A readable member. Number is the position among the sorted fields; Access is the member as C# writes it after the dot (a
 // keyword gets @); Shape tells how the value is read and CelType is the type of the field.

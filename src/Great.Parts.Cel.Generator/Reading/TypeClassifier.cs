@@ -160,18 +160,13 @@ internal sealed class TypeClassifier
             : Classification.BadName(entry.CelName);
     }
 
-    // The kinds that the page lists by name: a delegate, char, the integers wider than 64 bits, DateOnly and TimeOnly,
+    // The kinds that the page lists by name: a delegate,
     // JsonDocument and the types of System.Text.Json.Nodes, System.Type, tasks and streams (and the types derived from them).
     private static Classification? ClassifyByName(INamedTypeSymbol named)
     {
         if (named.TypeKind == TypeKind.Delegate)
         {
             return Classification.Refuse(Reasons.DelegateType);
-        }
-
-        if (named.SpecialType == SpecialType.System_Char)
-        {
-            return Classification.Refuse(Reasons.CharType);
         }
 
         if (TypeNames.NamespaceName(named.ContainingNamespace) == WellKnown.JsonNodesNamespace)
@@ -181,7 +176,7 @@ internal sealed class TypeClassifier
 
         for (INamedTypeSymbol? current = named; current is not null; current = current.BaseType)
         {
-            string? reason = ReasonByName(TypeNames.FullName(current), named);
+            string? reason = ReasonByName(TypeNames.FullName(current));
             if (reason is not null)
             {
                 return Classification.Refuse(reason);
@@ -191,18 +186,8 @@ internal sealed class TypeClassifier
         return null;
     }
 
-    private static string? ReasonByName(string fullName, INamedTypeSymbol named)
+    private static string? ReasonByName(string fullName)
     {
-        if (fullName is "System.Int128" or "System.UInt128" or "System.Numerics.BigInteger")
-        {
-            return Reasons.WideInteger;
-        }
-
-        if (fullName is "System.DateOnly" or "System.TimeOnly")
-        {
-            return Reasons.DateTimeType(TypeNames.Display(named));
-        }
-
         if (fullName is "System.Text.Json.JsonDocument")
         {
             return Reasons.JsonDocumentType;
@@ -327,7 +312,7 @@ internal sealed class TypeClassifier
     }
 
     private static bool IsDictionaryKey(Shape key) =>
-        key is EnumShape or ScalarShape { Kind: ScalarKind.Int or ScalarKind.UInt or ScalarKind.Bool or ScalarKind.String or ScalarKind.Guid };
+        key is EnumShape or ScalarShape { Kind: ScalarKind.Int or ScalarKind.UInt or ScalarKind.Bool or ScalarKind.String or ScalarKind.Guid or ScalarKind.Char };
 
     // The elements that CEL orders: numbers, bool, string, bytes, time and decimal, and what is read as one of them.
     private static bool IsOrdered(Shape element) => element switch

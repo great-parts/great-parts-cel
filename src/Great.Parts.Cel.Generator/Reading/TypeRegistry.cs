@@ -14,7 +14,9 @@ internal sealed record RootInfo(
     string EffectiveName,
     string[] IgnoreMembers,
     LocationInfo TypePlace,
-    LocationInfo NamePlace);
+    LocationInfo NamePlace,
+    bool AllowObjectLiterals = false,
+    LocationInfo LiteralPlace = default);
 
 // An object type that the context describes: a root, or a type that the members of the types reach.
 internal sealed class ObjectEntry
@@ -49,6 +51,9 @@ internal sealed class ObjectEntry
     internal EquatableArray<FieldModel> Fields { get; set; }
 
     internal EquatableArray<ExcludedMemberModel> Excluded { get; set; }
+
+    // The plan of the object literals of a root that AllowObjectLiterals lists; null for the others and for a type that cannot be created.
+    internal LiteralModel? Literal { get; set; }
 }
 
 internal sealed class EnumEntry

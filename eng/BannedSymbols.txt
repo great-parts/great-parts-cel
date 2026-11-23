@@ -45,6 +45,13 @@ P:System.TimeProvider.System;The library does not read the clock; the applicatio
 // .NET regular expressions
 T:System.Text.RegularExpressions.Regex;matches uses its own linear-time RE2 engine
 
+// The parsers of URIs, IP addresses and e-mail addresses of .NET: they accept what the formats of the set formats reject and differ between versions of .NET
+T:System.Uri;The set formats reads URIs with its own scanner of RFC 3986
+T:System.UriBuilder;The set formats reads URIs with its own scanner of RFC 3986
+T:System.Net.IPAddress;The set formats reads IP addresses with its own scanner
+T:System.Net.IPNetwork;The set formats reads IP prefixes with its own scanner
+T:System.Net.Mail.MailAddress;The set formats reads e-mail addresses with its own scanner
+
 // Decimal128 parsing and formatting by .NET: format, culture and rounding are not documented
 M:System.Numerics.Decimal128.Parse(System.ReadOnlySpan{System.Byte},System.Globalization.NumberStyles,System.IFormatProvider);Use the library's own decimal parser
 M:System.Numerics.Decimal128.Parse(System.ReadOnlySpan{System.Byte},System.IFormatProvider);Use the library's own decimal parser
@@ -97,6 +104,78 @@ M:System.Decimal.ToString(System.String,System.IFormatProvider);Use the library'
 M:System.Decimal.ToString(System.String);Use the library's own decimal formatter
 M:System.Decimal.TryFormat(System.Span{System.Byte},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal formatter
 M:System.Decimal.TryFormat(System.Span{System.Char},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own decimal formatter
+
+// DateOnly parsing and formatting by .NET: the format follows the culture of the process, the text of date and time_of_day is the library's own
+M:System.DateOnly.Parse(System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.DateOnly.Parse(System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own date and time of day parser
+M:System.DateOnly.Parse(System.String,System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.DateOnly.Parse(System.String,System.IFormatProvider);Use the library's own date and time of day parser
+M:System.DateOnly.Parse(System.String);Use the library's own date and time of day parser
+M:System.DateOnly.ParseExact(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.DateOnly.ParseExact(System.ReadOnlySpan{System.Char},System.String[],System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.DateOnly.ParseExact(System.ReadOnlySpan{System.Char},System.String[]);Use the library's own date and time of day parser
+M:System.DateOnly.ParseExact(System.String,System.String,System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.DateOnly.ParseExact(System.String,System.String);Use the library's own date and time of day parser
+M:System.DateOnly.ParseExact(System.String,System.String[],System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.DateOnly.ParseExact(System.String,System.String[]);Use the library's own date and time of day parser
+M:System.DateOnly.ToLongDateString;Use the library's own date and time of day formatter
+M:System.DateOnly.ToShortDateString;Use the library's own date and time of day formatter
+M:System.DateOnly.ToString;Use the library's own date and time of day formatter
+M:System.DateOnly.ToString(System.IFormatProvider);Use the library's own date and time of day formatter
+M:System.DateOnly.ToString(System.String,System.IFormatProvider);Use the library's own date and time of day formatter
+M:System.DateOnly.ToString(System.String);Use the library's own date and time of day formatter
+M:System.DateOnly.TryFormat(System.Span{System.Byte},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own date and time of day formatter
+M:System.DateOnly.TryFormat(System.Span{System.Char},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own date and time of day formatter
+M:System.DateOnly.TryParse(System.ReadOnlySpan{System.Char},System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParse(System.ReadOnlySpan{System.Char},System.IFormatProvider,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParse(System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Globalization.DateTimeStyles,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParse(System.String,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParse(System.String,System.IFormatProvider,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParse(System.String,System.IFormatProvider,System.Globalization.DateTimeStyles,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParseExact(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParseExact(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Globalization.DateTimeStyles,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParseExact(System.ReadOnlySpan{System.Char},System.String[],System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParseExact(System.ReadOnlySpan{System.Char},System.String[],System.IFormatProvider,System.Globalization.DateTimeStyles,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParseExact(System.String,System.String,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParseExact(System.String,System.String,System.IFormatProvider,System.Globalization.DateTimeStyles,System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParseExact(System.String,System.String[],System.DateOnly@);Use the library's own date and time of day parser
+M:System.DateOnly.TryParseExact(System.String,System.String[],System.IFormatProvider,System.Globalization.DateTimeStyles,System.DateOnly@);Use the library's own date and time of day parser
+
+// TimeOnly parsing and formatting by .NET: the format follows the culture of the process, the text of date and time_of_day is the library's own
+M:System.TimeOnly.Parse(System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.TimeOnly.Parse(System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own date and time of day parser
+M:System.TimeOnly.Parse(System.String,System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.TimeOnly.Parse(System.String,System.IFormatProvider);Use the library's own date and time of day parser
+M:System.TimeOnly.Parse(System.String);Use the library's own date and time of day parser
+M:System.TimeOnly.ParseExact(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.TimeOnly.ParseExact(System.ReadOnlySpan{System.Char},System.String[],System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.TimeOnly.ParseExact(System.ReadOnlySpan{System.Char},System.String[]);Use the library's own date and time of day parser
+M:System.TimeOnly.ParseExact(System.String,System.String,System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.TimeOnly.ParseExact(System.String,System.String);Use the library's own date and time of day parser
+M:System.TimeOnly.ParseExact(System.String,System.String[],System.IFormatProvider,System.Globalization.DateTimeStyles);Use the library's own date and time of day parser
+M:System.TimeOnly.ParseExact(System.String,System.String[]);Use the library's own date and time of day parser
+M:System.TimeOnly.ToLongTimeString;Use the library's own date and time of day formatter
+M:System.TimeOnly.ToShortTimeString;Use the library's own date and time of day formatter
+M:System.TimeOnly.ToString;Use the library's own date and time of day formatter
+M:System.TimeOnly.ToString(System.IFormatProvider);Use the library's own date and time of day formatter
+M:System.TimeOnly.ToString(System.String,System.IFormatProvider);Use the library's own date and time of day formatter
+M:System.TimeOnly.ToString(System.String);Use the library's own date and time of day formatter
+M:System.TimeOnly.TryFormat(System.Span{System.Byte},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own date and time of day formatter
+M:System.TimeOnly.TryFormat(System.Span{System.Char},System.Int32@,System.ReadOnlySpan{System.Char},System.IFormatProvider);Use the library's own date and time of day formatter
+M:System.TimeOnly.TryParse(System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Globalization.DateTimeStyles,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParse(System.ReadOnlySpan{System.Char},System.IFormatProvider,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParse(System.ReadOnlySpan{System.Char},System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParse(System.String,System.IFormatProvider,System.Globalization.DateTimeStyles,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParse(System.String,System.IFormatProvider,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParse(System.String,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParseExact(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.IFormatProvider,System.Globalization.DateTimeStyles,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParseExact(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParseExact(System.ReadOnlySpan{System.Char},System.String[],System.IFormatProvider,System.Globalization.DateTimeStyles,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParseExact(System.ReadOnlySpan{System.Char},System.String[],System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParseExact(System.String,System.String,System.IFormatProvider,System.Globalization.DateTimeStyles,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParseExact(System.String,System.String,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParseExact(System.String,System.String[],System.IFormatProvider,System.Globalization.DateTimeStyles,System.TimeOnly@);Use the library's own date and time of day parser
+M:System.TimeOnly.TryParseExact(System.String,System.String[],System.TimeOnly@);Use the library's own date and time of day parser
 
 // Reflection: the public API works under Native AOT without reflection
 M:System.Type.GetProperties;Use generated type descriptions instead of reflection

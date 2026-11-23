@@ -23,7 +23,7 @@ internal sealed class MemberReader
     }
 
     // A member that was read: a field when Shape is set, a member that is left out when Reason is.
-    private sealed record Item(string CsName, string FieldName, string Access, LocationInfo Place, Shape? Shape, string? Reason);
+    private sealed record Item(string CsName, string FieldName, string Access, LocationInfo Place, Shape? Shape, string? Reason, ISymbol? Member = null);
 
     internal void Read(ObjectEntry entry)
     {
@@ -96,7 +96,7 @@ internal sealed class MemberReader
         switch (result.Kind)
         {
             case ClassificationKind.Ok:
-                return new Item(member.Name, fieldName, access, place, result.Shape, null);
+                return new Item(member.Name, fieldName, access, place, result.Shape, null, member);
             case ClassificationKind.Refused:
                 return LeftOut(entry, member, fieldName, access, place, result.Text);
             case ClassificationKind.InvalidName:
@@ -189,14 +189,20 @@ internal sealed class MemberReader
 
         fields.Sort(static (left, right) => string.CompareOrdinal(left.FieldName, right.FieldName));
         var models = new List<FieldModel>();
+        var members = new List<LiteralMember>();
         for (int number = 0; number < fields.Count; number++)
         {
             Item field = fields[number];
             models.Add(new FieldModel(number, field.FieldName, field.Access, field.Shape!, CelTypes.Of(field.Shape!)));
+            members.Add(new LiteralMember(number, field.Member!, field.Shape!));
         }
 
         entry.Fields = EquatableArray.From(models);
         entry.Excluded = ExcludedModels(excluded, byName);
+        if (entry.Root is { AllowObjectLiterals: true } root)
+        {
+            entry.Literal = LiteralReader.Read(entry.Symbol, root, members, sink);
+        }
     }
 
     // The excluded members by the C# names, ordinal; when two get one field name the first answers; a name that a field has is

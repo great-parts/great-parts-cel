@@ -157,9 +157,9 @@ internal readonly struct CallSite
                 objects ??= new object?[arguments.Length];
                 objects[i] = (object?)ObjectRules.Describe(arguments[i], Types) ?? instance.GetType();
             }
-            else if (kind == CelValueKind.Abstract)
+            else if (kind is CelValueKind.Abstract or CelValueKind.Date or CelValueKind.TimeOfDay)
             {
-                // The kind of an abstract value does not fit the four bits of its place; its type name stands in for it.
+                // The kind of an abstract value, a date and a time of day does not fit the four bits of its place; its type name stands in for it.
                 objects ??= new object?[arguments.Length];
                 objects[i] = ValueTypeRules.NameOf(arguments[i], Types);
                 kind = CelValueKind.Null;

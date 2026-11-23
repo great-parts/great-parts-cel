@@ -50,6 +50,13 @@ public sealed class PropertyRuleTests
     [InlineData("new Dictionary<string, bool>()", "global::System.Collections.Generic.Dictionary<string, bool>")]
     [InlineData("(IReadOnlyDictionary<string, object>)null!", "global::System.Collections.Generic.IReadOnlyDictionary<string, object>")]
     [InlineData("new Dictionary<string, System.Text.Json.JsonElement>()", "global::System.Collections.Generic.Dictionary<string, global::System.Text.Json.JsonElement>")]
+    [InlineData("'c'", "char")]
+    [InlineData("(char?)null", "char?")]
+    [InlineData("(System.Int128)1", "global::System.Int128")]
+    [InlineData("(System.UInt128?)null", "global::System.UInt128?")]
+    [InlineData("System.Numerics.BigInteger.One", "global::System.Numerics.BigInteger")]
+    [InlineData("new List<char>()", "global::System.Collections.Generic.List<char>")]
+    [InlineData("new Dictionary<string, System.Int128>()", "global::System.Collections.Generic.Dictionary<string, global::System.Int128>")]
     public static void RowOfTheList_IsTheTypeOfTheProperty(string value, string csharpType)
     {
         Outcome outcome = Run(Body("CelExpression.Evaluate<long>(\"1\", new { p = " + value + " });\n"));
@@ -64,8 +71,9 @@ public sealed class PropertyRuleTests
 
     [Theory]
     [InlineData("1.5f", "float", "a type outside the list")]
-    [InlineData("'c'", "char", "a type outside the list")]
     [InlineData("1m", "decimal", "a type outside the list")]
+    [InlineData("System.DateOnly.MinValue", "System.DateOnly", "a type outside the list")]
+    [InlineData("System.TimeOnly.MinValue", "System.TimeOnly", "a type outside the list")]
     [InlineData("System.DayOfWeek.Monday", "System.DayOfWeek", "a type outside the list")]
     [InlineData("new System.Uri(\"http://a\")", "System.Uri", "a type outside the list")]
     [InlineData("new Order()", "Acme.Order", "an object of the application")]

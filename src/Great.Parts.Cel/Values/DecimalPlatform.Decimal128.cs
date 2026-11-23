@@ -23,6 +23,39 @@ internal static partial class DecimalPlatform
         return true;
     }
 
+    // The result of round or quantize, whose exponent is the one asked for: false, which is Overflow, when it needs more than 34 digits.
+    // An exponent above 6111 is the same value with the zeros folded into the coefficient when that fits 34 digits, and a zero has
+    // the largest exponent instead; a zero keeps its sign. No exponent below -6176 comes here, since none is asked for.
+    internal static bool TryFromRounded(DecimalParts parts, out PlatformDecimal result)
+    {
+        UInt128 coefficient = parts.Coefficient;
+        int exponent = parts.Exponent;
+        result = default;
+        if (exponent > DecimalParts.MaxExponent)
+        {
+            int shift = exponent - DecimalParts.MaxExponent;
+            if (coefficient != UInt128.Zero)
+            {
+                if (shift > DecimalParts.MaxDigits || coefficient >= DecimalParts.Powers[DecimalParts.MaxDigits - shift])
+                {
+                    return false;
+                }
+
+                coefficient *= DecimalParts.Powers[shift];
+            }
+
+            exponent = DecimalParts.MaxExponent;
+        }
+
+        if (coefficient > DecimalParts.MaxCoefficient)
+        {
+            return false;
+        }
+
+        result = (parts with { Coefficient = coefficient, Exponent = exponent }).ToDecimal128();
+        return true;
+    }
+
     // false for an infinity: Overflow.
     internal static bool TryAdd(PlatformDecimal left, PlatformDecimal right, out PlatformDecimal result)
     {

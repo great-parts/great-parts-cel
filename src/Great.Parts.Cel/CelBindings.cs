@@ -86,7 +86,9 @@ public sealed class CelBindings : IEnumerable<KeyValuePair<string, CelValue>>
     /// <para>
     /// Values that a row of the type mapping rejects outright are rejected here, before any evaluation: a
     /// <see cref="DateTime"/> whose kind is not <see cref="DateTimeKind.Utc"/>, an undefined
-    /// <see cref="System.Text.Json.JsonElement"/>, and on .NET 11 a <c>Decimal128</c> that is a NaN or an infinity.
+    /// <see cref="System.Text.Json.JsonElement"/>, a <see cref="char"/> that is a lone surrogate, an
+    /// <see cref="Int128"/> or a <see cref="System.Numerics.BigInteger"/> outside the range of <see cref="long"/>, a
+    /// <see cref="UInt128"/> above <see cref="ulong.MaxValue"/>, and on .NET 11 a <c>Decimal128</c> that is a NaN or an infinity.
     /// </para>
     /// </remarks>
     /// <typeparam name="T">The .NET type of the value, which selects the conversion.</typeparam>
@@ -162,7 +164,8 @@ public sealed class CelBindings : IEnumerable<KeyValuePair<string, CelValue>>
     /// <exception cref="ArgumentException">
     /// On get, <paramref name="name"/> is not bound. On set, <paramref name="name"/> is empty, or the value is one that
     /// <see cref="Add{T}(string, T)"/> rejects: a <see cref="DateTime"/> whose <see cref="DateTime.Kind"/> is not
-    /// <see cref="DateTimeKind.Utc"/>, a <c>Decimal128</c> NaN or infinity, or a default <c>JsonElement</c>.
+    /// <see cref="DateTimeKind.Utc"/>, a lone surrogate <see cref="char"/>, an integer wider than 64 bits out of range, a
+    /// <c>Decimal128</c> NaN or infinity, or a default <c>JsonElement</c>.
     /// </exception>
     public object? this[string name]
     {

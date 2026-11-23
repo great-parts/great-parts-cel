@@ -49,6 +49,7 @@ public sealed class CostConstantsTests
             public HashSet<long> Numbers { get; set; } = new();
             public HashSet<string> Texts { get; set; } = new();
             public HashSet<Guid> Ids { get; set; } = new();
+            public HashSet<char> Marks { get; set; } = new();
             public Queue<string> Queue { get; set; } = new();
             public CelValue? Maybe { get; set; }
             public JsonElement? MaybeJson { get; set; }
@@ -101,6 +102,19 @@ public sealed class CostConstantsTests
         Assert.Equal(22, Cost(type, holder, "Numbers"));
         Assert.Equal(19, Cost(type, holder, "Texts"));
         Assert.Equal(37, Cost(type, holder, "Ids"));
+    }
+
+    // A char is a string of one unit: a set of chars charges as a set of strings of length 1, c = 2, so 3 elements are 1 + 2 * 3 * 2.
+    [Fact]
+    [Trait("Requirement", "R-3")]
+    public void SetOfChars_ChargesAsStringsOfOneUnit()
+    {
+        using var loaded = new GeneratorExample.Loaded(Types);
+        (CelObjectType type, object holder) = Open(loaded);
+
+        Assert.Equal(1, Cost(type, holder, "Marks"));
+        Set(holder, "Marks", new HashSet<char> { 'a', 'b', 'c' });
+        Assert.Equal(13, Cost(type, holder, "Marks"));
     }
 
     // A collection without an index is 1 + n; a member that is null is 0.

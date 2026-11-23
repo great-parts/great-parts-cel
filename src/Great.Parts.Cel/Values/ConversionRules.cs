@@ -11,8 +11,8 @@ namespace Great.Parts.Cel.Values;
 /// <summary>
 /// .NET values to CEL values, by the input rows of
 /// the <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md">type mapping</see> for
-/// values: integers, floating-point numbers, <c>bool</c>, <c>string</c>, <c>Guid</c>, enumerations, bytes, time,
-/// <c>Nullable&lt;X&gt;</c> of these value types, <c>CelValue</c>, <c>CelList</c>, <c>CelMap</c> and <c>object</c>. The
+/// values: integers, floating-point numbers, <c>bool</c>, <c>string</c>, <c>Guid</c>, <c>char</c>, the integers wider than 64
+/// bits, enumerations, bytes, time, <c>Nullable&lt;X&gt;</c> of these value types, <c>CelValue</c>, <c>CelList</c>, <c>CelMap</c> and <c>object</c>. The
 /// conversion follows the static type <c>T</c> and does not box a value type, except a nullable enumeration.
 /// </summary>
 internal static partial class ConversionRules
@@ -75,11 +75,13 @@ internal static partial class ConversionRules
         }
 
         return TryFromOther(value, out result)
+            || WideRules.TryFrom(value, out result)
             || TryFromTime(value, out result)
             || TryFromCelValueOrObject(value, out result)
             || TryFromNullable(value, out result)
             || TryFromNullableTime(value, out result)
             || TryFromDecimal(value, out result)
+            || TryFromCalendar(value, out result)
             || TryFromJson(value, out result)
             || TryFromOptional(value, out result)
             || TryFromCollection(value, out result);
@@ -141,8 +143,8 @@ internal static partial class ConversionRules
             return DynMap;
         }
 
-        // Nullable<X> of a value type with a wrapper: the wrapper of the CEL type of X; of time and of decimal, the type of X, since
-        // CEL has no wrapper of them.
+        // Nullable<X> of a value type with a wrapper: the wrapper of the CEL type of X; of time, of decimal, of date and of time of
+        // day, the type of X, since CEL has no wrapper of them.
         if (Nullable.GetUnderlyingType(type) is not Type underlying || ScalarInputType(underlying) is not CelType primitive)
         {
             return null;
@@ -151,10 +153,10 @@ internal static partial class ConversionRules
         return HasNoWrapper(primitive) ? primitive : CelType.WrapperOf(primitive);
     }
 
-    // The CEL types that have no wrapper: those of time and decimal.
+    // The CEL types that have no wrapper: those of time, decimal, date and time of day.
     private static bool HasNoWrapper(CelType type) =>
         type.Kind is CelTypeKind.Timestamp or CelTypeKind.Duration
-            or CelTypeKind.Decimal
+            or CelTypeKind.Decimal or CelTypeKind.Date or CelTypeKind.TimeOfDay
         ;
 
     // The rows of numbers, enumerations, bool, string, Guid and bytes.
@@ -190,7 +192,7 @@ internal static partial class ConversionRules
             return CelType.Bytes;
         }
 
-        return TimeInputType(type) ?? DecimalInputType(type);
+        return TimeInputType(type) ?? DecimalInputType(type) ?? WideRules.InputType(type) ?? CalendarInputType(type);
     }
 
     private static bool IsSigned(Type type) =>
@@ -548,7 +550,7 @@ internal static partial class ConversionRules
             JsonElement element => JsonRules.FromElement(element),
             Enum number => FromBoxedEnum(number),
             IOptionalSource optional when optional.TryToCelValue(out CelValue held) => held,
-            _ => FromBoxedDecimal(value),
+            _ => WideRules.FromBoxed(value) ?? FromBoxedCalendar(value) ?? FromBoxedDecimal(value),
         };
 
         result = converted.GetValueOrDefault();

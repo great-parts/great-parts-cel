@@ -52,7 +52,7 @@ internal sealed class TypeIndex
     internal CelObjectType Resolve(CelObjectType description) =>
         _aliases.Count != 0 && _aliases.TryGetValue(description, out CelObjectType? kept) ? kept : description;
 
-    private TypeIndex(TypeIndex other, bool decimalDeclared)
+    private TypeIndex(TypeIndex other, bool decimalDeclared, bool calendarDeclared)
     {
         _objectTypes = other._objectTypes;
         _objectTypesBySpan = other._objectTypesBySpan;
@@ -62,6 +62,7 @@ internal sealed class TypeIndex
         _aliases = other._aliases;
         _enumTypes = other._enumTypes;
         DecimalDeclared = decimalDeclared;
+        CalendarDeclared = calendarDeclared;
     }
 
     // Whether the environment has the set decimal, which declares the type: true exactly when a surviving set has an abstract type of
@@ -69,9 +70,13 @@ internal sealed class TypeIndex
     // for the values that the environment cannot have. A type index that no environment made has it false.
     internal bool DecimalDeclared { get; }
 
-    // This index with the flag set; the same instance when it has the value already, so the shared empty index stays false.
-    internal TypeIndex WithDecimalDeclared(bool decimalDeclared) =>
-        decimalDeclared == DecimalDeclared ? this : new TypeIndex(this, decimalDeclared);
+    // Whether the environment has the set calendar, which declares the types date and time_of_day: true exactly when a surviving set
+    // has an abstract type of the kind Date or TimeOfDay. It is read where DecimalDeclared is, for the fields and the values of those types.
+    internal bool CalendarDeclared { get; }
+
+    // This index with the flags set; the same instance when it has the values already, so the shared empty index stays false.
+    internal TypeIndex WithDeclared(bool decimalDeclared, bool calendarDeclared) =>
+        decimalDeclared == DecimalDeclared && calendarDeclared == CalendarDeclared ? this : new TypeIndex(this, decimalDeclared, calendarDeclared);
 
     // The object types by full name, for the identifiers of type checking.
     internal FrozenDictionary<string, CelObjectType> ObjectTypes => _objectTypes;

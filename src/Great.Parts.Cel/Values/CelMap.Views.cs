@@ -41,8 +41,8 @@ public abstract partial class CelMap
     /// </para>
     /// </remarks>
     /// <typeparam name="TKey">
-    /// The .NET type of the keys: <see cref="string"/>, <see cref="Guid"/>, <see cref="bool"/>, an integer
-    /// type or an enumeration.
+    /// The .NET type of the keys: <see cref="string"/>, <see cref="Guid"/>, <see cref="bool"/>, <see cref="char"/>
+    /// (a key that is a string of one UTF-16 unit), an integer type or an enumeration.
     /// </typeparam>
     /// <typeparam name="TValue">The .NET type of the values.</typeparam>
     /// <param name="source">

@@ -24,6 +24,9 @@ internal sealed class DeclarationChecks
     // The hint of TypeNotDeclared for the type decimal: the set to add.
     private const string DecimalHint = "; add the extension set 'decimal'";
 
+    // The hint of TypeNotDeclared for the types date and time_of_day: the set to add.
+    private const string CalendarHint = "; add the extension set 'calendar'";
+
     // The declarations to check: the set of the builder, with the declarations of the types of the application that the type
     // index describes resolved (ResolveUnmapped).
     private DeclarationSet _set;
@@ -62,6 +65,9 @@ internal sealed class DeclarationChecks
     // type. A type of the kind Decimal in a variable or an overload is declared only then.
     private bool DecimalDeclared { get; set; }
 
+    // Whether a surviving set declares the types date and time_of_day, which only the set calendar does.
+    private bool CalendarDeclared { get; set; }
+
     // The .NET types that UseInput declared, which ExpandInput checks.
     private readonly ImmutableArray<Type> _inputTypes;
 
@@ -97,7 +103,7 @@ internal sealed class DeclarationChecks
         }
 
         types = checks.CheckTypes();
-        types = types.WithDecimalDeclared(checks.DecimalDeclared);
+        types = types.WithDeclared(checks.DecimalDeclared, checks.CalendarDeclared);
         checks.ResolveUnmapped(types);
         checks.ResolveImplementations(types);
         inputType = checks.ExpandInput(types);
@@ -122,6 +128,7 @@ internal sealed class DeclarationChecks
             foreach (AbstractTypeDeclaration declaration in set.AbstractTypes)
             {
                 DecimalDeclared |= declaration.Type.Kind == CelTypeKind.Decimal;
+                CalendarDeclared |= declaration.Type.Kind is CelTypeKind.Date or CelTypeKind.TimeOfDay;
                 if (_library.ReservedNames.Contains(declaration.Name))
                 {
                     _errors.Add(BuildErrors.DuplicateType(declaration.Name, StandardLibrarySource, set.Source, null));
@@ -586,7 +593,7 @@ internal sealed class DeclarationChecks
     {
         foreach (CelObjectField field in objectType.Fields)
         {
-            if (Undeclared(field.Type, decimalDeclared: true) is CelType undeclared)
+            if (Undeclared(field.Type, setTypesDeclared: true) is CelType undeclared)
             {
                 _errors.Add(BuildErrors.TypeNotDeclared("field", objectType.Name + "." + field.Name, undeclared.ToString(), source.PositionOf(field), HintOf(undeclared)));
             }
@@ -609,7 +616,7 @@ internal sealed class DeclarationChecks
                 continue;
             }
 
-            if (Undeclared(variable.Type, DecimalDeclared) is CelType undeclared)
+            if (Undeclared(variable.Type, setTypesDeclared: false) is CelType undeclared)
             {
                 _errors.Add(BuildErrors.TypeNotDeclared("variable", variable.Name, undeclared.ToString(), sourced.Position, HintOf(undeclared)));
                 continue;
@@ -618,11 +625,7 @@ internal sealed class DeclarationChecks
             // A name that an abstract type of a surviving set carries declares that type.
             CelType declaredType = Resolve(variable.Type);
 
-            if (_library.ReservedNames.Contains(variable.Name))
-            {
-                _errors.Add(BuildErrors.StandardLibraryConflict(
-                    "variable", variable.Name, sourced.Source, _library.VersionText, "it is a type identifier", sourced.Position));
-            }
+            CheckVariableName(sourced);
 
             List<SourcedDeclaration<CelVariableDecl>> sameName = CollectionsMarshal.GetValueRefOrAddDefault(byName, variable.Name, out bool exists) ??= [];
             if (!exists)
@@ -668,6 +671,23 @@ internal sealed class DeclarationChecks
         }
 
         return erased.ToImmutable();
+    }
+
+    // The name of a variable against the type identifiers: one of the standard library version is StandardLibraryConflict; one of an abstract
+    // type of a surviving set, such as decimal, date or time_of_day, is DuplicateType: the type is the set's, the variable is the
+    // application's, and the set comes first. The variable stays in the list.
+    private void CheckVariableName(SourcedDeclaration<CelVariableDecl> sourced)
+    {
+        string name = sourced.Value.Name;
+        if (_library.ReservedNames.Contains(name))
+        {
+            _errors.Add(BuildErrors.StandardLibraryConflict(
+                "variable", name, sourced.Source, _library.VersionText, "it is a type identifier", sourced.Position));
+        }
+        else if (_setTypes.TryGetValue(name, out (AbstractTypeDeclaration Declaration, ExtensionDefinition Set) ofSet))
+        {
+            _errors.Add(BuildErrors.DuplicateType(name, ofSet.Set.Source, "variable of " + sourced.Source, sourced.Position));
+        }
     }
 
     // Declarations of one variable name: the first by source against each other one that is not the same declaration.
@@ -1188,40 +1208,40 @@ internal sealed class DeclarationChecks
     {
         foreach (CelType parameterType in overload.ParameterTypes)
         {
-            if (Undeclared(parameterType, DecimalDeclared) is CelType undeclared)
+            if (Undeclared(parameterType, setTypesDeclared: false) is CelType undeclared)
             {
                 return undeclared;
             }
         }
 
-        return Undeclared(overload.ResultType, DecimalDeclared);
+        return Undeclared(overload.ResultType, setTypesDeclared: false);
     }
 
-    // The first type in this type that nothing in the environment declares, as FindUndeclared finds it; but the type decimal, which
-    // the set decimal declares, is named by the whole type that mentions it, as it is written — list(decimal), map(string, decimal) —
-    // and not by its leaf.
-    private CelType? Undeclared(CelType type, bool decimalDeclared)
+    // The first type in this type that nothing in the environment declares, as FindUndeclared finds it; but the types decimal, date and
+    // time_of_day, which the sets decimal and calendar declare, are named by the whole type that mentions them, as it is written —
+    // list(decimal), map(string, date) — and not by its leaf.
+    private CelType? Undeclared(CelType type, bool setTypesDeclared)
     {
-        CelType? found = FindUndeclared(type, decimalDeclared);
-        return found is not null && IsDecimal(found) ? type : found;
+        CelType? found = FindUndeclared(type, setTypesDeclared);
+        return found is not null && SetOf(found) is not null ? type : found;
     }
 
     // An object type that no type source describes, google.protobuf.Any when no source describes it, a type of optional when no
-    // surviving set declares the name optional_type, or the type decimal when decimalDeclared is false.
-    private CelType? FindUndeclared(CelType type, bool decimalDeclared)
+    // surviving set declares the name optional_type, or the type decimal, date or time_of_day when no surviving set declares it, unless
+    // setTypesDeclared says that those types are not checked.
+    private CelType? FindUndeclared(CelType type, bool setTypesDeclared)
     {
         if ((type.Kind == CelTypeKind.Object && !_typeNames.Contains(type.Name) && !_setTypes.ContainsKey(type.Name))
             || (type.Kind == CelTypeKind.Any && !_typeNames.Contains(type.Name))
             || (type.Kind == CelTypeKind.Optional && !_setTypes.ContainsKey(type.Name))
-            || (type.Kind == CelTypeKind.Decimal && !decimalDeclared)
-            )
+            || (!setTypesDeclared && IsUndeclaredSetType(type)))
         {
             return type;
         }
 
         foreach (CelType parameter in type.Parameters)
         {
-            if (FindUndeclared(parameter, decimalDeclared) is CelType undeclared)
+            if (FindUndeclared(parameter, setTypesDeclared) is CelType undeclared)
             {
                 return undeclared;
             }
@@ -1292,9 +1312,10 @@ internal sealed class DeclarationChecks
     // the same; empty for any other type.
     private string HintOf(CelType type)
     {
-        if (MentionsDecimal(type))
+        string? mentioned = MentionedSet(type);
+        if (mentioned is not null)
         {
-            return DecimalHint;
+            return mentioned == "decimal" ? DecimalHint : CalendarHint;
         }
 
         return type.Kind is CelTypeKind.Object or CelTypeKind.Optional && _abstractTypeSets?.Invoke(type.Name) is string set
@@ -1302,28 +1323,58 @@ internal sealed class DeclarationChecks
             : string.Empty;
     }
 
-    // The type decimal, or the name decimal that a description of an environment gives a variable, a field or an overload.
-    private static bool IsDecimal(CelType type) =>
-        type.Kind == CelTypeKind.Decimal ||
-        (type.Kind == CelTypeKind.Object && string.Equals(type.Name, "decimal", StringComparison.Ordinal));
-
-    // Whether the type is decimal or has it at any depth.
-    private static bool MentionsDecimal(CelType type)
+    // Whether the type is decimal, date or time_of_day and no surviving set declares it.
+    private bool IsUndeclaredSetType(CelType type) => type.Kind switch
     {
-        if (IsDecimal(type))
+        CelTypeKind.Decimal => !DecimalDeclared,
+        CelTypeKind.Date or CelTypeKind.TimeOfDay => !CalendarDeclared,
+        _ => false,
+    };
+
+    // The set that declares the type: decimal for the type decimal, calendar for date and time_of_day; also for the name that a description of
+    // an environment gives a variable, a field or an overload. Null for any other type.
+    private static string? SetOf(CelType type)
+    {
+        if (type.Kind == CelTypeKind.Decimal)
         {
-            return true;
+            return "decimal";
+        }
+
+        if (type.Kind is CelTypeKind.Date or CelTypeKind.TimeOfDay)
+        {
+            return "calendar";
+        }
+
+        if (type.Kind != CelTypeKind.Object)
+        {
+            return null;
+        }
+
+        return type.Name switch
+        {
+            "decimal" => "decimal",
+            "date" or "time_of_day" => "calendar",
+            _ => null,
+        };
+    }
+
+    // The set of the first type of a set that the type is or has at any depth; null when it has none.
+    private static string? MentionedSet(CelType type)
+    {
+        if (SetOf(type) is string set)
+        {
+            return set;
         }
 
         foreach (CelType parameter in type.Parameters)
         {
-            if (MentionsDecimal(parameter))
+            if (MentionedSet(parameter) is string inner)
             {
-                return true;
+                return inner;
             }
         }
 
-        return false;
+        return null;
     }
 
     // An overload that passed the checks: its function, its source and, for a description in JSON, its position. Two

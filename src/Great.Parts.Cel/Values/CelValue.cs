@@ -523,7 +523,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
 
     /// <summary>
     /// Compares two values by .NET equality: the same kind and the same content. Numbers, booleans,
-    /// timestamps, durations and decimals compare by value, and a NaN equals itself; strings compare by
+    /// timestamps, durations, decimals, dates and times of day compare by value, and a NaN equals itself; strings compare by
     /// ordinal comparison; bytes compare by content; types compare by <see cref="CelType.Equals(CelType)"/>;
     /// optionals compare by their content; lists, maps, objects and errors compare by reference.
     /// </summary>
@@ -543,7 +543,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
         return _kind switch
         {
             CelValueKind.Null => true,
-            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt => _p0 == other._p0,
+            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Date or CelValueKind.TimeOfDay => _p0 == other._p0,
             CelValueKind.Timestamp or CelValueKind.Duration => _p0 == other._p0 && _p1 == other._p1,
             CelValueKind.Double => BitConverter.UInt64BitsToDouble(_p0).Equals(BitConverter.UInt64BitsToDouble(other._p0)),
             CelValueKind.String => string.Equals((string?)_ref, (string?)other._ref, StringComparison.Ordinal),
@@ -585,7 +585,7 @@ public readonly partial struct CelValue : IEquatable<CelValue>
         int content = _kind switch
         {
             CelValueKind.Null => 0,
-            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt => _p0.GetHashCode(),
+            CelValueKind.Bool or CelValueKind.Int or CelValueKind.UInt or CelValueKind.Date or CelValueKind.TimeOfDay => _p0.GetHashCode(),
             CelValueKind.Timestamp or CelValueKind.Duration => HashCode.Combine(_p0, _p1),
             CelValueKind.Double => BitConverter.UInt64BitsToDouble(_p0).GetHashCode(),
             CelValueKind.String => ((string)_ref!).GetHashCode(StringComparison.Ordinal),

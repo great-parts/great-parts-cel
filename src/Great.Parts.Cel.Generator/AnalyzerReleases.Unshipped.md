@@ -14,3 +14,4 @@ GPCEL008 | Great.Parts.Cel.Generator | Error | C# language version not supported
 GPCEL009 | Great.Parts.Cel.Generator | Error | CEL type context too large
 GPCEL010 | Great.Parts.Cel.Generator | Warning | CEL simple entry cannot see the data type
 GPCEL011 | Great.Parts.Cel.Generator | Error | Property type not supported by the CEL simple entry
+GPCEL012 | Great.Parts.Cel.Generator | Error | Type cannot be created by CEL object literals

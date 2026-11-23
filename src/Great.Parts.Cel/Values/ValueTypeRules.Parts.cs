@@ -33,6 +33,8 @@ internal static partial class ValueTypeRules
         CelValueKind.Object => ObjectTypeNamed(name),
         CelValueKind.Abstract => CelType.AbstractNamed((string)name!, []),
         CelValueKind.Decimal => CelType.Decimal,
+        CelValueKind.Date => CelType.Date,
+        CelValueKind.TimeOfDay => CelType.TimeOfDay,
         _ => CelType.Dyn,
     };
 
@@ -58,6 +60,8 @@ internal static partial class ValueTypeRules
         "timestamp" => CelType.Timestamp,
         "duration" => CelType.Duration,
         "decimal" => CelType.Decimal,
+        "date" => CelType.Date,
+        "time_of_day" => CelType.TimeOfDay,
         _ => CelType.ObjectNamed(name),
     };
 

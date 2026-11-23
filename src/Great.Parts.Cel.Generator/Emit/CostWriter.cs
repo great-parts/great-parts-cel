@@ -126,7 +126,7 @@ internal static class CostWriter
     }
 
     // c of the set: 1 for numbers, bool, enumerations, times and decimal; 1 + ⌈2 · Lmax/10⌉ for string, bytes and Guid, where
-    // Lmax is found by one pass over the elements (36 for a Guid), and a null element counts 0.
+    // Lmax is found by one pass over the elements (36 for a Guid, 1 for a char), and a null element counts 0.
     private static string Unit(CodeWriter w, CollectionShape collection, string source)
     {
         Shape element = collection.Element is NullableShape nullable ? nullable.Underlying : collection.Element;
@@ -135,6 +135,8 @@ internal static class CostWriter
         {
             case ScalarShape { Kind: ScalarKind.Guid }:
                 return Literals.Long(1 + ((2 * 36) + 9) / 10);
+            case ScalarShape { Kind: ScalarKind.Char }:
+                return Literals.Long(1 + ((2 * 1) + 9) / 10);
             case ScalarShape { Kind: ScalarKind.String or ScalarKind.Bytes or ScalarKind.BytesMemory } text:
                 WriteLongest(w, collection, source, text.Kind, wrapped);
                 return "1L + ((2L * longest + 9L) / 10L)";

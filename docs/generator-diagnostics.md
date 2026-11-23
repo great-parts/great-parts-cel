@@ -1,6 +1,6 @@
 # Source generator diagnostics
 
-The source generator of `Great.Parts.Cel` has two parts. The first reads a type context — a `partial` class derived from `CelTypeContext` with `[CelObject]` attributes — and writes the descriptions of the .NET types it lists and of the types their members reach; `GPCEL001` to `GPCEL006`, `GPCEL008` and `GPCEL009` are its diagnostics. The second reads the calls of the simple entry `CelExpression.Evaluate` and registers the anonymous objects that they pass; `GPCEL010` and `GPCEL011` are its diagnostics. When the generator cannot describe something, it reports a compiler diagnostic. This page lists the ten diagnostics; `GPCEL007`, which excluded a `System.Decimal` member on .NET 10, is not reported any more and its number is not used again. The help link of each diagnostic points to its section here.
+The source generator of `Great.Parts.Cel` has two parts. The first reads a type context — a `partial` class derived from `CelTypeContext` with `[CelObject]` attributes — and writes the descriptions of the .NET types it lists and of the types their members reach; `GPCEL001` to `GPCEL006`, `GPCEL008`, `GPCEL009` and `GPCEL012` are its diagnostics. The second reads the calls of the simple entry `CelExpression.Evaluate` and registers the anonymous objects that they pass; `GPCEL010` and `GPCEL011` are its diagnostics. When the generator cannot describe something, it reports a compiler diagnostic. This page lists the eleven diagnostics; `GPCEL007`, which excluded a `System.Decimal` member on .NET 10, is not reported any more and its number is not used again. The help link of each diagnostic points to its section here.
 
 How to read the entries:
 
@@ -29,9 +29,6 @@ A type listed in `[CelObject]` is of a kind that the generator cannot describe. 
 | `Stream` and the types derived from it | `streams are not data` |
 | `IEnumerable<T>`, `IAsyncEnumerable<T>` | `<type> has no size and no index; use an array, a list or a collection with a size` |
 | a non-generic collection (`ArrayList`, `Hashtable`) | `non-generic collections have no element type; use a typed collection` |
-| `char` | `char is a UTF-16 code unit, not a code point; use string` |
-| `Int128`, `UInt128`, `BigInteger` | `CEL has no integers wider than 64 bits; use long or string` |
-| `DateOnly`, `TimeOnly` | `<type> is not supported; use DateTimeOffset or string` |
 | `JsonDocument` | `JsonDocument is released by the application; use JsonElement` |
 | `JsonNode` and the other types of `System.Text.Json.Nodes` | `JsonNode is mutable; use JsonElement` |
 | another class, structure or interface of `System` or of the assemblies `Great.Parts.Cel` and `Great.Parts.Cel.Protobuf` that the type mapping has no row for, such as `Uri`, `Version`, `IPAddress` | `<type> has no CEL type; use a string or your own type` |
@@ -148,10 +145,30 @@ A call of `CelExpression.Evaluate` passes an anonymous object with a property th
 | `object` | `object` |
 | a type that is private, protected or file-local, alone or inside a collection | `not accessible from the created file` |
 | a collection outside the list: `IList<X>`, a set, a dictionary with a key that is not `string`, an element outside the list | `a collection outside the list` |
-| `float`, `char`, `decimal`, an enumeration or another type outside the list | `a type outside the list` |
+| `float`, `decimal`, `DateOnly`, `TimeOnly`, an enumeration or another type outside the list | `a type outside the list` |
 | a type of a generic method | `a type parameter of the enclosing method` |
 | a name that is a reserved word of CEL (`for`, `in`, `null`) or has letters outside ASCII | `not a CEL identifier` |
 
 The generator writes no registration for that anonymous type. Without the error the call would fail at run time, for a name that is not an identifier with `InvalidVariableName`.
 
 What to do: pass the data as a dictionary, rename the property, or build an environment with a type source and `UseInput<T>`, which describes objects of the application.
+
+## GPCEL012
+
+**Type cannot be created by CEL object literals.** Severity: Error.
+
+Message: `Type '{0}' is listed with AllowObjectLiterals = true but cannot be created by an object literal: {1}`. Where: the argument `AllowObjectLiterals = true` of the `[CelObject]` attribute.
+
+A type listed with `AllowObjectLiterals = true` is created by an expression such as `acme.Money{amount: 10.5m}`, and the generated code calls a constructor and sets members without reflection. The generator reports the type when no such code can be written; the type is still described for reading, and a literal of it is the error `TypeNotConstructible`. `{1}` is the reason:
+
+| Reason | What it means |
+| :- | :- |
+| `an interface cannot be created` | The type is an interface. |
+| `an abstract class cannot be created` | The type is an abstract class. |
+| `it has no public constructor` | No constructor is public. |
+| `it has no public parameterless constructor and more than one public constructor with parameters` | The generator picks a public constructor without parameters, or the only public constructor; here there is none to pick. |
+| `the parameter '{p}' of its only public constructor matches no field` | Each parameter of the constructor must be a field of the type: a member of the same name, ignoring case, that the type reads. |
+| `the type of the parameter '{p}' of its only public constructor differs from the type of its field` | A parameter and its member have the same type. |
+| `the required member '{m}' cannot be set by an object literal` | C# demands a `required` member in every object initializer, so the member must be a field whose .NET type a literal can create. |
+
+What to do: give the type a public constructor without parameters, or a single public constructor whose parameters are members of the type; make each `required` member a field of a type that a literal can create; or remove `AllowObjectLiterals`. A type that is reached only through the members of another type never has object literals.

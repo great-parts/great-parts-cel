@@ -67,7 +67,9 @@ internal sealed class RootReader
             if (SymbolEqualityComparer.Default.Equals(existing.Type, root.Type) && existing.EffectiveName == root.EffectiveName)
             {
                 string[] ignored = [.. existing.IgnoreMembers, .. root.IgnoreMembers];
-                roots[index] = existing with { IgnoreMembers = ignored };
+                roots[index] = existing.AllowObjectLiterals
+                    ? existing with { IgnoreMembers = ignored }
+                    : existing with { IgnoreMembers = ignored, AllowObjectLiterals = root.AllowObjectLiterals, LiteralPlace = root.LiteralPlace };
                 return;
             }
         }
@@ -94,12 +96,17 @@ internal sealed class RootReader
         }
 
         string? name = null;
+        bool allowLiterals = false;
         var ignored = new List<string>();
         foreach (KeyValuePair<string, TypedConstant> argument in attribute.NamedArguments)
         {
             if (argument.Key == "Name")
             {
                 name = argument.Value.Value as string;
+            }
+            else if (argument.Key == "AllowObjectLiterals")
+            {
+                allowLiterals = argument.Value.Value is true;
             }
             else if (argument.Key == "IgnoreMembers" && argument.Value.Kind == TypedConstantKind.Array)
             {
@@ -115,21 +122,23 @@ internal sealed class RootReader
 
         string display = TypeNames.Display(type);
         string effective = name ?? (type is INamedTypeSymbol named ? TypeNames.DefaultCelName(named) : display);
-        (LocationInfo typePlace, LocationInfo namePlace) = PlacesOf(attribute, fallback, cancellationToken);
-        return new RootInfo(type, display, name, effective, ignored.ToArray(), typePlace, namePlace);
+        (LocationInfo typePlace, LocationInfo namePlace, LocationInfo literalPlace) = PlacesOf(attribute, fallback, cancellationToken);
+        return new RootInfo(type, display, name, effective, ignored.ToArray(), typePlace, namePlace, allowLiterals, literalPlace);
     }
 
-    // The place of an argument is the whole attribute argument as written: typeof(T) for the first, Name = "x" for the named one.
-    private static (LocationInfo Type, LocationInfo Name) PlacesOf(AttributeData attribute, LocationInfo fallback, CancellationToken cancellationToken)
+    // The place of an argument is the whole attribute argument as written: typeof(T) for the first, Name = "x" for the named one, and
+    // AllowObjectLiterals = true for that one.
+    private static (LocationInfo Type, LocationInfo Name, LocationInfo Literals) PlacesOf(AttributeData attribute, LocationInfo fallback, CancellationToken cancellationToken)
     {
         if (attribute.ApplicationSyntaxReference?.GetSyntax(cancellationToken) is not AttributeSyntax syntax)
         {
-            return (fallback, fallback);
+            return (fallback, fallback, fallback);
         }
 
         LocationInfo whole = LocationInfo.From(syntax.GetLocation());
         LocationInfo? typePlace = null;
         LocationInfo? namePlace = null;
+        LocationInfo? literalPlace = null;
         if (syntax.ArgumentList is { } list)
         {
             foreach (AttributeArgumentSyntax argument in list.Arguments)
@@ -143,10 +152,14 @@ internal sealed class RootReader
                 {
                     namePlace = place;
                 }
+                else if (argument.NameEquals.Name.Identifier.ValueText == "AllowObjectLiterals")
+                {
+                    literalPlace = place;
+                }
             }
         }
 
-        return (typePlace ?? whole, namePlace ?? typePlace ?? whole);
+        return (typePlace ?? whole, namePlace ?? typePlace ?? whole, literalPlace ?? typePlace ?? whole);
     }
 
     private bool Admit(RootInfo root)

@@ -17,6 +17,7 @@
     },
     "mutate": [
       "Library/Extensions/*.cs",
+      "Library/Extensions/Formats/**/*.cs",
       "Library/Extensions/Network/**/*.cs"
     ],
     "thresholds": {

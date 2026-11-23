@@ -12,6 +12,8 @@ internal enum CelTypeKind : byte
     Timestamp,
     Duration,
     Decimal,
+    Date,
+    TimeOfDay,
 
     // First is the primitive that the wrapper stands for.
     Wrapper,

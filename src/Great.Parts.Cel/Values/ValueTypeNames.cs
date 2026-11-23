@@ -32,6 +32,8 @@ internal static class ValueTypeNames
         CelValueKind.Optional => "optional_type",
         CelValueKind.Error => "error",
         CelValueKind.Decimal => "decimal",
+        CelValueKind.Date => "date",
+        CelValueKind.TimeOfDay => "time_of_day",
         _ => throw new UnreachableException("The kind has no name of its own: an object or an abstract value is named by its type."),
     };
 }

@@ -23,7 +23,7 @@ namespace Great.Parts.Cel.Types;
 /// properties return shared instances. Instances are immutable and can be shared between threads.
 /// </para>
 /// </remarks>
-public sealed class CelType : IEquatable<CelType>
+public sealed partial class CelType : IEquatable<CelType>
 {
     internal CelType(CelTypeKind kind, string name, ImmutableArray<CelType> parameters)
     {

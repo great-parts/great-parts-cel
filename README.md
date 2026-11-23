@@ -109,7 +109,7 @@ The documentation of a release is the content of this repository at the tag of t
 - [Cost](docs/cost.md): the units of every operation.
 - [Limits](docs/limits.md): the sizes past which the library reports an error.
 - [Error codes](docs/error-codes.md): every code of `CelErrorCode`, its stage and when it occurs.
-- [Source generator diagnostics](docs/generator-diagnostics.md): `GPCEL001` to `GPCEL011`, without `GPCEL007`.
+- [Source generator diagnostics](docs/generator-diagnostics.md): `GPCEL001` to `GPCEL012`, without `GPCEL007`.
 - [Application functions](docs/recipes/application-functions.md): how to give the functions of an application the data they need.
 - [Time zone database](docs/recipes/time-zone-database.md): how to give an environment the time zones that `getHours('Europe/Moscow')` needs.
 - [Conformance](docs/conformance.md): the result of the cel-spec suite.

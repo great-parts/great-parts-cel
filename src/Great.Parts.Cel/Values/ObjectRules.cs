@@ -17,6 +17,10 @@ internal static class ObjectRules
         static error => ".NET type '" + error.First + "' is not available to expressions: no type source of the environment describes it",
         subject: static error => error.First?.ToString());
 
+    private static readonly ErrorTemplate NullCarrierText = new(
+        static error => "the object literal of type '" + ((CelObjectType)error.First!).Name + "' created null, but its CEL type does not allow null",
+        actualType: static error => CelType.ObjectNamed(((CelObjectType)error.First!).Name));
+
     private static readonly ErrorTemplate FieldNotSetText = new(
         static error => "field '" + FieldOf(error).Name + "' of type '" + ((CelObjectType)error.First!).Name + "' has no value",
         subject: static error => FieldOf(error).Name,
@@ -355,6 +359,15 @@ internal static class ObjectRules
         CelValue.FromError(new CelError(rejected.Code, FieldErrorText, null, 0, owner, rejected, number));
 
     /// <summary>
+    /// The error value <c>UnexpectedNull</c> of an object literal whose delegate of the application created <see langword="null"/>,
+    /// without a place.
+    /// </summary>
+    /// <param name="owner">The description of the literal.</param>
+    /// <returns>The error value.</returns>
+    internal static CelValue NullCarrier(CelObjectType owner) =>
+        CelValue.FromError(new CelError(CelErrorCode.UnexpectedNull, NullCarrierText, null, 0, owner));
+
+    /// <summary>
     /// The error value <c>FieldNotSet</c> of a field, without a place.
     /// </summary>
     /// <param name="owner">The description.</param>
@@ -635,16 +648,16 @@ internal static class ObjectRules
     }
 
     /// <summary>
-    /// Whether a value of this kind can be a decimal that an environment cannot have: a <c>Decimal</c>, and an object, which can be a
-    /// bare <see cref="decimal"/>. Any other kind is not.
+    /// Whether a value of this kind can be a decimal, a date or a time of day that an environment cannot have: a <c>Decimal</c>, a
+    /// <c>Date</c> or a <c>TimeOfDay</c>, and an object, which can be a bare <see cref="decimal"/>. Any other kind is not.
     /// </summary>
     /// <param name="kind">The kind of the value.</param>
     /// <returns><see langword="true"/> when <see cref="TryRejectDecimal"/> has to look at the value.</returns>
     internal static bool MayBeDecimal(CelValueKind kind) =>
-        kind is CelValueKind.Decimal or CelValueKind.Object;
+        kind is CelValueKind.Decimal or CelValueKind.Object or CelValueKind.Date or CelValueKind.TimeOfDay;
 
     /// <summary>
-    /// The refusal of a decimal that the environment cannot have, by a node that reads a value of the application — the identifier,
+    /// The refusal of a decimal, a date or a time of day that the environment cannot have, by a node that reads a value of the application — the identifier,
     /// the value of a field, the result of a call: a value of the kind <c>Decimal</c> when the type index says the environment has no
     /// set <c>decimal</c>, and a bare <see cref="decimal"/> instance, which is no decimal on either target. The error
     /// names the .NET type, <c>System.Decimal</c> for a value that a <see cref="decimal"/> made and <c>System.Numerics.Decimal128</c>
@@ -658,6 +671,18 @@ internal static class ObjectRules
     {
         // The nodes that read many values ask MayBeDecimal first, so the common value costs one comparison.
         error = default;
+        if (value.Kind is CelValueKind.Date or CelValueKind.TimeOfDay)
+        {
+            // A date or a time of day of an environment without the set calendar: the .NET type is named, as for a decimal.
+            if (types is null || types.CalendarDeclared)
+            {
+                return false;
+            }
+
+            error = NotAccessible(value.Kind == CelValueKind.Date ? typeof(DateOnly) : typeof(TimeOnly));
+            return true;
+        }
+
         if (value.Kind == CelValueKind.Decimal)
         {
             if (types is null || types.DecimalDeclared)

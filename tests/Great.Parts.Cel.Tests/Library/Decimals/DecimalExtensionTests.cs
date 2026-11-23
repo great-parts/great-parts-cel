@@ -42,6 +42,18 @@ public sealed class DecimalExtensionTests
         ("string", "decimal_to_string", "decimal", "string", 1),
     ];
 
+    private static readonly uint[] BothVersions = [1, 2];
+
+    private static readonly string[] OverloadsWithAMode = ["decimal_round_int64_string", "decimal_quantize_decimal_string"];
+
+    private static readonly (string, string, string, string, ulong)[] RoundingTable =
+    [
+        ("round", "decimal_round_int64", "decimal,int", "decimal", 1),
+        ("round", "decimal_round_int64_string", "decimal,int,string", "decimal", 1),
+        ("quantize", "decimal_quantize_decimal", "decimal,decimal", "decimal", 1),
+        ("quantize", "decimal_quantize_decimal_string", "decimal,decimal,string", "decimal", 1),
+    ];
+
     [Fact]
     public static void Get_OfVersionOne_IsOneInstanceThatTheMemberOfTheCatalogClassGives()
     {
@@ -50,22 +62,35 @@ public sealed class DecimalExtensionTests
         Assert.Same(set, DecimalExtension.Get(1));
         Assert.Same(set, CelExtensions.Decimal(1));
         Assert.Equal(("decimal", 1u), (set.Name, set.Version));
-        Assert.Equal(1u, Assert.Single(set.AvailableVersions));
+        Assert.Equal(BothVersions, set.AvailableVersions.ToArray());
         Assert.False(set.IsApplication);
+        Assert.NotNull(set.Definition);
+    }
+
+    [Fact]
+    public static void Get_OfVersionTwo_IsOneInstanceThatTheMemberOfTheCatalogClassGives()
+    {
+        CelExtension set = DecimalExtension.Get(2);
+
+        Assert.Same(set, DecimalExtension.Get(2));
+        Assert.Same(set, CelExtensions.Decimal(2));
+        Assert.Equal(("decimal", 2u), (set.Name, set.Version));
+        Assert.Equal(BothVersions, set.AvailableVersions.ToArray());
+        Assert.False(set.IsSameSetAs(DecimalExtension.Get(1)));
         Assert.NotNull(set.Definition);
     }
 
     [Theory]
     [InlineData(0u)]
-    [InlineData(2u)]
+    [InlineData(3u)]
     [InlineData(uint.MaxValue)]
-    public static void Get_OfAnotherVersion_IsASetWithoutADefinitionThatListsTheVersionOfTheSet(uint version)
+    public static void Get_OfAnotherVersion_IsASetWithoutADefinitionThatListsTheVersionsOfTheSet(uint version)
     {
         CelExtension set = DecimalExtension.Get(version);
 
         Assert.Equal(("decimal", version), (set.Name, set.Version));
         Assert.Null(set.Definition);
-        Assert.Equal(1u, Assert.Single(set.AvailableVersions));
+        Assert.Equal(BothVersions, set.AvailableVersions.ToArray());
         Assert.False(set.IsSameSetAs(DecimalExtension.Get(1)));
         Assert.True(set.IsSameSetAs(DecimalExtension.Get(version)));
     }
@@ -104,6 +129,37 @@ public sealed class DecimalExtensionTests
         Assert.All(overloads, overload => Assert.False(overload.Declaration.IsReceiverStyle));
     }
 
+    // Version 2 is the 18 overloads of version 1, unchanged, and the four of rounding, which are called on a receiver; only the two
+    // that take a mode have a constant argument to prepare, and each costs 1.
+    [Fact]
+    public static void VersionTwo_IsTheOverloadsOfVersionOneAndFourOfRounding()
+    {
+        ExtensionDefinition definition = DecimalExtension.Get(2).Definition!;
+        ImmutableArray<OverloadBinding> overloads = definition.Overloads;
+
+        Assert.Equal(("decimal", 2u, "extension decimal v2"), (definition.Name, definition.Version, definition.Source));
+        Assert.Equal(22, overloads.Length);
+        Assert.All(overloads, overload => Assert.Equal("extension decimal v2", overload.Source));
+        Assert.Equal(Table, Signatures(overloads.Take(18)));
+        Assert.All(overloads.Take(18), static overload => Assert.False(overload.Declaration.IsReceiverStyle));
+
+        Assert.Equal(RoundingTable, Signatures(overloads.Skip(18)));
+        Assert.All(overloads.Skip(18), static overload => Assert.True(overload.Declaration.IsReceiverStyle));
+        Assert.Equal(
+            OverloadsWithAMode,
+            overloads.Where(static overload => overload.ConstantArgument is not null).Select(static overload => overload.Declaration.OverloadId));
+        Assert.All(overloads.Where(static overload => overload.ConstantArgument is not null), static overload => Assert.Equal(2, overload.ConstantArgument!.Index));
+        Assert.Equal("string_to_decimal", Assert.Single(overloads, static overload => overload.ArgumentCost is not null).Declaration.OverloadId);
+    }
+
+    private static (string, string, string, string, ulong)[] Signatures(IEnumerable<OverloadBinding> overloads) =>
+        [.. overloads.Select(static overload => (
+            overload.Function,
+            overload.Declaration.OverloadId,
+            string.Join(',', overload.Declaration.ParameterTypes.Select(static type => type.Name)),
+            overload.Declaration.ResultType.Name,
+            overload.FixedCost))];
+
     // The part of a cost that grows with the data is the cost function of the one overload that reads a string; decimal_to_string
     // charges the length of its text inside the call, so it has no cost function.
     [Fact]
@@ -126,11 +182,22 @@ public sealed class DecimalExtensionTests
     [Fact]
     public static void AnotherVersionAddedWithVersionOne_IsOneErrorOfTheVersionThatDoesNotExist()
     {
+        CelBuildResult result = Builder().AddExtension(CelExtensions.Decimal(1)).AddExtension(CelExtensions.Decimal(3)).Build();
+
+        CelError error = Assert.Single(result.Errors);
+        Assert.Equal(
+            (CelErrorCode.UnknownExtensionVersion, "extension 'decimal' has no version 3; available versions: 1, 2"),
+            (error.Code, error.Message));
+    }
+
+    [Fact]
+    public static void BothVersionsOfTheSet_AreExtensionVersionConflict()
+    {
         CelBuildResult result = Builder().AddExtension(CelExtensions.Decimal(1)).AddExtension(CelExtensions.Decimal(2)).Build();
 
         CelError error = Assert.Single(result.Errors);
         Assert.Equal(
-            (CelErrorCode.UnknownExtensionVersion, "extension 'decimal' has no version 2; available versions: 1"),
+            (CelErrorCode.ExtensionVersionConflict, "extension 'decimal' is added in versions 1 and 2"),
             (error.Code, error.Message));
     }
 

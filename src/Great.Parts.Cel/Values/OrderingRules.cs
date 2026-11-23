@@ -43,9 +43,19 @@ internal static class OrderingRules
         return CompareOther(left, right);
     }
 
-    // Timestamps, durations and decimals.
+    // Timestamps, durations, decimals, dates and times of day.
     private static ValueOrdering CompareOther(CelValue left, CelValue right)
     {
+        if (left.TryGetDate(out DateOnly leftDate) && right.TryGetDate(out DateOnly rightDate))
+        {
+            return Sign(leftDate.CompareTo(rightDate));
+        }
+
+        if (left.TryGetTimeOfDay(out TimeOnly leftTime) && right.TryGetTimeOfDay(out TimeOnly rightTime))
+        {
+            return Sign(leftTime.CompareTo(rightTime));
+        }
+
         if (left.TryGetTimestamp(out CelTimestamp leftTimestamp) && right.TryGetTimestamp(out CelTimestamp rightTimestamp))
         {
             return Sign(leftTimestamp.CompareTo(rightTimestamp));

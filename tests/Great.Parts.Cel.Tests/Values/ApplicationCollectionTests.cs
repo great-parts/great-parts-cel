@@ -196,7 +196,7 @@ public sealed class ApplicationCollectionTests
     public void MapView_RefusesAKeyTypeThatIsNoMapKey()
     {
         Assert.Throws<ArgumentException>(() => CelMap.CreateView(new Dictionary<double, long>(), CelValue.FromInt64, keepSourceOrder: false));
-        Assert.Throws<ArgumentException>(() => CelMap.CreateView(new Dictionary<char, long>(), CelValue.FromInt64, keepSourceOrder: false));
+        Assert.Throws<ArgumentException>(() => CelMap.CreateView(new Dictionary<float, long>(), CelValue.FromInt64, keepSourceOrder: false));
         Assert.Throws<ArgumentException>(() => CelMap.CreateView(new Dictionary<DateTime, long>(), CelValue.FromInt64, keepSourceOrder: false));
     }
 

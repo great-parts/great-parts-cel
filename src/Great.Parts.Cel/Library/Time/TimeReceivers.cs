@@ -35,6 +35,20 @@ internal static class TimeReceivers
         static error => "invalid time zone '" + (string)error.First! + "': expected 'UTC', an IANA time zone identifier or a fixed offset [+-]HH:MM",
         subject: static error => (string)error.First!);
 
+    // Resolves the name of a time zone against the database of the call site, as the receivers with a zone do and for each call; false, and
+    // the error value of the call, for a name that is not found or is not valid. The functions of the set calendar that take a zone use it.
+    internal static bool TryResolveZone(string zone, in CallSite site, out TimeZoneResolution resolution, out CelValue error)
+    {
+        resolution = TimeZoneRules.Resolve(site.TimeZones, zone, site.Meter);
+        error = resolution.Kind switch
+        {
+            TimeZoneResolutionKind.NotFound => site.Error(CelErrorCode.TimeZoneNotFound, NotFoundText, zone, site.TimeZones),
+            TimeZoneResolutionKind.Invalid => site.Error(CelErrorCode.InvalidTimeZone, InvalidText, zone),
+            _ => default,
+        };
+        return error.Kind != CelValueKind.Error;
+    }
+
     // The field of a timestamp that a receiver reads.
     internal enum Field
     {

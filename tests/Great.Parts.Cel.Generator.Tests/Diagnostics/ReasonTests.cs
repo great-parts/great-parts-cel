@@ -182,7 +182,7 @@ public sealed class ReasonTests
             namespace Acme;
             [CelObject(typeof(IHolder))] public partial class Ctx : CelTypeContext { }
             public interface IHolder { long Id { get; } Stream? Body { get; } Reached Next { get; } }
-            public class Reached { public char Letter { get; set; } }
+            public class Reached { public System.Type? Letter { get; set; } }
             """;
 
         GeneratorDriverRunResult result = GeneratorExample.Run(GeneratorExample.Compile(Source));

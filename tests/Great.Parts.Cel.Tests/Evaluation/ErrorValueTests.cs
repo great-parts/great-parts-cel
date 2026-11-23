@@ -155,14 +155,14 @@ public sealed class ErrorValueTests
         Assert.Equal((result.Code, result.Message, result.Location), (value.Code, value.Message, value.Location));
     }
 
-    // The kinds of the arguments of NoMatchingOverload are packed 4 bits each. The kind Abstract, number 16, does not fit: the
-    // value of an abstract type is named by its type, kept beside the pack, and its place in the pack is the kind Null.
+    // The kinds of the arguments of NoMatchingOverload are packed 4 bits each. The kinds Abstract, Date and TimeOfDay, numbers 16 to 18,
+    // do not fit: the value of such a type is named by its type, kept beside the pack, and its place in the pack is the kind Null.
     [Fact]
-    public static void EveryValueKindButAbstract_FitsFourBits()
+    public static void EveryValueKindButAbstractDateAndTimeOfDay_FitsFourBits()
     {
         Assert.All(
             Enum.GetValues<CelValueKind>(),
-            kind => Assert.InRange((int)kind, 0, kind == CelValueKind.Abstract ? 16 : 15));
+            kind => Assert.InRange((int)kind, 0, kind is CelValueKind.Abstract or CelValueKind.Date or CelValueKind.TimeOfDay ? 18 : 15));
     }
 
     private static CelError ErrorOf(CelValue value)

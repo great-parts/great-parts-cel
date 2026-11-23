@@ -122,9 +122,13 @@ The operators are `<`, `<=`, `>` and `>=`. Their identifiers are the prefix `les
 | Suffix | `T` | Candidate in type checking |
 | :- | :- | :- |
 | `bool`, `int64`, `uint64`, `double`, `string`, `bytes`, `timestamp`, `duration` | `bool`, `int`, `uint`, `double`, `string`, `bytes`, `timestamp`, `duration` | always |
-| `int64_double`, `int64_uint64`, `uint64_double`, `uint64_int64`, `double_int64`, `double_uint64` | the two numeric types in the order of the suffix | only when an operand has the type `dyn` |
+| `int64_double`, `int64_uint64`, `uint64_double`, `uint64_int64`, `double_int64`, `double_uint64` | the two numeric types in the order of the suffix | only when an operand has the type `dyn`, or when the environment enables [`EnableCrossTypeNumericComparisons`](#the-option-enablecrosstypenumericcomparisons) |
 
 The 24 overloads across numeric types follow the language definition: "Comparisons require strict type equality at type-check time" and numeric comparisons across types are allowed at run time. So `1 < 1.5` is a type checking error, and `-1 < dyn(1u)` is `true`. The environment of cel-go also filters out these overloads unless it enables `CrossTypeNumericComparisons`, which the environments of the conformance suite do not.
+
+#### The option `EnableCrossTypeNumericComparisons`
+
+`CelEnvironmentBuilder.EnableCrossTypeNumericComparisons()` is the option `CrossTypeNumericComparisons(true)` of cel-go: with it type checking takes the 24 overloads as candidates also when both operands have static numeric types, so `1 < 1.5` and `-1 < 1u` check and are `true`, and `price > 0` is accepted for a `double` field `price`. The comparison is the one that a `dyn` operand already gets: an `int` and a `uint` compare exactly, and an integer compares with a `double` as the integer rounded to the nearest `double`, so `9223372036854775807 < 9223372036854775808.0` is `false` (the two are equal) while `9223372036854775807 < 1.0e19` is `true`, and a NaN gives `false` for all four operators. The option is off by default; without it an expression converts a side, as in `double(n) > 0.5`, or has a `dyn` operand. It is for ordering only: it does not change equality, so `1 == 1.0` is a type checking error with the option as without it, and `dyn(1) == 1.0` is `true` with both. It does not touch `decimal`, whose rules are on the page [Decimal](decimal.md). `CelEnvironment.ToBuilder` keeps the option; an environment description in JSON has no key for it.
 
 ### Index and `in`
 

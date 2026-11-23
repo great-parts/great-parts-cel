@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 using System.Text.Json;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -23,7 +24,8 @@ internal static class SimpleValues
         // The type of the value is outside the closed list of values.
         Outside,
 
-        // The value is of a listed type, but the row refuses it: a DateTime that is not UTC, an undefined JsonElement.
+        // The value is of a listed type, but the row refuses it: a DateTime that is not UTC, an undefined JsonElement, a lone surrogate
+        // as a char, an integer wider than 64 bits out of range.
         Refused,
     }
 
@@ -54,10 +56,10 @@ internal static class SimpleValues
     {
         null => CelType.Dyn,
         bool => CelType.Bool,
-        long or int or short or sbyte => CelType.Int,
-        ulong or uint or ushort or byte => CelType.UInt,
+        long or int or short or sbyte or Int128 or BigInteger => CelType.Int,
+        ulong or uint or ushort or byte or UInt128 => CelType.UInt,
         double => CelType.Double,
-        string or Guid => CelType.String,
+        string or Guid or char => CelType.String,
         byte[] or ReadOnlyMemory<byte> => CelType.Bytes,
         DateTimeOffset or DateTime => CelType.Timestamp,
         TimeSpan => CelType.Duration,

@@ -156,7 +156,7 @@ public sealed class SimpleEntryValuesTests
     public void ValuesOutsideTheList_AreTypeNotDeclaredWithTheNameOfTheType()
     {
         AssertNotDeclared(1.5f, typeof(float).FullName!);
-        AssertNotDeclared('c', typeof(char).FullName!);
+        AssertNotDeclared((Half)1, typeof(Half).FullName!);
         AssertNotDeclared(DayOfWeek.Monday, typeof(DayOfWeek).FullName!);
         AssertNotDeclared((nint)1, typeof(nint).FullName!);
         AssertNotDeclared(CelTimestamp.FromDateTimeOffset(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)), typeof(CelTimestamp).FullName!);
@@ -181,7 +181,7 @@ public sealed class SimpleEntryValuesTests
     [Fact]
     public void EveryValueOutsideTheList_IsAnErrorOfItsOwn()
     {
-        var variables = new Dictionary<string, object?> { ["b"] = 1.5f, ["a"] = 'c', ["ok"] = 1L };
+        var variables = new Dictionary<string, object?> { ["b"] = 1.5f, ["a"] = (Half)1, ["ok"] = 1L };
 
         CelException exception = Assert.Throws<CelException>(() => CelExpression.Evaluate<bool>("true", variables, cancellationToken: CancellationToken.None));
 

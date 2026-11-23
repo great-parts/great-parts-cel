@@ -27,7 +27,7 @@ public sealed class DescriptorTests
     ];
 
     // GPCEL007 is not reported since 2.0 and its number is not used again.
-    private static readonly string[] Codes = [.. Enumerable.Range(1, 11).Where(number => number != 7).Select(number => "GPCEL" + number.ToString("D3", CultureInfo.InvariantCulture))];
+    private static readonly string[] Codes = [.. Enumerable.Range(1, 12).Where(number => number != 7).Select(number => "GPCEL" + number.ToString("D3", CultureInfo.InvariantCulture))];
 
     public static TheoryData<string> CodeNames
     {

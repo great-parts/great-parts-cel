@@ -17,10 +17,11 @@ using Xunit;
 namespace Great.Parts.Cel.Tests.Examples.Declarations;
 
 // The set decimal in the builder (the page of the extension set decimal, "The set", "The literal and the flag"; the page of the
-// declarations, "decimal without the set and the literal option"). The set has the name decimal and the one version 1 in this
+// declarations, "decimal without the set and the literal option"). The set has the name decimal and the versions 1 and 2 in this
 // release; CelExtensions.Decimal(version) does not check the version, and a version that the set does not have is
-// UnknownExtensionVersion (4004) at Build, "extension 'decimal' has no version <n>; available versions: 1" — version 0, which no
-// release has, and version 2, which the set will have (round and quantize), among them. The set cannot be named in the description
+// UnknownExtensionVersion (4004) at Build, "extension 'decimal' has no version <n>; available versions: 1, 2" — version 0, which no
+// release has, and version 3, which the set does not have yet, among them. The two versions in one environment are
+// ExtensionVersionConflict (4003). The set cannot be named in the description
 // in JSON, so these two are reached from code only (EnvironmentJsonDecimalTests). The set declares the type decimal, so a variable
 // of that type, at any depth, needs the set whichever call comes first, and without it is TypeNotDeclared (4008) with the hint that
 // names the set. EnableDecimalLiterals() needs the set: without it Build gives MissingExtensionDependency (4005), "the decimal
@@ -48,8 +49,8 @@ public sealed class DecimalSetBuildTests
 
     [Theory]
     [InlineData(0u)]
-    [InlineData(2u)]
     [InlineData(3u)]
+    [InlineData(4u)]
     [InlineData(uint.MaxValue)]
     public static void VersionThatTheSetDoesNotHave_IsUnknownExtensionVersion(uint asked)
     {
@@ -60,8 +61,27 @@ public sealed class DecimalSetBuildTests
 
         AssertError(
             CelErrorCode.UnknownExtensionVersion,
-            "extension 'decimal' has no version " + asked.ToString(CultureInfo.InvariantCulture) + "; available versions: 1",
+            "extension 'decimal' has no version " + asked.ToString(CultureInfo.InvariantCulture) + "; available versions: 1, 2",
             error);
+    }
+
+    [Fact]
+    public void Set_OfVersionTwo_BuildsAlone()
+    {
+        CelExtension extension = CelExtensions.Decimal(2);
+
+        Assert.Equal(("decimal", 2u), (extension.Name, extension.Version));
+        Assert.True(Builder().AddExtension(extension).Build().IsSuccess);
+        Assert.True(Builder().AddExtension(extension).AddExtension(CelExtensions.Decimal(2)).Build().IsSuccess);
+    }
+
+    [Fact]
+    public void BothVersions_AreExtensionVersionConflict()
+    {
+        const string Message = "extension 'decimal' is added in versions 1 and 2";
+
+        AssertError(CelErrorCode.ExtensionVersionConflict, Message, SingleError(Builder().AddExtension(CelExtensions.Decimal(1)).AddExtension(CelExtensions.Decimal(2))));
+        AssertError(CelErrorCode.ExtensionVersionConflict, Message, SingleError(Builder().AddExtension(CelExtensions.Decimal(2)).AddExtension(CelExtensions.Decimal(1))));
     }
 
     [Fact]
@@ -172,7 +192,7 @@ public sealed class DecimalSetBuildTests
     // The set whose version does not exist is no set, so the option has none: two errors, one of each code, once each.
     [Theory]
     [InlineData(0u)]
-    [InlineData(2u)]
+    [InlineData(3u)]
     public static void LiteralOptionWithAVersionThatDoesNotExist_IsTwoErrors(uint asked)
     {
         foreach (CelEnvironmentBuilder builder in new[]

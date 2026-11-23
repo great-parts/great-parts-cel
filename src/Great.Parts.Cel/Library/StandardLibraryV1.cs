@@ -199,7 +199,7 @@ internal static class StandardLibraryV1
     }
 
     // The overloads of one relation: one for each ordered pair, those across numeric kinds candidates only
-    // when an argument has the static type dyn. Strings and bytes cost 1 + ⌈Lₐ/10⌉, the others 1.
+    // when an argument has the static type dyn or the environment enables EnableCrossTypeNumericComparisons. Strings and bytes cost 1 + ⌈Lₐ/10⌉, the others 1.
     private static void AddRelation(ImmutableArray<OverloadBinding>.Builder table, string function, string prefix, Relation relation)
     {
         foreach ((CelType left, CelType right) in OrderedPairs)

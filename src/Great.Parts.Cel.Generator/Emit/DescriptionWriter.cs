@@ -53,6 +53,12 @@ internal static class DescriptionWriter
             WriteExcluded(w, type);
         }
 
+        if (type.Literal is { } literal)
+        {
+            w.EmptyLine();
+            LiteralWriter.Write(w, type, literal);
+        }
+
         CostWriter.Write(w, type);
         w.Close();
     }

@@ -12,10 +12,11 @@ namespace Great.Parts.Cel.Values;
 /// conversion itself.
 /// </summary>
 /// <remarks>
-/// The rows are created once, for every .NET type of the tables: the primitive types, <c>CelValue</c>, <c>object</c>,
+/// The rows are created once, for every .NET type of the tables: the primitive types, <c>char</c>, <c>Int128</c>,
+/// <c>UInt128</c>, <c>BigInteger</c>, <c>DateOnly</c>, <c>TimeOnly</c>, <c>CelValue</c>, <c>object</c>,
 /// <c>CelList</c>, <c>CelMap</c>, <c>CelType</c>, <c>Nullable&lt;X&gt;</c> of the primitive value types, and
 /// <c>IReadOnlyList&lt;X&gt;</c> and <c>IReadOnlyDictionary&lt;XK, XV&gt;</c> of these, with the keys of the CEL key
-/// types. Native AOT creates no generic type at run time, so a collection type is a row only when this list names it.
+/// types and <c>char</c>. Native AOT creates no generic type at run time, so a collection type is a row only when this list names it.
 /// </remarks>
 internal static partial class ConversionRules
 {
@@ -41,7 +42,8 @@ internal static partial class ConversionRules
             var stringRow = new PrimitiveRow<string>(CelType.String, narrowing: false, takesNull: true);
             var memoryRow = new PrimitiveRow<ReadOnlyMemory<byte>>(CelType.Bytes, narrowing: false, takesNull: false);
             var arrayRow = new PrimitiveRow<byte[]>(CelType.Bytes, narrowing: false, takesNull: true);
-            var keys = new KeyRows(longRow, intRow, ulongRow, uintRow, boolRow, stringRow);
+            ClrRow[] wideRows = WideRows.Create(out ClrRow<char> charRow);
+            var keys = new KeyRows(longRow, intRow, ulongRow, uintRow, boolRow, stringRow, charRow);
             ClrRow[] decimalRows = DecimalRows.Create();
             ClrRow[] leaves =
             [
@@ -53,6 +55,8 @@ internal static partial class ConversionRules
                 new NullableRow<long>(longRow), new NullableRow<int>(intRow), new NullableRow<ulong>(ulongRow),
                 new NullableRow<uint>(uintRow), new NullableRow<double>(doubleRow), new NullableRow<bool>(boolRow),
                 new NullableRow<ReadOnlyMemory<byte>>(memoryRow),
+                .. wideRows,
+                .. CalendarRows.Create(),
                 .. TimeRows.Create(),
                 .. decimalRows,
             ];
@@ -68,14 +72,15 @@ internal static partial class ConversionRules
         }
     }
 
-    // The rows of the key types of maps: the CEL key types int, uint, bool and string, and dyn.
+    // The rows of the key types of maps: the CEL key types int, uint, bool and string, and dyn; char is a key as a string of one unit.
     private sealed class KeyRows(
         ClrRow<long> longRow,
         ClrRow<int> intRow,
         ClrRow<ulong> ulongRow,
         ClrRow<uint> uintRow,
         ClrRow<bool> boolRow,
-        ClrRow<string> stringRow)
+        ClrRow<string> stringRow,
+        ClrRow<char> charRow)
     {
         internal void AddMaps<TValue>(Dictionary<Type, ClrRow> rows, ClrRow<TValue> value)
         {
@@ -85,6 +90,7 @@ internal static partial class ConversionRules
             Add(rows, uintRow, value);
             Add(rows, boolRow, value);
             Add(rows, stringRow, value);
+            Add(rows, charRow, value);
             Add(rows, ObjectRow.Instance, value);
             Add(rows, CelValueRow.Instance, value);
         }
@@ -185,8 +191,10 @@ internal static partial class ConversionRules
         private protected override bool CannotFailCore(CelType type) => !narrowing && type.Kind == ExpectedType.Kind;
     }
 
-    // Nullable<X> of a primitive value type: null, or the value by the row of X.
-    private sealed class NullableRow<T>(ClrRow<T> valueRow) : LeafRow<T?>(CelType.WrapperOf(valueRow.ExpectedType), takesNull: true)
+    // Nullable<X> of a value type: null, or the value by the row of X. The expected type is the wrapper of that of X, except for the types
+    // that have no wrapper (date and time_of_day), whose Nullable<> has the type of its value.
+    private sealed class NullableRow<T>(ClrRow<T> valueRow, bool wrapped = true)
+        : LeafRow<T?>(wrapped ? CelType.WrapperOf(valueRow.ExpectedType) : valueRow.ExpectedType, takesNull: true)
         where T : struct
     {
         internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T? result)
@@ -286,6 +294,12 @@ internal static partial class ConversionRules
                     return TryBoxTime(value, out result);
                 case CelValueKind.Decimal when value.TryGetPlatformDecimal(out PlatformDecimal number):
                     result = number;
+                    return true;
+                case CelValueKind.Date when value.TryGetDate(out DateOnly date):
+                    result = date;
+                    return true;
+                case CelValueKind.TimeOfDay when value.TryGetTimeOfDay(out TimeOnly time):
+                    result = time;
                     return true;
                 case CelValueKind.Object when value.TryGetObject(out object? instance):
                     result = instance;

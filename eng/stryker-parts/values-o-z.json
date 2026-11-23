@@ -19,6 +19,7 @@
       "Values/O*.cs",
       "Values/T*.cs",
       "Values/V*.cs",
+      "Values/W*.cs",
       "Values/Z*.cs",
       "Values/P*.cs",
       "Values/S*.cs"

@@ -39,6 +39,8 @@ internal static partial class ValueTypeRules
         CelValueKind.Duration => CelType.Duration,
         CelValueKind.Optional => OptionalType,
         CelValueKind.Decimal => CelType.Decimal,
+        CelValueKind.Date => CelType.Date,
+        CelValueKind.TimeOfDay => CelType.TimeOfDay,
 
         // Objects come with their part.
         _ => throw new UnreachableException("The caller handles object values."),
@@ -383,6 +385,8 @@ internal static partial class ValueTypeRules
 
             // A decimal fits only decimal, not null: the static null is assignable to the type, a null value is not a decimal.
             CelTypeKind.Decimal => kind == CelValueKind.Decimal,
+            CelTypeKind.Date => kind == CelValueKind.Date,
+            CelTypeKind.TimeOfDay => kind == CelValueKind.TimeOfDay,
 
             // Every kind of type has its arm above.
             _ => throw new UnreachableException("Every kind of type has its arm above."),
