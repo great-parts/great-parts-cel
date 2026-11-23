@@ -11,6 +11,7 @@ using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Great.Parts.Cel.AspNetCore;
@@ -39,13 +40,13 @@ internal sealed class CelAuthorizationHandler : AuthorizationHandler<CelAuthoriz
     [SuppressMessage(
         "ApiDesign",
         "RS0030:Do not use banned APIs",
-        Justification = "The contract of AuthorizationHandler returns a Task; the handler evaluates synchronously and completes it at once, creating no thread.")]
-    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, CelAuthorizationRequirement requirement)
+        Justification = "The contract of AuthorizationHandler returns a Task; the handler awaits the asynchronous evaluation of the expression and creates no thread or task of its own.")]
+    protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, CelAuthorizationRequirement requirement)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(requirement);
 
-        string? denial = Check(context, requirement);
+        string? denial = await CheckAsync(context, requirement).ConfigureAwait(false);
         if (denial is null)
         {
             context.Succeed(requirement);
@@ -54,12 +55,11 @@ internal sealed class CelAuthorizationHandler : AuthorizationHandler<CelAuthoriz
         {
             context.Fail(new AuthorizationFailureReason(this, denial));
         }
-
-        return Task.CompletedTask;
     }
 
-    // Null when the expression gives true; otherwise the reason of the denial.
-    private string? Check(AuthorizationHandlerContext context, CelAuthorizationRequirement requirement)
+    // Null when the expression gives true; otherwise the reason of the denial. An expression without asynchronous functions completes
+    // in the first pass, so the await costs nothing for it.
+    private async ValueTask<string?> CheckAsync(AuthorizationHandlerContext context, CelAuthorizationRequirement requirement)
     {
         ResourceSlot? slot = requirement.Resource;
         Scope scope = slot is null
@@ -76,7 +76,10 @@ internal sealed class CelAuthorizationHandler : AuthorizationHandler<CelAuthoriz
             return string.Create(CultureInfo.InvariantCulture, $"The resource of the authorization is not an instance of {slot.Type.Name}.");
         }
 
-        CelEvalResult<bool> result = scope.Cache.Evaluate<bool>(requirement.Expression, bindings, cancellationToken: CancellationToken.None);
+        // The resource of an endpoint is its HttpContext, and the abort of its request stops the evaluation; any other resource has no
+        // token, and IAuthorizationService gives none.
+        CancellationToken aborted = context.Resource is HttpContext http ? http.RequestAborted : CancellationToken.None;
+        CelEvalResult<bool> result = await scope.Cache.EvaluateAsync<bool>(requirement.Expression, bindings, cancellationToken: aborted).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
             return Reason(result.Errors[0]);

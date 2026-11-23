@@ -1075,8 +1075,16 @@ internal sealed class DeclarationChecks
                 continue;
             }
 
-            OverloadImplementation implementation = _implementations[id][0].Implementation;
-            bindings.Add(new OverloadBinding(entry.Function, entry.Overload, implementation, 1, entry.Overload.Cost, entry.Source, isApplication: true));
+            ImplementationEntry implementation = _implementations[id][0];
+            bindings.Add(new OverloadBinding(
+                entry.Function,
+                entry.Overload,
+                implementation.Implementation,
+                1,
+                entry.Overload.Cost,
+                entry.Source,
+                isApplication: true,
+                asyncImplementation: implementation.AsyncImplementation));
         }
 
         return bindings.ToImmutable();

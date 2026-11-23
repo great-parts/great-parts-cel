@@ -13,7 +13,8 @@ internal enum ValueGroup : byte
     // Somewhere inside the value there is an object of the application, a message of protobuf, a value that is an error, a map that
     // gives an error before it compares, or an int, a uint or a double of 2^53 or more in absolute value, an infinity included: its
     // equality reads application data, gives an error, or is not transitive, so it has no hash and is compared in the order of the
-    // pairs, with the values of its group only.
+    // pairs, with the values of its group only. The hash of a table of asynchronous calls puts only the objects, the errors and the
+    // maps that give an error here: it hashes the large numbers and a NaN, see ValueHasher.
     Pairwise,
 
     // Somewhere inside the value there is a NaN, which equals nothing, not even itself: it is not compared with anything.
@@ -37,12 +38,14 @@ internal struct ValueHasher
     private const int InitialDepth = 4;
     private const int EmptyOptionalHash = 0x4F505431;
     private const int NoHash = 0;
+    private const int NaNHash = 0x4E614E21;
 
     // 2^53: the numbers below it in absolute value are the same as the doubles they round to.
     private const long ExactLimit = 1L << 53;
 
     private readonly IEvaluationMeter? _meter;
     private readonly bool _constantHash;
+    private readonly bool _forCallTable;
     private Frame[]? _frames;
     private int _depth;
 
@@ -52,10 +55,17 @@ internal struct ValueHasher
 
     // With constantHash every value has the hash 0, so all the values of the group Hashed share one bucket: the tests make the
     // collisions that a random seed hardly gives. The units charged and the groups do not change.
-    internal ValueHasher(IEvaluationMeter? meter, bool constantHash = false)
+    //
+    // With forCallTable the hash serves the table of the asynchronous calls of one evaluation, which finds a call again by the
+    // same arguments of the same node and not by a class of equal values: a NaN hashes by one constant, a number of 2^53 or more in
+    // absolute value, an infinity included, hashes by the double it is compared as, and neither makes the group Single or
+    // Pairwise. Equal numbers are the same double, so equal values hash alike; integers that round to one double share a hash, at
+    // most 2^11 of them for each double.
+    internal ValueHasher(IEvaluationMeter? meter, bool constantHash = false, bool forCallTable = false)
     {
         _meter = meter;
         _constantHash = constantHash;
+        _forCallTable = forCallTable;
     }
 
     // Walks the value, charging its units, and gives its group and, for a value of the group Hashed, its hash.
@@ -171,30 +181,32 @@ internal struct ValueHasher
     // numbers that are equal are the same double and two that are not equal are not. A number of 2^53 or more, an infinity included,
     // is not hashed: integers that round to one double are equal to it but not to each other, so equality is not transitive there and
     // a hash by the double would give a list of such integers as many comparisons as a call has, and the value goes to the group
-    // Pairwise. Both zeros are one.
+    // Pairwise. Both zeros are one. The hash of a table of calls takes such numbers by the double all the same, and a NaN by a constant.
     private int Scalar(CelValue value)
     {
         double number;
+        bool exact = true;
         switch (value.Kind)
         {
             case CelValueKind.Bool:
                 return value.TryGetBoolean(out bool flag) && flag ? 1 : 0;
             case CelValueKind.Int:
                 _ = value.TryGetInt64(out long integer);
-                _pairwise |= integer is <= -ExactLimit or >= ExactLimit;
+                exact = integer is > -ExactLimit and < ExactLimit;
                 number = integer;
                 break;
             case CelValueKind.UInt:
                 _ = value.TryGetUInt64(out ulong unsigned);
-                _pairwise |= unsigned >= ExactLimit;
+                exact = unsigned < ExactLimit;
                 number = unsigned;
                 break;
             default:
                 _ = value.TryGetDouble(out number);
-                _pairwise |= Math.Abs(number) >= ExactLimit;
+                exact = double.IsNaN(number) || Math.Abs(number) < ExactLimit;
                 break;
         }
 
+        _pairwise |= !exact && !_forCallTable;
         if (_pairwise)
         {
             return NoHash;
@@ -202,8 +214,8 @@ internal struct ValueHasher
 
         if (double.IsNaN(number))
         {
-            _hasNaN = true;
-            return NoHash;
+            _hasNaN |= !_forCallTable;
+            return _forCallTable ? NaNHash : NoHash;
         }
 
         return HashCode.Combine(BitConverter.DoubleToUInt64Bits(number == 0 ? 0 : number));

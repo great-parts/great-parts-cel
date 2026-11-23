@@ -26,6 +26,11 @@ namespace Great.Parts.Cel.AspNetCore;
 /// without an argument of the type <c>TRequest</c> returns 400 as well. The filter works with the request
 /// delegate generator of ASP.NET Core under Native AOT.
 /// </para>
+/// <para>
+/// The evaluation is asynchronous, so the expression may call an asynchronous function of the application. It receives
+/// <see cref="HttpContext.RequestAborted"/>: when the client disconnects, no new call starts, the calls in flight receive
+/// the canceled token, and the request ends with <see cref="OperationCanceledException"/>.
+/// </para>
 /// </remarks>
 public static class CelEndpointExtensions
 {
@@ -80,7 +85,7 @@ public static class CelEndpointExtensions
             return invocationContext => Validate(invocationContext, next, rule.Value, message);
         };
 
-    private static ValueTask<object?> Validate<TRequest>(
+    private static async ValueTask<object?> Validate<TRequest>(
         EndpointFilterInvocationContext context,
         EndpointFilterDelegate next,
         RequestRule<TRequest> rule,
@@ -88,12 +93,16 @@ public static class CelEndpointExtensions
     {
         bool found = RequestRule<TRequest>.TryFind(context.Arguments, out TRequest? request);
         CelError? error = null;
-        if (found && rule.Passes(request!, out error))
+        if (found)
         {
-            return next(context);
+            bool passed;
+            (passed, error) = await rule.PassesAsync(request!, context.HttpContext.RequestAborted).ConfigureAwait(false);
+            if (passed)
+            {
+                return await next(context).ConfigureAwait(false);
+            }
         }
 
-        object result = TypedResults.ValidationProblem(RequestRule<TRequest>.Errors(message), RequestRule<TRequest>.Detail(found, error));
-        return ValueTask.FromResult<object?>(result);
+        return TypedResults.ValidationProblem(RequestRule<TRequest>.Errors(message), RequestRule<TRequest>.Detail(found, error));
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Evaluation;
@@ -19,8 +20,16 @@ internal sealed class Plan
         TypeIndex types,
         int slotCount = 0,
         int blockCount = 0,
-        CelTimeZoneDatabase? timeZones = null)
+        CelTimeZoneDatabase? timeZones = null,
+        CelParsedExpr? tree = null,
+        int keyCount = 0,
+        int firstAsyncOffset = -1,
+        string? firstAsyncFunction = null)
     {
+        FirstAsyncOffset = firstAsyncOffset;
+        FirstAsyncFunction = firstAsyncFunction;
+        Tree = tree;
+        KeyCount = keyCount;
         Types = types;
         TimeZones = timeZones;
         Root = root;
@@ -33,6 +42,22 @@ internal sealed class Plan
     }
 
     internal PlanNode Root { get; }
+
+    // The parsed expression of a plan made for partial evaluation, which the residual expression is made from; null for any other
+    // plan.
+    internal CelParsedExpr? Tree { get; }
+
+    // The number of keys of chains of attributes that a partial plan evaluates before the chain: one slot of the partial state each.
+    internal int KeyCount { get; }
+
+    // The offset of the first call, in the order of the text, of an overload that waits, and the name of its function; -1 and null when
+    // the plan has none. A synchronous evaluation of a plan that has one is the error AsyncEvaluationRequired at that offset.
+    internal int FirstAsyncOffset { get; }
+
+    internal string? FirstAsyncFunction { get; }
+
+    // Whether the plan calls an overload that waits.
+    internal bool HasAsyncCalls => FirstAsyncOffset >= 0;
 
     // One slot per distinct variable of the expression.
     internal int VariableCount { get; }

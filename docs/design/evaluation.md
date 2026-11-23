@@ -1,6 +1,6 @@
 # Evaluation: planner and evaluator
 
-`Great.Parts.Cel.Evaluation` turns a checked expression into a plan once, at compilation, and evaluates the plan on bindings at each call. A plan is a tree of immutable nodes; the state of one evaluation lives in a frame created for that call. There is no compilation to expression trees, byte code or closures.
+`Great.Parts.Cel.Evaluation` turns a checked expression into a plan once, at compilation, and evaluates the plan on bindings at each call. A plan is a tree of immutable nodes; the state of one evaluation lives in a frame created for that call. There is no compilation to expression trees, byte code or closures. Two further parts evaluate with the same nodes: partial evaluation with unknown data and the residual expression ([partial-evaluation](partial-evaluation.md)), and asynchronous functions with the driver that runs the passes ([async-evaluation](async-evaluation.md)).
 
 | File | Content |
 | :- | :- |
@@ -69,7 +69,7 @@ The step `@result + [e]` of `map` and `filter` becomes an `AppendPlanNode`: duri
 Type checking records the candidates of each call in the reference map (see [checking](checking.md)); each candidate is an `OverloadBinding` with its implementation and cost (see [library](library.md)).
 
 1. Calls of `_&&_`, `_||_`, `_?_:_` and `@not_strictly_false`, whose overloads have no implementation, become the nodes above. Any other call with one candidate becomes a `CallPlanNode`, a call with several candidates a `DispatchPlanNode` with all of them. A `_[_]` whose operand has the static type `dyn` is a `DispatchPlanNode` with `index_list` and `index_map`, in the order of the library, whatever candidates type checking kept: cel-go v0.33.4 indexes by the kind of the operand at run time, so `x[0u]` with `x` of type `dyn` bound to `[7]` is 7, as without type checking, though a `uint` key leaves the check only `index_map`.
-2. Both nodes evaluate the arguments from left to right. Calls are strict: the first argument that is an error value is the value of the call, and no implementation runs.
+2. Both nodes evaluate the arguments from left to right. Calls are strict: the first argument that is an error value is the value of the call, and no implementation runs. An argument that is an unknown value does not end the evaluation of the others: a real error among them is the result, otherwise the union of the unknowns ([partial-evaluation](partial-evaluation.md)). A call with a candidate that waits for an asynchronous implementation is an `AsyncCallPlanNode`, which chooses among the candidates as `DispatchPlanNode` does ([async-evaluation](async-evaluation.md)).
 3. The planner marks the arguments that the node checks at depth with `OverloadBinding.Matches` before the implementation runs ([values](values.md), "Fits a type"; `Matches` checks the top level of every argument, which costs nothing); a mismatch is `EvalNoMatchingOverload` at the call.
    - For an overload of the application every argument is marked, whatever its static type: application code gets only values that fit the declared parameter types, type parameters as `dyn`.
    - For an overload of the library an argument is marked when its static type after the substitution does not cover the parameter type: it is `dyn` or a wrapper, or it has `dyn` or a wrapper inside `list` or `map` where the parameter type has another type, as `list(dyn)` for `list(int)`. A `CallPlanNode` whose arguments are all unmarked calls the implementation directly.
@@ -96,6 +96,8 @@ A call of an overload of the application, `OverloadBinding.IsApplication`, goes 
 The copy holds n values of 32 bytes, and the sort runs in place, so the memory stays within B per unit of the row. The result fits its declared type by construction, unless its element type is `dyn` (`ISet<object>`), whose check costs nothing at the top level (step 4).
 
 Steps 2 and 3 run inside the exception boundary: an exception becomes `ApplicationException`, which keeps it in `CelError.Exception`. It passes through only `OutOfMemoryException`, the internal `CostLimitException` and an `OperationCanceledException` whose token is the canceled token of the evaluation.
+
+**An asynchronous overload** (`OverloadBinding.IsAsync`) takes steps 1 and 2 in every pass that evaluates its node, through `Invocation.TryChargeApplication`, and then does not call the implementation: the node looks the call up in the table of the evaluation and gives the value of a completed call, checked by step 4 (`Invocation.AsyncResult`), or an unknown value that describes the call, which the driver starts between two passes ([async-evaluation](async-evaluation.md)). The synchronous `Evaluate` of a plan that has such a node is the error `AsyncEvaluationRequired` before anything is evaluated.
 
 ## Constant arguments
 
@@ -133,7 +135,8 @@ A value of a `System.Decimal` or a `Decimal128` that the application puts in a p
 - the slots of the variables, with a filled flag each, and the slots of the comprehensions;
 - the argument stack, which calls use instead of an array per call; a call pushes its argument values and gives the implementation a span over them;
 - the meter, which implements `IEvaluationMeter`: the remaining units and the limit, only when the options set a limit; the event counter, only when the token can be canceled;
-- the offset of the node whose own operation runs, which each node records before it: the place of `CostLimitExceeded` and `InternalError`.
+- the offset of the node whose own operation runs, which each node records before it: the place of `CostLimitExceeded` and `InternalError`;
+- three references that a synchronous evaluation leaves `null`, so a frame and a synchronous plan gain no array and no node: `Partial`, the `PartialState` of a partial evaluation (patterns, keys of the chains being read, the record of the values of the nodes); `Calls`, the table of the asynchronous calls of the evaluation, given by the driver for the passes after the first and made by the first registration; and the flag `CollectsCalls`, set by a pass of the driver. `Resume(charged, events)` starts a later pass with the units charged and the events counted by the passes before it, and `Events` reads the counter back ([partial-evaluation](partial-evaluation.md), [async-evaluation](async-evaluation.md)).
 
 `Plan.Evaluate` is two internal steps, which the property of cost and memory (see [tests](tests.md), "Properties of evaluation") calls one by one: `Frame CreateFrame(IReadOnlyDictionary<string, CelValue> bindings, ulong? costLimit, CancellationToken cancellationToken)` allocates the frame with its slots, argument stack and meter, and `CelValue Run(Frame frame)` evaluates the root inside the handler of "Stack and internal errors", turning `CostLimitException` into `CostLimitExceeded`; `Evaluate` is `Run(CreateFrame(…))` and nothing else. The internal `Frame.ChargedUnits` is the limit minus the remaining units, 0 without a meter.
 
@@ -305,9 +308,11 @@ A description may add to the charges of an object, with the two virtual members 
 
 ## Cancellation
 
-When the token can be canceled, the frame counts events: the steps of comprehensions, the calls of application functions and the field reads and presence tests of objects. Before each event, `Event()` checks the token when the count is a multiple of 64 — so before the first event and then every 64 — and increments the count; a canceled token throws `OperationCanceledException` out of the evaluation. After the signal at most 64 events begin. With `CancellationToken.None` nothing is counted.
+When the token can be canceled, the frame counts events: the steps of comprehensions, the calls of application functions and the field reads and presence tests of objects. Before each event, `Event()` checks the token when the count is a multiple of 64 — so before the first event and then every 64 — and increments the count; a canceled token throws `OperationCanceledException` out of the evaluation. After the signal at most 64 events begin. With `CancellationToken.None` nothing is counted. The asynchronous driver carries the counter from pass to pass and checks the token before each pass and each start of a call ([async-evaluation](async-evaluation.md)).
 
 ## Errors as values
+
+**Unknown values.** A partial or asynchronous evaluation puts one more payload into the same channel: a value of the kind `Error` that holds an `UnknownSet` instead of a `CelError` ([partial-evaluation](partial-evaluation.md)). `TryGetError` is `false` for it, no node places it, wraps it or reports it, and the nodes that take the first error value as their result apply two rules: in a strict call a real error is the result and otherwise the unknown values are united, in `&&` and `||` an unknown operand wins over an error when no operand decides. A synchronous evaluation of a plan without the flag never creates one.
 
 An error inside evaluation is a value of the kind `Error` of the stage `Evaluate`; nodes return it like any value. Its position is the offset of the node that failed. The value keeps the code, the offset and the parts of the message by reference; the text and the line and column are formed only when a `CelError` is read, after the evaluation or through `CelValue.TryGetError`, so an error that `||` absorbs costs no text. Creating an error value allocates at most 64 bytes: one object, with no string, no boxed number and no array. The parts of its message are references to objects that already exist — a name of the text, a string argument, a list, a type, an overload, a node of the plan, a type that a check charged for found — or a number in a field of the object. The one allowance is the kinds of the arguments of `EvalNoMatchingOverload` for a call of more than 16 arguments, which only an application function can have: they take an array of one byte per argument, bounded by the text of the program; and the names of the object and abstract arguments of a call whose static type was `dyn`, one array of references bounded by the number of arguments; among more than 16 arguments an abstract argument is named `abstract`. The public members of `CelError` and `CelValue`, the messages and the positions do not depend on this form.
 
@@ -331,6 +336,7 @@ An error inside evaluation is a value of the kind `Error` of the stage `Evaluate
 | `EvalInvalidComprehensionRange` (3026) | `value of type '{type}' cannot be the range of a comprehension (must be list or map)` | the range |
 | `UnsupportedMapKeyType` (3027) | `unsupported map key type '{type}'`, checked before `DuplicateMapKey` | the key |
 | `ImplementationResultMismatch` (3028) | `implementation of overload '{overloadId}' of function '{function}' returned a value of type '{actualType}', expected '{resultType}'` | the call |
+| `AsyncEvaluationRequired` (3029) | `function '{function}' has an asynchronous implementation; evaluate the program asynchronously`; a program that has an asynchronous call is refused by `Evaluate` and `EvaluateInput` before the evaluation, with cost 0 | the first asynchronous call in the text |
 | `InsufficientStack` (9000) | `insufficient execution stack to continue evaluation` | the node that did not evaluate its children |
 | `InternalError` (9001) | `internal error during evaluation; the original exception is in CelError.Exception` | the recorded node |
 

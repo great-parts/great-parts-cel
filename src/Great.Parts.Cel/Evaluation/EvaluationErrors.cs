@@ -120,6 +120,11 @@ internal static class EvaluationErrors
     private static readonly ErrorTemplate InternalErrorText =
         new(static _ => "internal error during evaluation; the original exception is in CelError.Exception");
 
+    // The function is the first part and the subject.
+    private static readonly ErrorTemplate AsyncEvaluationRequiredText = new(
+        static error => "function '" + (string)error.First! + "' has an asynchronous implementation; evaluate the program asynchronously",
+        subject: static error => (string)error.First!);
+
     // Unbound (3009): a variable without a value in the bindings, at its identifier.
     internal static CelValue Unbound(string name, LineTable lines, int offset) =>
         Create(CelErrorCode.Unbound, UnboundText, lines, offset, name);
@@ -230,6 +235,11 @@ internal static class EvaluationErrors
         ReadOnlySpan<CelValue> values = [value];
         return new CallSite("?", offset, frame.Lines, types: frame.Types).NoMatchingOverload(values);
     }
+
+    // AsyncEvaluationRequired (3029): a synchronous evaluation of a program that calls an overload that waits, at the first such call in
+    // the text. Nothing is evaluated.
+    internal static CelError AsyncEvaluationRequired(string function, LineTable lines, int offset) =>
+        new(CelErrorCode.AsyncEvaluationRequired, AsyncEvaluationRequiredText, lines, offset, function);
 
     // InsufficientStack (9000): the node that did not evaluate its children.
     internal static CelValue InsufficientStack(LineTable lines, int offset) =>

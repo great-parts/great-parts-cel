@@ -46,7 +46,7 @@ internal sealed record OracleHandshake(string Oracle, string Go)
 /// the oracle wrote since, its first lines, and the request in progress, the expression and the bindings, in the message itself, also
 /// in a run with <c>--numbers-only</c>.
 /// </summary>
-internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide, IDisposable
+internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide, IPartialSide, IDisposable
 {
     /// <summary>The host of the oracle in the network of the Compose project.</summary>
     internal const string DefaultHost = "oracle";
@@ -147,9 +147,24 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide,
     /// <inheritdoc/>
     public SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings)
     {
-        long id = Request("eval", expression, bindings, null, null);
+        long id = Request("eval", expression, bindings, null, null, null);
         using JsonDocument answer = Answer(id);
-        return Outcome(answer.RootElement, id);
+        return Outcome(answer.RootElement, id, partial: false);
+    }
+
+    /// <summary>
+    /// The request <c>partial</c> of the oracle (docs/design/eng-oracle.md, "Protocol"): cel-go evaluates with
+    /// <c>OptPartialEval</c> and the patterns as the unknown data, and answers a value, an error, or the unknown trails.
+    /// </summary>
+    /// <param name="expression">The expression as CEL source.</param>
+    /// <param name="bindings">The bound variables.</param>
+    /// <param name="patterns">The patterns of unknown data.</param>
+    /// <returns>A compile error, an evaluation error, a value, or the unknown trails.</returns>
+    public SideOutcome EvaluatePartial(string expression, IReadOnlyDictionary<string, Value> bindings, IReadOnlyList<UnknownAttribute> patterns)
+    {
+        long id = Request("partial", expression, bindings, null, null, patterns);
+        using JsonDocument answer = Answer(id);
+        return Outcome(answer.RootElement, id, partial: true);
     }
 
     /// <summary>
@@ -161,7 +176,7 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide,
     public CheckedAttempt Check(string expression)
     {
         long id = nextId++;
-        describeRequest = () => Describe("checked", expression, new Dictionary<string, Value>());
+        describeRequest = () => Describe("checked", expression, new Dictionary<string, Value>(), null);
         Send(request =>
         {
             request.WriteNumber("id", id);
@@ -205,7 +220,8 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide,
         describeRequest = () => Describe(
             "checked",
             string.Create(CultureInfo.InvariantCulture, $"<{checkedExpr.Length} bytes> ") + (encoded.Length > DescribedBindingLength ? encoded[..DescribedBindingLength] + "..." : encoded),
-            bindings);
+            bindings,
+            null);
         Send(request =>
         {
             request.WriteNumber("id", id);
@@ -221,13 +237,13 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide,
             request.WriteEndObject();
         });
         using JsonDocument answer = Answer(id);
-        return Outcome(answer.RootElement, id);
+        return Outcome(answer.RootElement, id, partial: false);
     }
 
     /// <inheritdoc/>
     public string Case(string name, string description, string expression, IReadOnlyDictionary<string, Value> bindings)
     {
-        long id = Request("case", expression, bindings, name, description);
+        long id = Request("case", expression, bindings, name, description, null);
         using JsonDocument answer = Answer(id);
         return Text(answer.RootElement, "textproto", id);
     }
@@ -350,19 +366,6 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide,
         _ => DoubleRoundTrip.Format(value),
     };
 
-    // The outcome of an answer to a request that evaluates: a value, an error of evaluation, or a compile error with its stage.
-    private SideOutcome Outcome(JsonElement root, long id)
-    {
-        string outcome = Text(root, "outcome", id);
-        return outcome switch
-        {
-            "value" when root.TryGetProperty("value", out JsonElement value) => SideOutcome.Of(ReadValue(value, id)),
-            "eval-error" => SideOutcome.EvaluationError(Text(root, "message", id)),
-            "compile-error" => SideOutcome.CompileError(Stage(root, id), Text(root, "message", id)),
-            _ => throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no outcome of the protocol"), root.GetRawText()),
-        };
-    }
-
     private static CompileStage Stage(JsonElement answer, long id)
     {
         string stage = Text(answer, "stage", id);
@@ -386,10 +389,67 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide,
     // The message of a line or an answer that does not read, without the quote and with it.
     private static SideFailureException Quoting(string message, string quote) => new(message, message + ": " + quote);
 
-    private long Request(string op, string expression, IReadOnlyDictionary<string, Value> bindings, string? name, string? description)
+    // The outcome of an answer to a request that evaluates: a value, an error of evaluation, or a compile error with its stage; only
+    // the answer to partial may be unknown.
+    private SideOutcome Outcome(JsonElement root, long id, bool partial)
+    {
+        string outcome = Text(root, "outcome", id);
+        return outcome switch
+        {
+            "value" when root.TryGetProperty("value", out JsonElement value) => SideOutcome.Of(ReadValue(value, id)),
+            "eval-error" => SideOutcome.EvaluationError(Text(root, "message", id)),
+            "compile-error" => SideOutcome.CompileError(Stage(root, id), Text(root, "message", id)),
+            "unknown" when partial => SideOutcome.Unknown(ReadTrails(root, id)),
+            _ => throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no outcome of the protocol"), root.GetRawText()),
+        };
+    }
+
+    // The trails of an unknown answer: an array of attributes, each a variable and typed qualifiers.
+    private static List<UnknownAttribute> ReadTrails(JsonElement answer, long id)
+    {
+        if (!answer.TryGetProperty("trails", out JsonElement trails) || trails.ValueKind != JsonValueKind.Array)
+        {
+            throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has no 'trails'"), answer.GetRawText());
+        }
+
+        List<UnknownAttribute> attributes = [];
+        foreach (JsonElement trail in trails.EnumerateArray())
+        {
+            List<AttributeQualifier> qualifiers = [];
+            if (trail.ValueKind != JsonValueKind.Object
+                || !trail.TryGetProperty("variable", out JsonElement variable) || variable.ValueKind != JsonValueKind.String
+                || !trail.TryGetProperty("qualifiers", out JsonElement elements) || elements.ValueKind != JsonValueKind.Array)
+            {
+                throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has a trail that does not read"), answer.GetRawText());
+            }
+
+            foreach (JsonElement element in elements.EnumerateArray())
+            {
+                string kind = element.ValueKind == JsonValueKind.Object ? Text(element, "kind", id) : string.Empty;
+                if (!AttributeQualifier.TryParseKind(kind, out QualifierKind parsed))
+                {
+                    throw Quoting(string.Create(CultureInfo.InvariantCulture, $"the answer of the oracle to request {id} has a qualifier that does not read"), answer.GetRawText());
+                }
+
+                qualifiers.Add(new AttributeQualifier(parsed, Text(element, "value", id)));
+            }
+
+            attributes.Add(new UnknownAttribute(variable.GetString()!, qualifiers));
+        }
+
+        return attributes;
+    }
+
+    private long Request(
+        string op,
+        string expression,
+        IReadOnlyDictionary<string, Value> bindings,
+        string? name,
+        string? description,
+        IReadOnlyList<UnknownAttribute>? patterns)
     {
         long id = nextId++;
-        describeRequest = () => Describe(op, expression, bindings);
+        describeRequest = () => Describe(op, expression, bindings, patterns);
         Send(request =>
         {
             request.WriteNumber("id", id);
@@ -408,8 +468,37 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide,
                 request.WriteString("name", name);
                 request.WriteString("description", description);
             }
+
+            if (patterns is not null)
+            {
+                WritePatterns(request, patterns);
+            }
         });
         return id;
+    }
+
+    // The patterns of the request partial: each a variable and the typed qualifiers under it.
+    private static void WritePatterns(Utf8JsonWriter request, IReadOnlyList<UnknownAttribute> patterns)
+    {
+        request.WriteStartArray("patterns");
+        foreach (UnknownAttribute pattern in patterns)
+        {
+            request.WriteStartObject();
+            request.WriteString("variable", pattern.Variable);
+            request.WriteStartArray("qualifiers");
+            foreach (AttributeQualifier qualifier in pattern.Qualifiers)
+            {
+                request.WriteStartObject();
+                request.WriteString("kind", qualifier.KindName);
+                request.WriteString("value", qualifier.Text);
+                request.WriteEndObject();
+            }
+
+            request.WriteEndArray();
+            request.WriteEndObject();
+        }
+
+        request.WriteEndArray();
     }
 
     private JsonDocument Answer(long id)
@@ -601,10 +690,15 @@ internal sealed class OracleConnection : ICaseSide, ICaseRecorder, ICheckedSide,
     }
 
     // The request in one line: the operation, the expression in quotes with the escapes of JSON, and the bindings.
-    private static string Describe(string op, string expression, IReadOnlyDictionary<string, Value> bindings)
+    private static string Describe(string op, string expression, IReadOnlyDictionary<string, Value> bindings, IReadOnlyList<UnknownAttribute>? patterns)
     {
         StringBuilder text = new();
         text.Append(op).Append(' ').Append(JsonSerializer.Serialize(expression, QuoteOptions));
+        if (patterns is not null)
+        {
+            text.Append(" unknown=[").AppendJoin(", ", patterns).Append(']');
+        }
+
         foreach ((string variable, Value value) in bindings)
         {
             string json = ValueJson(value);

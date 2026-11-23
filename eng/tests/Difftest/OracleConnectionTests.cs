@@ -582,6 +582,84 @@ public sealed class OracleConnectionTests
             error.ToString().ReplaceLineEndings("\n"));
     }
 
+    // ---- Partial evaluation (docs/design/eng-difftest.md, "Partial evaluation") ----
+
+    [Fact]
+    public void PartialRequest_SendsThePatternsAndReadsTheUnknownTrailsOnce()
+    {
+        const string Unknown = """{"id":ID,"outcome":"unknown","trails":[{"variable":"x1","qualifiers":[{"kind":"string","value":"b"}]},{"variable":"i1","qualifiers":[]},{"variable":"x1","qualifiers":[{"kind":"string","value":"b"}]}]}""";
+        using FakeOracle fake = new([Handshake], answer: _ => Unknown);
+        using OracleConnection connection = OracleConnection.Open(Loopback, fake.Port, Limit, Limit, ProfileTables.ManifestPath, _ => { });
+        UnknownAttribute[] patterns =
+        [
+            new("x1", [new AttributeQualifier(QualifierKind.Any, string.Empty)]),
+            new("li", [new AttributeQualifier(QualifierKind.Int, "-1"), new AttributeQualifier(QualifierKind.Uint, "2"), new AttributeQualifier(QualifierKind.Bool, "true")]),
+        ];
+
+        SideOutcome partial = connection.EvaluatePartial("x1.b + i1", new Dictionary<string, Value> { ["i1"] = Int(41) }, patterns);
+        SideFailureException notPartial = Assert.Throws<SideFailureException>(() => connection.Evaluate("x1.b + i1", new Dictionary<string, Value>()));
+
+        Assert.Equal(OutcomeClass.Unknown, partial.Class);
+        Assert.Equal(["i1", "x1.b"], partial.Trails.Select(trail => trail.ToString()));
+        Assert.StartsWith("the answer of the oracle to request 1 has no outcome of the protocol", notPartial.Message, StringComparison.Ordinal);
+        connection.Dispose();
+        fake.Join();
+        using JsonDocument request = JsonDocument.Parse(fake.Requests[0]);
+        JsonElement fields = request.RootElement;
+        Assert.Equal("partial", fields.GetProperty("op").GetString());
+        Assert.Equal(
+            """[{"variable":"x1","qualifiers":[{"kind":"any","value":""}]},{"variable":"li","qualifiers":[{"kind":"int","value":"-1"},{"kind":"uint","value":"2"},{"kind":"bool","value":"true"}]}]""",
+            fields.GetProperty("patterns").GetRawText());
+    }
+
+    // A run whose two sides evaluate partially asks the oracle once more for a case that reads a variable, with the patterns that the
+    // case has.
+    [Fact]
+    public void RunWithAPartialLibrary_AsksTheOracleForThePartialEvaluationOfACaseThatReadsAVariable()
+    {
+        ulong number = Enumerable.Range(0, 100).Select(candidate => (ulong)candidate).First(candidate => PartialPatterns.For(7, candidate, CaseGenerator.Case(7, candidate)).Count > 0);
+        IReadOnlyList<UnknownAttribute> patterns = PartialPatterns.For(7, number, CaseGenerator.Case(7, number));
+        using FakeOracle fake = new([Handshake], answer: _ => """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
+        using TempDirectory root = Repository();
+
+        (int exitCode, string output, string error) = Run(root, fake.Port, Limit, new PartialLibrary(), "--case", number.ToString(CultureInfo.InvariantCulture));
+        fake.Join();
+
+        Assert.Equal(0, exitCode);
+        Assert.Empty(error);
+        Assert.Equal($"difftest seed=7 commit={Commit} oracle=0.33.4 cases=1 signatures new=0 (S1=0, S2=0) known=0 new-cases=\n", output);
+        Assert.Equal(2, fake.Requests.Count);
+        using JsonDocument partial = JsonDocument.Parse(fake.Requests[1]);
+        Assert.Equal("partial", partial.RootElement.GetProperty("op").GetString());
+        Assert.Equal(patterns.Count, partial.RootElement.GetProperty("patterns").GetArrayLength());
+        Assert.Equal(patterns.Select(pattern => pattern.Variable), partial.RootElement.GetProperty("patterns").EnumerateArray().Select(pattern => pattern.GetProperty("variable").GetString()));
+    }
+
+    // A signature of partial evaluation is a finding at line 1, column 1 of pending.textproto, with the expression and the unknown
+    // data in its message, and no case in the file.
+    [Fact]
+    public void NewPartialSignature_IsAFindingWithTheExpressionAndNoCaseInThePendingFile()
+    {
+        ulong number = Enumerable.Range(0, 100).Select(candidate => (ulong)candidate).First(candidate => PartialPatterns.For(7, candidate, CaseGenerator.Case(7, candidate)).Count > 0);
+        using FakeOracle fake = new([Handshake], answer: _ => """{"id":ID,"outcome":"value","value":{"int64Value":"41"}}""");
+        using TempDirectory root = Repository();
+
+        (int exitCode, string output, string error) = Run(root, fake.Port, Limit, new PartialLibrary(unknown: true), "--case", number.ToString(CultureInfo.InvariantCulture));
+        fake.Join();
+
+        Assert.Equal(1, exitCode);
+        Assert.Empty(error);
+        string[] lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, lines.Length);
+        Assert.StartsWith($"{PendingFile.Path}(1,1): error ENG820: new divergence signature '", lines[0], StringComparison.Ordinal);
+        Assert.Contains(" we-unknown' (S2): cel-go returns int 41, we return unknown ", lines[0], StringComparison.Ordinal);
+        Assert.Contains("; partial evaluation of expression \"", lines[0], StringComparison.Ordinal);
+        Assert.Contains(" with unknown data ", lines[0], StringComparison.Ordinal);
+        Assert.EndsWith($"; seed 7, case {number}", lines[0], StringComparison.Ordinal);
+        Assert.StartsWith($"difftest seed=7 commit={Commit} oracle=0.33.4 cases=1 signatures new=1 (S1=0, S2=1) known=0 new-cases={number}", lines[1], StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(root.Path, PendingFile.Path)));
+    }
+
     // ---- Helpers ----
 
     private static string Log(string text) => JsonSerializer.Serialize(new Dictionary<string, string> { ["log"] = text });
@@ -680,6 +758,18 @@ public sealed class OracleConnectionTests
     {
         public SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings) =>
             SideOutcome.Of(Int(SignatureTests.ReadsI1(expression, bindings) ? 42 : 41));
+
+        public TimeSpan ZoneOffset(string zone, DateTimeOffset instant) => throw new NotSupportedException();
+    }
+
+    // Gives int 41, as the fake oracle does, for every case and for its partial evaluation too, or with unknown, for every
+    // partial evaluation, the unknown part x1.a.
+    private sealed class PartialLibrary(bool unknown = false) : ICaseSide, IPartialSide
+    {
+        public SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings) => SideOutcome.Of(Int(41));
+
+        public SideOutcome EvaluatePartial(string expression, IReadOnlyDictionary<string, Value> bindings, IReadOnlyList<UnknownAttribute> patterns) =>
+            unknown ? SideOutcome.Unknown([new UnknownAttribute("x1", [new AttributeQualifier(QualifierKind.String, "a")])]) : SideOutcome.Of(Int(41));
 
         public TimeSpan ZoneOffset(string zone, DateTimeOffset instant) => throw new NotSupportedException();
     }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Threading;
+using System.Threading.Tasks;
 using Great.Parts.Cel.Diagnostics;
 
 namespace Great.Parts.Cel.AspNetCore;
@@ -35,23 +36,22 @@ internal sealed class RequestRule<TRequest>
     }
 
     // True when the expression gives true; otherwise false, with the error when there is one and null when the expression gave false.
-    internal bool Passes(TRequest request, out CelError? error)
+    // The evaluation is asynchronous, so the expression may call a function of the application that waits; a rule without such a call
+    // completes in the first pass and the await costs nothing. The token is the one of the request: its abort stops the evaluation.
+    internal async ValueTask<(bool Passed, CelError? Error)> PassesAsync(TRequest request, CancellationToken cancellationToken)
     {
         if (_program is null)
         {
-            error = _error;
-            return false;
+            return (false, _error);
         }
 
-        CelEvalResult<bool> result = _program.EvaluateInput(request, cancellationToken: CancellationToken.None);
+        CelEvalResult<bool> result = await _program.EvaluateInputAsync(request, cancellationToken: cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess)
         {
-            error = result.Errors[0];
-            return false;
+            return (false, result.Errors[0]);
         }
 
-        error = null;
-        return result.Value;
+        return (result.Value, null);
     }
 
     // The first argument of the type TRequest among the arguments of a handler or an action.

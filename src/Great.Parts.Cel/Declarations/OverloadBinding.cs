@@ -34,11 +34,13 @@ internal sealed class OverloadBinding
         bool dynOnly = false,
         bool shallowArguments = false,
         CallValidator? validator = null,
-        ConstantArgument? constantArgument = null)
+        ConstantArgument? constantArgument = null,
+        AsyncOverloadImplementation? asyncImplementation = null)
     {
         Function = function;
         Declaration = declaration;
         Implementation = implementation;
+        AsyncImplementation = asyncImplementation;
         FixedCost = fixedCost;
         ArgumentCost = argumentCost;
         Source = source;
@@ -66,7 +68,7 @@ internal sealed class OverloadBinding
     internal OverloadBinding WithDeclaration(CelOverloadDecl declaration) =>
         ReferenceEquals(declaration, Declaration)
             ? this
-            : new(Function, declaration, Implementation, FixedCost, ArgumentCost, Source, IsApplication, DynOnly, ShallowArguments, Validator, ConstantArgument);
+            : new(Function, declaration, Implementation, FixedCost, ArgumentCost, Source, IsApplication, DynOnly, ShallowArguments, Validator, ConstantArgument, AsyncImplementation);
 
     // The name of the function in the syntax tree, such as _+_.
     internal string Function { get; }
@@ -75,6 +77,13 @@ internal sealed class OverloadBinding
 
     // Null for a special form that the planner evaluates itself, such as _||_.
     internal OverloadImplementation? Implementation { get; }
+
+    // The implementation of an overload of the application that waits; then Implementation is null. Type checking does not tell the two
+    // kinds apart: the planner does.
+    internal AsyncOverloadImplementation? AsyncImplementation { get; }
+
+    // Whether the overload has an asynchronous implementation: a call of it is made by the driver between two passes.
+    internal bool IsAsync => AsyncImplementation is not null;
 
     // The cost of a call in units: the fixed part, and the part computed from the arguments, if any.
     internal ulong FixedCost { get; }

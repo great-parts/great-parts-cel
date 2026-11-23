@@ -108,6 +108,10 @@ The set [calendar](calendar.md) (`Library/Time/CalendarExtension.cs`, `CalendarF
 - **Generated files.** `src/Great.Parts.Cel/Library/Unicode/*.g.cs` are written by the generator in `eng/unicode/`, which is not core; the files are, since they match `Library/**`, so a regenerated table is checked like a change of the code that reads it. The source checks skip them ([eng-checks-source](eng-checks-source.md#generated-code)).
 - **No other directory** is added: the parse, the engine and the cache are files of `Library/Regex/`, and the implementation of the two overloads is `Library/Matches.cs` ([library](library.md)).
 
+## Partial and asynchronous evaluation
+
+The rules that decide a value are core and live in `Evaluation/**`, which the paths below cover: the propagation of unknown values ([partial-evaluation](partial-evaluation.md#unknown-values-in-the-error-channel)), `AttributePlanNode`, `KeyPlanNode`, `RecordPlanNode`, `PartialPlanner` and `AsyncCallPlanNode` ([async-evaluation](async-evaluation.md#planning)). The unknown payload `Values/UnknownSet.cs` is a model file of `Values`, not a rule file. Not core, since they decide no value of an expression: the driver `AsyncDriver.cs` and `AsyncEvaluation.cs` and the builder of the residual `ResidualSource.cs`, which are files of the root namespace (the facade), because the layer `Evaluation` cannot reference the public result types of the root and the residual needs `Library.Time`; the public `CelAttributePattern`, `CelUnknown` and `CelPartialEvalResult<T>` of the root. A change of the driver is checked by its tests and by Native AOT and `browser-wasm`, not by `eng/difftest`.
+
 ## Core paths
 
 Paths are relative to the repository root, with `/` separators, as git prints them. `*` matches any characters except `/`; `**` matches any number of whole path segments. Matching is case-sensitive.

@@ -217,7 +217,7 @@ internal static class Program
         {
             PendingFile.Write(root, pending);
         }
-        else if (search.NewSignatures.Count > 0)
+        else if (search.NewSignatures.Any(found => !found.Partial))
         {
             PrintFinding(setup.Output, options, pending.Text.TrimEnd('\n'));
         }
@@ -238,13 +238,19 @@ internal static class Program
             ? ExchangeChannel.Both(new ExchangeParty(library, checkedLibrary), new ExchangeParty(oracle, oracle))
             : [];
 
-    // Checks one case. A failed oracle names the case in progress, by the seed and the number alone: the log of the oracle is not
-    // in the public log, and the number is what reproduces the case, with its minimization requests included.
+    // Checks one case, then its partial evaluation when both sides evaluate partially and the expression reads a variable. A failed
+    // oracle names the case in progress, by the seed and the number alone: the log of the oracle is not in the public log, and the
+    // number is what reproduces the case, with its minimization requests included.
     private static void CheckCase(DivergenceSearch search, ulong seed, ulong number)
     {
         try
         {
-            search.Check(seed, number, CaseGenerator.Case(seed, number));
+            GeneratedCase generated = CaseGenerator.Case(seed, number);
+            search.Check(seed, number, generated);
+            if (search.SupportsPartial && PartialPatterns.For(seed, number, generated) is { Count: > 0 } patterns)
+            {
+                search.CheckPartial(seed, number, generated, patterns);
+            }
         }
         catch (IOException exception)
         {
@@ -270,7 +276,7 @@ internal static class Program
         IReadOnlyList<NewSignature> newSignatures,
         int knownFound)
     {
-        int s1 = newSignatures.Count(found => found.Divergence.Kind.Severity() == DivergenceSeverity.S1);
+        int s1 = newSignatures.Count(found => found.Divergence.Severity == DivergenceSeverity.S1);
         string numbers = string.Join(',', newSignatures.Select(found => found.Number.ToString(CultureInfo.InvariantCulture)));
         return string.Create(
             CultureInfo.InvariantCulture,

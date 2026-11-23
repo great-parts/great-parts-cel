@@ -409,6 +409,17 @@ The tests of the core: `Types/WellKnownRulesTests` and `Types/AnyTypeTests` (the
 
 **Cases.** The ten files pass when the skip list has no entry of their cases, in every cell, Native AOT included; a case that fails is a finding, not a new entry ([conformance](conformance.md#messages-any-and-the-provider-of-the-cases)).
 
+## Asynchronous and partial evaluation
+
+The examples of partial evaluation and the residual are `Examples/Evaluation/UnknownPropagationTests.cs`, `AttributePatternTests.cs` and `Examples/Facade/PartialEvaluationTests.cs`, `ResidualTests.cs`; those of the asynchronous part are `Examples/Facade/AsyncFunctionTests.cs`, `AsyncEvaluationTests.cs`, `Registration/AsyncEvaluatorTests.cs` of the DI project and the tests of the policy and the two filters in the ASP.NET Core project. `PartialTestSupport` and `AsyncTestSupport` hold the environments and the test functions (`inc`, `name`, `fail`, `slow` and their synchronous twins). The number of passes that a test counts is read from an internal counter of the test assembly.
+
+Properties (`Great.Parts.Cel.Properties`, `PropertyLoop`, a fixed seed and number of cases):
+
+- `AsyncEqualsSyncTests`: random expressions over the test functions and their asynchronous twins, with random delays and random order of completion. The value and the class of the outcome of `EvaluateAsync` equal those of `Evaluate` with the synchronous twins (no limit, or one with room); the code and the place of an error are equal too, except where a call that waits would fail and a real error stands to its right in the same strict call (the result is the right error, as the rule of "Errors as values" says), which the generator avoids by drawing the errors of one expression from one source only; `Cost` is the sum of the passes and the same in every repeat; every call (node, overload, arguments) runs once. A program with no call that waits completes synchronously (`IsCompletedSuccessfully`) with the allocation of `Evaluate`.
+- `AsyncCostLimitTests`: `CostLimitExceeded` at the same node on the sum of the passes in any order of completion; after a cancellation no call starts, at most 1 000 events are counted, `OperationCanceledException` comes through the `ValueTask`, and the calls that started are awaited.
+- `ResidualProperty`: random expressions and a random split of the bindings into known and unknown; `CompileParsed<T>(GetResidual())` on the full data gives the result or the error code of the original, except an error of a branch that the residual no longer has, and `Format(GetResidual())` parses into an equivalent tree.
+- `SyncPlanTests` (`Great.Parts.Cel.Conformance`): every cel-spec case compiled without the flag, in an environment without asynchronous functions, has a plan with no `Tree`, no keys and no asynchronous call, and the same case with the flag has a `Tree`. The allocation budgets of a repeated `Evaluate` and `EvaluateInput` are those of the existing allocation tests, which the step leaves as they were.
+
 ## Same tests under JIT and Native AOT
 
 `Great.Parts.Cel.Tests` and `Great.Parts.Cel.Conformance` are published under Native AOT and run as executables: in `eng/test` and in CI, on linux-x64, for both targets ([eng-test.md](eng-test.md)). `eng/checks test-count` compares the tests of each published run with the JIT run of the same commit, operating system and target ([eng-checks-artifacts.md](eng-checks-artifacts.md)). The other test projects run only under JIT.

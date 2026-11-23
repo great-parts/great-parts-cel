@@ -17,9 +17,9 @@
 | `Program.cs` | the options, the run, the findings, the journal line, the exit code |
 | `BudgetText.cs` | the form of the time of `--budget` |
 | `Profile/` | `environment.json` — the run manifest; the profile tables; the case generator and the printer of expressions; the grammar of the strings of time; the constant `ZoneInfoPath`, the path of the time zone data file |
-| `Sides/` | `ICaseSide` with `LibrarySide` and `OracleConnection`; `ICheckedSide` and `ExchangedSide`, the exchange of checked expressions ([Exchange of checked expressions](#exchange-of-checked-expressions)); `ICaseRecorder`, the request `case` of the oracle, which `OracleConnection` implements; the outcome classes |
+| `Sides/` | `ICaseSide` with `LibrarySide` and `OracleConnection`; `ICheckedSide` and `ExchangedSide`, the exchange of checked expressions ([Exchange of checked expressions](#exchange-of-checked-expressions)); `ICaseRecorder`, the request `case` of the oracle, which `OracleConnection` implements; the outcome classes; `IPartialSide`, which both sides implement for partial evaluation, and `PartialSide`, which fixes the patterns of a case; `UnknownAttribute`, an attribute of a pattern or of a trail |
 | `Compare/` | kinds and severities, the equality of `cel.expr.Value`, signatures, minimization, the comparison of zone offsets, values and outcomes as text for messages |
-| `Corpus/` | the known signatures, the search of new signatures in a case, `ExchangeChannel`, the writer of `pending.textproto` |
+| `Corpus/` | the known signatures, the search of new signatures in a case, `ExchangeChannel`, the writer of `pending.textproto`, `PartialPatterns`, the patterns of unknown data of a case |
 
 The namespaces have no cycles (`ARCH001`): `Corpus` uses `Compare` and `Sides`, `Compare` uses `Sides`, and neither `Sides` nor `Compare` uses `Corpus`.
 
@@ -187,6 +187,23 @@ description: "New divergence signatures of the last run of eng/difftest"
 With cases, the empty form is followed by one section: the line `section {`, the line `  name: "new"`, and for each case, in the order the run found it, the line `  test {`, the text of the `case` answer as it is, and the line `  }`; the line `}` ends the section and the file. The description of a case is its signature. The first case thus starts at line 6, and the place of its `ENG820` is the `test` token, column 3.
 
 An entry of the corpus skip list moves its case from `pending.textproto` to a corpus file, since the next run rewrites `pending.textproto` without it. A registry record and its case enter with the change that implements the behavior of the record: the skip entry carries the class of the record as the verdict and the same signature, and the oracle checks the answer of cel-go again.
+
+## Partial evaluation
+
+After the ordinary check of a case whose expression reads a variable, the run checks the same case with unknown data, when both sides implement `IPartialSide`. The library side compiles with `PartialEvaluation` and calls `EvaluatePartial`, whose unknown parts are `CelUnknown` attributes; the oracle gets the request `partial` ([eng-oracle](eng-oracle.md#protocol)).
+
+**Patterns.** `PartialPatterns` builds them from the attributes of the expression: a variable of the manifest with the selections, the presence tests and the indexes by a literal `int`, `uint`, `string` or `bool` that are applied to it; the names of macros and of `cel.bind` hide a variable of the same name. The candidates of a variable are the whole variable, each path of the expression, and each path with `any` in place of its last qualifier or after it. A case takes one variable, and one case in three a second, with one candidate each, so that no access matches two patterns: cel-go picks among several matching patterns at random, and the library takes the first given. The draws come from a stream of their own (the seed XOR-ed with a constant), so the generation of the cases, and every reproduction by seed and number, does not change.
+
+**Comparison.** `DivergenceSearch.CheckPartial` evaluates the case on both sides through `PartialSide`, minimizes a divergence by the same descent, and keeps the same sets of known and new signatures as the ordinary check. The outcome has a fourth class, unknown, with the set of trails (without repeats, by key). Two unknown outcomes agree when the sets of trails are equal; the descent looks under a node on which both sides are unknown, as it does for two errors. The types in a signature: an operand that is unknown on a side is `unknown`.
+
+| Library | cel-go | Kind | Severity |
+| :- | :- | :- | :- |
+| unknown | unknown with other trails | `unknown-mismatch` | S2 |
+| unknown | value or error | `we-unknown` | S2 |
+| value | unknown | `we-known` | S1 |
+| error | unknown | `we-known` | S2 |
+
+The kinds `value-mismatch`, `we-value` and `we-error` mean the same in the partial run, for a case on which no pattern matches or both sides are known; they share the names of the ordinary run, so a known signature hides the divergence in both. A signature of the partial run is reported as `ENG820` at line 1, column 1 of `pending.textproto`, with the expression and the unknown data in the message: the case of the corpus is evaluated in full and would not reproduce it, so `pending.textproto` gets no case for it. The journal line counts these signatures with the others. The expected difference, an error to the right of an unknown in a binary function, is the registry entry `_+_(unknown, error) we-known` and its kin.
 
 ## Exchange of checked expressions
 

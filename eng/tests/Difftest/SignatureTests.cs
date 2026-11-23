@@ -105,7 +105,9 @@ public sealed class SignatureTests
         Assert.Equal(DivergenceKind.ValueMismatch, DivergenceKinds.Compare(SideOutcome.Of(list), SideOutcome.Of(reversed)));
         Assert.Equal(DivergenceKind.ValueMismatch, DivergenceKinds.Compare(SideOutcome.Of(map), SideOutcome.Of(Map((Bool(true), Int(1))))));
         Assert.Equal(DivergenceKind.StageMismatch, DivergenceKinds.Compare(SideOutcome.EvaluationError("a"), SideOutcome.CompileError(CompileStage.Program, "b")));
-        Assert.Equal([DivergenceSeverity.S1, DivergenceSeverity.S1, DivergenceSeverity.S2, DivergenceSeverity.S2], Enum.GetValues<DivergenceKind>().Select(kind => kind.Severity()));
+        Assert.Equal(
+            [DivergenceSeverity.S1, DivergenceSeverity.S1, DivergenceSeverity.S2, DivergenceSeverity.S2, DivergenceSeverity.S2, DivergenceSeverity.S2, DivergenceSeverity.S2],
+            Enum.GetValues<DivergenceKind>().Select(kind => kind.Severity()));
     }
 
     [Fact]

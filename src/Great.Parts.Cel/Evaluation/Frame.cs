@@ -145,6 +145,9 @@ internal class Frame : IEvaluationMeter, IApplicationBoundary
         _events = 0;
         Offset = 0;
         Input = null;
+        Partial = null;
+        Calls = null;
+        CollectsCalls = false;
         _bindings = NoBindings;
         _plan = null!;
         _token = default;
@@ -158,6 +161,34 @@ internal class Frame : IEvaluationMeter, IApplicationBoundary
     // The instance of the input type of the environment whose fields the evaluation reads; null when the call passed none, or when
     // the input is a structure that the frame holds itself and has not boxed.
     internal object? Input { get; private protected set; }
+
+    // The patterns of unknown data, the keys of the chain being read and the record of the values of the nodes, during a partial
+    // evaluation; null otherwise, so that the nodes that serve it do nothing in any other evaluation.
+    internal PartialState? Partial { get; set; }
+
+    // Whether the evaluation is a pass of the asynchronous driver: a call of an overload that waits registers in the table of the calls
+    // and is an unknown value until it has completed. Without it (an evaluation that is partial and synchronous) the call is an unknown
+    // value that describes it and nothing registers.
+    internal bool CollectsCalls { get; set; }
+
+    // The table of the asynchronous calls of the evaluation: given by the driver for the passes after the first, and made by the first
+    // registration of a pass that has none; null while no call has registered.
+    internal AsyncCallTable? Calls { get; set; }
+
+    // The events counted so far, which the driver carries from one pass to the next.
+    internal uint Events => _events;
+
+    // Continues an evaluation in a later pass: the units charged by the passes before it, which the limit of this pass already counts,
+    // and the events they counted. The limit is the one the frame was prepared with.
+    internal void Resume(ulong charged, uint events)
+    {
+        if (_metered)
+        {
+            _remaining = _limit - charged;
+        }
+
+        _events = events;
+    }
 
     // Reads the field of the input that an identifier names, after the unit of the identifier: false when the call passed no input.
     // The frame of a structure overrides it to read the structure in place.

@@ -30,11 +30,19 @@ internal sealed class OptionalListPlanNode : PlanNode
         }
 
         int stored = 0;
+        CelValue pending = default;
         for (int i = 0; i < _elements.Length; i++)
         {
             CelValue value = _elements[i].Evaluate(frame);
             if (value.Kind == CelValueKind.Error)
             {
+                // An unknown value of a partial evaluation waits for the other elements: a real error among them is the result.
+                if (value.IsUnknown)
+                {
+                    pending = Defer(pending, value);
+                    continue;
+                }
+
                 frame.Pop(stored);
                 return value;
             }
@@ -57,6 +65,12 @@ internal sealed class OptionalListPlanNode : PlanNode
 
             frame.Push(value);
             stored++;
+        }
+
+        if (pending.IsUnknown)
+        {
+            frame.Pop(stored);
+            return pending;
         }
 
         Begin(frame);

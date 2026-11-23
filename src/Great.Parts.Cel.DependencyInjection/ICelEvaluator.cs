@@ -21,7 +21,7 @@ namespace Great.Parts.Cel.DependencyInjection;
 /// version 2.0 have a default implementation, so a replacement written for 2.0 keeps compiling.
 /// </para>
 /// </remarks>
-public interface ICelEvaluator
+public partial interface ICelEvaluator
 {
     /// <summary>
     /// The environment in which the evaluator compiles expressions.

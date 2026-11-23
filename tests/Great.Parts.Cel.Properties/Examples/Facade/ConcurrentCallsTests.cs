@@ -62,6 +62,10 @@ public sealed class ConcurrentCallsTests
         .GetEnvironmentOrThrow();
 
     [Fact]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage(
+        "Performance",
+        "CA1849:Call async methods when in an async method",
+        Justification = "The test compares synchronous calls: the expected values come from synchronous evaluation.")]
     public async Task ParallelCalls_EqualTheCallsMadeAlone()
     {
         CelCompilationCache cache = new(environment, 4, 1000);

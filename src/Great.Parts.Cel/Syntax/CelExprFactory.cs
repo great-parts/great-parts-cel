@@ -42,6 +42,10 @@ public sealed class CelExprFactory
 
     private Range? _position;
 
+    // Whether the nodes can have positions, and the length of the text that they refer to.
+    private readonly bool _hasText;
+    private readonly int _textLength;
+
     // The offset and the end that the range of Position resolves to in the source text; -1 for no position.
     private int _offset = -1;
     private int _end = -1;
@@ -52,6 +56,15 @@ public sealed class CelExprFactory
     public CelExprFactory()
     {
         _lines = new LineTable(ReadOnlySpan<char>.Empty);
+    }
+
+    // A factory whose nodes have positions in a text that is known only by its line table, as the text of a program that was compiled
+    // from a tree: the positions of such a tree and the lines of its errors are those of that text. SourceText is null.
+    internal CelExprFactory(LineTable lines)
+    {
+        _lines = lines;
+        _hasText = true;
+        _textLength = int.MaxValue;
     }
 
     /// <summary>
@@ -67,6 +80,8 @@ public sealed class CelExprFactory
         ArgumentNullException.ThrowIfNull(sourceText);
         SourceText = sourceText;
         _lines = new LineTable(sourceText);
+        _hasText = true;
+        _textLength = sourceText.Length;
     }
 
     /// <summary>
@@ -99,12 +114,12 @@ public sealed class CelExprFactory
                 return;
             }
 
-            if (SourceText is null)
+            if (!_hasText)
             {
                 throw new InvalidOperationException("The factory has no source text, so a node has no position to set.");
             }
 
-            (int offset, int length) = range.GetOffsetAndLength(SourceText.Length);
+            (int offset, int length) = range.GetOffsetAndLength(_textLength);
             _position = range;
             _offset = offset;
             _end = offset + length;
@@ -728,7 +743,7 @@ public sealed class CelExprFactory
         private int At(int id)
         {
             int offset = source.GetOffset(id);
-            if (factory.SourceText is null || offset < 0)
+            if (!factory._hasText || offset < 0)
             {
                 factory._nodes.PreviousEnd = -1;
                 return -1;
@@ -748,7 +763,7 @@ public sealed class CelExprFactory
         private int Mapped(int offset, string parameter)
         {
             int mapped = mapOffset!(offset);
-            if ((uint)mapped > (uint)factory.SourceText!.Length)
+            if ((uint)mapped > (uint)factory._textLength)
             {
                 throw new ArgumentException("The offset " + mapped.ToString(System.Globalization.CultureInfo.InvariantCulture) + " is outside the source text.", parameter);
             }

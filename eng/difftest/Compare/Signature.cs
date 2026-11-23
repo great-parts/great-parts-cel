@@ -22,7 +22,11 @@ internal sealed record Divergence(
     SideOutcome Library,
     SideOutcome Oracle,
     string OraclePhrase = "cel-go returns",
-    string LibraryPhrase = "we return");
+    string LibraryPhrase = "we return")
+{
+    /// <summary>The severity: that of the kind, and of <c>we-known</c> with a value of the library, S1.</summary>
+    internal DivergenceSeverity Severity => Kind.Severity(Library);
+}
 
 /// <summary>
 /// The signature of a divergence, <c>&lt;node&gt;(&lt;types&gt;) &lt;kind&gt;</c> of the root of the minimized case
@@ -32,6 +36,9 @@ internal static class Signature
 {
     /// <summary>The type of an argument that is an error on both sides.</summary>
     internal const string ErrorType = "error";
+
+    /// <summary>The type of an argument that is unknown on both sides, in partial evaluation.</summary>
+    internal const string UnknownType = "unknown";
 
     /// <summary>
     /// The signature of a divergent case. The node is <c>parse</c> without types when either side fails to parse; otherwise
@@ -131,13 +138,18 @@ internal static class Signature
             ?? (ProfileTables.IsOptional(child) ? ProfileType.OptionalType.Name() : null)
             ?? (ProfileTables.HoldsOptional(child) ? (child is ListLiteral ? ProfileType.ListType.Name() : ProfileType.MapType.Name()) : null);
         SideOutcome oracle = oracleSide.Evaluate(text, divergent.Bindings);
+        if (oracle.IsUnknown)
+        {
+            return UnknownType;
+        }
+
         if (!oracle.IsError)
         {
             return abstractType ?? ValueText.TypeName(oracle.Result!);
         }
 
         SideOutcome library = librarySide.Evaluate(text, divergent.Bindings);
-        return library.IsError ? ErrorType : abstractType ?? ValueText.TypeName(library.Result!);
+        return library.IsUnknown ? UnknownType : library.IsError ? ErrorType : abstractType ?? ValueText.TypeName(library.Result!);
     }
 
     private static string LiteralType(Expr literal) => literal switch

@@ -143,11 +143,19 @@ internal sealed class MessagePlanNode : PlanNode
         stored = 0;
         kept = null;
         error = default;
+        CelValue pending = default;
         for (int i = 0; i < _values.Length; i++)
         {
             CelValue value = _values[i].Evaluate(frame);
             if (value.Kind == CelValueKind.Error)
             {
+                // An unknown value of a partial evaluation waits for the other values: a real error among them is the result.
+                if (value.IsUnknown)
+                {
+                    pending = Defer(pending, value);
+                    continue;
+                }
+
                 frame.Pop(stored);
                 error = value;
                 return false;
@@ -178,6 +186,13 @@ internal sealed class MessagePlanNode : PlanNode
 
             frame.Push(value);
             stored++;
+        }
+
+        if (pending.IsUnknown)
+        {
+            frame.Pop(stored);
+            error = pending;
+            return false;
         }
 
         return true;

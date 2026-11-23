@@ -44,6 +44,33 @@ internal sealed class DispatchPlanNode : PlanNode
         Arguments = arguments;
     }
 
+    // The node of a call with these candidates: the node of a call that waits, with the first of the candidates that waits in waiting,
+    // when one does; otherwise this node, and waiting is null. The id is that of the syntax node of the call.
+    internal static PlanNode Create(
+        int offset,
+        int id,
+        string function,
+        ImmutableArray<OverloadBinding> candidates,
+        ImmutableArray<ImmutableArray<bool>> marks,
+        bool charges,
+        ImmutableArray<PlanNode> arguments,
+        object? prepared,
+        object? cache,
+        out OverloadBinding? waiting)
+    {
+        foreach (OverloadBinding candidate in candidates)
+        {
+            if (candidate.IsAsync)
+            {
+                waiting = candidate;
+                return new AsyncCallPlanNode(offset, id, function, candidates, marks, charges, arguments, prepared, cache);
+            }
+        }
+
+        waiting = null;
+        return new DispatchPlanNode(offset, function, candidates, marks, charges, arguments, prepared, cache);
+    }
+
     internal ImmutableArray<OverloadBinding> Candidates { get; }
 
     internal ImmutableArray<PlanNode> Arguments { get; }

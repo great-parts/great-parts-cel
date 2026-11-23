@@ -20,13 +20,13 @@ N:System.Net.Sockets;The library does not access the network
 T:System.Environment;The library does not read environment variables or process state
 T:System.Diagnostics.Process;The library does not start processes
 
-// Threads: evaluation is synchronous and the library creates no threads
-T:System.Threading.Thread;Evaluation is synchronous; the library creates no threads
-T:System.Threading.ThreadPool;Evaluation is synchronous; the library creates no threads
-T:System.Threading.Timer;The library creates no timers
-T:System.Threading.Tasks.Task;Evaluation is synchronous; the library creates no threads
-T:System.Threading.Tasks.Task`1;Evaluation is synchronous; the library creates no threads
-T:System.Threading.Tasks.Parallel;Evaluation is synchronous; the library creates no threads
+// Threads and tasks: the library creates no threads or tasks; asynchronous evaluation awaits the ValueTask of the application
+T:System.Threading.Thread;The library creates no threads or tasks; asynchronous evaluation awaits the ValueTask of the application
+T:System.Threading.ThreadPool;The library creates no threads or tasks; asynchronous evaluation awaits the ValueTask of the application
+T:System.Threading.Timer;The library creates no threads or tasks; asynchronous evaluation awaits the ValueTask of the application
+T:System.Threading.Tasks.Task;The library creates no threads or tasks; asynchronous evaluation awaits the ValueTask of the application
+T:System.Threading.Tasks.Task`1;The library creates no threads or tasks; asynchronous evaluation awaits the ValueTask of the application
+T:System.Threading.Tasks.Parallel;The library creates no threads or tasks; asynchronous evaluation awaits the ValueTask of the application
 
 // Current culture
 P:System.Globalization.CultureInfo.CurrentCulture;Results must not depend on the process culture; use the invariant culture or own formatting

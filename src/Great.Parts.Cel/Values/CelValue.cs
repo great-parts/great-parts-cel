@@ -459,7 +459,8 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     /// <returns><see langword="true"/> when <see cref="Kind"/> is <see cref="CelValueKind.Error"/>.</returns>
     public bool TryGetError([NotNullWhen(true)] out CelError? value)
     {
-        value = _kind == CelValueKind.Error ? (CelError?)_ref : null;
+        // An unknown value of a partial evaluation is of the kind Error too, with a payload that is not an error.
+        value = _kind == CelValueKind.Error ? _ref as CelError : null;
         return value is not null;
     }
 
@@ -471,6 +472,20 @@ public readonly partial struct CelValue : IEquatable<CelValue>
     internal static CelValue FromError(CelError error)
     {
         return new CelValue(CelValueKind.Error, error, 0, 0);
+    }
+
+    // The unknown value of a partial evaluation: the kind Error with the set of what it depends on instead of an error, so that it
+    // goes where an error value goes in the evaluation and TryGetError tells it from an error.
+    internal static CelValue FromUnknown(UnknownSet unknowns) => new(CelValueKind.Error, unknowns, 0, 0);
+
+    // Whether the value is an unknown value of a partial evaluation.
+    internal bool IsUnknown => _kind == CelValueKind.Error && _ref is UnknownSet;
+
+    // The set of an unknown value; null for any other value.
+    internal bool TryGetUnknown([NotNullWhen(true)] out UnknownSet? value)
+    {
+        value = _kind == CelValueKind.Error ? _ref as UnknownSet : null;
+        return value is not null;
     }
 
     // The value of an abstract type: the object is the whole value, so no payload is stored beside it.

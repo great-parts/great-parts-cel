@@ -232,3 +232,65 @@ Great.Parts.Cel.Syntax.CelStructNode.TypeName.get -> string!
 static Great.Parts.Cel.CelSyntax.Format(Great.Parts.Cel.Syntax.CelParsedExpr! expression) -> string!
 static Great.Parts.Cel.Syntax.CelParsedExpr.FromCheckedExprProtobuf(System.ReadOnlySpan<byte> checkedExpr, string? sourceText = null) -> Great.Parts.Cel.Syntax.CelParseResult!
 static Great.Parts.Cel.Syntax.CelParsedExpr.FromProtobuf(System.ReadOnlySpan<byte> parsedExpr, string? sourceText = null) -> Great.Parts.Cel.Syntax.CelParseResult!
+Great.Parts.Cel.CelAttributePattern
+Great.Parts.Cel.CelAttributePattern.CelAttributePattern(string! variable) -> void
+Great.Parts.Cel.CelAttributePattern.Qualifiers.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelValue?>
+Great.Parts.Cel.CelAttributePattern.Qualify(bool key) -> Great.Parts.Cel.CelAttributePattern!
+Great.Parts.Cel.CelAttributePattern.Qualify(long key) -> Great.Parts.Cel.CelAttributePattern!
+Great.Parts.Cel.CelAttributePattern.Qualify(string! fieldOrKey) -> Great.Parts.Cel.CelAttributePattern!
+Great.Parts.Cel.CelAttributePattern.Qualify(ulong key) -> Great.Parts.Cel.CelAttributePattern!
+Great.Parts.Cel.CelAttributePattern.QualifyAny() -> Great.Parts.Cel.CelAttributePattern!
+Great.Parts.Cel.CelAttributePattern.Variable.get -> string!
+override Great.Parts.Cel.CelAttributePattern.ToString() -> string!
+Great.Parts.Cel.CelUnknown
+Great.Parts.Cel.CelUnknown.Arguments.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelValue>
+Great.Parts.Cel.CelUnknown.Attribute.get -> Great.Parts.Cel.CelAttributePattern?
+Great.Parts.Cel.CelUnknown.ExprId.get -> int
+Great.Parts.Cel.CelUnknown.Function.get -> string?
+Great.Parts.Cel.CelUnknown.OverloadId.get -> string?
+Great.Parts.Cel.CelUnknown.Span.get -> Great.Parts.Cel.Diagnostics.CelSourceSpan
+Great.Parts.Cel.CelPartialEvalResult<T>
+Great.Parts.Cel.CelPartialEvalResult<T>.Cost.get -> ulong?
+Great.Parts.Cel.CelPartialEvalResult<T>.Errors.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelError!>
+Great.Parts.Cel.CelPartialEvalResult<T>.GetResidual() -> Great.Parts.Cel.Syntax.CelParsedExpr!
+Great.Parts.Cel.CelPartialEvalResult<T>.GetValueOrThrow() -> T
+Great.Parts.Cel.CelPartialEvalResult<T>.IsSuccess.get -> bool
+Great.Parts.Cel.CelPartialEvalResult<T>.IsUnknown.get -> bool
+Great.Parts.Cel.CelPartialEvalResult<T>.Unknowns.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.CelUnknown!>
+Great.Parts.Cel.CelPartialEvalResult<T>.Value.get -> T?
+Great.Parts.Cel.CelProgram<T>.EvaluateAsync(Great.Parts.Cel.CelBindings! bindings, Great.Parts.Cel.CelEvalOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelEvalResult<T>>
+Great.Parts.Cel.CelProgram<T>.EvaluateInputAsync<TInput>(TInput input, Great.Parts.Cel.CelBindings? bindings = null, Great.Parts.Cel.CelEvalOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelEvalResult<T>>
+Great.Parts.Cel.CelProgram<T>.EvaluatePartial(Great.Parts.Cel.CelBindings! bindings, System.Collections.Generic.IReadOnlyList<Great.Parts.Cel.CelAttributePattern!>! unknowns, Great.Parts.Cel.CelEvalOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelPartialEvalResult<T>!
+Great.Parts.Cel.CelProgram<T>.EvaluatePartialAsync(Great.Parts.Cel.CelBindings! bindings, System.Collections.Generic.IReadOnlyList<Great.Parts.Cel.CelAttributePattern!>! unknowns, Great.Parts.Cel.CelEvalOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelPartialEvalResult<T>!>
+Great.Parts.Cel.CelProgram<T>.HasAsyncCalls.get -> bool
+Great.Parts.Cel.CelEnvironment.EvaluateAsync<T>(string! expression, Great.Parts.Cel.CelBindings! bindings, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelEvalResult<T>>
+Great.Parts.Cel.CelEnvironment.EvaluateInputAsync<T>(string! expression, object! input, Great.Parts.Cel.CelBindings? bindings = null, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelEvalResult<T>>
+Great.Parts.Cel.CelCompilationCache.EvaluateAsync<T>(string! expression, Great.Parts.Cel.CelBindings! bindings, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelEvalResult<T>>
+Great.Parts.Cel.CelCompilationCache.EvaluateInputAsync<T>(string! expression, object! input, Great.Parts.Cel.CelBindings? bindings = null, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelEvalResult<T>>
+Great.Parts.Cel.CelCompileOptions.PartialEvaluation.get -> bool
+Great.Parts.Cel.CelCompileOptions.PartialEvaluation.init -> void
+const Great.Parts.Cel.CelEvalOptions.DefaultMaxConcurrentAsyncCalls = 100 -> int
+Great.Parts.Cel.CelEvalOptions.MaxConcurrentAsyncCalls.get -> int
+Great.Parts.Cel.CelEvalOptions.MaxConcurrentAsyncCalls.init -> void
+Great.Parts.Cel.Declarations.CelAsyncFunctionImplementation
+virtual Great.Parts.Cel.Declarations.CelAsyncFunctionImplementation.Invoke(System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelValue> arguments, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.Values.CelValue>
+Great.Parts.Cel.Diagnostics.CelErrorCode.AsyncEvaluationRequired = 3029 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<TResult>(string! name, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<TResult>(string! name, System.Func<System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<T1, TResult>(string! name, System.Func<T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<T1, TResult>(string! name, System.Func<T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<T1, T2, TResult>(string! name, System.Func<T1, T2, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<T1, T2, TResult>(string! name, System.Func<T1, T2, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<T1, T2, T3, TResult>(string! name, System.Func<T1, T2, T3, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<T1, T2, T3, TResult>(string! name, System.Func<T1, T2, T3, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<T1, T2, T3, T4, TResult>(string! name, System.Func<T1, T2, T3, T4, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunction<T1, T2, T3, T4, TResult>(string! name, System.Func<T1, T2, T3, T4, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncMethod<TReceiver, TResult>(string! name, System.Func<TReceiver, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncMethod<TReceiver, TResult>(string! name, System.Func<TReceiver, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncMethod<TReceiver, T1, TResult>(string! name, System.Func<TReceiver, T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncMethod<TReceiver, T1, TResult>(string! name, System.Func<TReceiver, T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncMethod<TReceiver, T1, T2, TResult>(string! name, System.Func<TReceiver, T1, T2, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncMethod<TReceiver, T1, T2, TResult>(string! name, System.Func<TReceiver, T1, T2, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncMethod<TReceiver, T1, T2, T3, TResult>(string! name, System.Func<TReceiver, T1, T2, T3, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncMethod<TReceiver, T1, T2, T3, TResult>(string! name, System.Func<TReceiver, T1, T2, T3, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask<TResult>>! implementation, Great.Parts.Cel.Declarations.CelFunctionOptions! options) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.CelEnvironmentBuilder.AddAsyncFunctionImplementation(string! overloadId, Great.Parts.Cel.Declarations.CelAsyncFunctionImplementation! implementation) -> Great.Parts.Cel.CelEnvironmentBuilder!

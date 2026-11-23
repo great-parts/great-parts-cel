@@ -66,7 +66,9 @@ public static class CelAuthorizationExtensions
     /// The expression is compiled when the policy is first evaluated, not here: a compilation error denies access with its
     /// code as the reason. Validate the expressions of the policies at startup with
     /// <see cref="DependencyInjection.ICelEvaluator.Validate{T}(string, CelCompileOptions)"/> when they come from
-    /// configuration.
+    /// configuration. The evaluation is asynchronous, so the expression may call an asynchronous function of the application; when
+    /// the resource of the authorization is the <see cref="Microsoft.AspNetCore.Http.HttpContext"/> of the request, as it is for an
+    /// endpoint, its <c>RequestAborted</c> token cancels the evaluation, and any other resource has no token.
     /// </remarks>
     /// <param name="builder">The policy builder.</param>
     /// <param name="expression">The expression of the type <c>bool</c> over the variable <c>user</c>.</param>

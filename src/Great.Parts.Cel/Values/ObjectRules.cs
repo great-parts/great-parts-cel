@@ -389,6 +389,7 @@ internal static class ObjectRules
     /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
     /// <param name="error">The error value when the result is <see cref="ValueEquality.Error"/>.</param>
     /// <param name="boundary">The exception boundary and the event counter of an evaluation; <see langword="null"/> outside one, where an exception passes.</param>
+    /// <param name="nanEqual">Whether the values of the fields compare with a NaN equal to a NaN; see <see cref="EqualityRules.AreEqual"/>.</param>
     /// <returns>The result.</returns>
     internal static ValueEquality InstancesEqual(
         CelObjectType owner,
@@ -397,7 +398,8 @@ internal static class ObjectRules
         TypeIndex? types,
         IEvaluationMeter? meter,
         out CelValue error,
-        IApplicationBoundary? boundary = null)
+        IApplicationBoundary? boundary = null,
+        bool nanEqual = false)
     {
         error = default;
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
@@ -432,7 +434,8 @@ internal static class ObjectRules
                 meter,
                 out error,
                 types,
-                boundary);
+                boundary,
+                nanEqual);
             if (field != ValueEquality.Equal)
             {
                 return field;
@@ -452,6 +455,10 @@ internal static class ObjectRules
     /// <param name="meter">The meter of an evaluation with a cost limit; <see langword="null"/> charges nothing.</param>
     /// <param name="error">The error value when the result is <see cref="ValueEquality.Error"/>.</param>
     /// <param name="boundary">The exception boundary and the event counter of an evaluation; <see langword="null"/> outside one.</param>
+    /// <param name="nanEqual">
+    /// Whether the default comparison takes a NaN for equal to a NaN, and two values that are one instance for equal without reading
+    /// anything; see <see cref="EqualityRules.AreEqual"/>.
+    /// </param>
     /// <returns>The result.</returns>
     internal static ValueEquality AreEqual(
         CelValue left,
@@ -459,7 +466,8 @@ internal static class ObjectRules
         TypeIndex? types,
         IEvaluationMeter? meter,
         out CelValue error,
-        IApplicationBoundary? boundary = null)
+        IApplicationBoundary? boundary = null,
+        bool nanEqual = false)
     {
         if (!TryDescribe(left, types, out CelObjectType? leftType, out error) || !TryDescribe(right, types, out CelObjectType? rightType, out error))
         {
@@ -474,7 +482,12 @@ internal static class ObjectRules
 
         _ = left.TryGetObject(out object? leftInstance);
         _ = right.TryGetObject(out object? rightInstance);
-        return CompareInstances(leftType!, leftInstance!, rightInstance!, types, meter, out error, boundary);
+        if (nanEqual && ReferenceEquals(leftInstance, rightInstance))
+        {
+            return ValueEquality.Equal;
+        }
+
+        return CompareInstances(leftType!, leftInstance!, rightInstance!, types, meter, out error, boundary, nanEqual);
     }
 
     // Two instances of one description: the default rule, or the description's own CelEquals when its EqualityCost says that it
@@ -486,7 +499,8 @@ internal static class ObjectRules
         TypeIndex? types,
         IEvaluationMeter? meter,
         out CelValue error,
-        IApplicationBoundary? boundary)
+        IApplicationBoundary? boundary,
+        bool nanEqual)
     {
         error = default;
         long? cost;
@@ -502,7 +516,7 @@ internal static class ObjectRules
 
         if (cost is not { } units)
         {
-            return InstancesEqual(owner, left, right, types, meter, out error, boundary);
+            return InstancesEqual(owner, left, right, types, meter, out error, boundary, nanEqual);
         }
 
         meter?.Charge((ulong)Math.Max(units, 0));

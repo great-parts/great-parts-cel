@@ -16,7 +16,7 @@ internal static class ValueText
 {
     /// <summary>
     /// An outcome in a finding message, one line: <c>int 42</c>, <c>error 'division by zero'</c>,
-    /// <c>check error 'found no matching overload'</c>. An error message is cut at its first line break.
+    /// <c>check error 'found no matching overload'</c>, <c>unknown x1.a, ms[*]</c>. An error message is cut at its first line break.
     /// </summary>
     /// <param name="outcome">The outcome.</param>
     internal static string Describe(this SideOutcome outcome)
@@ -25,6 +25,7 @@ internal static class ValueText
         {
             OutcomeClass.Value => TypeName(outcome.Result!) + " " + Format(outcome.Result!),
             OutcomeClass.EvaluationError => "error '" + FirstLine(outcome.Message) + "'",
+            OutcomeClass.Unknown => "unknown " + string.Join(", ", outcome.Trails),
             _ => StageName(outcome.Stage) + " error '" + FirstLine(outcome.Message) + "'",
         };
     }

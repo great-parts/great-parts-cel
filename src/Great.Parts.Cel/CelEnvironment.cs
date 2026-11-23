@@ -36,7 +36,7 @@ namespace Great.Parts.Cel;
 /// evaluates the same texts again creates a <see cref="CelCompilationCache"/> or keeps the programs.
 /// </para>
 /// </remarks>
-public sealed class CelEnvironment
+public sealed partial class CelEnvironment
 {
     // The references of a compilation that stopped before the check.
     private static readonly IReadOnlyDictionary<int, Reference> EmptyReferences = ImmutableDictionary<int, Reference>.Empty;
@@ -106,7 +106,7 @@ public sealed class CelEnvironment
         // The expected type is derived before the text is read, so the same T and options throw for every text.
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
         CelSourceLocation? start = options?.SourceLocation;
-        return ProgramOf<T>(CompileSteps(expression, expectedType, start), start);
+        return ProgramOf<T>(CompileSteps(expression, expectedType, start, options?.PartialEvaluation ?? false), start);
     }
 
     // The program of a compilation that got as far as the plan, or its errors.
@@ -117,27 +117,27 @@ public sealed class CelEnvironment
 
     // The steps that Compile and Validate share, so that both give the same errors: parse, check and planning. The plan exists
     // only when all three succeeded; the check result holds the references resolved before an error of the check.
-    private Compilation CompileSteps(string expression, CelType expectedType, CelSourceLocation? start)
+    private Compilation CompileSteps(string expression, CelType expectedType, CelSourceLocation? start, bool partial = false)
     {
         CelParseResult parsed = Parse(expression, syntax: null);
         return parsed.IsSuccess
-            ? CheckAndPlan(parsed.ParsedExpr, expectedType, start)
+            ? CheckAndPlan(parsed.ParsedExpr, expectedType, start, partial)
             : new Compilation(InDocument(parsed.Errors, start), null, null, default);
     }
 
     // The steps for a tree of any source: the syntax that the environment accepts is checked unless its own parser made the tree,
     // then the tree is checked and planned.
-    private Compilation CompileTree(CelParsedExpr tree, CelType expectedType, CelSourceLocation? start)
+    private Compilation CompileTree(CelParsedExpr tree, CelType expectedType, CelSourceLocation? start, bool partial = false)
     {
         if (!ReferenceEquals(tree.ParsedWith, Syntax) && TreeInput.Check(tree, Syntax) is { IsEmpty: false } inputErrors)
         {
             return new Compilation(InDocument(inputErrors, start), null, null, default);
         }
 
-        return CheckAndPlan(tree, expectedType, start);
+        return CheckAndPlan(tree, expectedType, start, partial);
     }
 
-    private Compilation CheckAndPlan(CelParsedExpr parsed, CelType expectedType, CelSourceLocation? start)
+    private Compilation CheckAndPlan(CelParsedExpr parsed, CelType expectedType, CelSourceLocation? start, bool partial)
     {
         ImmutableArray<CelMacroCall> macroCalls = parsed.MacroCalls;
         CheckResult checkedResult = Check(parsed, expectedType);
@@ -146,7 +146,7 @@ public sealed class CelEnvironment
             return new Compilation(InDocument(checkedResult.Errors, start), null, checkedResult, macroCalls);
         }
 
-        if (!TryPlanWithinBoundary(Planner.For(checkedResult.Expression, Declarations, TimeZones), static planner => planner.Run(), out Plan? plan, out CelError? planningError))
+        if (!TryPlanWithinBoundary(Planner.For(checkedResult.Expression, Declarations, TimeZones, partial), static planner => planner.Run(), out Plan? plan, out CelError? planningError))
         {
             return new Compilation(InDocument([planningError], start), null, checkedResult, macroCalls);
         }
@@ -663,7 +663,7 @@ public sealed class CelEnvironment
 
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
         CelSourceLocation? start = options?.SourceLocation;
-        return ProgramOf<T>(CompileTree(expression, expectedType, start), start);
+        return ProgramOf<T>(CompileTree(expression, expectedType, start, options?.PartialEvaluation ?? false), start);
     }
 
     /// <summary>

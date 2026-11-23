@@ -49,9 +49,30 @@ internal static class Invocation
 
     private static CelValue CallApplication(Frame frame, OverloadBinding overload, ReadOnlySpan<CelValue> arguments, in CallSite site, int offset)
     {
+        if (!TryChargeApplication(frame, overload, arguments, offset, out CelValue failure))
+        {
+            return failure;
+        }
+
+        CelValue result;
+        try
+        {
+            result = overload.Implementation!(arguments, in site);
+        }
+        catch (Exception exception) when (exception is not CostLimitException && Plan.IsInternal(exception, frame.Token))
+        {
+            return EvaluationErrors.ApplicationException(exception, overload, false, frame.Lines, offset);
+        }
+
+        return CheckResult(frame, overload, result, offset);
+    }
+
+    // Counts an event and charges a call of an overload of the application: 1 plus the value of its cost function. A call of an overload
+    // that waits is charged so in each pass that makes it. False, with the error value, when the cost function threw.
+    internal static bool TryChargeApplication(Frame frame, OverloadBinding overload, ReadOnlySpan<CelValue> arguments, int offset, out CelValue error)
+    {
         frame.Event();
         bool inCostFunction = false;
-        CelValue result;
         try
         {
             if (frame.Metered)
@@ -67,14 +88,27 @@ internal static class Invocation
                 frame.Charge(overload.FixedCost);
                 frame.Charge(units);
             }
-
-            result = overload.Implementation!(arguments, in site);
         }
         catch (Exception exception) when (exception is not CostLimitException && Plan.IsInternal(exception, frame.Token))
         {
-            return EvaluationErrors.ApplicationException(exception, overload, inCostFunction, frame.Lines, offset);
+            error = EvaluationErrors.ApplicationException(exception, overload, inCostFunction, frame.Lines, offset);
+            return false;
         }
 
+        error = default;
+        return true;
+    }
+
+    // The value of a call of an overload that waits, completed between two passes: the error of its exception, or its result checked as the
+    // result of a call of an application function is.
+    internal static CelValue AsyncResult(Frame frame, AsyncCall call) =>
+        call.Exception is { } exception
+            ? EvaluationErrors.ApplicationException(exception, call.Overload, false, frame.Lines, call.Offset)
+            : CheckResult(frame, call.Overload, call.Result, call.Offset);
+
+    // The result of a call of an application function against the declared result type of its overload.
+    private static CelValue CheckResult(Frame frame, OverloadBinding overload, CelValue result, int offset)
+    {
         if (result.Kind == CelValueKind.Error)
         {
             return result;

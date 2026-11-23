@@ -21,6 +21,10 @@ namespace Great.Parts.Cel.DependencyInjection;
 /// expression that does not compile or whose evaluation fails also fails it, with the message, the code of the error and
 /// its text. The check works without a web host, so it serves services and browser applications as well.
 /// </para>
+/// <para>
+/// <c>IValidateOptions&lt;TOptions&gt;</c> is synchronous, so the check evaluates synchronously: an expression that calls a function
+/// declared with <c>AddAsyncFunction</c> fails the validation with the error <c>AsyncEvaluationRequired</c>.
+/// </para>
 /// </remarks>
 public static class CelOptionsBuilderExtensions
 {

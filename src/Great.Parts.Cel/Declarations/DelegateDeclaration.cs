@@ -18,7 +18,8 @@ internal sealed class DelegateDeclaration
 {
     private readonly ImmutableArray<ClrMapping> _parameters;
     private readonly ClrMapping _result;
-    private readonly Func<string, OverloadImplementation> _implementation;
+    private readonly Func<string, OverloadImplementation>? _implementation;
+    private readonly Func<string, AsyncOverloadImplementation>? _asyncImplementation;
     private readonly bool _isReceiverStyle;
     private readonly string? _overloadId;
     private readonly CelCostFunction? _cost;
@@ -31,15 +32,17 @@ internal sealed class DelegateDeclaration
         Delegate original,
         ImmutableArray<ClrMapping> parameters,
         ClrMapping result,
-        Func<string, OverloadImplementation> implementation,
+        Func<string, OverloadImplementation>? implementation,
         bool isReceiverStyle = false,
-        CelFunctionOptions? options = null)
+        CelFunctionOptions? options = null,
+        Func<string, AsyncOverloadImplementation>? asyncImplementation = null)
     {
         Name = name;
         Original = original;
         _parameters = parameters;
         _result = result;
         _implementation = implementation;
+        _asyncImplementation = asyncImplementation;
         _isReceiverStyle = isReceiverStyle;
         _overloadId = options?.OverloadId;
         _cost = options?.Cost;
@@ -114,7 +117,15 @@ internal sealed class DelegateDeclaration
 
         // The typed delegate is checked against the inferred overload like a typed implementation.
         function = new CelFunctionDecl(Name, Overload(overloadId, parameterTypes, resultType));
-        implementation = new ImplementationEntry(overloadId, Original, _implementation(overloadId), [.. expectedTypes], resultType, default, false);
+        implementation = new ImplementationEntry(
+            overloadId,
+            Original,
+            _implementation?.Invoke(overloadId),
+            [.. expectedTypes],
+            resultType,
+            default,
+            false,
+            asyncImplementation: _asyncImplementation?.Invoke(overloadId));
         return true;
     }
 

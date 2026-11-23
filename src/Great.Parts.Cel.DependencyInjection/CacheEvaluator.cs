@@ -4,7 +4,7 @@ namespace Great.Parts.Cel.DependencyInjection;
 
 // The registered ICelEvaluator: the one-step calls of the compilation cache of the environment, and the validation of the environment.
 // The cache and the environment are safe for concurrent use, so this class is too.
-internal sealed class CacheEvaluator(CelEnvironment environment, CelCompilationCache cache) : ICelEvaluator
+internal sealed partial class CacheEvaluator(CelEnvironment environment, CelCompilationCache cache) : ICelEvaluator
 {
     public CelEnvironment Environment => environment;
 

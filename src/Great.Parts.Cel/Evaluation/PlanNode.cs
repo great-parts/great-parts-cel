@@ -64,23 +64,48 @@ internal abstract class PlanNode
     }
 
     // Evaluates the arguments of a call from left to right onto the argument stack. Calls are strict: at
-    // the first error value the arguments pushed so far are popped and the error is returned.
+    // the first error value the arguments pushed so far are popped and the error is returned. An unknown value of a partial
+    // evaluation is not the end: the other arguments are evaluated, and a real error among them is the result, as an error is
+    // the result of a strict call whatever the other arguments are; otherwise the result is the union of the unknown values.
     private protected static bool TryPushArguments(Frame frame, ImmutableArray<PlanNode> arguments, out CelValue error)
     {
+        CelValue pending = default;
+        int pushed = 0;
         for (int i = 0; i < arguments.Length; i++)
         {
             CelValue value = arguments[i].Evaluate(frame);
             if (value.Kind == CelValueKind.Error)
             {
-                frame.Pop(i);
-                error = value;
-                return false;
+                if (!value.IsUnknown)
+                {
+                    frame.Pop(pushed);
+                    error = value;
+                    return false;
+                }
+
+                pending = Defer(pending, value);
+                continue;
             }
 
             frame.Push(value);
+            pushed++;
+        }
+
+        if (pending.IsUnknown)
+        {
+            frame.Pop(pushed);
+            error = pending;
+            return false;
         }
 
         error = default;
         return true;
     }
+
+    // The unknown value that an unknown operand adds to those of the operands before it: the first one when there is none yet
+    // (pending is not an unknown value), otherwise the union.
+    private protected static CelValue Defer(CelValue pending, CelValue unknown) =>
+        pending.TryGetUnknown(out UnknownSet? earlier) && unknown.TryGetUnknown(out UnknownSet? later)
+            ? CelValue.FromUnknown(UnknownSet.Merge(earlier, later))
+            : unknown;
 }

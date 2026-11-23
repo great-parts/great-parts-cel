@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using Great.Parts.Cel.Eng.Difftest.Compare;
 using Great.Parts.Cel.Eng.Findings;
@@ -35,18 +36,22 @@ internal static class PendingFile
 
     private static readonly UTF8Encoding Utf8WithoutBom = new(encoderShouldEmitUTF8Identifier: false);
 
-    /// <summary>Builds the file: the empty form, then the section with the cases.</summary>
+    /// <summary>
+    /// Builds the file: the empty form, then the section with the cases. A case of partial evaluation is not in it: it is no case
+    /// of the regression corpus, which evaluates fully.
+    /// </summary>
     /// <param name="cases">The cases of new signatures, in the order the run found them.</param>
     internal static PendingText Build(IReadOnlyList<NewSignature> cases)
     {
         StringBuilder text = new(EmptyForm);
         List<int> testLines = [];
-        if (cases.Count > 0)
+        IReadOnlyList<NewSignature> written = [.. cases.Where(found => !found.Partial)];
+        if (written.Count > 0)
         {
             int line = Lines(EmptyForm) + 1;
             text.Append("section {\n").Append("  name: \"").Append(DivergenceSearch.SectionName).Append("\"\n");
             line += 2;
-            foreach (NewSignature found in cases)
+            foreach (NewSignature found in written)
             {
                 testLines.Add(line);
                 string body = found.CaseText.EndsWith('\n') ? found.CaseText : found.CaseText + "\n";
@@ -70,21 +75,24 @@ internal static class PendingFile
 
     /// <summary>
     /// The <c>ENG820</c> findings: one per new signature, at the <c>test</c> token of its case. The message names the signature,
-    /// its severity, both outcomes, the seed and the number of the case.
+    /// its severity, both outcomes, the seed and the number of the case. A signature of partial evaluation has no case in the
+    /// file: its finding is at line 1, column 1, and the message names the expression and the unknown data.
     /// </summary>
     /// <param name="cases">The cases of new signatures.</param>
     /// <param name="pending">The file built from the cases.</param>
     internal static IReadOnlyList<Finding> Findings(IReadOnlyList<NewSignature> cases, PendingText pending)
     {
         List<Finding> findings = [];
-        for (int index = 0; index < cases.Count; index++)
+        int written = 0;
+        foreach (NewSignature found in cases)
         {
-            NewSignature found = cases[index];
             Divergence divergence = found.Divergence;
+            string partial = found.Partial ? $"; partial evaluation of {found.CaseText}" : string.Empty;
             string message = string.Create(
                 CultureInfo.InvariantCulture,
-                $"new divergence signature '{divergence.Signature}' ({divergence.Kind.Severity()}): {divergence.OraclePhrase} {divergence.Oracle.Describe()}, {divergence.LibraryPhrase} {divergence.Library.Describe()}; seed {found.Seed}, case {found.Number}");
-            findings.Add(new Finding(Path, pending.TestLines[index], TestColumn, FindingSeverity.Error, EngCodes.Eng820, message));
+                $"new divergence signature '{divergence.Signature}' ({divergence.Severity}): {divergence.OraclePhrase} {divergence.Oracle.Describe()}, {divergence.LibraryPhrase} {divergence.Library.Describe()}{partial}; seed {found.Seed}, case {found.Number}");
+            (int line, int column) = found.Partial ? (1, 1) : (pending.TestLines[written++], TestColumn);
+            findings.Add(new Finding(Path, line, column, FindingSeverity.Error, EngCodes.Eng820, message));
         }
 
         return findings;

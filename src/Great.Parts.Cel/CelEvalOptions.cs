@@ -10,7 +10,7 @@ namespace Great.Parts.Cel;
 /// The options are immutable once created and can be shared between threads and evaluations. The
 /// cancellation token is a separate argument of the evaluation methods.
 /// </remarks>
-public sealed class CelEvalOptions
+public sealed partial class CelEvalOptions
 {
     /// <summary>
     /// Creates options without a cost limit.

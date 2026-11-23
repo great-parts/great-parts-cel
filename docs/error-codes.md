@@ -64,6 +64,7 @@ The table is built from the members of `CelErrorCode` and their XML documentatio
 | 3026 | `EvalInvalidComprehensionRange` | Evaluate | The range of a comprehension macro — a standard macro, a two-variable macro or `sortBy` — is not a list or a map, found during evaluation because the range has the type `dyn`. The evaluation counterpart of `InvalidComprehensionRange`. Location: the range. |
 | 3027 | `UnsupportedMapKeyType` | Evaluate | A key of a map literal evaluates to a value that is not an `int`, a `uint`, a `bool` or a `string`, such as a `double`, `null` or a `decimal`: map keys can have only these types. Type checking does not reject such a literal. Location: the key of the literal. |
 | 3028 | `ImplementationResultMismatch` | Evaluate | The implementation of an application function returned a value whose kind does not fit the declared result type of the overload. A result of type `dyn` is not checked; an error value that the implementation returns is propagated as an error, not reported with this code. The message names the function and the overload identifier. Location: the call. |
+| 3029 | `AsyncEvaluationRequired` | Evaluate | A program that calls an overload with an asynchronous implementation was evaluated by a synchronous call: `Evaluate`, `EvaluateInput`, a synchronous one-step call, or a check of settings that evaluates the expression synchronously. Nothing is evaluated. To fix it, evaluate with `EvaluateAsync`, `EvaluateInputAsync` or the asynchronous one-step calls, or with `EvaluatePartial`, where the call is an unknown. The message and `Subject` name the function. Location: the first asynchronous call in the text. |
 | 4000 | `DuplicateVariable` | Build | Two different variable declarations have the same name. The message names both sources. |
 | 4001 | `DuplicateType` | Build | Two different descriptions have the same CEL type name, or one .NET type is described by two type sources; or a variable has the name of an abstract type that an added extension set declares, such as `decimal`, `date` or `time_of_day`. Identical descriptions from two generated type contexts are one declaration, not an error. The message names both sources. |
 | 4002 | `OverlappingOverloads` | Build | The signatures of two overloads of a function are the same or overlap after the erasure of type parameters. The message names both overloads and their sources. |
@@ -135,6 +136,7 @@ The table lists the codes that have at least one part; a code that is not in it 
 | 3026 | `EvalInvalidComprehensionRange` | — | — | the type of the value of the range |
 | 3027 | `UnsupportedMapKeyType` | — | — | the type of the key |
 | 3028 | `ImplementationResultMismatch` | the overload identifier | the declared result type | the type of the result as the message names it |
+| 3029 | `AsyncEvaluationRequired` | the function | — | — |
 | 4000 | `DuplicateVariable` | the variable | — | — |
 | 4001 | `DuplicateType` | the type | — | — |
 | 4002 | `OverlappingOverloads` | the function | — | — |

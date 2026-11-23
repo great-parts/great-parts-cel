@@ -437,6 +437,15 @@ public enum CelErrorCode
     /// </summary>
     ImplementationResultMismatch = 3028,
 
+    /// <summary>
+    /// A program that calls an overload with an asynchronous implementation was evaluated by a synchronous call:
+    /// <c>Evaluate</c>, <c>EvaluateInput</c>, a synchronous one-step call, or a check of settings that evaluates the expression
+    /// synchronously. Nothing is evaluated. To fix it, evaluate with <c>EvaluateAsync</c>, <c>EvaluateInputAsync</c> or the
+    /// asynchronous one-step calls, or with <c>EvaluatePartial</c>, where the call is an unknown. The message and <c>Subject</c>
+    /// name the function. Location: the first asynchronous call in the text.
+    /// </summary>
+    AsyncEvaluationRequired = 3029,
+
     // Building an environment: 4000-4999. Not every build error is a conflict: a message about a
     // conflict names both conflicting sources, while others, such as UnknownExtensionVersion (4004) or
     // InvalidVariableName (4016), concern one declaration.

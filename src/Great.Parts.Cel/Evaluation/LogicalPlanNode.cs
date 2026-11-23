@@ -55,12 +55,32 @@ internal abstract class LogicalPlanNode : PlanNode
 
         Begin(frame);
         ReadOnlySpan<CelValue> values = frame.Peek(Operands.Length);
-        CelValue result = failed < 0
-            ? CelValue.FromBoolean(!_decisive)
-            : values[failed].Kind == CelValueKind.Error
-                ? values[failed]
-                : new CallSite(_function, Offset, frame.Lines, types: frame.Types).NoMatchingOverload(values);
+        CelValue result = failed < 0 ? CelValue.FromBoolean(!_decisive) : Failure(frame, values, failed);
         frame.Pop(Operands.Length);
         return result;
+    }
+
+    // The result when no operand decided and one failed: the union of the unknown values of the operands when there are any, as an
+    // unknown operand takes precedence over an error here, otherwise the first operand that failed — its error value, or
+    // EvalNoMatchingOverload for a value that is not a bool.
+    private CelValue Failure(Frame frame, ReadOnlySpan<CelValue> values, int failed)
+    {
+        CelValue unknown = default;
+        foreach (CelValue value in values)
+        {
+            if (value.IsUnknown)
+            {
+                unknown = Defer(unknown, value);
+            }
+        }
+
+        if (unknown.IsUnknown)
+        {
+            return unknown;
+        }
+
+        return values[failed].Kind == CelValueKind.Error
+            ? values[failed]
+            : new CallSite(_function, Offset, frame.Lines, types: frame.Types).NoMatchingOverload(values);
     }
 }

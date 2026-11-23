@@ -21,8 +21,11 @@ namespace Great.Parts.Cel.Eng.Difftest.Sides;
 /// environment of the run manifest with the time zone database of the data file, <c>Compile&lt;CelValue&gt;</c> and
 /// <c>Evaluate</c>. An exception from the library counts as an error of the step it escaped from, and the message names its type.
 /// </summary>
-internal sealed class LibrarySide : ICaseSide, ICheckedSide
+internal sealed class LibrarySide : ICaseSide, ICheckedSide, IPartialSide
 {
+    // The compile options of partial evaluation: the program keeps the tree and records the values of the nodes.
+    private static readonly CelCompileOptions PartialOptions = new() { PartialEvaluation = true };
+
     // The offset of a zone at an instant, through the public API: the six fields of the local time, which the calendar of the
     // library gives for the instant s in the zone z (docs/design/eng-difftest.md, "Findings and output").
     private const string OffsetExpression =
@@ -111,18 +114,41 @@ internal sealed class LibrarySide : ICaseSide, ICheckedSide
     /// <inheritdoc/>
     public SideOutcome Evaluate(string expression, IReadOnlyDictionary<string, Value> bindings)
     {
-        CelCompileResult<CelValue> compiled;
+        return Compile(expression, null, out CelProgram<CelValue>? program) is { } failure ? failure : Run(program!, bindings);
+    }
+
+    /// <summary>
+    /// Partial evaluation (docs/design/eng-difftest.md, "Partial evaluation"): the expression compiled with
+    /// <c>CelCompileOptions.PartialEvaluation</c> and evaluated by <c>EvaluatePartial</c> with the patterns as the unknown data.
+    /// The unknown parts of the result are the attributes of its <c>CelUnknown</c> values, without the ids of the nodes.
+    /// </summary>
+    /// <param name="expression">The expression as CEL source.</param>
+    /// <param name="bindings">The bound variables.</param>
+    /// <param name="patterns">The patterns of unknown data.</param>
+    /// <returns>A compile error, an evaluation error, a value, or the unknown trails.</returns>
+    public SideOutcome EvaluatePartial(string expression, IReadOnlyDictionary<string, Value> bindings, IReadOnlyList<UnknownAttribute> patterns)
+    {
+        if (Compile(expression, PartialOptions, out CelProgram<CelValue>? program) is { } failure)
+        {
+            return failure;
+        }
+
         try
         {
-            compiled = environment.Compile<CelValue>(expression);
+            CelPartialEvalResult<CelValue> result = program!.EvaluatePartial(Bind(bindings), [.. patterns.Select(ToPattern)], null, CancellationToken.None);
+            if (result.IsUnknown)
+            {
+                return SideOutcome.Unknown(result.Unknowns.Select(ToTrail));
+            }
+
+            return result.IsSuccess
+                ? SideOutcome.Of(ToExprValue(result.GetValueOrThrow()))
+                : SideOutcome.EvaluationError(Messages(result.Errors));
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            // Compile parses and checks; the library does not say which of the two threw.
-            return SideOutcome.CompileError(CompileStage.Check, "the library threw " + Describe(exception));
+            return SideOutcome.EvaluationError("the library threw " + Describe(exception));
         }
-
-        return Run(compiled, bindings);
     }
 
     /// <summary>
@@ -176,27 +202,47 @@ internal sealed class LibrarySide : ICaseSide, ICheckedSide
             return SideOutcome.CompileError(CompileStage.Load, "the library threw " + Describe(exception));
         }
 
-        return Run(compiled, bindings);
+        return Unwrap(compiled, out CelProgram<CelValue>? program) is { } failure ? failure : Run(program!, bindings);
     }
 
-    // The outcome of a compiled program on the bindings: a compile error with its stage, an error of evaluation or a value.
-    private static SideOutcome Run(CelCompileResult<CelValue> compiled, IReadOnlyDictionary<string, Value> bindings)
+    // Compiles an expression; the outcome of a compile error, or null with the program. Compile parses and checks, and the library
+    // does not say which of the two threw.
+    private SideOutcome? Compile(string expression, CelCompileOptions? options, out CelProgram<CelValue>? program)
     {
+        program = null;
+        CelCompileResult<CelValue> compiled;
+        try
+        {
+            compiled = environment.Compile<CelValue>(expression, options);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            return SideOutcome.CompileError(CompileStage.Check, "the library threw " + Describe(exception));
+        }
+
+        return Unwrap(compiled, out program);
+    }
+
+    // The program of a compilation, or the outcome of its compile error with its stage.
+    private static SideOutcome? Unwrap(CelCompileResult<CelValue> compiled, out CelProgram<CelValue>? program)
+    {
+        program = null;
         if (!compiled.IsSuccess || compiled.Program is null)
         {
             CompileStage stage = compiled.Errors.Any(error => error.Stage == CelErrorStage.Parse) ? CompileStage.Parse : CompileStage.Check;
             return SideOutcome.CompileError(stage, Messages(compiled.Errors));
         }
 
+        program = compiled.Program;
+        return null;
+    }
+
+    // The outcome of a program on the bindings: an error of evaluation or a value.
+    private static SideOutcome Run(CelProgram<CelValue> program, IReadOnlyDictionary<string, Value> bindings)
+    {
         try
         {
-            CelBindings values = new();
-            foreach ((string name, Value value) in bindings)
-            {
-                values.Add(name, ValueConversion.ToCelValue(value));
-            }
-
-            CelEvalResult<CelValue> result = compiled.Program.Evaluate(values, null, CancellationToken.None);
+            CelEvalResult<CelValue> result = program.Evaluate(Bind(bindings), null, CancellationToken.None);
             return result.IsSuccess
                 ? SideOutcome.Of(ToExprValue(result.Value))
                 : SideOutcome.EvaluationError(Messages(result.Errors));
@@ -285,6 +331,68 @@ internal sealed class LibrarySide : ICaseSide, ICheckedSide
         // The month of the library counts from 0, its day of the month from 1.
         DateTime local = new((int)fields[0], (int)fields[1] + 1, (int)fields[2], (int)fields[3], (int)fields[4], (int)fields[5], DateTimeKind.Unspecified);
         return local - DateTimeOffset.FromUnixTimeSeconds(seconds).UtcDateTime;
+    }
+
+    private static CelBindings Bind(IReadOnlyDictionary<string, Value> bindings)
+    {
+        CelBindings values = new();
+        foreach ((string name, Value value) in bindings)
+        {
+            values.Add(name, ValueConversion.ToCelValue(value));
+        }
+
+        return values;
+    }
+
+    // The pattern of unknown data of the library for an attribute of the stand.
+    private static CelAttributePattern ToPattern(UnknownAttribute pattern)
+    {
+        CelAttributePattern result = new(pattern.Variable);
+        foreach (AttributeQualifier qualifier in pattern.Qualifiers)
+        {
+            result = qualifier.Kind switch
+            {
+                QualifierKind.String => result.Qualify(qualifier.Text),
+                QualifierKind.Int => result.Qualify(long.Parse(qualifier.Text, CultureInfo.InvariantCulture)),
+                QualifierKind.Uint => result.Qualify(ulong.Parse(qualifier.Text, CultureInfo.InvariantCulture)),
+                QualifierKind.Bool => result.Qualify(bool.Parse(qualifier.Text)),
+                _ => result.QualifyAny(),
+            };
+        }
+
+        return result;
+    }
+
+    // The trail of an unknown part of a result; an unknown that is no attribute, an asynchronous call, has no variable.
+    private static UnknownAttribute ToTrail(CelUnknown unknown) => unknown.Attribute is { } attribute
+        ? new UnknownAttribute(attribute.Variable, [.. attribute.Qualifiers.Select(ToQualifier)])
+        : new UnknownAttribute(string.Empty, []);
+
+    private static AttributeQualifier ToQualifier(CelValue? qualifier)
+    {
+        if (qualifier is not { } value)
+        {
+            return new AttributeQualifier(QualifierKind.Any, string.Empty);
+        }
+
+        if (value.TryGetString(out string? name) && name is not null)
+        {
+            return new AttributeQualifier(QualifierKind.String, name);
+        }
+
+        if (value.TryGetInt64(out long number))
+        {
+            return new AttributeQualifier(QualifierKind.Int, number.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (value.TryGetUInt64(out ulong key))
+        {
+            return new AttributeQualifier(QualifierKind.Uint, key.ToString(CultureInfo.InvariantCulture));
+        }
+
+        return value.TryGetBoolean(out bool flag)
+            ? new AttributeQualifier(QualifierKind.Bool, flag ? "true" : "false")
+            : new AttributeQualifier(QualifierKind.Any, string.Empty);
     }
 
     private static bool TryCreateDatabase(string zoneInfoFile, out CelTimeZoneDatabase? database, out string problem)

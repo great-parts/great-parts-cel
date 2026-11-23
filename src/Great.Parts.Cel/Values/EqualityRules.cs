@@ -35,6 +35,11 @@ internal static class EqualityRules
     /// <param name="error">The error value when the result is <see cref="ValueEquality.Error"/>; otherwise <c>null</c>.</param>
     /// <param name="types">The type index of an evaluation, which describes object values; <see langword="null"/> outside one, where a bare instance has no description.</param>
     /// <param name="boundary">The exception boundary and the event counter of an evaluation for the reads of fields; <see langword="null"/> outside one.</param>
+    /// <param name="nanEqual">
+    /// Whether a NaN equals a NaN at any depth, in a list, a map value, an optional and a field of an object, and two object values
+    /// that are one instance are equal without reading their fields: the comparison that finds the same call of an evaluation again,
+    /// not the equality of the language.
+    /// </param>
     /// <returns>The result.</returns>
     internal static ValueEquality AreEqual(
         CelValue left,
@@ -42,7 +47,8 @@ internal static class EqualityRules
         IEvaluationMeter? meter,
         out CelValue error,
         TypeIndex? types = null,
-        IApplicationBoundary? boundary = null)
+        IApplicationBoundary? boundary = null,
+        bool nanEqual = false)
     {
         error = default;
         if (left.Kind == CelValueKind.Error || right.Kind == CelValueKind.Error)
@@ -54,7 +60,7 @@ internal static class EqualityRules
         if (OrderingRules.IsNumber(left.Kind) && OrderingRules.IsNumber(right.Kind))
         {
             meter?.Charge(1);
-            return Result(OrderingRules.CompareNumbers(left, right) == ValueOrdering.Equal);
+            return Result(OrderingRules.CompareNumbers(left, right) == ValueOrdering.Equal || (nanEqual && BothNaN(left, right)));
         }
 
         if (left.Kind != right.Kind)
@@ -69,9 +75,12 @@ internal static class EqualityRules
         }
 
         return left.Kind == CelValueKind.Object
-            ? ObjectRules.AreEqual(left, right, types, meter, out error, boundary)
-            : SameKind(left, right, meter, out error, types, boundary);
+            ? ObjectRules.AreEqual(left, right, types, meter, out error, boundary, nanEqual)
+            : SameKind(left, right, meter, out error, types, boundary, nanEqual);
     }
+
+    private static bool BothNaN(CelValue left, CelValue right) =>
+        left.TryGetDouble(out double first) && right.TryGetDouble(out double second) && double.IsNaN(first) && double.IsNaN(second);
 
     // Two values of the kind Abstract: those of one abstract type compare by content, those of two types are unequal; eq is 1.
     private static ValueEquality AbstractEqual(CelValue left, CelValue right, IEvaluationMeter? meter)
@@ -104,7 +113,14 @@ internal static class EqualityRules
     };
 
     // Two values of one non-numeric kind.
-    private static ValueEquality SameKind(CelValue left, CelValue right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
+    private static ValueEquality SameKind(
+        CelValue left,
+        CelValue right,
+        IEvaluationMeter? meter,
+        out CelValue error,
+        TypeIndex? types,
+        IApplicationBoundary? boundary,
+        bool nanEqual)
     {
         error = default;
         if (HasNoContent(left.Kind))
@@ -134,14 +150,14 @@ internal static class EqualityRules
             case CelValueKind.List:
                 _ = left.TryGetList(out CelList? leftList);
                 _ = right.TryGetList(out CelList? rightList);
-                return ListsEqual(leftList!, rightList!, meter, out error, types, boundary);
+                return ListsEqual(leftList!, rightList!, meter, out error, types, boundary, nanEqual);
             case CelValueKind.Map:
                 _ = left.TryGetMap(out CelMap? leftMap);
                 _ = right.TryGetMap(out CelMap? rightMap);
-                return MapsEqual(leftMap!, rightMap!, meter, out error, types, boundary);
+                return MapsEqual(leftMap!, rightMap!, meter, out error, types, boundary, nanEqual);
             default:
                 // The kind Optional: every other kind has been decided above.
-                return OptionalsEqual(left, right, meter, out error, types, boundary);
+                return OptionalsEqual(left, right, meter, out error, types, boundary, nanEqual);
         }
     }
 
@@ -153,7 +169,14 @@ internal static class EqualityRules
 
     // Two optionals: 1 unit; two empty ones are equal, an empty and a non-empty one are not, and two that hold values are equal when the
     // values are, by CEL equality, which charges its own units. An error of the comparison of the held values is the result.
-    private static ValueEquality OptionalsEqual(CelValue left, CelValue right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
+    private static ValueEquality OptionalsEqual(
+        CelValue left,
+        CelValue right,
+        IEvaluationMeter? meter,
+        out CelValue error,
+        TypeIndex? types,
+        IApplicationBoundary? boundary,
+        bool nanEqual)
     {
         error = default;
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
@@ -169,7 +192,7 @@ internal static class EqualityRules
             return Result(leftOptional.HasValue == rightOptional.HasValue);
         }
 
-        return AreEqual(leftOptional.Value, rightOptional.Value, meter, out error, types, boundary);
+        return AreEqual(leftOptional.Value, rightOptional.Value, meter, out error, types, boundary, nanEqual);
     }
 
     /// <summary>
@@ -231,7 +254,14 @@ internal static class EqualityRules
     private static ulong LengthCost(int a, int b) => 1 + (((ulong)a + (ulong)b + 9) / 10);
 
     // The same count, then the elements pairwise up to the first unequal pair.
-    private static ValueEquality ListsEqual(CelList left, CelList right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
+    private static ValueEquality ListsEqual(
+        CelList left,
+        CelList right,
+        IEvaluationMeter? meter,
+        out CelValue error,
+        TypeIndex? types,
+        IApplicationBoundary? boundary,
+        bool nanEqual)
     {
         error = default;
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
@@ -248,7 +278,7 @@ internal static class EqualityRules
 
         for (int index = 0; index < count; index++)
         {
-            ValueEquality element = AreEqual(left.Read(index, meter), right.Read(index, meter), meter, out error, types, boundary);
+            ValueEquality element = AreEqual(left.Read(index, meter), right.Read(index, meter), meter, out error, types, boundary, nanEqual);
             if (element != ValueEquality.Equal)
             {
                 return element;
@@ -259,7 +289,14 @@ internal static class EqualityRules
     }
 
     // The same count, then each key of the left map in its order: its lookup in the right map and the two values.
-    private static ValueEquality MapsEqual(CelMap left, CelMap right, IEvaluationMeter? meter, out CelValue error, TypeIndex? types, IApplicationBoundary? boundary)
+    private static ValueEquality MapsEqual(
+        CelMap left,
+        CelMap right,
+        IEvaluationMeter? meter,
+        out CelValue error,
+        TypeIndex? types,
+        IApplicationBoundary? boundary,
+        bool nanEqual)
     {
         error = default;
         if (!RuntimeHelpers.TryEnsureSufficientExecutionStack())
@@ -298,7 +335,7 @@ internal static class EqualityRules
                 return ValueEquality.NotEqual;
             }
 
-            ValueEquality value = AreEqual(entry.Value, other, meter, out error, types, boundary);
+            ValueEquality value = AreEqual(entry.Value, other, meter, out error, types, boundary, nanEqual);
             if (value != ValueEquality.Equal)
             {
                 return value;

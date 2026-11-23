@@ -32,29 +32,9 @@ internal sealed class MapPlanNode : PlanNode
             return error;
         }
 
-        ulong keyCost = 0;
-        for (int i = 0; i < Keys.Length; i++)
+        if (!TryEvaluateEntries(frame, out ulong keyCost, out error))
         {
-            CelValue key = Keys[i].Evaluate(frame);
-            if (key.Kind == CelValueKind.Error)
-            {
-                frame.Pop(2 * i);
-                return key;
-            }
-
-            frame.Push(key);
-            CelValue value = Values[i].Evaluate(frame);
-            if (value.Kind == CelValueKind.Error)
-            {
-                frame.Pop((2 * i) + 1);
-                return value;
-            }
-
-            frame.Push(value);
-            if (frame.Metered && key.TryGetString(out string? text))
-            {
-                keyCost += ((ulong)text.Length + 9) / 10;
-            }
+            return error;
         }
 
         Begin(frame);
@@ -82,5 +62,68 @@ internal sealed class MapPlanNode : PlanNode
         return refusal == EntryTableMap.Refusal.KeyKind
             ? EvaluationErrors.UnsupportedMapKeyType(refused, frame.Types, frame.Lines, Keys[index].Offset)
             : EvaluationErrors.DuplicateMapKey(refused, frame.Lines, Offset);
+    }
+
+    // Evaluates the keys and the values from left to right onto the stack. The first error value ends the evaluation, with nothing
+    // left on the stack. An unknown value of a partial evaluation does not: the rest is evaluated, a real error among it ends the
+    // evaluation, and otherwise the result is the union of the unknown values. keyCost is the units of the string keys when there
+    // is a limit.
+    private bool TryEvaluateEntries(Frame frame, out ulong keyCost, out CelValue error)
+    {
+        keyCost = 0;
+        error = default;
+        CelValue pending = default;
+        int pushed = 0;
+        for (int i = 0; i < Keys.Length; i++)
+        {
+            CelValue key = Keys[i].Evaluate(frame);
+            if (key.Kind == CelValueKind.Error)
+            {
+                if (!key.IsUnknown)
+                {
+                    frame.Pop(pushed);
+                    error = key;
+                    return false;
+                }
+
+                pending = Defer(pending, key);
+            }
+            else if (!pending.IsUnknown)
+            {
+                frame.Push(key);
+                pushed++;
+            }
+
+            CelValue value = Values[i].Evaluate(frame);
+            if (value.Kind == CelValueKind.Error)
+            {
+                if (!value.IsUnknown)
+                {
+                    frame.Pop(pushed);
+                    error = value;
+                    return false;
+                }
+
+                pending = Defer(pending, value);
+            }
+            else if (!pending.IsUnknown)
+            {
+                frame.Push(value);
+                pushed++;
+                if (frame.Metered && key.TryGetString(out string? text))
+                {
+                    keyCost += ((ulong)text.Length + 9) / 10;
+                }
+            }
+        }
+
+        if (pending.IsUnknown)
+        {
+            frame.Pop(pushed);
+            error = pending;
+            return false;
+        }
+
+        return true;
     }
 }

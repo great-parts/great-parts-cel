@@ -4,12 +4,12 @@ An application can add its own functions to an environment: `CelEnvironmentBuild
 
 ## The rule
 
-Evaluation is synchronous: a function implementation is called on the thread that evaluates the expression and must return its result before evaluation continues. The library itself does no I/O during evaluation.
+`Evaluate` is synchronous: a function implementation is called on the thread that evaluates the expression and must return its result before evaluation continues. The library itself does no I/O during evaluation. A function that has to wait for I/O is declared asynchronous and evaluated with `EvaluateAsync`, see "Asynchronous functions" below.
 
 So:
 
-- load the data an expression needs before the evaluation, with `await` as usual, and pass it in `CelBindings`;
-- do not wait for asynchronous work inside a function implementation: no `.Result`, no `.Wait()`, no `.GetAwaiter().GetResult()`.
+- load the data an expression needs before the evaluation, with `await` as usual, and pass it in `CelBindings`, or declare the function asynchronous;
+- do not wait for asynchronous work inside a synchronous function implementation: no `.Result`, no `.Wait()`, no `.GetAwaiter().GetResult()`.
 
 ## Why not block in a function
 
@@ -94,6 +94,33 @@ public sealed class FixedRegistry(IReadOnlyList<string> blockedInns) : IInnRegis
 ```
 
 A `CelList` or a `CelMap` is bound as it is, without a copy, and nothing can change it after it is created. Do not change the data that a running evaluation reads: if the application changes the source of a collection while an evaluation reads it, the result is undefined.
+
+## Asynchronous functions
+
+When the data depends on the arguments of the call, it cannot be loaded before the evaluation. Declare the function with `AddAsyncFunction` (or `AddAsyncMethod`) and evaluate with `EvaluateAsync`: the library starts the calls that the expression needs, awaits them without blocking a thread, and gives the same result as a synchronous function would.
+
+```csharp
+using Great.Parts.Cel;
+
+CelEnvironment env = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+    .AddVariable<string>("customer")
+    .AddAsyncFunction("creditLimit", async (string customer, CancellationToken cancellationToken) =>
+    {
+        // Stands for a database query or an HTTP request.
+        await Task.Delay(10, cancellationToken);
+        return customer == "acme" ? 5000L : 100L;
+    })
+    .Build()
+    .GetEnvironmentOrThrow();
+
+CelProgram<bool> program = env.Compile<bool>("creditLimit(customer) >= 1000").GetProgramOrThrow();
+CelBindings bindings = new CelBindings().Add("customer", "acme");
+
+CelEvalResult<bool> result = await program.EvaluateAsync(bindings, cancellationToken: CancellationToken.None);
+Console.WriteLine(result.GetValueOrThrow()); // Output: True
+```
+
+Pass the `CancellationToken` that the function receives on to the I/O it starts: the library gives every call the token of the evaluation and awaits the calls that already started after the token is canceled, so a function that ignores the token delays the cancellation. `Evaluate` of a program that calls an asynchronous function does not run it: the result is the error `CelErrorCode.AsyncEvaluationRequired`.
 
 ## What else a function implementation should know
 

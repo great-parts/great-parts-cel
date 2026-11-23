@@ -21,7 +21,7 @@ internal sealed class AppendPlanNode : PlanNode
     internal override CelValue Evaluate(Frame frame)
     {
         CelValue accumulator = frame.Local(_accumulator);
-        if (accumulator.Kind == CelValueKind.Error)
+        if (accumulator.Kind == CelValueKind.Error && !accumulator.IsUnknown)
         {
             return accumulator;
         }
@@ -31,10 +31,17 @@ internal sealed class AppendPlanNode : PlanNode
             return error;
         }
 
+        // Strict like the concatenation: an unknown accumulator does not stop the element from being evaluated, so that the calls that
+        // wait in it are met in this pass as well; an error of the element is the result, and unknown ones are united.
         CelValue element = _element.Evaluate(frame);
         if (element.Kind == CelValueKind.Error)
         {
-            return element;
+            return element.IsUnknown ? Defer(accumulator, element) : element;
+        }
+
+        if (accumulator.IsUnknown)
+        {
+            return accumulator;
         }
 
         Begin(frame);

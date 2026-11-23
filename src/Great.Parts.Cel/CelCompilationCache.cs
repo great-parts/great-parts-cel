@@ -26,7 +26,7 @@ namespace Great.Parts.Cel;
 /// called from any number of threads at once.
 /// </para>
 /// </remarks>
-public sealed class CelCompilationCache
+public sealed partial class CelCompilationCache
 {
     private readonly CelEnvironment _environment;
     private readonly int _maxEntryCount;
@@ -85,7 +85,7 @@ public sealed class CelCompilationCache
     public CelCompileResult<T> GetOrCompile<T>(string expression, CelCompileOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        var key = new Key(expression, typeof(T), options?.ExpectedType, options?.SourceLocation);
+        var key = new Key(expression, typeof(T), options?.ExpectedType, options?.SourceLocation, options?.PartialEvaluation ?? false);
         if (_entries.TryGetValue(key, out Entry? entry))
         {
             entry.Referenced = true;
@@ -198,9 +198,9 @@ public sealed class CelCompilationCache
         }
     }
 
-    // The text by ordinal comparison, the result type, the expected type by CelType.Equals and the source location by
-    // value; null options are options with both properties null.
-    private readonly record struct Key(string Text, Type ResultType, CelType? ExpectedType, CelSourceLocation? SourceLocation);
+    // The text by ordinal comparison, the result type, the expected type by CelType.Equals, the source location by value and
+    // whether the program is compiled for partial evaluation; null options are options with the properties null and false.
+    private readonly record struct Key(string Text, Type ResultType, CelType? ExpectedType, CelSourceLocation? SourceLocation, bool PartialEvaluation);
 
     private sealed class Entry(Key key, object result)
     {

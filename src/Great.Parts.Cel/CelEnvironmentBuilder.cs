@@ -213,7 +213,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
     /// exception it throws becomes the evaluation error
-    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -253,7 +253,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
     /// exception it throws becomes the evaluation error
-    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -292,7 +292,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
     /// exception it throws becomes the evaluation error
-    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -332,7 +332,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
     /// exception it throws becomes the evaluation error
-    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -373,7 +373,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation, can be called from several threads at once, and an
     /// exception it throws becomes the evaluation error
-    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
+    /// <see cref="CelErrorCode.ApplicationException"/>. Do not block in it on asynchronous work — <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
     /// </remarks>
@@ -410,7 +410,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementations run synchronously inside evaluation. Do not block in them on asynchronous work —
     /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
-    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the
     /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
@@ -437,7 +437,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
     /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
-    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings; see
+    /// hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings; see
     /// <see cref="CelFunctionImplementation"/> and the recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>.
     /// </para>
     /// </remarks>
@@ -470,7 +470,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
     /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
-    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the
     /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
@@ -517,7 +517,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
     /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
-    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the
     /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
@@ -564,7 +564,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
     /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
-    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the
     /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
@@ -612,7 +612,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
     /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
-    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the
     /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
@@ -661,7 +661,7 @@ public sealed partial class CelEnvironmentBuilder
     /// <para>
     /// The implementation runs synchronously inside evaluation. Do not block in it on asynchronous work —
     /// <c>Task.Result</c>, <c>Task.Wait()</c>: a thread blocked on I/O starves the thread pool of ASP.NET Core and
-    /// hangs in <c>browser-wasm</c>. Load data before the evaluation and pass it in the bindings, as the
+    /// hangs in <c>browser-wasm</c>. To wait for I/O, declare the function with <see cref="AddAsyncFunction{T1, TResult}(string, Func{T1, System.Threading.CancellationToken, System.Threading.Tasks.ValueTask{TResult}})"/> and evaluate with <see cref="CelProgram{T}.EvaluateAsync(CelBindings, CelEvalOptions, System.Threading.CancellationToken)"/>; or load data before the evaluation and pass it in the bindings, as the
     /// recipe <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md">Application functions</see>
     /// shows.
     /// </para>
@@ -1017,11 +1017,12 @@ public sealed partial class CelEnvironmentBuilder
         Delegate original,
         ReadOnlySpan<ClrMapping> parameters,
         ClrMapping result,
-        Func<string, OverloadImplementation> implementation,
+        Func<string, OverloadImplementation>? implementation,
         bool isReceiverStyle = false,
-        CelFunctionOptions? options = null)
+        CelFunctionOptions? options = null,
+        Func<string, AsyncOverloadImplementation>? asyncImplementation = null)
     {
-        var declaration = new DelegateDeclaration(name, original, [.. parameters], result, implementation, isReceiverStyle, options);
+        var declaration = new DelegateDeclaration(name, original, [.. parameters], result, implementation, isReceiverStyle, options, asyncImplementation);
         if (!declaration.TryResolve(null, out string overloadId, out CelFunctionDecl? function, out ImplementationEntry? entry, out Type? unresolved))
         {
             AddUnmapped(new UnmappedDeclaration(overloadId, name, unresolved!, declaration.HasApplicationType ? declaration : null));

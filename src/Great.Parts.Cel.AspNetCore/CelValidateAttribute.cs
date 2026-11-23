@@ -29,6 +29,11 @@ namespace Great.Parts.Cel.AspNetCore;
 /// <see cref="CelEndpointExtensions.WithCelValidation{TRequest}(Microsoft.AspNetCore.Builder.RouteHandlerBuilder, string, string)"/>.
 /// </para>
 /// <para>
+/// The evaluation is asynchronous, so the expression may call an asynchronous function of the application. It receives
+/// <see cref="HttpContext.RequestAborted"/>: when the client disconnects, no new call starts, the calls in flight receive
+/// the canceled token, and the request ends with <see cref="OperationCanceledException"/>.
+/// </para>
+/// <para>
 /// The expression and the message do not change after the attribute is created, and the rule made from them at the first
 /// request is kept; one instance serves requests on any number of threads at once.
 /// </para>
@@ -76,8 +81,8 @@ public sealed class CelValidateAttribute<TRequest> : Attribute, IAsyncActionFilt
     [SuppressMessage(
         "ApiDesign",
         "RS0030:Do not use banned APIs",
-        Justification = "The contract of IAsyncActionFilter returns a Task; the filter evaluates synchronously and creates no thread.")]
-    public Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+        Justification = "The contract of IAsyncActionFilter returns a Task; the filter awaits the asynchronous evaluation of the expression and creates no thread or task of its own.")]
+    public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(next);
@@ -91,9 +96,15 @@ public sealed class CelValidateAttribute<TRequest> : Attribute, IAsyncActionFilt
 
         bool found = RequestRule<TRequest>.TryFind(context.ActionArguments.Values, out TRequest? request);
         CelError? error = null;
-        if (found && rule.Passes(request!, out error))
+        if (found)
         {
-            return next();
+            bool passed;
+            (passed, error) = await rule.PassesAsync(request!, context.HttpContext.RequestAborted).ConfigureAwait(false);
+            if (passed)
+            {
+                _ = await next().ConfigureAwait(false);
+                return;
+            }
         }
 
         context.Result = new BadRequestObjectResult(new ValidationProblemDetails(RequestRule<TRequest>.Errors(Message))
@@ -101,6 +112,5 @@ public sealed class CelValidateAttribute<TRequest> : Attribute, IAsyncActionFilt
             Status = StatusCodes.Status400BadRequest,
             Detail = RequestRule<TRequest>.Detail(found, error),
         });
-        return Task.CompletedTask;
     }
 }

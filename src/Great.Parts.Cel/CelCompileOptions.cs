@@ -13,7 +13,7 @@ namespace Great.Parts.Cel;
 /// The options are immutable once created and can be shared between threads and calls. A
 /// <see cref="CelCompilationCache"/> compares options by the values of their properties.
 /// </remarks>
-public sealed class CelCompileOptions
+public sealed partial class CelCompileOptions
 {
     private readonly CelSourceLocation? _sourceLocation;
 

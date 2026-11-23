@@ -38,7 +38,7 @@ internal sealed class MapInsertPlanNode : PlanNode
     internal override CelValue Evaluate(Frame frame)
     {
         CelValue accumulator = frame.Local(_accumulator);
-        if (accumulator.Kind == CelValueKind.Error)
+        if (accumulator.Kind == CelValueKind.Error && !accumulator.IsUnknown)
         {
             return accumulator;
         }
@@ -48,20 +48,33 @@ internal sealed class MapInsertPlanNode : PlanNode
             return error;
         }
 
+        // Strict like a call: an unknown accumulator or key does not stop the rest from being evaluated, so that the calls that wait in
+        // them are met in this pass as well; an error is the result, and unknown values are united.
+        CelValue pending = accumulator.IsUnknown ? accumulator : default;
         CelValue key = default;
         if (_key is not null)
         {
             key = _key.Evaluate(frame);
             if (key.Kind == CelValueKind.Error)
             {
-                return key;
+                if (!key.IsUnknown)
+                {
+                    return key;
+                }
+
+                pending = Defer(pending, key);
             }
         }
 
         CelValue operand = _operand.Evaluate(frame);
         if (operand.Kind == CelValueKind.Error)
         {
-            return operand;
+            return operand.IsUnknown ? Defer(pending, operand) : operand;
+        }
+
+        if (pending.IsUnknown)
+        {
+            return pending;
         }
 
         Begin(frame);

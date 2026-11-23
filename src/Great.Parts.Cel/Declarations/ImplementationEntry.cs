@@ -23,18 +23,31 @@ internal sealed class ImplementationEntry
         Implementation = implementation;
     }
 
+    // The implementation of an overload that waits, without typed parameters.
+    internal ImplementationEntry(string overloadId, Delegate original, AsyncOverloadImplementation asyncImplementation)
+    {
+        OverloadId = overloadId;
+        Original = original;
+        AsyncImplementation = asyncImplementation;
+    }
+
+    // A typed delegate: exactly one of the implementations is given.
     internal ImplementationEntry(
         string overloadId,
         Delegate original,
-        OverloadImplementation implementation,
+        OverloadImplementation? implementation,
         ImmutableArray<CelType?> parameterTypes,
         CelType? resultType,
         ImmutableArray<bool> parameterTakesNull,
         bool resultTakesNull,
         ImmutableArray<Type> parameterClrTypes = default,
-        Type? resultClrType = null)
-        : this(overloadId, original, implementation)
+        Type? resultClrType = null,
+        AsyncOverloadImplementation? asyncImplementation = null)
     {
+        OverloadId = overloadId;
+        Original = original;
+        Implementation = implementation;
+        AsyncImplementation = asyncImplementation;
         ParameterTypes = parameterTypes;
         ResultType = resultType;
         ParameterTakesNull = parameterTakesNull;
@@ -47,7 +60,11 @@ internal sealed class ImplementationEntry
 
     internal Delegate Original { get; }
 
-    internal OverloadImplementation Implementation { get; }
+    // The synchronous implementation; null for an overload that waits.
+    internal OverloadImplementation? Implementation { get; }
+
+    // The implementation of an overload that waits; null for a synchronous one.
+    internal AsyncOverloadImplementation? AsyncImplementation { get; }
 
     // Default for a CelFunctionImplementation; an element is null for a .NET type outside the expected-type table.
     internal ImmutableArray<CelType?> ParameterTypes { get; }
@@ -115,7 +132,8 @@ internal sealed class ImplementationEntry
             ParameterTakesNull,
             ResultTakesNull,
             _parameterClrTypes,
-            _resultClrType)
+            _resultClrType,
+            AsyncImplementation)
         {
             Unresolved = unresolved,
         };

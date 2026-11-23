@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using Great.Parts.Cel.Conformance.CelSpec;
 using Great.Parts.Cel.Conformance.Runner;
 using Great.Parts.Cel.Eng.Findings;
@@ -12,14 +13,15 @@ namespace Great.Parts.Cel.Conformance;
 /// The cel-spec suite on browser-wasm. It runs every case of <c>tests/simple/testdata</c> of the pinned commit on the library,
 /// as the suite project does, in the cell of the run (<c>jit, browser-wasm</c> and the target of the build), and prints the summary line, the
 /// skipped cases of the cell with their reasons and the findings. Then it checks the database of the system without zones
-/// (<see cref="SystemZones"/>). The exit code is 0 when there is no finding with the severity error and no problem of that check,
-/// 1 when there is one, and 2 when the run is not a run on browser-wasm or the suite has no cases.
+/// (<see cref="SystemZones"/>) and runs the control example of asynchronous evaluation (<see cref="AsyncControl"/>). The exit code is 0
+/// when there is no finding with the severity error and no problem of those checks, 1 when there is one, and 2 when the run is not a run
+/// on browser-wasm or the suite has no cases.
 /// </summary>
 internal static class Program
 {
     private const string CelSpecColumns = "Case | Scope | Reason | Reference | Issue";
 
-    private static int Main()
+    private static async Task<int> Main()
     {
         RunCell cell = RunCell.Current;
         if (cell.OperatingSystem != "browser-wasm")
@@ -59,7 +61,15 @@ internal static class Program
             Console.WriteLine(problem);
         }
 
-        return errors.Length == 0 && zoneProblems.Length == 0 ? 0 : 1;
+        // The control example of asynchronous evaluation: the driver on the one thread of the runtime.
+        string[] asyncProblems = await AsyncControl.ProblemsAsync().ConfigureAwait(false);
+        Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"problems of the asynchronous control example: {asyncProblems.Length}"));
+        foreach (string problem in asyncProblems)
+        {
+            Console.WriteLine(problem);
+        }
+
+        return errors.Length == 0 && zoneProblems.Length == 0 && asyncProblems.Length == 0 ? 0 : 1;
     }
 
     // The entries of the skip list whose scope contains the cell: each is a case that fails in the cell (a case that passes is ENG802), with

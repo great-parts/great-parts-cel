@@ -10,6 +10,7 @@ import (
 	"io"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"time"
 
 	"cel.dev/cel-go/cel"
@@ -38,6 +39,21 @@ type request struct {
 	Zone        *string                    `json:"zone"`
 	Instant     *int64                     `json:"instant"`
 	Checked     *string                    `json:"checked"`
+	Patterns    []attributeJSON            `json:"patterns"`
+}
+
+// attributeJSON is an attribute of the op partial: a pattern of unknown data in a request, a trail of an unknown in an answer. It is
+// a variable and the qualifiers under it.
+type attributeJSON struct {
+	Variable   string          `json:"variable"`
+	Qualifiers []qualifierJSON `json:"qualifiers"`
+}
+
+// qualifierJSON is one qualifier of an attribute: kind is string, int, uint, bool, or any for a pattern that matches every qualifier;
+// value is the text of the qualifier, empty for any.
+type qualifierJSON struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
 }
 
 type handshake struct {
@@ -47,22 +63,24 @@ type handshake struct {
 
 // answer is one line of standard output.
 type answer struct {
-	ID        int64           `json:"id"`
-	Outcome   string          `json:"outcome,omitempty"`
-	Stage     string          `json:"stage,omitempty"`
-	Message   *string         `json:"message,omitempty"`
-	Value     json.RawMessage `json:"value,omitempty"`
-	Textproto *string         `json:"textproto,omitempty"`
-	Seconds   *int64          `json:"seconds,omitempty"`
-	Checked   *string         `json:"checked,omitempty"`
+	ID        int64            `json:"id"`
+	Outcome   string           `json:"outcome,omitempty"`
+	Stage     string           `json:"stage,omitempty"`
+	Message   *string          `json:"message,omitempty"`
+	Value     json.RawMessage  `json:"value,omitempty"`
+	Textproto *string          `json:"textproto,omitempty"`
+	Seconds   *int64           `json:"seconds,omitempty"`
+	Checked   *string          `json:"checked,omitempty"`
+	Trails    *[]attributeJSON `json:"trails,omitempty"`
 }
 
 // outcome is the result of cel-go for one expression.
 type outcome struct {
-	kind    string // compile-error, eval-error or value
+	kind    string // compile-error, eval-error, value or unknown
 	stage   string // parse, check or program, for compile-error
 	message string
 	value   *celpb.Value
+	trails  []attributeJSON
 	parsed  *cel.Ast // nil when parsing failed
 }
 
@@ -140,17 +158,28 @@ func handle(environment *cel.Env, line []byte) (answer, error) {
 	if req.Expr == nil {
 		return answer{}, fmt.Errorf("malformed request %q: no expr", line)
 	}
-	if req.Op != "eval" && req.Op != "case" {
+	if req.Op != "eval" && req.Op != "case" && req.Op != "partial" {
 		return answer{}, fmt.Errorf("malformed request %q: unknown op %q", line, req.Op)
 	}
-	if req.Op == "eval" && (req.Name != "" || req.Description != "") {
+	if req.Op != "case" && (req.Name != "" || req.Description != "") {
 		return answer{}, fmt.Errorf("malformed request %q: name and description belong to the op case", line)
+	}
+	if req.Op == "partial" && req.Patterns == nil {
+		return answer{}, fmt.Errorf("malformed request %q: the op partial needs patterns", line)
+	}
+	if req.Op != "partial" && req.Patterns != nil {
+		return answer{}, fmt.Errorf("malformed request %q: patterns belong to the op partial", line)
 	}
 	bindings, err := readBindings(req, line)
 	if err != nil {
 		return answer{}, err
 	}
-	result, err := evaluate(environment, *req.Expr, bindings)
+	var result outcome
+	if req.Op == "partial" {
+		result, err = evaluatePartial(environment, *req.Expr, bindings, req.Patterns)
+	} else {
+		result, err = evaluate(environment, *req.Expr, bindings)
+	}
 	if err != nil {
 		return answer{}, fmt.Errorf("request %d: %v", *req.ID, err)
 	}
@@ -186,6 +215,9 @@ func outcomeAnswer(id int64, result outcome) (answer, error) {
 			return answer{}, fmt.Errorf("request %d: %v", id, err)
 		}
 		reply.Value = raw
+	} else if result.kind == "unknown" {
+		trails := result.trails
+		reply.Trails = &trails
 	} else {
 		message := result.message
 		reply.Message = &message
@@ -266,12 +298,98 @@ func evaluateChecked(environment *cel.Env, data []byte, bindings map[string]*cel
 	if err != nil {
 		return outcome{kind: "compile-error", stage: "program", message: err.Error()}, nil
 	}
-	return runProgram(environment, program, bindings, nil)
+	return runProgram(environment, program, bindings, nil, false, nil)
 }
 
 // evaluate runs an expression through the stages of cel-go; an error means the result has no
 // cel.expr.Value form or a binding has no CEL value.
 func evaluate(environment *cel.Env, expr string, bindings map[string]*celpb.Value) (outcome, error) {
+	return evaluateWith(environment, expr, bindings, false, nil)
+}
+
+// evaluatePartial runs an expression with cel.OptPartialEval and the patterns of the request as the unknown data
+// (docs/design/eng-oracle.md, "Protocol"): an unknown result is the outcome unknown with its attribute trails.
+func evaluatePartial(environment *cel.Env, expr string, bindings map[string]*celpb.Value, patterns []attributeJSON) (outcome, error) {
+	unknowns, err := attributePatterns(patterns)
+	if err != nil {
+		return outcome{}, err
+	}
+	return evaluateWith(environment, expr, bindings, true, unknowns)
+}
+
+// attributePatterns makes the cel-go patterns of the unknown data of a request.
+func attributePatterns(patterns []attributeJSON) ([]*cel.AttributePatternType, error) {
+	unknowns := make([]*cel.AttributePatternType, 0, len(patterns))
+	for _, pattern := range patterns {
+		unknown := cel.AttributePattern(pattern.Variable)
+		for _, qualifier := range pattern.Qualifiers {
+			switch qualifier.Kind {
+			case "string":
+				unknown = unknown.QualString(qualifier.Value)
+			case "int":
+				number, err := strconv.ParseInt(qualifier.Value, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("pattern %q: %v", pattern.Variable, err)
+				}
+				unknown = unknown.QualInt(number)
+			case "uint":
+				number, err := strconv.ParseUint(qualifier.Value, 10, 64)
+				if err != nil {
+					return nil, fmt.Errorf("pattern %q: %v", pattern.Variable, err)
+				}
+				unknown = unknown.QualUint(number)
+			case "bool":
+				flag, err := strconv.ParseBool(qualifier.Value)
+				if err != nil {
+					return nil, fmt.Errorf("pattern %q: %v", pattern.Variable, err)
+				}
+				unknown = unknown.QualBool(flag)
+			case "any":
+				unknown = unknown.Wildcard()
+			default:
+				return nil, fmt.Errorf("pattern %q: unknown qualifier kind %q", pattern.Variable, qualifier.Kind)
+			}
+		}
+		unknowns = append(unknowns, unknown)
+	}
+	return unknowns, nil
+}
+
+// unknownTrails lists the attribute trails of an unknown result, in the order of the ids of its nodes. The ids themselves are not sent: the
+// comparison does not use them.
+func unknownTrails(unknown *types.Unknown) []attributeJSON {
+	trails := []attributeJSON{}
+	for _, id := range unknown.IDs() {
+		found, _ := unknown.GetAttributeTrails(id)
+		for _, trail := range found {
+			qualifiers := []qualifierJSON{}
+			for _, qualifier := range trail.QualifierPath() {
+				qualifiers = append(qualifiers, trailQualifier(qualifier))
+			}
+			trails = append(trails, attributeJSON{Variable: trail.Variable(), Qualifiers: qualifiers})
+		}
+	}
+	return trails
+}
+
+// trailQualifier writes a qualifier of an attribute trail: cel-go keeps the kinds string, int64, uint64 and bool.
+func trailQualifier(qualifier any) qualifierJSON {
+	switch value := qualifier.(type) {
+	case string:
+		return qualifierJSON{Kind: "string", Value: value}
+	case int64:
+		return qualifierJSON{Kind: "int", Value: strconv.FormatInt(value, 10)}
+	case uint64:
+		return qualifierJSON{Kind: "uint", Value: strconv.FormatUint(value, 10)}
+	case bool:
+		return qualifierJSON{Kind: "bool", Value: strconv.FormatBool(value)}
+	}
+	return qualifierJSON{Kind: "string", Value: fmt.Sprint(qualifier)}
+}
+
+// evaluateWith is evaluate with the partial mode: the program of cel.OptPartialEval, and the activation of PartialVars with the
+// unknown patterns.
+func evaluateWith(environment *cel.Env, expr string, bindings map[string]*celpb.Value, partial bool, unknowns []*cel.AttributePatternType) (outcome, error) {
 	parsed, issues := environment.Parse(expr)
 	if issues.Err() != nil {
 		return outcome{kind: "compile-error", stage: "parse", message: issues.Err().Error()}, nil
@@ -280,15 +398,20 @@ func evaluate(environment *cel.Env, expr string, bindings map[string]*celpb.Valu
 	if issues.Err() != nil {
 		return outcome{kind: "compile-error", stage: "check", message: issues.Err().Error(), parsed: parsed}, nil
 	}
-	program, err := environment.Program(checked)
+	var programOptions []cel.ProgramOption
+	if partial {
+		programOptions = append(programOptions, cel.EvalOptions(cel.OptPartialEval))
+	}
+	program, err := environment.Program(checked, programOptions...)
 	if err != nil {
 		return outcome{kind: "compile-error", stage: "program", message: err.Error(), parsed: parsed}, nil
 	}
-	return runProgram(environment, program, bindings, parsed)
+	return runProgram(environment, program, bindings, parsed, partial, unknowns)
 }
 
-// runProgram evaluates a program on the bindings; parsed is the parsed form of the text, nil for a loaded expression.
-func runProgram(environment *cel.Env, program cel.Program, bindings map[string]*celpb.Value, parsed *cel.Ast) (outcome, error) {
+// runProgram evaluates a program on the bindings; parsed is the parsed form of the text, nil for a loaded expression. In the partial
+// mode the activation is PartialVars with the unknown patterns, and an unknown result is the outcome unknown.
+func runProgram(environment *cel.Env, program cel.Program, bindings map[string]*celpb.Value, parsed *cel.Ast, partial bool, unknowns []*cel.AttributePatternType) (outcome, error) {
 	activation := make(map[string]any, len(bindings))
 	for name, value := range bindings {
 		converted, err := cel.ProtoAsValue(environment.CELTypeAdapter(), value)
@@ -297,15 +420,26 @@ func runProgram(environment *cel.Env, program cel.Program, bindings map[string]*
 		}
 		activation[name] = converted
 	}
-	result, _, err := program.Eval(activation)
+	var input any = activation
+	if partial {
+		partialInput, err := cel.PartialVars(activation, unknowns...)
+		if err != nil {
+			return outcome{}, fmt.Errorf("partial variables: %v", err)
+		}
+		input = partialInput
+	}
+	result, _, err := program.Eval(input)
 	if err != nil {
 		return outcome{kind: "eval-error", message: err.Error(), parsed: parsed}, nil
 	}
 	if types.IsError(result) {
 		return outcome{kind: "eval-error", message: errorMessage(result), parsed: parsed}, nil
 	}
-	if types.IsUnknown(result) {
-		return outcome{}, fmt.Errorf("the result is unknown and has no cel.expr.Value form")
+	if unknown, isUnknown := result.(*types.Unknown); isUnknown {
+		if !partial {
+			return outcome{}, fmt.Errorf("the result is unknown and has no cel.expr.Value form")
+		}
+		return outcome{kind: "unknown", trails: unknownTrails(unknown), parsed: parsed}, nil
 	}
 	// An optional as the whole result has no cel.expr.Value form either: cel-go gives one for an expression that its checker types as
 	// another type, such as a presence test over an optional, so the case is an evaluation error with that message and the comparison

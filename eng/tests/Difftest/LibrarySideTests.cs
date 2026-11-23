@@ -104,6 +104,32 @@ public sealed class LibrarySideTests
         Assert.Equal(OutcomeClass.EvaluationError, empty.Class);
     }
 
+    // Partial evaluation of the library side (docs/design/eng-difftest.md, "Partial evaluation"): the patterns of the stand are
+    // the patterns of the library, and the unknown parts of a result are its attributes.
+    [Fact]
+    public void LibrarySide_EvaluatesPartiallyWithThePatternsAsTheUnknownData()
+    {
+        using TempDirectory root = new();
+        LibrarySide side = Build(WriteZones(root, ("Asia/Kolkata", Tzif([], [], [19_800], "IST-5:30"))));
+        Value map = new() { MapValue = new MapValue { Entries = { new MapValue.Types.Entry { Key = new Value { StringValue = "b" }, Value = new Value { Int64Value = 1 } } } } };
+        Value list = new() { ListValue = new ListValue { Values = { new Value { Int64Value = 5 }, new Value { Int64Value = 6 } } } };
+        Dictionary<string, Value> bindings = new() { ["x1"] = map, ["li"] = list, ["i1"] = new Value { Int64Value = 41 } };
+        AttributeQualifier a = new(QualifierKind.String, "a");
+        AttributeQualifier one = new(QualifierKind.Int, "1");
+
+        SideOutcome wholeVariable = side.EvaluatePartial("i1 + 1", bindings, [new UnknownAttribute("i1", [])]);
+        SideOutcome otherField = side.EvaluatePartial("x1.b + 1", bindings, [new UnknownAttribute("x1", [a])]);
+        SideOutcome twoParts = side.EvaluatePartial("li[1] + li[1] + x1.a", bindings, [new UnknownAttribute("li", [one]), new UnknownAttribute("x1", [a])]);
+        SideOutcome error = side.EvaluatePartial("i1 + (1 / 0)", bindings, [new UnknownAttribute("i1", [])]);
+        SideOutcome notCompiled = side.EvaluatePartial("i1 +", bindings, []);
+
+        Assert.Equal(["i1"], wholeVariable.Trails.Select(trail => trail.ToString()));
+        Assert.Equal(new Value { Int64Value = 2 }, otherField.Result);
+        Assert.Equal(["li[1]", "x1.a"], twoParts.Trails.Select(trail => trail.ToString()));
+        Assert.Equal(OutcomeClass.EvaluationError, error.Class);
+        Assert.Equal((OutcomeClass.CompileError, CompileStage.Parse), (notCompiled.Class, notCompiled.Stage));
+    }
+
     // The exchange of a checked expression (docs/design/ast-protobuf.md, "Exchange with cel-go"): the library writes the bytes of a
     // check and reads them back, as it reads those of cel-go.
     [Fact]
