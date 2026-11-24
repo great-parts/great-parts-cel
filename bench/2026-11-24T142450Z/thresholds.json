@@ -1,0 +1,162 @@
+{
+  "job": "Default",
+  "verdicts": [
+    {
+      "limit": "hybrid search of a substring, 64 code units",
+      "rule": ".NET at M = 64 is not slower than Knuth-Morris-Pratt; otherwise the limit is 32",
+      "rows": [
+        {
+          "m": 48,
+          "kmp": 29351.22216796875,
+          "net": 12061.033172607422,
+          "hybrid": 12035.228614807129
+        },
+        {
+          "m": 64,
+          "kmp": 29319.82176208496,
+          "net": 11969.880386352539,
+          "hybrid": 12223.691421508789
+        },
+        {
+          "m": 65,
+          "kmp": 29462.615173339844,
+          "net": 660.6462712287903,
+          "hybrid": 29747.383422851562
+        },
+        {
+          "m": 80,
+          "kmp": 30008.90364074707,
+          "net": 17091.617309570312,
+          "hybrid": 30171.538330078125
+        }
+      ],
+      "verdict": "holds: 64"
+    },
+    {
+      "limit": "build of the automaton of the pattern E5",
+      "rule": "the median of the build is at most 1000 ns",
+      "rows": [
+        {
+          "name": "E5",
+          "program": 1078.7907905578613,
+          "automaton": 1731.4103717803955
+        },
+        {
+          "name": "UUID",
+          "program": 2111.982151031494,
+          "automaton": 4576.521766662598
+        }
+      ],
+      "verdict": "does not hold: 1731 ns"
+    },
+    {
+      "limit": "index of the values of a list (distinct, sets), 24 values",
+      "rule": "the scan (the library's index at N up to 24) is not slower than the buckets at N = 8, 16 and 24, for distinct and for sets.contains",
+      "rows": [
+        {
+          "n": 8,
+          "distinct": {
+            "library": 290.7083463668823,
+            "buckets": 352.74414253234863,
+            "constantHash": 441.65594935417175,
+            "pairwise": 543.0858087539673
+          },
+          "contains": {
+            "library": 557.706844329834,
+            "buckets": 570.5366449356079,
+            "constantHash": 947.5061712265015,
+            "pairwise": 925.2378406524658
+          }
+        },
+        {
+          "n": 16,
+          "distinct": {
+            "library": 610.6456480026245,
+            "buckets": 591.4164700508118,
+            "constantHash": 1137.27663230896,
+            "pairwise": 1458.2899074554443
+          },
+          "contains": {
+            "library": 1157.8177680969238,
+            "buckets": 1053.0610275268555,
+            "constantHash": 2852.807872772217,
+            "pairwise": 2770.687847137451
+          }
+        },
+        {
+          "n": 24,
+          "distinct": {
+            "library": 986.7528629302979,
+            "buckets": 853.2308149337769,
+            "constantHash": 2077.883083343506,
+            "pairwise": 2716.5733909606934
+          },
+          "contains": {
+            "library": 1824.729076385498,
+            "buckets": 1400.3024110794067,
+            "constantHash": 5753.31258392334,
+            "pairwise": 5248.696880340576
+          }
+        },
+        {
+          "n": 32,
+          "distinct": {
+            "library": 1082.2818279266357,
+            "buckets": 1111.7628078460693,
+            "constantHash": 4199.147125244141,
+            "pairwise": 4543.301490783691
+          },
+          "contains": {
+            "library": 2159.329975128174,
+            "buckets": 1980.534896850586,
+            "constantHash": 9999.774658203125,
+            "pairwise": 8703.626007080078
+          }
+        },
+        {
+          "n": 48,
+          "distinct": {
+            "library": 2214.000804901123,
+            "buckets": 1663.1834831237793,
+            "constantHash": 9025.897323608398,
+            "pairwise": 9303.891975402832
+          },
+          "contains": {
+            "library": 3164.969211578369,
+            "buckets": 2780.2083129882812,
+            "constantHash": 20284.447631835938,
+            "pairwise": 18544.065994262695
+          }
+        }
+      ],
+      "evaluation": [
+        {
+          "n": 16,
+          "distinct": 900.5578947067261,
+          "contains": 1623.0606784820557
+        },
+        {
+          "n": 24,
+          "distinct": 1419.998254776001,
+          "contains": 2464.4020042419434
+        },
+        {
+          "n": 25,
+          "distinct": 1088.5245475769043,
+          "contains": 2436.7089710235596
+        },
+        {
+          "n": 32,
+          "distinct": 1356.827793121338,
+          "contains": 2905.5282859802246
+        },
+        {
+          "n": 48,
+          "distinct": 1953.3439140319824,
+          "contains": 4273.610733032227
+        }
+      ],
+      "verdict": "does not hold, the scan is slower than the buckets (ratio scan / buckets): distinct N = 16: 1.03; contains N = 16: 1.10; distinct N = 24: 1.16; contains N = 24: 1.30"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "kind": "bench",
+  "generatedAtUtc": "2026-11-24T14:24:50Z",
+  "greatPartsCelCommit": "80a2e35063a37a7f7bd0e1b811dc489379a7c621",
+  "inputs": {
+    "runs": 3,
+    "job": "Default",
+    "cases": null
+  },
+  "runs": [
+    {
+      "run": 1,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-24T10:16:26.818Z",
+      "finished": "2026-11-24T11:31:45.773Z"
+    },
+    {
+      "run": 2,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-24T11:31:45.783Z",
+      "finished": "2026-11-24T12:47:33.161Z"
+    },
+    {
+      "run": 3,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-24T12:47:33.161Z",
+      "finished": "2026-11-24T14:02:46.641Z"
+    }
+  ],
+  "thresholds": {
+    "job": "Default",
+    "verdicts": [
+      {
+        "limit": "hybrid search of a substring, 64 code units",
+        "verdict": "holds: 64"
+      },
+      {
+        "limit": "build of the automaton of the pattern E5",
+        "verdict": "does not hold: 1731 ns"
+      },
+      {
+        "limit": "index of the values of a list (distinct, sets), 24 values",
+        "verdict": "does not hold, the scan is slower than the buckets (ratio scan / buckets): distinct N = 16: 1.03; contains N = 16: 1.10; distinct N = 24: 1.16; contains N = 24: 1.30"
+      }
+    ]
+  },
+  "files": {
+    "summary": "report.md",
+    "verification": "verify.json",
+    "thresholds": "thresholds.json",
+    "runs": "runs/<k>/run.json and runs/<k>/summary.md"
+  },
+  "run": {
+    "id": 45373031074,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/45373031074"
+  }
+}
