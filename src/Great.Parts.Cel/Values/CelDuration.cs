@@ -90,6 +90,25 @@ public readonly struct CelDuration : IEquatable<CelDuration>, IComparable<CelDur
     }
 
     /// <summary>
+    /// Reads a duration from a string by the rules of the CEL function <c>duration(string)</c>: a sequence of decimal numbers
+    /// with units <c>h</c>, <c>m</c>, <c>s</c>, <c>ms</c>, <c>us</c>, <c>ns</c>, optionally signed, such as <c>20s</c>,
+    /// <c>1.5s</c> or <c>-1h30m</c>, within the range of <c>duration</c>.
+    /// </summary>
+    /// <remarks>
+    /// The method uses the same code as the function, so a string is read here exactly when <c>duration(</c>string<c>)</c>
+    /// returns a value rather than an error.
+    /// </remarks>
+    /// <param name="text">The string.</param>
+    /// <param name="value">The duration; <see langword="default"/> when the string is not a duration.</param>
+    /// <returns><see langword="true"/> when the string is a duration.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="text"/> is <see langword="null"/>.</exception>
+    public static bool TryParse(string text, out CelDuration value)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return TimeTextRules.TryParseDuration(text, out value) == TimeParseResult.Parsed;
+    }
+
+    /// <summary>
     /// The whole seconds of the duration; negative for a negative span.
     /// </summary>
     public long Seconds => _seconds;

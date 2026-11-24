@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Syntax;
@@ -124,6 +125,64 @@ public sealed class CelExprFactory
             _offset = offset;
             _end = offset + length;
         }
+    }
+
+    /// <summary>
+    /// Creates an error at the current <see cref="Position"/> of the source text, for a parser of another language that
+    /// reports its own errors — a syntax error of a filter, a value that does not fit a field — in the same form as the errors
+    /// of compilation.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The offset, line, column and length of the error are computed from <see cref="SourceText"/> and <see cref="Position"/>
+    /// by the same code as the positions of the nodes, so that <see cref="CelError.ToDisplayString(string)"/> of the source
+    /// text shows the error and the errors of type checking of the tree at consistent places. A factory without a source text,
+    /// or with <see cref="Position"/> set to <see langword="null"/>, creates an error without a place.
+    /// </para>
+    /// <para>
+    /// The stage follows from the range of the code: 1000–1999 <see cref="CelErrorStage.Parse"/>, 2000–2999
+    /// <see cref="CelErrorStage.Check"/>, 3000–3999 <see cref="CelErrorStage.Evaluate"/>, 4000–4999
+    /// <see cref="CelErrorStage.Build"/>. The error has no exception. Creating an error does not change the factory.
+    /// </para>
+    /// </remarks>
+    /// <param name="code">The code of the error, from the published list.</param>
+    /// <param name="message">The text of the error for people, in English.</param>
+    /// <param name="subject">
+    /// The name that the error refers to — a variable, a field, a function or a type, such as the path of a field in a
+    /// filter — or <see langword="null"/> for none.
+    /// </param>
+    /// <param name="expectedType">The CEL type that was expected, or <see langword="null"/> for none.</param>
+    /// <param name="actualType">The CEL type that was found, or <see langword="null"/> for none.</param>
+    /// <returns>The error.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="code"/> is not a member of <see cref="CelErrorCode"/> or is in the range 9000–9999, or
+    /// <paramref name="message"/> is empty.
+    /// </exception>
+    public CelError CreateError(
+        CelErrorCode code,
+        string message,
+        string? subject = null,
+        CelType? expectedType = null,
+        CelType? actualType = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(message);
+        if (!Enum.IsDefined(code) || (int)code is >= 9000 and <= 9999)
+        {
+            throw new ArgumentException("The code is not a member of CelErrorCode with a stage that its range tells.", nameof(code));
+        }
+
+        CelErrorStage stage = (int)code switch
+        {
+            < 2000 => CelErrorStage.Parse,
+            < 3000 => CelErrorStage.Check,
+            < 4000 => CelErrorStage.Evaluate,
+            _ => CelErrorStage.Build,
+        };
+
+        return _offset < 0
+            ? new CelError(code, stage, message, default, null, null, 0, subject, expectedType, actualType)
+            : new CelError(code, stage, message, _lines.GetLocation(_offset), null, null, _end - _offset, subject, expectedType, actualType);
     }
 
     /// <summary>

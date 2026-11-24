@@ -6,7 +6,7 @@ Great.Parts.Cel.Types ->
 Great.Parts.Cel.Diagnostics -> Great.Parts.Cel.Types
 Great.Parts.Cel.Values -> Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Declarations -> Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
-Great.Parts.Cel.Syntax -> Great.Parts.Cel.Values, Great.Parts.Cel.Diagnostics
+Great.Parts.Cel.Syntax -> Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Checking -> Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Library -> Great.Parts.Cel.Library.Unicode, Great.Parts.Cel.Library.Text, Great.Parts.Cel.Library.Regex, Great.Parts.Cel.Library.Time, Great.Parts.Cel.Library.Decimals, Great.Parts.Cel.Syntax, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
 Great.Parts.Cel.Library.Extensions.Strings -> Great.Parts.Cel.Library, Great.Parts.Cel.Library.Text, Great.Parts.Cel.Library.Time, Great.Parts.Cel.Declarations, Great.Parts.Cel.Values, Great.Parts.Cel.Types, Great.Parts.Cel.Diagnostics
@@ -30,6 +30,9 @@ Great.Parts.Cel.DependencyInjection ->
 
 [Great.Parts.Cel.AspNetCore]
 Great.Parts.Cel.AspNetCore ->
+
+[Great.Parts.Cel.Filtering]
+Great.Parts.Cel.Filtering ->
 
 [Great.Parts.Cel.Policy]
 Great.Parts.Cel.Policy -> Great.Parts.Cel.Policy.Yaml

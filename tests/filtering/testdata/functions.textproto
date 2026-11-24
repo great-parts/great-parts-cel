@@ -1,0 +1,171 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# Functions of the environment in a filter: a call alone, a call on the left of a comparison, the arguments of a call, and the calls that
+# the grammar does not allow. The environment of the cases has the functions lower, isRecent, add, seven and acme.shout.
+
+name: "functions"
+description: "Functions of the environment: calls, arguments, and the places where a call is not allowed."
+
+section {
+  name: "calls"
+  description: "A call alone is a restriction; a call on the left of a comparison is compared by its result type."
+
+  test {
+    name: "result of a function"
+    filter: "lower(single_string) = \"dune\""
+    cel: "lower(single_string) == \"dune\""
+    resource { value { single_string: "DUNE" } match: true }
+    resource { value { single_string: "Dune II" } match: false }
+  }
+  test {
+    name: "call alone"
+    filter: "isRecent(single_timestamp)"
+    cel: "isRecent(single_timestamp)"
+    resource { value { single_timestamp { seconds: 1104537600 } } match: true }
+    resource { value { single_timestamp { seconds: 631152000 } } match: false }
+  }
+  test {
+    name: "call alone negated"
+    filter: "NOT isRecent(single_timestamp)"
+    cel: "!isRecent(single_timestamp)"
+    resource { value { single_timestamp { seconds: 1104537600 } } match: false }
+    resource { value { single_timestamp { seconds: 631152000 } } match: true }
+  }
+  test {
+    name: "order of the result of a function"
+    filter: "add(single_int64, 5) > 10"
+    cel: "add(single_int64, 5) > 10"
+    resource { value { single_int64: 6 } match: true }
+    resource { value { single_int64: 5 } match: false }
+  }
+  test {
+    name: "arguments that are numbers"
+    filter: "add(1, 2) = 3"
+    cel: "add(1, 2) == 3"
+    resource { value {} match: true }
+  }
+  test {
+    name: "argument that is a negative number"
+    filter: "add(1, -2) = -1"
+    cel: "add(1, -2) == -1"
+    resource { value {} match: true }
+  }
+  test {
+    name: "function without arguments"
+    filter: "seven() = 7"
+    cel: "seven() == 7"
+    resource { value {} match: true }
+  }
+  test {
+    name: "call in a call"
+    filter: "lower(lower(single_string)) = x"
+    cel: "lower(lower(single_string)) == \"x\""
+    resource { value { single_string: "X" } match: true }
+    resource { value { single_string: "y" } match: false }
+  }
+  test {
+    name: "pattern of the result of a function"
+    filter: "lower(single_string) = \"du*\""
+    cel: "lower(single_string).startsWith(\"du\")"
+    resource { value { single_string: "DUNE" } match: true }
+    resource { value { single_string: "SUDU" } match: false }
+  }
+  test {
+    name: "null is the string of a function that returns a string"
+    filter: "lower(single_string) = null"
+    cel: "lower(single_string) == \"null\""
+    resource { value { single_string: "NULL" } match: true }
+    resource { value { single_string: "x" } match: false }
+  }
+  test {
+    name: "name with a dot"
+    filter: "acme.shout(single_string) = SHOUT"
+    resource { value { single_string: "shout" } match: true }
+    resource { value { single_string: "x" } match: false }
+  }
+  test {
+    name: "calls joined by AND"
+    filter: "lower(single_string) = x AND isRecent(single_timestamp)"
+    cel: "lower(single_string) == \"x\" && isRecent(single_timestamp)"
+    resource { value { single_string: "X" single_timestamp { seconds: 1104537600 } } match: true }
+    resource { value { single_string: "X" single_timestamp { seconds: 631152000 } } match: false }
+  }
+}
+
+section {
+  name: "arguments"
+  description: "An argument is a call, a field of the environment, or a value by the form of its text."
+
+  test {
+    name: "text that is no field is a string"
+    filter: "lower(abc) = \"x\""
+    cel: "lower(\"abc\") == \"x\""
+  }
+  test {
+    name: "string in quotes"
+    filter: "lower(\"a b\") = \"a b\""
+    cel: "lower(\"a b\") == \"a b\""
+    resource { value {} match: true }
+  }
+  test {
+    name: "fields as arguments"
+    filter: "add(single_int64, single_int32) = 3"
+    cel: "add(single_int64, single_int32) == 3"
+    resource { value { single_int64: 1 single_int32: 2 } match: true }
+    resource { value { single_int64: 1 single_int32: 1 } match: false }
+  }
+  test {
+    name: "field of an object as an argument"
+    filter: "lower(author.name) = x"
+    cel: "lower(author.name) == \"x\""
+    resource { value { author { name: "X" } } match: true }
+    resource { value { author { name: "Y" } } match: false }
+  }
+}
+
+section {
+  name: "errors"
+  description: "A function that is not declared, arguments that do not fit it, and the places where a call is not allowed."
+
+  test {
+    name: "function that is not declared"
+    filter: "unknown_fn(single_string) = x"
+    error { code: "UndeclaredReference" start: 0 length: 10 }
+  }
+  test {
+    name: "argument of another type"
+    filter: "lower(single_int64) = x"
+    error { code: "NoMatchingOverload" start: 0 length: 5 }
+  }
+  test {
+    name: "has operator on a call"
+    filter: "lower(single_string):*"
+    error { code: "InvalidFilterRestriction" start: 20 length: 1 }
+  }
+  test {
+    name: "has operator with a value on a call"
+    filter: "lower(single_string):abc"
+    error { code: "InvalidFilterRestriction" start: 20 length: 1 }
+  }
+  test {
+    name: "call on the right of a comparison"
+    filter: "single_int64 = add(1, 2)"
+    error { code: "InvalidFilterRestriction" start: 15 length: 3 subject: "single_int64" }
+  }
+  test {
+    name: "call of the environment on the right of a comparison"
+    filter: "single_int64 <= size(single_string)"
+    error { code: "InvalidFilterRestriction" start: 16 length: 4 }
+  }
+  test {
+    name: "fraction for an int result"
+    filter: "add(single_int64, 1) = 1.5"
+    error { code: "InvalidFilterValue" start: 23 length: 3 subject: "add(single_int64, 1)" }
+  }
+  test {
+    name: "string for a bool result"
+    filter: "isRecent(single_timestamp) = \"x\""
+    error { code: "InvalidFilterValue" start: 29 length: 3 subject: "isRecent(single_timestamp)" }
+  }
+}

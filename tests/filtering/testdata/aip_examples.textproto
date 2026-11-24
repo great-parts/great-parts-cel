@@ -1,0 +1,363 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# Every example of the text of AIP-160, adapted to the fields of the resource of the corpus, and one case for each place where this package
+# reads the filters of AIP-160 differently from the text of the specification.
+
+name: "aip_examples"
+description: "The examples of AIP-160 (https://google.aip.dev/160, read on 2026-11-19; the text of the specification is licensed under CC BY 4.0), adapted to the fields of the corpus, and the cases of the differences from the text."
+
+section {
+  name: "literals"
+  description: "Values without a field: Victor Hugo, 42 and Hugo of the text, searched in a string and in the name of an author."
+
+  test {
+    name: "Victor Hugo"
+    filter: "Victor Hugo"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "(single_string.contains(\"Victor\") || author != null && author.name.contains(\"Victor\")) && (single_string.contains(\"Hugo\") || author != null && author.name.contains(\"Hugo\"))"
+    resource { value { single_string: "Victor Hugo" } match: true }
+    resource { value { author { name: "Victor Hugo" } } match: true }
+    resource { value { single_string: "Victor" } match: false }
+  }
+  test {
+    name: "42"
+    filter: "42"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "single_string.contains(\"42\") || author != null && author.name.contains(\"42\")"
+    resource { value { single_string: "room 42" } match: true }
+    resource { value { single_string: "room 43" } match: false }
+  }
+  test {
+    name: "Hugo"
+    filter: "Hugo"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "single_string.contains(\"Hugo\") || author != null && author.name.contains(\"Hugo\")"
+    resource { value { author { name: "Victor Hugo" } } match: true }
+    resource { value { author { name: "Victor" } } match: false }
+  }
+}
+
+section {
+  name: "logical operators"
+  description: "a AND b, a OR b OR c and a AND b OR c, with restrictions as the operands."
+
+  test {
+    name: "a AND b"
+    filter: "single_bool = true AND single_int64 = 1"
+    cel: "single_bool == true && single_int64 == 1"
+    resource { value { single_bool: true single_int64: 1 } match: true }
+    resource { value { single_bool: true single_int64: 2 } match: false }
+  }
+  test {
+    name: "a OR b OR c"
+    filter: "single_int64 = 1 OR single_int64 = 2 OR single_int64 = 3"
+    cel: "single_int64 == 1 || single_int64 == 2 || single_int64 == 3"
+    resource { value { single_int64: 3 } match: true }
+    resource { value { single_int64: 4 } match: false }
+  }
+  test {
+    name: "a AND b OR c"
+    filter: "single_bool = true AND single_int64 = 1 OR single_int32 = 2"
+    cel: "single_bool == true && (single_int64 == 1 || single_int32 == 2)"
+    resource { value { single_bool: true single_int32: 2 } match: true }
+    resource { value { single_int32: 2 } match: false }
+    resource { value { single_bool: true } match: false }
+  }
+}
+
+section {
+  name: "negation operators"
+  description: "NOT a and -a."
+
+  test {
+    name: "NOT a"
+    filter: "NOT single_int64 = 1"
+    cel: "!(single_int64 == 1)"
+    resource { value { single_int64: 2 } match: true }
+    resource { value { single_int64: 1 } match: false }
+  }
+  test {
+    name: "-a"
+    filter: "-single_int64 = 1"
+    cel: "!(single_int64 == 1)"
+    resource { value { single_int64: 2 } match: true }
+    resource { value { single_int64: 1 } match: false }
+  }
+}
+
+section {
+  name: "comparison operators"
+  description: "The comparisons of the text on a bool, an int, a string, a double, a duration and a timestamp."
+
+  test {
+    name: "a = true"
+    filter: "single_bool = true"
+    cel: "single_bool == true"
+    resource { value { single_bool: true } match: true }
+  }
+  test {
+    name: "a != 42"
+    filter: "single_int64 != 42"
+    cel: "single_int64 != 42"
+    resource { value { single_int64: 41 } match: true }
+    resource { value { single_int64: 42 } match: false }
+  }
+  test {
+    name: "a < 42"
+    filter: "single_int64 < 42"
+    cel: "single_int64 < 42"
+    resource { value { single_int64: 41 } match: true }
+    resource { value { single_int64: 42 } match: false }
+  }
+  test {
+    name: "a > foo"
+    filter: "single_string > \"foo\""
+    cel: "single_string > \"foo\""
+    resource { value { single_string: "fop" } match: true }
+    resource { value { single_string: "foo" } match: false }
+  }
+  test {
+    name: "a <= foo"
+    filter: "single_string <= \"foo\""
+    cel: "single_string <= \"foo\""
+    resource { value { single_string: "foo" } match: true }
+    resource { value { single_string: "fop" } match: false }
+  }
+  test {
+    name: "a >= 42"
+    filter: "single_int64 >= 42"
+    cel: "single_int64 >= 42"
+    resource { value { single_int64: 42 } match: true }
+    resource { value { single_int64: 41 } match: false }
+  }
+  test {
+    name: "a = star dot foo"
+    filter: "single_string = \"*.foo\""
+    cel: "single_string.endsWith(\".foo\")"
+    resource { value { single_string: "name.foo" } match: true }
+    resource { value { single_string: "name.bar" } match: false }
+  }
+  test {
+    name: "2.997e9"
+    filter: "single_double = 2.997e9"
+    cel: "single_double == 2997000000.0"
+    resource { value { single_double: 2997000000 } match: true }
+    resource { value { single_double: 2.997 } match: false }
+  }
+  test {
+    name: "1.2s"
+    filter: "single_duration >= 1.2s"
+    cel: "single_duration >= duration(\"1.2s\")"
+    resource { value { single_duration { seconds: 2 } } match: true }
+    resource { value { single_duration { seconds: 1 } } match: false }
+  }
+  test {
+    name: "2012-04-21T11:30:00-04:00"
+    filter: "single_timestamp < \"2012-04-21T11:30:00-04:00\""
+    cel: "single_timestamp < timestamp(\"2012-04-21T11:30:00-04:00\")"
+    resource { value { single_timestamp { seconds: 1335022199 } } match: true }
+    resource { value { single_timestamp { seconds: 1335022200 } } match: false }
+  }
+}
+
+section {
+  name: "traversal and has"
+  description: "a.b = true, a.b.c, r:42, r.foo:42, e.0.foo, m:foo, m.foo:*, m.foo:42, r:*, p:* and m:*."
+
+  test {
+    name: "a.b > 42"
+    filter: "author.born > 42"
+    cel: "author != null && author.born > 42"
+    resource { value { author { born: 1920 } } match: true }
+    resource { value { author { born: 40 } } match: false }
+  }
+  test {
+    name: "a.b.c = foo"
+    filter: "author.address.city = \"foo\""
+    cel: "author != null && has(author.address) && author.address.city == \"foo\""
+    resource { value { author { address { city: "foo" } } } match: true }
+    resource { value { author { address { city: "bar" } } } match: false }
+  }
+  test {
+    name: "r:42"
+    filter: "repeated_int32:42"
+    cel: "42 in repeated_int32"
+    resource { value { repeated_int32: 42 } match: true }
+    resource { value { repeated_int32: 43 } match: false }
+  }
+  test {
+    name: "r.foo:42"
+    filter: "editions.year:42"
+    cel: "editions.exists(e, e.year == 42)"
+    resource { value { editions { year: 41 } editions { year: 42 } } match: true }
+    resource { value { editions { year: 41 } } match: false }
+  }
+  test {
+    name: "e.0.foo = 42 is invalid"
+    filter: "editions.0.year = 42"
+    error { code: "InvalidFilterRestriction" start: 16 length: 1 }
+  }
+  test {
+    name: "e[0].foo = 42 is invalid"
+    filter: "editions[0].year = 42"
+    error { code: "UndeclaredReference" start: 0 length: 11 }
+  }
+  test {
+    name: "m:foo"
+    filter: "labels:foo"
+    cel: "\"foo\" in labels"
+    resource { value { labels { key: "foo" value: "x" } } match: true }
+    resource { value { labels { key: "bar" value: "x" } } match: false }
+  }
+  test {
+    name: "m.foo:*"
+    filter: "labels.foo:*"
+    cel: "\"foo\" in labels"
+    resource { value { labels { key: "foo" value: "x" } } match: true }
+    resource { value { labels { key: "bar" value: "x" } } match: false }
+  }
+  test {
+    name: "m.foo:42"
+    filter: "labels.foo:42"
+    cel: "\"foo\" in labels && labels[\"foo\"] == \"42\""
+    resource { value { labels { key: "foo" value: "42" } } match: true }
+    resource { value { labels { key: "foo" value: "43" } } match: false }
+  }
+  test {
+    name: "r:*"
+    filter: "repeated_string:*"
+    cel: "size(repeated_string) > 0"
+    resource { value { repeated_string: "a" } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "p:*"
+    filter: "labels:*"
+    cel: "size(labels) > 0"
+    resource { value { labels { key: "a" value: "b" } } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "m:*"
+    filter: "author:*"
+    cel: "author != null"
+    resource { value { author {} } match: true }
+  }
+}
+
+section {
+  name: "validation and functions"
+  description: "age=hello for an int32 field, and a call of a function of the service."
+
+  test {
+    name: "age=hello"
+    filter: "single_int32 = hello"
+    error { code: "InvalidFilterValue" start: 15 length: 5 subject: "single_int32" }
+  }
+  test {
+    name: "call(arg)"
+    filter: "add(single_int32, 1) = 2"
+    cel: "add(single_int32, 1) == 2"
+    resource { value { single_int32: 1 } match: true }
+    resource { value { single_int32: 2 } match: false }
+  }
+}
+
+section {
+  name: "differences from the text"
+  description: "One case for each place where the package reads the text of AIP-160 differently: what it accepts, what it refuses and why."
+
+  test {
+    name: "a time written without quotes has colons that text cannot have"
+    filter: "single_timestamp > 2012-04-21T11:30:00-04:00"
+    error { code: "FilterSyntaxError" start: 32 length: 1 }
+  }
+  test {
+    name: "a time written in quotes is accepted"
+    filter: "single_timestamp > \"2012-04-21T11:30:00-04:00\""
+    cel: "single_timestamp > timestamp(\"2012-04-21T11:30:00-04:00\")"
+    resource { value { single_timestamp { seconds: 1335022201 } } match: true }
+  }
+  test {
+    name: "a member on the right is a value, not a field"
+    filter: "single_string = author.name"
+    cel: "single_string == \"author.name\""
+    resource { value { single_string: "author.name" } match: true }
+    resource { value { single_string: "x" author { name: "x" } } match: false }
+  }
+  test {
+    name: "a function on the right is refused"
+    filter: "single_int64 <= add(1, 2)"
+    error { code: "InvalidFilterRestriction" start: 16 length: 3 }
+  }
+  test {
+    name: "a literal on the left is a path of a field"
+    filter: "5 = single_int64"
+    error { code: "UndeclaredReference" start: 0 length: 1 }
+  }
+  test {
+    name: "a scalar of the top level is always present"
+    filter: "single_double:*"
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "a nested object is present only when it is set"
+    filter: "author.address:*"
+    cel: "author != null && has(author.address)"
+    resource { value { author {} } match: false }
+  }
+  test {
+    name: "a duration is not only seconds"
+    filter: "single_duration < 1h30m"
+    cel: "single_duration < duration(\"1h30m\")"
+    resource { value { single_duration { seconds: 5399 } } match: true }
+    resource { value { single_duration { seconds: 5400 } } match: false }
+  }
+  test {
+    name: "null is the absence of a wrapper and a string of a string"
+    filter: "single_string_wrapper = null OR single_string = null"
+    cel: "single_string_wrapper == null || single_string == \"null\""
+    resource { value {} match: true }
+    resource { value { single_string_wrapper { value: "x" } single_string: "null" } match: true }
+    resource { value { single_string_wrapper { value: "x" } single_string: "x" } match: false }
+  }
+  test {
+    name: "a bool has no order"
+    filter: "single_bool >= true"
+    error { code: "InvalidFilterRestriction" start: 12 length: 2 }
+  }
+  test {
+    name: "a function called arguments is a function of the environment"
+    filter: "arguments(single_string)"
+    error { code: "UndeclaredReference" start: 0 length: 9 }
+  }
+  test {
+    name: "white space inside a function call makes two values"
+    filter: "lower (single_string = x)"
+    error { code: "InvalidFilterRestriction" start: 0 length: 5 }
+  }
+  test {
+    name: "a star in the middle is a character"
+    filter: "single_string = \"a*b\""
+    cel: "single_string == \"a*b\""
+    resource { value { single_string: "a*b" } match: true }
+    resource { value { single_string: "axb" } match: false }
+  }
+  test {
+    name: "names of fields are as the environment declares them"
+    filter: "singleString = x"
+    error { code: "UndeclaredReference" start: 0 length: 12 }
+  }
+  test {
+    name: "a sequence is AND, with no fuzzy mode"
+    filter: "single_int64 > 1 single_int64 < 3"
+    cel: "single_int64 > 1 && single_int64 < 3"
+    resource { value { single_int64: 2 } match: true }
+    resource { value { single_int64: 3 } match: false }
+  }
+}

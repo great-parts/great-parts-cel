@@ -30,6 +30,7 @@ public sealed class ReleaseGatesTests
     private const string InjectionName = "Great.Parts.Cel.DependencyInjection.1.2.0.nupkg";
     private const string AspNetCoreName = "Great.Parts.Cel.AspNetCore.1.2.0.nupkg";
     private const string PolicyName = "Great.Parts.Cel.Policy.1.2.0.nupkg";
+    private const string FilteringName = "Great.Parts.Cel.Filtering.1.2.0.nupkg";
 
     // The text of Directory.Build.props and of a project under src/ at the commit of the long run, for the cases of the package metadata.
     private const string PropsBefore = "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags></PropertyGroup></Project>";
@@ -505,7 +506,7 @@ public sealed class ReleaseGatesTests
     [Fact]
     public void Eng907_SameContent_PackagesThatDifferOnlyBySignatureAndZipBytes_Pass()
     {
-        Result result = Compare([(".signature.p7s", "signature"), .. Entries], [.. Enumerable.Reverse(Entries)], "great.parts.cel.1.2.0.nupkg", ProtobufName, InjectionName, AspNetCoreName, PolicyName);
+        Result result = Compare([(".signature.p7s", "signature"), .. Entries], [.. Enumerable.Reverse(Entries)], "great.parts.cel.1.2.0.nupkg", ProtobufName, InjectionName, AspNetCoreName, PolicyName, FilteringName);
 
         Result.Expect(result, 0);
     }
@@ -524,7 +525,7 @@ public sealed class ReleaseGatesTests
         };
         (string Name, string Content)[] built = kind == "changed" ? [Entries[0], (Entries[1].Name, "other")] : Entries;
 
-        Result result = Compare(served, built, PackageName, ProtobufName, InjectionName, AspNetCoreName, PolicyName);
+        Result result = Compare(served, built, PackageName, ProtobufName, InjectionName, AspNetCoreName, PolicyName, FilteringName);
 
         Result.Expect(
             result,
@@ -532,6 +533,7 @@ public sealed class ReleaseGatesTests
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {PackageName}: {message}",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {AspNetCoreName}: {message}",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {InjectionName}: {message}",
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {FilteringName}: {message}",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {PolicyName}: {message}",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {ProtobufName}: {message}");
     }
@@ -547,6 +549,7 @@ public sealed class ReleaseGatesTests
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {PackageName}: the build has no package of that name",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {AspNetCoreName}: the build has no package of that name",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {InjectionName}: the build has no package of that name",
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {FilteringName}: the build has no package of that name",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {PolicyName}: the build has no package of that name");
     }
 
@@ -568,7 +571,7 @@ public sealed class ReleaseGatesTests
     // ENG907: the download
 
     [Fact]
-    public void Eng907_Download_WritesTheFivePackagesAsNuGetGivesThemAfterWaitingForThem()
+    public void Eng907_Download_WritesTheSixPackagesAsNuGetGivesThemAfterWaitingForThem()
     {
         Stubs stubs = new();
         byte[] content = Zip(signed: true);
@@ -582,6 +585,7 @@ public sealed class ReleaseGatesTests
         Assert.Equal(content, File.ReadAllBytes(Path.Combine(target.Path, "nuget", InjectionName)));
         Assert.Equal(content, File.ReadAllBytes(Path.Combine(target.Path, "nuget", AspNetCoreName)));
         Assert.Equal(content, File.ReadAllBytes(Path.Combine(target.Path, "nuget", PolicyName)));
+        Assert.Equal(content, File.ReadAllBytes(Path.Combine(target.Path, "nuget", FilteringName)));
         Assert.Equal(
             [
                 "https://api.nuget.org/v3-flatcontainer/great.parts.cel/1.2.0/great.parts.cel.1.2.0.nupkg",
@@ -589,6 +593,7 @@ public sealed class ReleaseGatesTests
                 "https://api.nuget.org/v3-flatcontainer/great.parts.cel.dependencyinjection/1.2.0/great.parts.cel.dependencyinjection.1.2.0.nupkg",
                 "https://api.nuget.org/v3-flatcontainer/great.parts.cel.aspnetcore/1.2.0/great.parts.cel.aspnetcore.1.2.0.nupkg",
                 "https://api.nuget.org/v3-flatcontainer/great.parts.cel.policy/1.2.0/great.parts.cel.policy.1.2.0.nupkg",
+                "https://api.nuget.org/v3-flatcontainer/great.parts.cel.filtering/1.2.0/great.parts.cel.filtering.1.2.0.nupkg",
             ],
             stubs.Source.Requests.Distinct().Select(address => address.AbsoluteUri));
         Assert.Equal([TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30)], stubs.Clock.Delays);
@@ -608,6 +613,7 @@ public sealed class ReleaseGatesTests
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {PackageName} is not on nuget.org after 15 minutes: the status is 404",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {AspNetCoreName} is not on nuget.org after 15 minutes: the status is 404",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {InjectionName} is not on nuget.org after 15 minutes: the status is 404",
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {FilteringName} is not on nuget.org after 15 minutes: the status is 404",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {PolicyName} is not on nuget.org after 15 minutes: the status is 404",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {ProtobufName} is not on nuget.org after 15 minutes: the status is 404");
         Assert.Equal(TimeSpan.FromMinutes(15), stubs.Clock.Elapsed);
@@ -785,7 +791,7 @@ public sealed class ReleaseGatesTests
         return stream.ToArray();
     }
 
-    // nuget.org serves `served` as each of the five packages of the version; the directory of the build has the packages of the given file names with
+    // nuget.org serves `served` as each of the six packages of the version; the directory of the build has the packages of the given file names with
     // the content `built`. The result is that of the download with --same-content-as.
     private static Result Compare(IEnumerable<(string Name, string Content)> served, IEnumerable<(string Name, string Content)> built, params string[] builtNames)
     {

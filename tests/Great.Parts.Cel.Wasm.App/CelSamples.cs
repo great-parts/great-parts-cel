@@ -2,6 +2,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf.WellKnownTypes;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Filtering;
 using Great.Parts.Cel.Policy;
 using Great.Parts.Cel.Protobuf;
 
@@ -10,8 +11,8 @@ namespace Great.Parts.Cel.Wasm.App;
 /// <summary>
 /// The expressions of the application: the quick start of the README on <c>Great.Parts.Cel</c>, the example of
 /// <c>docs/protobuf.md</c> on <c>Great.Parts.Cel.Protobuf</c>, an asynchronous function with a partial evaluation, so that the
-/// trimmer analyzes the asynchronous driver and the residual expression as well, and a small policy on
-/// <c>Great.Parts.Cel.Policy</c>.
+/// trimmer analyzes the asynchronous driver and the residual expression as well, a small policy on
+/// <c>Great.Parts.Cel.Policy</c> and a small filter on <c>Great.Parts.Cel.Filtering</c>.
 /// </summary>
 internal static class CelSamples
 {
@@ -144,5 +145,17 @@ internal static class CelSamples
             new CelSourceLocation("rules.json", 0, 1, 1));
         CelException exception = new([document, .. compiled.Errors]);
         return exception.Errors.Length + " errors, the first at " + exception.Errors[0].SourceLocation!.Value.Line;
+    }
+
+    internal static bool Filter()
+    {
+        CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+            .AddVariable<string>("title")
+            .AddVariable<long>("pages")
+            .Build()
+            .GetEnvironmentOrThrow();
+        CelFilterCompiler compiler = new(environment);
+        CelProgram<bool> program = compiler.Compile("title = \"Dune\" AND pages > 100").GetProgramOrThrow();
+        return program.Evaluate(new CelBindings().Add("title", "Dune").Add("pages", 412L)).GetValueOrThrow();
     }
 }

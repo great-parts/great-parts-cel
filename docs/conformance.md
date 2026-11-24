@@ -56,6 +56,14 @@ The runner translates the environment description of cel-go (`config.yaml`) into
 | `context_pb/valid/good spec`, `context_pb/invalid/bad spec` | The category declares the fields of a message as variables (`context_variable`), which the environment description of the library has no key for. |
 | `k8s/invalid/restricted_container` | The policy is a Kubernetes ValidatingAdmissionPolicy, which cel-go reads with a tag handler of its own; the library has none. |
 
+## AIP-160 filters
+
+The package `Great.Parts.Cel.Filtering` translates the filters of [AIP-160](https://google.aip.dev/160) into CEL expressions of an environment. AIP-160 has no official test suite, so the package has no share of conformance to report. It is checked by a corpus of its own, [`tests/filtering/testdata`](https://github.com/great-parts/great-parts-cel/tree/main/tests/filtering/testdata): each case gives a filter, the options of the compiler, and the CEL expression the filter must become, the result on some items, or the error with its code and its place in the filter. The corpus covers every example of the text of AIP-160, each row of the translation, every code that a filter reports, the lexical rules, the limits and each place where the package reads AIP-160 differently. The runner of the cel-spec suite runs it, in the JIT and Native AOT cells of `ci.yml`, and a case that fails is a defect that is fixed, never a case on a list.
+
+AIP-160: own test corpus, 369 cases, run on 2026-11-24, [tests/filtering/testdata](https://github.com/great-parts/great-parts-cel/tree/main/tests/filtering/testdata).
+
+The line is the whole result: a count of cases and the date of the run, with no percentage and no badge. The runner prints it too, for example `aip-160 corpus: 369/369 passed, 2026-11-24 (jit, linux-x64, net11.0)`, and `eng/checks` compares the count of the line with the count of the cases of the corpus.
+
 ## The master branch of cel-spec
 
 The workflow [`conformance-master.yml`](https://github.com/great-parts/great-parts-cel/actions/workflows/conformance-master.yml) runs the same suite every night on the last commit of the master branch of cel-spec, with an empty skip list, so a change in the test data shows up before the pinned commit moves. The report of each run is committed to the branch `reports`, in the directory `conformance-master/`: the date and the time of the run in UTC, the commit of cel-spec master, the commit of this repository, the result and the cases that fail, as `report.json` and `report.md`; the last report is also `conformance-master/latest.json`. The summary of the run has the same line.

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Great.Parts.Cel.Diagnostics;
@@ -29,6 +31,53 @@ public sealed class CelParseResult
     internal CelParseResult(ImmutableArray<CelError> errors)
     {
         Errors = errors;
+    }
+
+    /// <summary>
+    /// Creates a successful result of a parser of another language, such as a filter, from the tree it built with a
+    /// <see cref="CelExprFactory"/>.
+    /// </summary>
+    /// <param name="parsedExpr">The parsed expression.</param>
+    /// <returns>The result with the parsed expression and no errors.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="parsedExpr"/> is <see langword="null"/>.</exception>
+    public static CelParseResult FromParsedExpr(CelParsedExpr parsedExpr)
+    {
+        ArgumentNullException.ThrowIfNull(parsedExpr);
+        return new CelParseResult(parsedExpr);
+    }
+
+    /// <summary>
+    /// Creates an unsuccessful result of a parser of another language from the errors it found, such as the errors that
+    /// <see cref="CelExprFactory.CreateError"/> created.
+    /// </summary>
+    /// <remarks>
+    /// The errors keep their order. Their stages are not checked: a parser of another language can report an error of the
+    /// stage <see cref="CelErrorStage.Check"/>, such as a value that does not fit the type of a field, before the tree is
+    /// type-checked.
+    /// </remarks>
+    /// <param name="errors">The errors; at least one.</param>
+    /// <returns>The result with the errors and no parsed expression.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="errors"/> or one of its elements is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="errors"/> is empty.</exception>
+    public static CelParseResult FromErrors(IEnumerable<CelError> errors) => new(CopyErrors(errors));
+
+    // The errors of a result of a parser of another language: copied once, in order, at least one and none null.
+    internal static ImmutableArray<CelError> CopyErrors(IEnumerable<CelError> errors)
+    {
+        ArgumentNullException.ThrowIfNull(errors);
+        ImmutableArray<CelError>.Builder copy = ImmutableArray.CreateBuilder<CelError>();
+        foreach (CelError error in errors)
+        {
+            ArgumentNullException.ThrowIfNull(error, nameof(errors));
+            copy.Add(error);
+        }
+
+        if (copy.Count == 0)
+        {
+            throw new ArgumentException("A result without a success needs at least one error.", nameof(errors));
+        }
+
+        return copy.DrainToImmutable();
     }
 
     /// <summary>

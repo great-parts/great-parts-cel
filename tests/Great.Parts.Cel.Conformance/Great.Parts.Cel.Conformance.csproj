@@ -49,6 +49,7 @@
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
     <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
     <ProjectReference Include="../../src/Great.Parts.Cel.Policy/Great.Parts.Cel.Policy.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Filtering/Great.Parts.Cel.Filtering.csproj" />
     <ProjectReference Include="../../eng/findings/Great.Parts.Cel.Eng.Findings.csproj" />
   </ItemGroup>
 
@@ -106,6 +107,54 @@
                    RepoPath="$([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/'))" />
     <EmbeddedResource Include="@(CelPolicyFile)" LogicalName="%(RepoPath)" />
   </ItemGroup>
+
+  <!--
+    The corpus of the filtering package: the schema tests/filtering/proto/filter_test.proto compiles into C# classes (namespace
+    Great.Parts.Cel.Conformance.FilterCorpus), and each file of tests/filtering/testdata is a text file that protoc reads as a
+    greatparts.filtering.test.FilterTestFile and writes in the binary form; the text and the binary form are embedded under the
+    path of the file from the repository root and with the extension .binpb. The schema imports the well-known types only, so the
+    standard imports of Grpc.Tools are its whole import path.
+  -->
+  <PropertyGroup>
+    <FilterProtoRoot>$([MSBuild]::NormalizeDirectory('$(CelRepoRoot)', 'tests', 'filtering', 'proto'))</FilterProtoRoot>
+    <!-- Without a trailing separator, as CelProtoDir. -->
+    <FilterProtoDir>$(CelRepoRoot)tests/filtering/proto</FilterProtoDir>
+    <FilterCorpusObj>$(BaseIntermediateOutputPath)$(Configuration)/$(TargetFramework)/filtering/</FilterCorpusObj>
+    <FilterCorpusStamp>$(FilterCorpusObj)encoded.stamp</FilterCorpusStamp>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Protobuf Include="$(FilterProtoRoot)filter_test.proto" ProtoRoot="$(FilterProtoRoot)" GrpcServices="None" />
+    <FilterCorpusText Include="../filtering/testdata/*.textproto"
+                      RepoPath="$([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/'))"
+                      BinaryRepoPath="$([System.IO.Path]::ChangeExtension($([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/')), '.binpb'))"
+                      EncodedPath="$(FilterCorpusObj)$([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/').Replace('/', '__')).binpb" />
+    <EmbeddedResource Include="@(FilterCorpusText)" LogicalName="%(RepoPath)" />
+  </ItemGroup>
+
+  <Target Name="EncodeFilterCorpus"
+          DependsOnTargets="Protobuf_ResolvePlatform"
+          Inputs="@(FilterCorpusText);$(FilterProtoRoot)filter_test.proto;$(MSBuildProjectFullPath)"
+          Outputs="$(FilterCorpusStamp)">
+    <MakeDir Directories="$(FilterCorpusObj)" />
+    <PropertyGroup>
+      <FilterStandardImports>$(Protobuf_StandardImportsPath.TrimEnd('\').TrimEnd('/'))</FilterStandardImports>
+      <FilterEncodeCommand>"$(Protobuf_ProtocFullPath)" --encode=greatparts.filtering.test.FilterTestFile -I"$(FilterProtoDir)" -I"$(FilterStandardImports)" "$(FilterProtoDir)/filter_test.proto"</FilterEncodeCommand>
+    </PropertyGroup>
+    <Exec Command="$(FilterEncodeCommand) &lt; &quot;%(FilterCorpusText.FullPath)&quot; &gt; &quot;%(FilterCorpusText.EncodedPath)&quot;"
+          WorkingDirectory="$(MSBuildProjectDirectory)" />
+    <WriteLinesToFile File="$(FilterCorpusStamp)" Lines="encoded" Overwrite="true" />
+    <ItemGroup>
+      <FileWrites Include="@(FilterCorpusText->'%(EncodedPath)')" />
+      <FileWrites Include="$(FilterCorpusStamp)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="EmbedFilterCorpus" DependsOnTargets="EncodeFilterCorpus" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <EmbeddedResource Include="%(FilterCorpusText.EncodedPath)" LogicalName="%(FilterCorpusText.BinaryRepoPath)" />
+    </ItemGroup>
+  </Target>
 
   <!--
     The time zone data of the tests: the archive zoneinfo.zip of the pinned Go (docs/design/tests.md, "Time zone data"). One copy of the file; the

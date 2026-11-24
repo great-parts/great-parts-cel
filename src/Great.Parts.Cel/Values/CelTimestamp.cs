@@ -93,6 +93,26 @@ public readonly struct CelTimestamp : IEquatable<CelTimestamp>, IComparable<CelT
     }
 
     /// <summary>
+    /// Reads a timestamp from a string by the rules of the CEL function <c>timestamp(string)</c>: RFC 3339 with a time
+    /// zone offset or <c>Z</c>, fractional seconds up to nanoseconds, within the range of <c>timestamp</c> from
+    /// 0001-01-01T00:00:00Z to 9999-12-31T23:59:59.999999999Z.
+    /// </summary>
+    /// <remarks>
+    /// The method uses the same code as the function, so a string is read here exactly when <c>timestamp(</c>string<c>)</c>
+    /// returns a value rather than an error; for example, the package <c>Great.Parts.Cel.Filtering</c> reports a wrong time in
+    /// a filter at compilation instead of an error of evaluation.
+    /// </remarks>
+    /// <param name="text">The string.</param>
+    /// <param name="value">The timestamp; <see langword="default"/> when the string is not a timestamp.</param>
+    /// <returns><see langword="true"/> when the string is a timestamp.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="text"/> is <see langword="null"/>.</exception>
+    public static bool TryParse(string text, out CelTimestamp value)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return TimeTextRules.TryParseTimestamp(text, out value) == TimeParseResult.Parsed;
+    }
+
+    /// <summary>
     /// Converts the timestamp to a <see cref="DateTimeOffset"/> with offset zero, if it can be represented exactly.
     /// </summary>
     /// <param name="value">

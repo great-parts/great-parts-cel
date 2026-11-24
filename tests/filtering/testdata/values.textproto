@@ -1,0 +1,632 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# The value of a restriction read by the type of its field: numbers of every width, bool, string, bytes, times, enumerations, wrappers,
+# dynamic values and null. Each type has a case that succeeds and a case that is an error.
+
+name: "values"
+description: "Values read by the type of the field: what a field of each type accepts and what it rejects."
+
+section {
+  name: "int"
+  description: "Fields of type int: int32, int64, sint64 and sfixed64."
+
+  test {
+    name: "int64"
+    filter: "single_int64 = 100"
+    cel: "single_int64 == 100"
+    resource { value { single_int64: 100 } match: true }
+    resource { value { single_int64: 101 } match: false }
+  }
+  test {
+    name: "negative number"
+    filter: "single_int64 = -5"
+    cel: "single_int64 == -5"
+    resource { value { single_int64: -5 } match: true }
+    resource { value { single_int64: 5 } match: false }
+  }
+  test {
+    name: "leading zeros"
+    filter: "single_int64 = 007"
+    cel: "single_int64 == 7"
+    resource { value { single_int64: 7 } match: true }
+  }
+  test {
+    name: "plus sign"
+    filter: "single_int64 = +5"
+    cel: "single_int64 == 5"
+    resource { value { single_int64: 5 } match: true }
+  }
+  test {
+    name: "largest int64"
+    filter: "single_int64 = 9223372036854775807"
+    cel: "single_int64 == 9223372036854775807"
+    resource { value { single_int64: 9223372036854775807 } match: true }
+    resource { value { single_int64: 9223372036854775806 } match: false }
+  }
+  test {
+    name: "int32 takes a value outside its width"
+    filter: "single_int32 = 2147483648"
+    cel: "single_int32 == 2147483648"
+  }
+  test {
+    name: "sint64"
+    filter: "single_sint64 < 3"
+    cel: "single_sint64 < 3"
+    resource { value { single_sint64: 2 } match: true }
+    resource { value { single_sint64: 3 } match: false }
+  }
+  test {
+    name: "sfixed64"
+    filter: "single_sfixed64 = -3"
+    cel: "single_sfixed64 == -3"
+    resource { value { single_sfixed64: -3 } match: true }
+    resource { value { single_sfixed64: 3 } match: false }
+  }
+  test {
+    name: "fraction"
+    filter: "single_int64 = 1.5"
+    error { code: "InvalidFilterValue" start: 15 length: 3 subject: "single_int64" }
+  }
+  test {
+    name: "exponent"
+    filter: "single_int64 = 1e2"
+    error { code: "InvalidFilterValue" start: 15 length: 3 subject: "single_int64" }
+  }
+  test {
+    name: "word"
+    filter: "single_int64 = abc"
+    error { code: "InvalidFilterValue" start: 15 length: 3 subject: "single_int64" }
+  }
+  test {
+    name: "number that does not fit 64 bits"
+    filter: "single_int64 = 99999999999999999999"
+    error { code: "InvalidFilterValue" start: 15 length: 20 subject: "single_int64" }
+  }
+  test {
+    name: "string of a word is not an int"
+    filter: "single_int64 = \"abc\""
+    error { code: "InvalidFilterValue" start: 15 length: 5 }
+  }
+  test {
+    name: "character outside the basic plane is one value of two code units"
+    filter: "single_int64 = 😀"
+    error { code: "InvalidFilterValue" start: 15 length: 2 }
+  }
+}
+
+section {
+  name: "uint"
+  description: "Fields of type uint: uint32, uint64 and fixed32."
+
+  test {
+    name: "uint32"
+    filter: "single_uint32 = 3"
+    cel: "single_uint32 == 3u"
+    resource { value { single_uint32: 3 } match: true }
+    resource { value { single_uint32: 4 } match: false }
+  }
+  test {
+    name: "largest uint64"
+    filter: "single_uint64 = 18446744073709551615"
+    cel: "single_uint64 == 18446744073709551615u"
+    resource { value { single_uint64: 18446744073709551615 } match: true }
+    resource { value { single_uint64: 18446744073709551614 } match: false }
+  }
+  test {
+    name: "fixed32"
+    filter: "single_fixed32 >= 3"
+    cel: "single_fixed32 >= 3u"
+    resource { value { single_fixed32: 3 } match: true }
+    resource { value { single_fixed32: 2 } match: false }
+  }
+  test {
+    name: "wrapper of uint64"
+    filter: "single_uint64_wrapper = 5"
+    cel: "single_uint64_wrapper != null && single_uint64_wrapper == 5u"
+    resource { value { single_uint64_wrapper { value: 5 } } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "negative number"
+    filter: "single_uint32 = -3"
+    error { code: "InvalidFilterValue" start: 16 length: 2 subject: "single_uint32" }
+  }
+  test {
+    name: "fraction"
+    filter: "single_uint32 = 3.0"
+    error { code: "InvalidFilterValue" start: 16 length: 3 }
+  }
+  test {
+    name: "number that does not fit 64 bits"
+    filter: "single_uint64 = 18446744073709551616"
+    error { code: "InvalidFilterValue" start: 16 length: 20 }
+  }
+}
+
+section {
+  name: "double"
+  description: "Fields of type double: double and float; an integer is read as a double."
+
+  test {
+    name: "integer for a double"
+    filter: "single_double >= 4"
+    cel: "single_double >= 4.0"
+    resource { value { single_double: 4 } match: true }
+    resource { value { single_double: 3.5 } match: false }
+  }
+  test {
+    name: "exponent"
+    filter: "single_double = 1e3"
+    cel: "single_double == 1000.0"
+    resource { value { single_double: 1000 } match: true }
+    resource { value { single_double: 100 } match: false }
+  }
+  test {
+    name: "fraction"
+    filter: "single_double < 4.25"
+    cel: "single_double < 4.25"
+    resource { value { single_double: 4.2 } match: true }
+    resource { value { single_double: 4.25 } match: false }
+  }
+  test {
+    name: "negative fraction"
+    filter: "single_double = -0.5"
+    cel: "single_double == -0.5"
+    resource { value { single_double: -0.5 } match: true }
+    resource { value { single_double: 0.5 } match: false }
+  }
+  test {
+    name: "float"
+    filter: "single_float = 1.5"
+    cel: "single_float == 1.5"
+    resource { value { single_float: 1.5 } match: true }
+    resource { value { single_float: 2.5 } match: false }
+  }
+  test {
+    name: "wrapper of double"
+    filter: "single_double_wrapper > 1"
+    cel: "single_double_wrapper != null && single_double_wrapper > 1.0"
+    resource { value { single_double_wrapper { value: 1.5 } } match: true }
+    resource { value { single_double_wrapper { value: 0.5 } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "dot first is not a number"
+    filter: "single_double = .5"
+    error { code: "FilterSyntaxError" start: 16 length: 1 }
+  }
+  test {
+    name: "dot last is not a number"
+    filter: "single_double = 1."
+    error { code: "FilterSyntaxError" start: 18 length: 0 }
+  }
+  test {
+    name: "word"
+    filter: "single_double = abc"
+    error { code: "InvalidFilterValue" start: 16 length: 3 subject: "single_double" }
+  }
+  test {
+    name: "NaN is not a number of a filter"
+    filter: "single_double = NaN"
+    error { code: "InvalidFilterValue" start: 16 length: 3 }
+  }
+  test {
+    name: "number beyond the range of a double"
+    filter: "single_double = 1e999"
+    error { code: "InvalidFilterValue" start: 16 length: 5 }
+  }
+}
+
+section {
+  name: "bool"
+  description: "Fields of type bool: true and false written as text."
+
+  test {
+    name: "true"
+    filter: "single_bool = true"
+    cel: "single_bool == true"
+    resource { value { single_bool: true } match: true }
+    resource { value { single_bool: false } match: false }
+  }
+  test {
+    name: "false"
+    filter: "single_bool = false"
+    cel: "single_bool == false"
+    resource { value { single_bool: false } match: true }
+    resource { value { single_bool: true } match: false }
+  }
+  test {
+    name: "not equal to true"
+    filter: "single_bool != true"
+    cel: "single_bool != true"
+    resource { value { single_bool: false } match: true }
+  }
+  test {
+    name: "wrapper of bool"
+    filter: "single_bool_wrapper = true"
+    cel: "single_bool_wrapper != null && single_bool_wrapper == true"
+    resource { value { single_bool_wrapper { value: true } } match: true }
+    resource { value { single_bool_wrapper { value: false } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "yes is not a bool"
+    filter: "single_bool = yes"
+    error { code: "InvalidFilterValue" start: 14 length: 3 subject: "single_bool" }
+  }
+  test {
+    name: "bool in quotes is a string"
+    filter: "single_bool = \"true\""
+    error { code: "InvalidFilterValue" start: 14 length: 6 }
+  }
+  test {
+    name: "bool is case sensitive"
+    filter: "single_bool = TRUE"
+    error { code: "InvalidFilterValue" start: 14 length: 4 }
+  }
+  test {
+    name: "bool has no order"
+    filter: "single_bool > false"
+    error { code: "InvalidFilterRestriction" start: 12 length: 1 subject: "single_bool" }
+  }
+}
+
+section {
+  name: "string and bytes"
+  description: "Fields of type string and bytes."
+
+  test {
+    name: "string not equal"
+    filter: "single_string != \"x\""
+    cel: "single_string != \"x\""
+    resource { value { single_string: "y" } match: true }
+    resource { value { single_string: "x" } match: false }
+  }
+  test {
+    name: "string order"
+    filter: "single_string < \"b\""
+    cel: "single_string < \"b\""
+    resource { value { single_string: "a" } match: true }
+    resource { value { single_string: "c" } match: false }
+  }
+  test {
+    name: "wrapper of string"
+    filter: "single_string_wrapper = x"
+    cel: "single_string_wrapper != null && single_string_wrapper == \"x\""
+    resource { value { single_string_wrapper { value: "x" } } match: true }
+    resource { value { single_string_wrapper { value: "y" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "bytes in quotes"
+    filter: "single_bytes = \"abc\""
+    cel: "single_bytes == b\"abc\""
+    resource { value { single_bytes: "abc" } match: true }
+    resource { value { single_bytes: "abd" } match: false }
+  }
+  test {
+    name: "bytes without quotes"
+    filter: "single_bytes = abc"
+    error { code: "InvalidFilterValue" start: 15 length: 3 subject: "single_bytes" }
+  }
+}
+
+section {
+  name: "timestamp"
+  description: "Fields of type timestamp: an RFC 3339 string in quotes, because the time has colons that text cannot have."
+
+  test {
+    name: "after a time"
+    filter: "single_timestamp > \"2026-01-01T00:00:00Z\""
+    cel: "single_timestamp > timestamp(\"2026-01-01T00:00:00Z\")"
+    resource { value { single_timestamp { seconds: 1798761600 } } match: true }
+    resource { value { single_timestamp { seconds: 1735689600 } } match: false }
+    resource { value { single_timestamp { seconds: 1767225600 } } match: false }
+  }
+  test {
+    name: "equal to a time"
+    filter: "single_timestamp = \"2026-01-01T00:00:00Z\""
+    cel: "single_timestamp == timestamp(\"2026-01-01T00:00:00Z\")"
+    resource { value { single_timestamp { seconds: 1767225600 } } match: true }
+    resource { value { single_timestamp { seconds: 1767225601 } } match: false }
+  }
+  test {
+    name: "time with an offset"
+    filter: "single_timestamp = \"2026-01-01T03:00:00+03:00\""
+    cel: "single_timestamp == timestamp(\"2026-01-01T03:00:00+03:00\")"
+    resource { value { single_timestamp { seconds: 1767225600 } } match: true }
+  }
+  test {
+    name: "time with a fraction of a second"
+    filter: "single_timestamp < \"2026-01-01T00:00:00.5Z\""
+    cel: "single_timestamp < timestamp(\"2026-01-01T00:00:00.5Z\")"
+    resource { value { single_timestamp { seconds: 1767225600 } } match: true }
+    resource { value { single_timestamp { seconds: 1767225601 } } match: false }
+  }
+  test {
+    name: "time is always set"
+    filter: "single_timestamp:*"
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "date without a time"
+    filter: "single_timestamp > \"2026-01-01\""
+    error { code: "InvalidFilterValue" start: 19 length: 12 subject: "single_timestamp" }
+  }
+  test {
+    name: "month out of range"
+    filter: "single_timestamp > \"2026-13-01T00:00:00Z\""
+    error { code: "InvalidFilterValue" start: 19 length: 22 }
+  }
+  test {
+    name: "time as text"
+    filter: "single_timestamp > 2026"
+    error { code: "InvalidFilterValue" start: 19 length: 4 }
+  }
+  test {
+    name: "null is not a time"
+    filter: "single_timestamp = null"
+    error { code: "InvalidFilterValue" start: 19 length: 4 }
+  }
+}
+
+section {
+  name: "duration"
+  description: "Fields of type duration: the notation of the duration of CEL, text or string."
+
+  test {
+    name: "seconds"
+    filter: "single_duration < 20s"
+    cel: "single_duration < duration(\"20s\")"
+    resource { value { single_duration { seconds: 10 } } match: true }
+    resource { value { single_duration { seconds: 30 } } match: false }
+  }
+  test {
+    name: "fraction of a second"
+    filter: "single_duration < 1.5s"
+    cel: "single_duration < duration(\"1.5s\")"
+    resource { value { single_duration { seconds: 1 } } match: true }
+    resource { value { single_duration { seconds: 2 } } match: false }
+  }
+  test {
+    name: "hours and minutes in quotes"
+    filter: "single_duration < \"1h30m\""
+    cel: "single_duration < duration(\"1h30m\")"
+    resource { value { single_duration { seconds: 3600 } } match: true }
+    resource { value { single_duration { seconds: 7200 } } match: false }
+  }
+  test {
+    name: "negative duration"
+    filter: "single_duration > -1h"
+    cel: "single_duration > duration(\"-1h\")"
+    resource { value { single_duration { seconds: 0 } } match: true }
+    resource { value { single_duration { seconds: -7200 } } match: false }
+  }
+  test {
+    name: "duration is always set"
+    filter: "single_duration:*"
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "number without a unit"
+    filter: "single_duration < 20"
+    error { code: "InvalidFilterValue" start: 18 length: 2 subject: "single_duration" }
+  }
+  test {
+    name: "word"
+    filter: "single_duration < abc"
+    error { code: "InvalidFilterValue" start: 18 length: 3 }
+  }
+}
+
+section {
+  name: "enumeration"
+  description: "A field of type int that the options map to an enumeration: a name of a constant, its full name or a number."
+
+  test {
+    name: "name of a constant"
+    filter: "color = RED"
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    cel: "color == 1"
+    resource { value { color: RED } match: true }
+    resource { value { color: GREEN } match: false }
+  }
+  test {
+    name: "name of a constant in quotes"
+    filter: "color = \"GREEN\""
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    cel: "color == 2"
+    resource { value { color: GREEN } match: true }
+    resource { value { color: RED } match: false }
+  }
+  test {
+    name: "not equal to a constant"
+    filter: "color != BLUE"
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    cel: "color != 3"
+    resource { value { color: BLUE } match: false }
+    resource { value { color: RED } match: true }
+  }
+  test {
+    name: "full name of a constant"
+    filter: "color = greatparts.filtering.test.Item.Color.RED"
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    cel: "color == 1"
+    resource { value { color: RED } match: true }
+  }
+  test {
+    name: "number"
+    filter: "color = 2"
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    cel: "color == 2"
+    resource { value { color: GREEN } match: true }
+  }
+  test {
+    name: "has with a constant"
+    filter: "color:RED"
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    cel: "color == 1"
+    resource { value { color: RED } match: true }
+  }
+  test {
+    name: "constant that the enumeration does not have"
+    filter: "color = PURPLE"
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    error { code: "InvalidFilterValue" start: 8 length: 6 subject: "color" }
+  }
+  test {
+    name: "names of constants are case sensitive"
+    filter: "color = red"
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    error { code: "InvalidFilterValue" start: 8 length: 3 }
+  }
+  test {
+    name: "an enumeration has no order"
+    filter: "color > RED"
+    enum_types { key: "color" value: "greatparts.filtering.test.Item.Color" }
+    error { code: "InvalidFilterRestriction" start: 6 length: 1 subject: "color" }
+  }
+  test {
+    name: "without the option a field is an int"
+    filter: "color = 2"
+    cel: "color == 2"
+    resource { value { color: GREEN } match: true }
+  }
+  test {
+    name: "without the option the full name of a constant is a number"
+    filter: "color = greatparts.filtering.test.Item.Color.GREEN"
+    cel: "color == 2"
+    resource { value { color: GREEN } match: true }
+    resource { value { color: RED } match: false }
+  }
+  test {
+    name: "without the option an int field has an order"
+    filter: "color >= 2"
+    cel: "color >= 2"
+    resource { value { color: BLUE } match: true }
+    resource { value { color: RED } match: false }
+  }
+  test {
+    name: "without the option the short name is not a number"
+    filter: "color = RED"
+    error { code: "InvalidFilterValue" start: 8 length: 3 }
+  }
+}
+
+section {
+  name: "wrapper and null"
+  description: "A wrapper, an object and a dynamic value can be absent; null is their absence."
+
+  test {
+    name: "wrapper is absent"
+    filter: "single_string_wrapper = null"
+    cel: "single_string_wrapper == null"
+    resource { value {} match: true }
+    resource { value { single_string_wrapper { value: "x" } } match: false }
+  }
+  test {
+    name: "wrapper is present"
+    filter: "single_string_wrapper != null"
+    cel: "single_string_wrapper != null"
+    resource { value { single_string_wrapper { value: "x" } } match: true }
+    resource { value { single_string_wrapper {} } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "object is absent"
+    filter: "author = null"
+    cel: "author == null"
+    resource { value { author {} } match: false }
+  }
+  test {
+    name: "object is present"
+    filter: "author != null"
+    cel: "author != null"
+    resource { value { author { name: "x" } } match: true }
+  }
+  test {
+    name: "nested object is absent"
+    filter: "author.address = null"
+    cel: "author != null && !has(author.address)"
+    resource { value { author {} } match: true }
+    resource { value { author { address {} } } match: false }
+  }
+  test {
+    name: "dynamic value is null"
+    filter: "single_value = null"
+    cel: "single_value == null"
+    resource { value { single_value { null_value: NULL_VALUE } } match: true }
+    resource { value { single_value { string_value: "x" } } match: false }
+  }
+  test {
+    name: "null is the string of a string field"
+    filter: "single_string = null"
+    cel: "single_string == \"null\""
+    resource { value { single_string: "null" } match: true }
+    resource { value { single_string: "" } match: false }
+  }
+  test {
+    name: "null is no int"
+    filter: "single_int64 = null"
+    error { code: "InvalidFilterValue" start: 15 length: 4 }
+  }
+  test {
+    name: "null is no int in an order"
+    filter: "single_int64 < null"
+    error { code: "InvalidFilterValue" start: 15 length: 4 }
+  }
+  test {
+    name: "null is no bool"
+    filter: "single_bool = null"
+    error { code: "InvalidFilterValue" start: 14 length: 4 }
+  }
+  test {
+    name: "null has no order"
+    filter: "single_int64_wrapper < null"
+    error { code: "InvalidFilterRestriction" start: 21 length: 1 }
+  }
+}
+
+section {
+  name: "dynamic values"
+  description: "A field of type dyn takes a value by the form of its text: true or false, an integer, a number, else a string."
+
+  test {
+    name: "word"
+    filter: "single_value = abc"
+    cel: "single_value == \"abc\""
+    resource { value { single_value { string_value: "abc" } } match: true }
+    resource { value { single_value { string_value: "abd" } } match: false }
+  }
+  test {
+    name: "bool"
+    filter: "single_value = true"
+    cel: "single_value == true"
+    resource { value { single_value { bool_value: true } } match: true }
+    resource { value { single_value { bool_value: false } } match: false }
+  }
+  test {
+    name: "integer"
+    filter: "single_value = 5"
+    cel: "single_value == 5"
+    resource { value { single_value { number_value: 5 } } match: true }
+    resource { value { single_value { number_value: 6 } } match: false }
+  }
+  test {
+    name: "number"
+    filter: "single_value = 1.5"
+    cel: "single_value == 1.5"
+    resource { value { single_value { number_value: 1.5 } } match: true }
+    resource { value { single_value { number_value: 2.5 } } match: false }
+  }
+  test {
+    name: "digits in quotes are a string"
+    filter: "single_value = \"5\""
+    cel: "single_value == \"5\""
+    resource { value { single_value { string_value: "5" } } match: true }
+    resource { value { single_value { number_value: 5 } } match: false }
+  }
+}

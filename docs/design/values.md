@@ -172,6 +172,7 @@ A refusal is, by where it happens: in `CelBindings.Add`, a `DateTime` that is no
   4. a negative string gives `−d`; `d` splits into the whole seconds `d / 10⁹` and the nanoseconds `d % 10⁹`, both with the sign of the string.
 
   The text of 3008 is `cannot parse {text} as duration`; `{value}` of 3007 is the string.
+- *`TryParse`*: `CelTimestamp.TryParse(string, out CelTimestamp)` and `CelDuration.TryParse(string, out CelDuration)` run the two readers above and return `true` exactly when `timestamp(string)` or `duration(string)` gives a value, with that value; on failure, whichever of the two errors, `value` is `default`. A `null` text is `ArgumentNullException`. There is one routine with two callers, so the functions and `TryParse` cannot diverge; the filtering package uses `TryParse` to report a bad time in a filter at compile time ([filtering](filtering.md)).
 - *Duration to a string*, `string(duration)`: a `-` for a negative value, the magnitude of the seconds in decimal, when the nanoseconds are not 0 a `.` and their nine-digit magnitude without trailing zeros, then `s`; zero is `0s`. So `1.5s`, `-1.5s`, `60.001s`, `9223372036.854775807s`, `-315576000000.999999999s`: at most 24 characters, known from the value before the string is made. No `double` is used, unlike cel-go.
 
 ## `decimal`

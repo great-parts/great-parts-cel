@@ -1,6 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Syntax;
 
 namespace Great.Parts.Cel;
 
@@ -36,6 +39,24 @@ public sealed class CelCompileResult<T>
     {
         Errors = errors;
     }
+
+    /// <summary>
+    /// Creates an unsuccessful compilation result from errors found before compilation, for a parser of another language
+    /// that compiles its tree with <see cref="CelEnvironment.CompileParsed{T}(Syntax.CelParsedExpr, CelCompileOptions)"/>
+    /// and reports its own errors, such as a syntax error of a filter, in the same result type.
+    /// </summary>
+    /// <remarks>
+    /// The errors keep their order. <see cref="GetProgramOrThrow"/> of the result throws <see cref="CelException"/> with them.
+    /// </remarks>
+    /// <param name="errors">The errors; at least one.</param>
+    /// <returns>The result with the errors and no program.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="errors"/> or one of its elements is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="errors"/> is empty.</exception>
+    [SuppressMessage(
+        "Design",
+        "CA1000:Do not declare static members on generic types",
+        Justification = "The result type is generic in the type of the program; a call CelCompileResult<bool>.FromErrors(errors) is unambiguous and the type has no non-generic counterpart.")]
+    public static CelCompileResult<T> FromErrors(IEnumerable<CelError> errors) => new(CelParseResult.CopyErrors(errors));
 
     /// <summary>
     /// Whether the expression compiled: <see langword="true"/> when there are no errors.

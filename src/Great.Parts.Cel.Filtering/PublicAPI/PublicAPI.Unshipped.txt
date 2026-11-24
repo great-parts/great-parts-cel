@@ -1,0 +1,13 @@
+#nullable enable
+Great.Parts.Cel.Filtering.CelFilterCompiler
+Great.Parts.Cel.Filtering.CelFilterCompiler.CelFilterCompiler(Great.Parts.Cel.CelEnvironment! environment, Great.Parts.Cel.Filtering.CelFilterOptions? options = null) -> void
+Great.Parts.Cel.Filtering.CelFilterCompiler.Compile(string! filter) -> Great.Parts.Cel.CelCompileResult<bool>!
+Great.Parts.Cel.Filtering.CelFilterCompiler.Environment.get -> Great.Parts.Cel.CelEnvironment!
+Great.Parts.Cel.Filtering.CelFilterCompiler.Options.get -> Great.Parts.Cel.Filtering.CelFilterOptions!
+Great.Parts.Cel.Filtering.CelFilterCompiler.Parse(string! filter) -> Great.Parts.Cel.Syntax.CelParseResult!
+Great.Parts.Cel.Filtering.CelFilterOptions
+Great.Parts.Cel.Filtering.CelFilterOptions.CelFilterOptions() -> void
+Great.Parts.Cel.Filtering.CelFilterOptions.EnumTypes.get -> System.Collections.Immutable.ImmutableDictionary<string!, string!>!
+Great.Parts.Cel.Filtering.CelFilterOptions.EnumTypes.init -> void
+Great.Parts.Cel.Filtering.CelFilterOptions.SearchFields.get -> System.Collections.Immutable.ImmutableArray<string!>
+Great.Parts.Cel.Filtering.CelFilterOptions.SearchFields.init -> void

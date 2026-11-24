@@ -1,0 +1,127 @@
+// The schema of the corpus of the filtering package (docs/design/filtering-corpus.md): a file of cases, and the resource that the
+// filters of the cases are written against. Used by the tests only; the build of the suite project compiles it with Grpc.Tools.
+
+syntax = "proto3";
+
+package greatparts.filtering.test;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+
+option csharp_namespace = "Great.Parts.Cel.Conformance.FilterCorpus";
+
+// A file of cases: sections of cases of one topic.
+message FilterTestFile {
+  string name = 1;
+  string description = 2;
+  repeated FilterTestSection section = 3;
+}
+
+message FilterTestSection {
+  string name = 1;
+  string description = 2;
+  repeated FilterTest test = 3;
+}
+
+// A case: a filter, the options of the compiler, and what the filter must give.
+message FilterTest {
+  string name = 1;
+  // The filter. With repeat above 0 it is the unit that is written repeat times, and tail follows the last one.
+  string filter = 2;
+  // CelFilterOptions.EnumTypes: the field, and the full name of its enumeration type.
+  map<string, string> enum_types = 3;
+  // CelFilterOptions.SearchFields.
+  repeated string search_fields = 4;
+  // The expected tree as CEL text; empty: the tree is not compared.
+  string cel = 5;
+  // The items of the case, and whether the filter matches each of them.
+  repeated Resource resource = 6;
+  // The expected first error instead of a program.
+  ErrorExpectation error = 7;
+  int32 repeat = 8;
+  string tail = 9;
+}
+
+message Resource {
+  Item value = 1;
+  bool match = 2;
+}
+
+message ErrorExpectation {
+  // The name of a member of CelErrorCode.
+  string code = 1;
+  // The place of the first error in the filter, in UTF-16 code units.
+  int32 start = 2;
+  int32 length = 3;
+  // The subject of the first error; empty: not compared.
+  string subject = 4;
+  // The number of all errors; 0: not compared.
+  int32 error_count = 5;
+  // The name of the code of the last error; empty: not compared.
+  string last_code = 6;
+}
+
+// The resource of the cases: one field of each kind that a filter can meet.
+message Item {
+  enum Color {
+    COLOR_UNSPECIFIED = 0;
+    RED = 1;
+    GREEN = 2;
+    BLUE = 3;
+  }
+
+  int32 single_int32 = 1;
+  int64 single_int64 = 2;
+  uint32 single_uint32 = 3;
+  uint64 single_uint64 = 4;
+  sint64 single_sint64 = 5;
+  fixed32 single_fixed32 = 6;
+  sfixed64 single_sfixed64 = 7;
+  float single_float = 8;
+  double single_double = 9;
+  bool single_bool = 10;
+  string single_string = 11;
+  bytes single_bytes = 12;
+  Color color = 13;
+  google.protobuf.Timestamp single_timestamp = 14;
+  google.protobuf.Duration single_duration = 15;
+  google.protobuf.Int64Value single_int64_wrapper = 16;
+  google.protobuf.StringValue single_string_wrapper = 17;
+  google.protobuf.BoolValue single_bool_wrapper = 18;
+  google.protobuf.DoubleValue single_double_wrapper = 19;
+  google.protobuf.Struct single_struct = 20;
+  google.protobuf.Value single_value = 21;
+  Author author = 22;
+  repeated int32 repeated_int32 = 23;
+  repeated string repeated_string = 24;
+  repeated Edition editions = 26;
+  map<string, string> labels = 27;
+  map<int64, string> names = 28;
+  map<string, Edition> editions_by_name = 29;
+  google.protobuf.UInt64Value single_uint64_wrapper = 30;
+}
+
+message Author {
+  string name = 1;
+  int32 born = 2;
+  Address address = 3;
+  google.protobuf.StringValue nickname = 4;
+  repeated string aliases = 5;
+}
+
+message Address {
+  string city = 1;
+  Country country = 2;
+}
+
+message Country {
+  string code = 1;
+}
+
+message Edition {
+  int32 year = 1;
+  string isbn = 2;
+  repeated string formats = 3;
+}

@@ -9,7 +9,8 @@ The tests of the library: `tests/Great.Parts.Cel.Tests` and `tests/Great.Parts.C
 | `tests/Great.Parts.Cel.Tests` | `net10.0`, `net11.0` | JIT, Native AOT | `xunit.v3.aot` 4.0.3 | unit tests, one directory per namespace of the library; `Examples/` |
 | `tests/Great.Parts.Cel.Properties` | `net10.0`, `net11.0` | JIT | `xunit.v3.aot` 4.0.3, `CsCheck` 5.0.1 | properties without an oracle |
 | `tests/Great.Parts.Cel.Policy.Tests` | `net10.0`, `net11.0` | JIT, Native AOT | `xunit.v3.aot` 4.0.3 | the tests of the package `Great.Parts.Cel.Policy`: the YAML reader, the format, the compilation; `Examples/` ([below](#tests-of-the-policy-package)) |
-| `tests/Great.Parts.Cel.Conformance` | `net10.0`, `net11.0` | JIT, Native AOT | see the description of the suite runner | the cel-spec suite, the CEL Policy suite and the regression corpus |
+| `tests/Great.Parts.Cel.Conformance` | `net10.0`, `net11.0` | JIT, Native AOT | see the description of the suite runner | the cel-spec suite, the CEL Policy suite, the corpus of filters and the regression corpus |
+| `tests/Great.Parts.Cel.Filtering.Tests` | `net10.0`, `net11.0` | JIT, Native AOT | `xunit.v3.aot` 4.0.3 | the tests of the filtering package ([filtering](filtering.md), [tests of the filtering package](#tests-of-the-filtering-package)); `Examples/` |
 | `tests/Great.Parts.Cel.Generator.Tests` | `net10.0` | JIT | `xunit.v3.aot` 4.0.3, `Microsoft.CodeAnalysis.CSharp` 5.0.0 | the tests of the source generator ([generator](generator.md)); `Examples/` |
 | `tests/Great.Parts.Cel.Generator.Samples` | `net10.0`, `net11.0` | none: a library | `Google.Protobuf`, `Grpc.Tools` | valid types and their type contexts, read by the other test projects; no tests |
 | `eng/tests` | `net10.0` | JIT | see [eng-tests.md](eng-tests.md) | tests of the own checks |
@@ -18,7 +19,7 @@ Common settings:
 
 - `dotnet test` runs on the test platform that `global.json` selects; every project uses the same version of `xunit.v3.aot`, under JIT as well.
 - Tests run in two ways: the command `eng/test` runs the xUnit.net runner inside every test module — `dotnet <module>.dll` under JIT once, and for the two published projects also the executable under Native AOT — each with `-result-xml`, so that `test-count` compares two reports of the same kind ([eng-test.md](eng-test.md)); a narrow run in the container, `dotnet test` on Microsoft Testing Platform, is a tool of the developer and is not part of the check.
-- The library grants `InternalsVisibleTo` to `Great.Parts.Cel.Tests`, `Great.Parts.Cel.Properties` and `Great.Parts.Cel.Conformance` only.
+- The library grants `InternalsVisibleTo` to `Great.Parts.Cel.Tests`, `Great.Parts.Cel.Filtering.Tests` (for the comparer of trees without numbers and positions), `Great.Parts.Cel.Properties` and `Great.Parts.Cel.Conformance` only.
 - Test projects set `IsPackable=false` and turn off, each with a reason, `CS1591` — tests have no XML documentation — and `CA1707` — test method names are `<Situation>_<Expectation>`.
 - `ImplicitUsings` is off, as in the library: every `using` is written out, and `IDE0005` rejects the unused ones.
 - Where the analyzers of the test framework require a token, a test passes `TestContext.Current.CancellationToken`; a test of cancellation or of its absence passes its own `CancellationTokenSource` or `CancellationToken.None`.
@@ -410,6 +411,25 @@ The tests of the core: `Types/WellKnownRulesTests` and `Types/AnyTypeTests` (the
 
 **Cases.** The ten files pass when the skip list has no entry of their cases, in every cell, Native AOT included; a case that fails is a finding, not a new entry ([conformance](conformance.md#messages-any-and-the-provider-of-the-cases)).
 
+## Tests of the filtering package
+
+The package is tested through its public API, with the internal comparer of trees of the core to compare the tree of a filter with the tree of the CEL text that it must become. The resource types of the examples, the namespace `Library` of a book with an author, editions, tags and labels, are in `tests/Great.Parts.Cel.Generator.Samples/Library.cs`: the code that the generator creates does not build in an assembly that sees the internals of the core, as this project does. `LibraryEnvironments` makes the environment, the compiler with and without options, and the items `Dune` and `Anon` (a book with no author).
+
+**Examples.** `Examples/FilterSyntaxTests`, `TranslationTests`, `CompileTests` and `OptionsTests` are the tables of the examples of the specification: syntax and the place of each syntax error, the translation of each row, the places of the nodes and the compilation, the options. The members of the core that a parser of another language needs are in `tests/Great.Parts.Cel.Tests/Examples/Syntax/ForeignParserTests.cs` (`CreateError`, `FromParsedExpr`, `FromErrors`) and `Examples/Values/ParseTimeTests.cs` (`TryParse` agrees with `timestamp()` and `duration()` on 1,000 random texts each).
+
+**Classes of the developer**, each on data of its own and not on the tables of the examples:
+
+| Class | Covers |
+| :- | :- |
+| `FilterLexerTests` | every rule of the lexer: white space, text with characters outside ASCII, strings in both quotes and each escape, the minus, comparators, numbers in members |
+| `FilterParserTests` | each production of the grammar, the keywords after a point and in a function name, the nesting limit for parentheses and calls, the bounded stack for each join |
+| `FilterParserPropertyTests` | random text gives a tree or one error inside the text; filters made from the grammar, also as long as the limit, parse; random parentheses never overflow the stack |
+| `FilterUntrustedTests` | the compiler on untrusted filters: random text and filters of the grammar up to the length limit give a program or errors, never an exception or `InternalError`, a filter of the limit in less than a second; 5,000 restrictions joined by `AND` compile |
+
+`FilterGenerator` makes the random texts and the filters of the grammar from a seed, so a failing filter is the same on every run.
+
+**The fitness functions of the package.** The corpus runs in `tests/Great.Parts.Cel.Conformance` ([filtering-corpus](filtering-corpus.md)); the check that the printed translation compiles again to the same results is in the judge of the corpus and in `CompileTests.PrintedTranslation_ParsesAndCompilesInTheEnvironment`; the untrusted filter is `FilterUntrustedTests`; the Native AOT publication of this project has no `IL2xxx` or `IL3xxx`, because the project makes the whole assembly of the package a root of the publish; the closure of the package is the check `package-closure` ([eng-checks-artifacts](eng-checks-artifacts.md)); the publication line of the corpus is `eng/checks corpus` ([filtering-corpus](filtering-corpus.md#publication)); `browser-wasm` checks the package with the Blazor test application, which takes the package as a root of the trimmer ([eng-release](eng-release.md)).
+
 ## Tests of the Policy package
 
 `tests/Great.Parts.Cel.Policy.Tests` tests the package through its public API; the package grants it `InternalsVisibleTo` for the YAML reader, which the tests read directly. The core tests that serve the package (segments, `CelError.Create`, abbreviations, the slots of `cel.@block`) are in `tests/Great.Parts.Cel.Tests` by subject. The files:
@@ -437,7 +457,7 @@ Properties (`Great.Parts.Cel.Properties`, `PropertyLoop`, a fixed seed and numbe
 
 ## Same tests under JIT and Native AOT
 
-`Great.Parts.Cel.Tests`, `Great.Parts.Cel.Policy.Tests` and `Great.Parts.Cel.Conformance` are published under Native AOT and run as executables: in `eng/test` and in CI, on linux-x64, for both targets ([eng-test.md](eng-test.md)). `eng/checks test-count` compares the tests of each published run with the JIT run of the same commit, operating system and target ([eng-checks-artifacts.md](eng-checks-artifacts.md)). The other test projects run only under JIT.
+`Great.Parts.Cel.Tests`, `Great.Parts.Cel.Policy.Tests`, `Great.Parts.Cel.Filtering.Tests` and `Great.Parts.Cel.Conformance` are published under Native AOT and run as executables: in `eng/test` and in CI, on linux-x64, for both targets ([eng-test.md](eng-test.md)). `eng/checks test-count` compares the tests of each published run with the JIT run of the same commit, operating system and target ([eng-checks-artifacts.md](eng-checks-artifacts.md)). The other test projects run only under JIT.
 
 Rules that keep the two sets equal:
 

@@ -1,0 +1,211 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# A value without a field is searched, as a substring with the case kept, in the search fields of the options. Without search fields it
+# is an error. The search fields of most cases are single_string and author.name.
+
+name: "search"
+description: "A value without a field: the substring search in the search fields of the options."
+
+section {
+  name: "search fields"
+  description: "The search fields are single_string and author.name, in that order."
+
+  test {
+    name: "one value"
+    filter: "Dune"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "single_string.contains(\"Dune\") || author != null && author.name.contains(\"Dune\")"
+    resource { value { single_string: "Dune!" } match: true }
+    resource { value { author { name: "Frank Dune" } } match: true }
+    resource { value { single_string: "x" author { name: "y" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "case is kept"
+    filter: "Dune"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "single_string.contains(\"Dune\") || author != null && author.name.contains(\"Dune\")"
+    resource { value { single_string: "dune" } match: false }
+  }
+  test {
+    name: "two values are both required"
+    filter: "Dune Herbert"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "(single_string.contains(\"Dune\") || author != null && author.name.contains(\"Dune\")) && (single_string.contains(\"Herbert\") || author != null && author.name.contains(\"Herbert\"))"
+    resource { value { single_string: "Dune" author { name: "Frank Herbert" } } match: true }
+    resource { value { single_string: "Dune" } match: false }
+  }
+  test {
+    name: "string with a space is one value"
+    filter: "\"Frank Herbert\""
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "single_string.contains(\"Frank Herbert\") || author != null && author.name.contains(\"Frank Herbert\")"
+    resource { value { author { name: "Frank Herbert" } } match: true }
+    resource { value { author { name: "Frank" } } match: false }
+  }
+  test {
+    name: "either value"
+    filter: "Dune OR Herbert"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "(single_string.contains(\"Dune\") || author != null && author.name.contains(\"Dune\")) || (single_string.contains(\"Herbert\") || author != null && author.name.contains(\"Herbert\"))"
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { author { name: "Herbert" } } match: true }
+    resource { value { single_string: "x" } match: false }
+  }
+  test {
+    name: "minus excludes a value"
+    filter: "-Dune"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "!(single_string.contains(\"Dune\") || author != null && author.name.contains(\"Dune\"))"
+    resource { value { single_string: "Dune" } match: false }
+    resource { value { single_string: "x" } match: true }
+  }
+  test {
+    name: "NOT excludes a value"
+    filter: "NOT Dune"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "!(single_string.contains(\"Dune\") || author != null && author.name.contains(\"Dune\"))"
+    resource { value { single_string: "Dune" } match: false }
+    resource { value {} match: true }
+  }
+  test {
+    name: "a value and an excluded value"
+    filter: "Dune NOT Herbert"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "(single_string.contains(\"Dune\") || author != null && author.name.contains(\"Dune\")) && !(single_string.contains(\"Herbert\") || author != null && author.name.contains(\"Herbert\"))"
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { single_string: "Dune Herbert" } match: false }
+  }
+  test {
+    name: "a value and a restriction"
+    filter: "Dune single_int64 > 3"
+    search_fields: "single_string"
+    search_fields: "author.name"
+    cel: "(single_string.contains(\"Dune\") || author != null && author.name.contains(\"Dune\")) && single_int64 > 3"
+    resource { value { single_string: "Dune" single_int64: 4 } match: true }
+    resource { value { single_string: "Dune" single_int64: 3 } match: false }
+  }
+  test {
+    name: "empty string is in every string"
+    filter: "\"\""
+    search_fields: "single_string"
+    cel: "single_string.contains(\"\")"
+    resource { value {} match: true }
+  }
+}
+
+section {
+  name: "kinds of values"
+  description: "A value without a field is its text: a number, a number with a minus, a name with dots, a string with an escaped star."
+
+  test {
+    name: "number"
+    filter: "1965"
+    search_fields: "single_string"
+    cel: "single_string.contains(\"1965\")"
+    resource { value { single_string: "born 1965" } match: true }
+    resource { value { single_string: "born 1966" } match: false }
+  }
+  test {
+    name: "negative number is a value"
+    filter: "-5"
+    search_fields: "single_string"
+    cel: "single_string.contains(\"-5\")"
+    resource { value { single_string: "x-5" } match: true }
+    resource { value { single_string: "5" } match: false }
+  }
+  test {
+    name: "number with a dot"
+    filter: "3.14"
+    search_fields: "single_string"
+    cel: "single_string.contains(\"3.14\")"
+    resource { value { single_string: "pi is 3.14" } match: true }
+    resource { value { single_string: "3x14" } match: false }
+  }
+  test {
+    name: "name with dots"
+    filter: "v1.2.3"
+    search_fields: "single_string"
+    cel: "single_string.contains(\"v1.2.3\")"
+    resource { value { single_string: "release v1.2.3" } match: true }
+  }
+  test {
+    name: "escaped star is a character"
+    filter: "\"a\\*b\""
+    search_fields: "single_string"
+    cel: "single_string.contains(\"a*b\")"
+    resource { value { single_string: "xa*bx" } match: true }
+    resource { value { single_string: "axb" } match: false }
+  }
+  test {
+    name: "letters outside ASCII"
+    filter: "Grüße"
+    search_fields: "single_string"
+    cel: "single_string.contains(\"Grüße\")"
+    resource { value { single_string: "Viele Grüße" } match: true }
+  }
+}
+
+section {
+  name: "kinds of search fields"
+  description: "A search field is a string or a wrapper of a string, at any depth."
+
+  test {
+    name: "one search field"
+    filter: "Dune"
+    search_fields: "single_string"
+    cel: "single_string.contains(\"Dune\")"
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { author { name: "Dune" } } match: false }
+  }
+  test {
+    name: "wrapper of an object"
+    filter: "x"
+    search_fields: "author.nickname"
+    cel: "author != null && has(author.nickname) && author.nickname.contains(\"x\")"
+    resource { value { author { nickname { value: "xy" } } } match: true }
+    resource { value { author { nickname { value: "y" } } } match: false }
+    resource { value { author {} } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "wrapper and a string"
+    filter: "x"
+    search_fields: "single_string_wrapper"
+    search_fields: "single_string"
+    cel: "single_string_wrapper != null && single_string_wrapper.contains(\"x\") || single_string.contains(\"x\")"
+    resource { value { single_string_wrapper { value: "x" } } match: true }
+    resource { value { single_string: "x" } match: true }
+    resource { value { single_string: "y" } match: false }
+  }
+}
+
+section {
+  name: "no search fields"
+  description: "Without search fields a value without a field is an error at the value."
+
+  test {
+    name: "text"
+    filter: "Dune"
+    error { code: "InvalidFilterRestriction" start: 0 length: 4 }
+  }
+  test {
+    name: "string"
+    filter: "\"Dune\""
+    error { code: "InvalidFilterRestriction" start: 0 length: 6 }
+  }
+  test {
+    name: "after a restriction"
+    filter: "single_int64 > 3 Dune"
+    error { code: "InvalidFilterRestriction" start: 17 length: 4 }
+  }
+}

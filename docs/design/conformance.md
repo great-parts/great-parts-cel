@@ -1,6 +1,6 @@
 # Conformance runner
 
-`tests/Great.Parts.Cel.Conformance` runs suites of CEL test cases against the library and judges each case by the rule of the cel-go conformance runner. It has one core and three suites: the cel-spec suite `tests/simple/testdata` of a pinned cel-spec commit, the regression corpus of the differential run ([eng-difftest.md](eng-difftest.md)), and the CEL Policy suite of a pinned commit of `cel-expr/cel-policy` ([below](#cel-policy-suite)). Every case of the suites runs; a case may fail only where an entry of the suite's skip list allows it.
+`tests/Great.Parts.Cel.Conformance` runs suites of CEL test cases against the library and judges each case by the rule of the cel-go conformance runner. It has one core and four suites: the cel-spec suite `tests/simple/testdata` of a pinned cel-spec commit, the regression corpus of the differential run ([eng-difftest.md](eng-difftest.md)), the CEL Policy suite of a pinned commit of `cel-expr/cel-policy` ([below](#cel-policy-suite)), and the corpus of the filtering package ([below](#aip-160-corpus)). Every case of the suites runs; a case may fail only where an entry of the suite's skip list allows it.
 
 ## Project
 
@@ -9,8 +9,8 @@
 | Project | `tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj`, a test project, see [tests.md](tests.md) |
 | Targets, modes | `net10.0`, `net11.0`; JIT and Native AOT |
 | Packages | `xunit.v3.aot` 4.0.3; `Google.Protobuf` 3.36.2; `Grpc.Tools` 2.85.0 with `GrpcServices="None"` |
-| References | `src/Great.Parts.Cel`, which grants it `InternalsVisibleTo`; `src/Great.Parts.Cel.Protobuf` for the test messages; `src/Great.Parts.Cel.Policy` for the CEL Policy suite, which grants it `InternalsVisibleTo` too; `eng/findings` for `EngCodes` and `Finding`, see [eng-checks.md](eng-checks.md#one-source-of-the-eng-codes) |
-| Data | `tests/cel-spec/`, `tests/cel-policy/` and the files of `CelSpec/`, `CelPolicy/`, `Regression/` and `Synthetic/` |
+| References | `src/Great.Parts.Cel`, which grants it `InternalsVisibleTo`; `src/Great.Parts.Cel.Protobuf` for the test messages; `src/Great.Parts.Cel.Policy` for the CEL Policy suite, which grants it `InternalsVisibleTo` too; `src/Great.Parts.Cel.Filtering` for the corpus of filters; `eng/findings` for `EngCodes` and `Finding`, see [eng-checks.md](eng-checks.md#one-source-of-the-eng-codes) |
+| Data | `tests/cel-spec/`, `tests/cel-policy/`, `tests/filtering/` and the files of `CelSpec/`, `CelPolicy/`, `Regression/` and `Synthetic/` |
 
 ## Data and build
 
@@ -29,6 +29,7 @@
 | `CelSpec/` | `skips.md`, `CelSpecSuite.cs`, `CelSpecSuiteTests.cs`, `CelSpecParseTests.cs` |
 | `Regression/` | the corpus files `*.textproto`, `skips.md`, `known-differences.md`, `RegressionSuite.cs`, `RegressionSuiteTests.cs` |
 | `CelPolicy/` | `skips.md`, `PolicySuite.cs`, `PolicyCategory.cs`, `PolicyConfig.cs`, `PolicyValues.cs`, `PolicyFunctions.cs`, `PolicyJudge.cs`, `YamlAccess.cs`, `PolicySuiteTests.cs`, `PolicyRunnerTests.cs` ([CEL Policy suite](#cel-policy-suite)) |
+| `FilterCorpus/` | `FilteringSuite.cs`, `FilterJudge.cs`, `FilterEnvironment.cs`, `FilteringSuiteTests.cs`, `FilterJudgeTests.cs` ([AIP-160 corpus](#aip-160-corpus)) |
 | `Synthetic/` | `synthetic.textproto` and `SyntheticSuiteTests.cs`: the tests of the runner itself |
 | `Environment/` | `CultureFitnessTests.cs`: both suites under the culture `tr-TR` ([tests.md](tests.md#culture-of-the-process)) |
 
@@ -177,6 +178,10 @@ A failure lists every failed case with its name, the place of its `test` token a
 - **Rule.** A case with `output.value` or `output.expr` passes when the program evaluates without error to a value equal to the expected one by the equality of CEL, or to an optional that holds such a value (the rule of the test runner of cel-go); the expected `expr` is evaluated in the environment of the category. A case with `output.error_set` passes when the parse or the compilation of the policy fails and every string of the set is a substring of the message of some error. An exception or any other output fails the case with its reason.
 - **Skip list.** `CelPolicy/skips.md` has the columns of the cel-spec list; its `Reference` is the minimal case, with no link to check. The scope is `* * *` for every entry. The counter, the findings (`ENG800`, `ENG801`, `ENG802`, `ENG804`) and the summary line are those of the other suites: `cel-policy 8e4cf03: N/91 passed, <date> (<cell>)`.
 - **Modes.** The suite runs as one test under JIT and under Native AOT with the others, and on `browser-wasm`: `tests/Great.Parts.Cel.Conformance.Wasm` links the files of `CelPolicy/` except the tests, embeds the same data and runs `PolicySuite.Run` after the cel-spec suite; its exit code counts the findings of both suites. The nightly run on the main branch of `cel-expr/cel-policy` is the job `conformance-master-policy` of `conformance-master.yml` ([Run on master](#run-on-master)); the content and the closure of the package are checked by `packages` and `package-closure` in the cell JIT Linux `net11.0` of `ci.yml` and in the job `build` of `release.yml`, with the list `eng/packages/Great.Parts.Cel.Policy.txt`.
+
+## AIP-160 corpus
+
+AIP-160 has no official test suite, so the runner has the corpus of the filtering package as its fourth suite: `tests/filtering/testdata/*.textproto`, cases in a schema of their own (`tests/filtering/proto/filter_test.proto`) that give a filter, the options of the compiler, and the expected tree, the expected results on items or the expected first error. The files are encoded and embedded like those of the cel-spec suite; the suite is `FilterCorpus/FilteringSuite.cs` and the test `FilteringSuiteTests.AllCases_Pass`. No skip list: a case that fails is a defect to fix, so `SuiteRun` gets an empty one. The corpus has no share of conformance; the summary line is `aip-160 corpus: N/N passed, <date> (<cell>)`, and the README of the package and the page of conformance publish the count of cases. The corpus runs under JIT and Native AOT and does not run on `browser-wasm`. [filtering-corpus.md](filtering-corpus.md) has the schema, the environment, how a case is judged and the sources of the cases.
 
 ## Synthetic suite
 

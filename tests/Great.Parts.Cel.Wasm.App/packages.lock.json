@@ -243,6 +243,12 @@
       "great.parts.cel": {
         "type": "Project"
       },
+      "great.parts.cel.filtering": {
+        "type": "Project",
+        "dependencies": {
+          "Great.Parts.Cel": "[0.0.0-dev, )"
+        }
+      },
       "great.parts.cel.policy": {
         "type": "Project",
         "dependencies": {
@@ -466,6 +472,12 @@
       },
       "great.parts.cel": {
         "type": "Project"
+      },
+      "great.parts.cel.filtering": {
+        "type": "Project",
+        "dependencies": {
+          "Great.Parts.Cel": "[0.0.0-dev, )"
+        }
       },
       "great.parts.cel.policy": {
         "type": "Project",

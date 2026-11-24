@@ -14,12 +14,14 @@
     <Project Path="src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
     <Project Path="src/Great.Parts.Cel.DependencyInjection/Great.Parts.Cel.DependencyInjection.csproj" />
     <Project Path="src/Great.Parts.Cel.AspNetCore/Great.Parts.Cel.AspNetCore.csproj" />
+    <Project Path="src/Great.Parts.Cel.Filtering/Great.Parts.Cel.Filtering.csproj" />
     <Project Path="src/Great.Parts.Cel.Policy/Great.Parts.Cel.Policy.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Great.Parts.Cel.AspNetCore.Tests/Great.Parts.Cel.AspNetCore.Tests.csproj" />
     <Project Path="tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj" />
     <Project Path="tests/Great.Parts.Cel.DependencyInjection.Tests/Great.Parts.Cel.DependencyInjection.Tests.csproj" />
+    <Project Path="tests/Great.Parts.Cel.Filtering.Tests/Great.Parts.Cel.Filtering.Tests.csproj" />
     <Project Path="tests/Great.Parts.Cel.Generator.Samples/Great.Parts.Cel.Generator.Samples.csproj" />
     <Project Path="tests/Great.Parts.Cel.Generator.Tests/Great.Parts.Cel.Generator.Tests.csproj" />
     <Project Path="tests/Great.Parts.Cel.Policy.Tests/Great.Parts.Cel.Policy.Tests.csproj" />

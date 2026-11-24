@@ -1,11 +1,13 @@
 # API concepts
 
-This page lists every public type of the `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection`, `Great.Parts.Cel.AspNetCore` and `Great.Parts.Cel.Policy` assemblies. For each type it names the cel-spec concept the type represents, or the purpose it serves when the type has no counterpart in cel-spec, and explains how the name differs from the cel-spec term.
+This page lists every public type of the `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection`, `Great.Parts.Cel.AspNetCore`, `Great.Parts.Cel.Policy` and `Great.Parts.Cel.Filtering` assemblies. For each type it names the cel-spec concept the type represents, or the purpose it serves when the type has no counterpart in cel-spec, and explains how the name differs from the cel-spec term.
 
 cel-spec sources:
 
 - the language definition, `doc/langdef.md`, cited by section title;
 - `checked.proto`, `syntax.proto`, `value.proto` and `eval.proto` from `proto/cel/expr/`.
+
+The concepts of `Great.Parts.Cel.Filtering` are those of AIP-160 "Filtering" (`google.aip.dev/160`), which is not part of cel-spec.
 
 The term "cel-go" refers to the CEL implementation in Go.
 
@@ -106,6 +108,8 @@ How to read the table:
 | `CelAuthorizationRequirement` | `Great.Parts.Cel.AspNetCore` | Purpose: the authorization requirement that a CEL expression gives `true` | Not a cel-spec concept: an `IAuthorizationRequirement` of ASP.NET Core |
 | `CelEndpointExtensions` | `Great.Parts.Cel.AspNetCore` | Purpose: the validation of requests of minimal API endpoints by a CEL expression over the request | Not a cel-spec concept: endpoint filters of ASP.NET Core |
 | `CelValidateAttribute<TRequest>` | `Great.Parts.Cel.AspNetCore` | Purpose: the validation of an action argument of an MVC controller by a CEL expression over the argument | Not a cel-spec concept: an MVC action filter attribute |
+| `CelFilterCompiler` | `Great.Parts.Cel.Filtering` | AIP-160 "Filtering": translates the `filter` of a list method into a CEL expression of an environment — comparisons, the has operator `:`, `AND`, `OR`, `NOT`, traversal and functions — and compiles it to a program with a `bool` result | AIP-160 term "filter" with the `Cel` prefix; "Compiler" because the call translates and compiles; not a cel-spec concept |
+| `CelFilterOptions` | `Great.Parts.Cel.Filtering` | Purpose: the options of the translation of filters that AIP-160 leaves to the service — which integer fields are enumerations and which string fields a value without a field is searched in | Not a cel-spec concept: options of `CelFilterCompiler` |
 | `CelPolicy` | `Great.Parts.Cel.Policy` | CEL Policy "policy": a YAML document of rules with variables, conditions, outputs and nested rules that compiles into one CEL expression | The CEL Policy term with the `Cel` prefix; a type named `Policy` would clash with the namespace |
 | `CelPolicyParseResult` | `Great.Parts.Cel.Policy` | Purpose: the outcome of reading a policy from YAML, either the policy or all errors of the document | Not a CEL Policy concept: the result of `CelPolicy.Parse`, like `CelParseResult` |
 | `CelPolicyCompileResult<T>` | `Great.Parts.Cel.Policy` | Purpose: the outcome of compiling a policy in an environment, either the program and the composed expression or all errors | Not a CEL Policy concept: the result of `CelPolicy.Compile<T>`, like `CelCompileResult<T>` |

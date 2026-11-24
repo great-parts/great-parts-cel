@@ -253,6 +253,15 @@ override Great.Parts.Cel.Diagnostics.CelSourceSegment.GetHashCode() -> int
 static Great.Parts.Cel.Diagnostics.CelError.Create(Great.Parts.Cel.Diagnostics.CelErrorCode code, Great.Parts.Cel.Diagnostics.CelErrorStage stage, string! message, Great.Parts.Cel.Diagnostics.CelSourceLocation? location = null, int length = 0, string? subject = null, Great.Parts.Cel.Types.CelType? expectedType = null, Great.Parts.Cel.Types.CelType? actualType = null) -> Great.Parts.Cel.Diagnostics.CelError!
 static Great.Parts.Cel.Diagnostics.CelSourceSegment.operator !=(Great.Parts.Cel.Diagnostics.CelSourceSegment left, Great.Parts.Cel.Diagnostics.CelSourceSegment right) -> bool
 static Great.Parts.Cel.Diagnostics.CelSourceSegment.operator ==(Great.Parts.Cel.Diagnostics.CelSourceSegment left, Great.Parts.Cel.Diagnostics.CelSourceSegment right) -> bool
+Great.Parts.Cel.Diagnostics.CelErrorCode.FilterSyntaxError = 1012 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidFilterRestriction = 2016 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidFilterValue = 2015 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Syntax.CelExprFactory.CreateError(Great.Parts.Cel.Diagnostics.CelErrorCode code, string! message, string? subject = null, Great.Parts.Cel.Types.CelType? expectedType = null, Great.Parts.Cel.Types.CelType? actualType = null) -> Great.Parts.Cel.Diagnostics.CelError!
+static Great.Parts.Cel.CelCompileResult<T>.FromErrors(System.Collections.Generic.IEnumerable<Great.Parts.Cel.Diagnostics.CelError!>! errors) -> Great.Parts.Cel.CelCompileResult<T>!
+static Great.Parts.Cel.Syntax.CelParseResult.FromErrors(System.Collections.Generic.IEnumerable<Great.Parts.Cel.Diagnostics.CelError!>! errors) -> Great.Parts.Cel.Syntax.CelParseResult!
+static Great.Parts.Cel.Syntax.CelParseResult.FromParsedExpr(Great.Parts.Cel.Syntax.CelParsedExpr! parsedExpr) -> Great.Parts.Cel.Syntax.CelParseResult!
+static Great.Parts.Cel.Values.CelDuration.TryParse(string! text, out Great.Parts.Cel.Values.CelDuration value) -> bool
+static Great.Parts.Cel.Values.CelTimestamp.TryParse(string! text, out Great.Parts.Cel.Values.CelTimestamp value) -> bool
 Great.Parts.Cel.CelAttributePattern
 Great.Parts.Cel.CelAttributePattern.CelAttributePattern(string! variable) -> void
 Great.Parts.Cel.CelAttributePattern.Qualifiers.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelValue?>

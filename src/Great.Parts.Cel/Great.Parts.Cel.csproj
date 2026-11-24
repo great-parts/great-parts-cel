@@ -56,10 +56,12 @@
 
   <!--
     Internal members are visible to the unit tests, the property tests, the suite runner and the benchmarks of the limits of the
-    speed-ups (bench/ThresholdBench) only (docs/design/tests.md).
+    speed-ups (bench/ThresholdBench) only (docs/design/tests.md). The tests of the filtering package compare the trees of filters
+    with the trees of CEL text by the tree comparer; the package itself has no access to the internals.
   -->
   <ItemGroup>
     <InternalsVisibleTo Include="Great.Parts.Cel.Tests" />
+    <InternalsVisibleTo Include="Great.Parts.Cel.Filtering.Tests" />
     <InternalsVisibleTo Include="Great.Parts.Cel.Properties" />
     <InternalsVisibleTo Include="Great.Parts.Cel.Conformance" />
     <InternalsVisibleTo Include="Great.Parts.Cel.ThresholdBench" />

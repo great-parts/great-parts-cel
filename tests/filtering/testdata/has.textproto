@@ -1,0 +1,409 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# The has operator ":": presence with a lone star, lookup in a list or a map, a member of an object, a scalar, and a repeated field on the
+# path of the restriction.
+
+name: "has"
+description: "The has operator in every form: presence, lookup in a list or a map, member of an object, scalar and repeated fields."
+
+section {
+  name: "presence"
+  description: "A lone star asks whether the field is set. A top-level field of a value type is always set."
+
+  test {
+    name: "int is always set"
+    filter: "single_int64:*"
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "string is always set"
+    filter: "single_string:*"
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "bool is always set"
+    filter: "single_bool:*"
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "star in quotes is the same star"
+    filter: "single_string:\"*\""
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "object is set"
+    filter: "author:*"
+    cel: "author != null"
+    resource { value { author {} } match: true }
+  }
+  test {
+    name: "wrapper is set"
+    filter: "single_string_wrapper:*"
+    cel: "single_string_wrapper != null"
+    resource { value { single_string_wrapper { value: "x" } } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "list is not empty"
+    filter: "repeated_string:*"
+    cel: "size(repeated_string) > 0"
+    resource { value { repeated_string: "a" } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "map is not empty"
+    filter: "labels:*"
+    cel: "size(labels) > 0"
+    resource { value { labels { key: "genre" value: "sf" } } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "struct is not empty"
+    filter: "single_struct:*"
+    cel: "size(single_struct) > 0"
+  }
+  test {
+    name: "dynamic value is set"
+    filter: "single_value:*"
+    cel: "single_value != null"
+    resource { value { single_value { string_value: "x" } } match: true }
+  }
+  test {
+    name: "nested object is set"
+    filter: "author.address:*"
+    cel: "author != null && has(author.address)"
+    resource { value { author { address {} } } match: true }
+    resource { value { author {} } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "nested scalar is set when it is not the default"
+    filter: "author.name:*"
+    cel: "author != null && has(author.name)"
+    resource { value { author { name: "x" } } match: true }
+    resource { value { author {} } match: false }
+  }
+  test {
+    name: "nested list is not empty"
+    filter: "author.aliases:*"
+    cel: "author != null && has(author.aliases) && size(author.aliases) > 0"
+    resource { value { author { aliases: "a" } } match: true }
+    resource { value { author {} } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "nested wrapper is set"
+    filter: "author.nickname:*"
+    cel: "author != null && has(author.nickname)"
+    resource { value { author { nickname { value: "x" } } } match: true }
+    resource { value { author {} } match: false }
+  }
+  test {
+    name: "key of a map is set"
+    filter: "labels.genre:*"
+    cel: "\"genre\" in labels"
+    resource { value { labels { key: "genre" value: "" } } match: true }
+    resource { value { labels { key: "other" value: "x" } } match: false }
+  }
+  test {
+    name: "key of a map with a number key is set"
+    filter: "names.7:*"
+    cel: "7 in names"
+    resource { value { names { key: 7 value: "x" } } match: true }
+    resource { value { names { key: 8 value: "x" } } match: false }
+  }
+  test {
+    name: "list of objects is not empty"
+    filter: "editions:*"
+    cel: "size(editions) > 0"
+    resource { value { editions { year: 1965 } } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "field of the objects of a list is set in some object"
+    filter: "editions.year:*"
+    cel: "editions.exists(e, has(e.year))"
+    resource { value { editions { year: 1965 } } match: true }
+    resource { value { editions {} } match: false }
+    resource { value {} match: false }
+  }
+}
+
+section {
+  name: "message field that is not set"
+  description: "A field of a message type that is not set reads as the empty message; the guard x != null cannot tell it from a set empty message, see the README, \"Differences from AIP-160\". A nested field is checked with has() and is exact."
+
+  test {
+    name: "presence of the field"
+    filter: "author:*"
+    cel: "author != null"
+    resource { value {} match: true }
+  }
+  test {
+    name: "equal to null"
+    filter: "author = null"
+    resource { value {} match: false }
+  }
+  test {
+    name: "not equal to null"
+    filter: "author != null"
+    resource { value {} match: true }
+  }
+  test {
+    name: "member of the field differs from a value"
+    filter: "author.name != \"X\""
+    resource { value {} match: true }
+  }
+  test {
+    name: "nested wrapper is equal to null"
+    filter: "author.nickname = null"
+    resource { value {} match: true }
+  }
+  test {
+    name: "nested message is set"
+    filter: "author.address:*"
+    resource { value {} match: false }
+  }
+}
+
+section {
+  name: "lookup"
+  description: "A value after the colon is looked up in a list, or is a key of a map."
+
+  test {
+    name: "string in a list"
+    filter: "repeated_string:sf"
+    cel: "\"sf\" in repeated_string"
+    resource { value { repeated_string: "sf" repeated_string: "x" } match: true }
+    resource { value { repeated_string: "x" } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "int in a list"
+    filter: "repeated_int32:3"
+    cel: "3 in repeated_int32"
+    resource { value { repeated_int32: 1 repeated_int32: 3 } match: true }
+    resource { value { repeated_int32: 1 } match: false }
+  }
+  test {
+    name: "start of a string in a list"
+    filter: "repeated_string:\"cl*\""
+    cel: "repeated_string.exists(e, e.startsWith(\"cl\"))"
+    resource { value { repeated_string: "sf" repeated_string: "classic" } match: true }
+    resource { value { repeated_string: "xcl" } match: false }
+  }
+  test {
+    name: "end of a string in a list"
+    filter: "repeated_string:\"*ic\""
+    cel: "repeated_string.exists(e, e.endsWith(\"ic\"))"
+    resource { value { repeated_string: "classic" } match: true }
+    resource { value { repeated_string: "icx" } match: false }
+  }
+  test {
+    name: "inside of a string in a list"
+    filter: "repeated_string:\"*la*\""
+    cel: "repeated_string.exists(e, e.contains(\"la\"))"
+    resource { value { repeated_string: "classic" } match: true }
+    resource { value { repeated_string: "lxa" } match: false }
+  }
+  test {
+    name: "lone star in a list is presence"
+    filter: "repeated_string:\"*\""
+    cel: "size(repeated_string) > 0"
+    resource { value { repeated_string: "a" } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "word in a list of ints"
+    filter: "repeated_int32:abc"
+    error { code: "InvalidFilterValue" start: 15 length: 3 }
+  }
+  test {
+    name: "star in a list of ints"
+    filter: "repeated_int32:\"1*\""
+    error { code: "InvalidFilterValue" start: 15 length: 4 }
+  }
+  test {
+    name: "key in a map"
+    filter: "labels:genre"
+    cel: "\"genre\" in labels"
+    resource { value { labels { key: "genre" value: "sf" } } match: true }
+    resource { value { labels { key: "other" value: "sf" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "number key in a map"
+    filter: "names:7"
+    cel: "7 in names"
+    resource { value { names { key: 7 value: "x" } } match: true }
+    resource { value { names { key: 8 value: "x" } } match: false }
+  }
+  test {
+    name: "word as a number key"
+    filter: "names:abc"
+    error { code: "InvalidFilterValue" start: 6 length: 3 }
+  }
+  test {
+    name: "star in a map is not a key"
+    filter: "labels:\"g*\""
+    error { code: "InvalidFilterValue" start: 7 length: 4 }
+  }
+  test {
+    name: "string in a list of an object"
+    filter: "author.aliases:x"
+    cel: "author != null && \"x\" in author.aliases"
+    resource { value { author { aliases: "x" } } match: true }
+    resource { value { author { aliases: "y" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "list of objects is no list of values"
+    filter: "editions:1965"
+    error { code: "InvalidFilterRestriction" start: 8 length: 1 subject: "editions" }
+  }
+}
+
+section {
+  name: "member of an object"
+  description: "A name after the colon of an object field asks whether the object has the member."
+
+  test {
+    name: "member of an object"
+    filter: "author:name"
+    cel: "author != null && has(author.name)"
+    resource { value { author { name: "x" } } match: true }
+    resource { value { author {} } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "member in quotes"
+    filter: "author:\"name\""
+    cel: "author != null && has(author.name)"
+    resource { value { author { name: "x" } } match: true }
+  }
+  test {
+    name: "member of a nested object"
+    filter: "author.address:city"
+    cel: "author != null && has(author.address) && has(author.address.city)"
+    resource { value { author { address { city: "Paris" } } } match: true }
+    resource { value { author { address {} } } match: false }
+    resource { value { author {} } match: false }
+  }
+  test {
+    name: "member that the object does not have"
+    filter: "author:nickname_x"
+    error { code: "NoSuchField" start: 7 length: 10 }
+  }
+  test {
+    name: "member with a dot"
+    filter: "author:name.first"
+    error { code: "InvalidFilterValue" start: 7 length: 10 subject: "author" }
+  }
+  test {
+    name: "empty member name"
+    filter: "author:\"\""
+    error { code: "InvalidFilterValue" start: 7 length: 2 subject: "author" }
+  }
+}
+
+section {
+  name: "scalar"
+  description: "The colon with a value after a scalar field is equality."
+
+  test {
+    name: "string"
+    filter: "single_string:Dune"
+    cel: "single_string == \"Dune\""
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { single_string: "Frank" } match: false }
+  }
+  test {
+    name: "nested string"
+    filter: "author.name:Frank"
+    cel: "author != null && author.name == \"Frank\""
+    resource { value { author { name: "Frank" } } match: true }
+    resource { value { author { name: "Other" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "wrapper"
+    filter: "single_string_wrapper:x"
+    cel: "single_string_wrapper != null && single_string_wrapper == \"x\""
+    resource { value { single_string_wrapper { value: "x" } } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "dynamic value takes no value after the colon"
+    filter: "single_value:abc"
+    error { code: "InvalidFilterRestriction" start: 12 length: 1 subject: "single_value" }
+  }
+}
+
+section {
+  name: "repeated field on the path"
+  description: "A repeated field before the end of the path is walked: some element has the rest of the path with the value."
+
+  test {
+    name: "year of an edition"
+    filter: "editions.year:1965"
+    cel: "editions.exists(e, e.year == 1965)"
+    resource { value { editions { year: 1965 } editions { year: 2005 } } match: true }
+    resource { value { editions { year: 2005 } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "format of an edition"
+    filter: "editions.formats:epub"
+    cel: "editions.exists(e, \"epub\" in e.formats)"
+    resource { value { editions { formats: "hardcover" } editions { formats: "paperback" formats: "epub" } } match: true }
+    resource { value { editions { formats: "hardcover" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "start of a format of an edition"
+    filter: "editions.formats:\"ep*\""
+    cel: "editions.exists(e, e.formats.exists(e1, e1.startsWith(\"ep\")))"
+    resource { value { editions { formats: "epub" } } match: true }
+    resource { value { editions { formats: "pdf" } } match: false }
+  }
+  test {
+    name: "start of an isbn of an edition"
+    filter: "editions.isbn:\"0-441*\""
+    cel: "editions.exists(e, e.isbn.startsWith(\"0-441\"))"
+    resource { value { editions { isbn: "0-8023-0" } editions { isbn: "0-441-17271-7" } } match: true }
+    resource { value { editions { isbn: "0-8023-0" } } match: false }
+  }
+  test {
+    name: "map of objects"
+    filter: "editions_by_name.first.year:1965"
+    cel: "\"first\" in editions_by_name && editions_by_name[\"first\"] != null && editions_by_name[\"first\"].year == 1965"
+    resource { value { editions_by_name { key: "first" value { year: 1965 } } } match: true }
+    resource { value { editions_by_name { key: "first" value { year: 2005 } } } match: false }
+    resource { value { editions_by_name { key: "second" value { year: 1965 } } } match: false }
+  }
+  test {
+    name: "order through a repeated field"
+    filter: "editions.year > 2000"
+    error { code: "InvalidFilterRestriction" start: 14 length: 1 subject: "editions.year" }
+  }
+  test {
+    name: "equality through a repeated field"
+    filter: "editions.year = 1965"
+    error { code: "InvalidFilterRestriction" start: 14 length: 1 subject: "editions.year" }
+  }
+  test {
+    name: "inequality through a repeated field"
+    filter: "editions.year != 1965"
+    error { code: "InvalidFilterRestriction" start: 14 length: 2 }
+  }
+  test {
+    name: "word as the year of an edition"
+    filter: "editions.year:abc"
+    error { code: "InvalidFilterValue" start: 14 length: 3 }
+  }
+}

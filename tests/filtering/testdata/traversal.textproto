@@ -1,0 +1,245 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# Paths of fields: through nested objects, through maps, and the guards that an item without the object or the key does not match, also
+# with !=. Fields that are not values, and names that the environment does not declare.
+
+name: "traversal"
+description: "Paths of fields through objects and maps, their guards, and the errors of fields that cannot be compared or do not exist."
+
+section {
+  name: "nested fields"
+  description: "A path through objects is guarded: an item whose object is not set does not match, also for !=."
+
+  test {
+    name: "string of an object"
+    filter: "author.name = \"Frank Herbert\""
+    cel: "author != null && author.name == \"Frank Herbert\""
+    resource { value { author { name: "Frank Herbert" } } match: true }
+    resource { value { author { name: "Other" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "not equal needs the object"
+    filter: "author.name != \"X\""
+    cel: "author != null && author.name != \"X\""
+    resource { value { author { name: "Y" } } match: true }
+    resource { value { author { name: "X" } } match: false }
+  }
+  test {
+    name: "int of an object"
+    filter: "author.born >= 1920"
+    cel: "author != null && author.born >= 1920"
+    resource { value { author { born: 1920 } } match: true }
+    resource { value { author { born: 1900 } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "string of a nested object"
+    filter: "author.address.city = Paris"
+    cel: "author != null && has(author.address) && author.address.city == \"Paris\""
+    resource { value { author { address { city: "Paris" } } } match: true }
+    resource { value { author { address { city: "London" } } } match: false }
+    resource { value { author { address {} } } match: false }
+    resource { value { author {} } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "not equal needs the nested object"
+    filter: "author.address.city != Paris"
+    cel: "author != null && has(author.address) && author.address.city != \"Paris\""
+    resource { value { author { address { city: "London" } } } match: true }
+    resource { value { author { address { city: "Paris" } } } match: false }
+    resource { value { author {} } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "string of an object in an object in an object"
+    filter: "author.address.country.code = FR"
+    cel: "author != null && has(author.address) && has(author.address.country) && author.address.country.code == \"FR\""
+    resource { value { author { address { country { code: "FR" } } } } match: true }
+    resource { value { author { address { country { code: "DE" } } } } match: false }
+    resource { value { author { address {} } } match: false }
+  }
+  test {
+    name: "wrapper of an object"
+    filter: "author.nickname = x"
+    cel: "author != null && has(author.nickname) && author.nickname == \"x\""
+    resource { value { author { nickname { value: "x" } } } match: true }
+    resource { value { author { nickname { value: "y" } } } match: false }
+    resource { value { author {} } match: false }
+  }
+  test {
+    name: "wrapper of an object is absent"
+    filter: "author.nickname = null"
+    cel: "author != null && !has(author.nickname)"
+    resource { value { author {} } match: true }
+    resource { value { author { nickname { value: "x" } } } match: false }
+  }
+  test {
+    name: "wrapper of an object is present"
+    filter: "author.nickname != null"
+    cel: "author != null && has(author.nickname)"
+    resource { value { author { nickname { value: "x" } } } match: true }
+    resource { value { author {} } match: false }
+  }
+  test {
+    name: "null of a string of an object is a string"
+    filter: "author.name = null"
+    cel: "author != null && author.name == \"null\""
+    resource { value { author { name: "null" } } match: true }
+    resource { value { author { name: "x" } } match: false }
+  }
+  test {
+    name: "field that the object does not have"
+    filter: "author.unknown = 1"
+    error { code: "NoSuchField" start: 7 length: 7 }
+  }
+  test {
+    name: "field that the nested object does not have"
+    filter: "author.address.zip = 1"
+    error { code: "NoSuchField" start: 15 length: 3 }
+  }
+}
+
+section {
+  name: "maps"
+  description: "A step through a map is a key: the item must have the key, also for !=."
+
+  test {
+    name: "value of a key"
+    filter: "labels.genre = sf"
+    cel: "\"genre\" in labels && labels[\"genre\"] == \"sf\""
+    resource { value { labels { key: "genre" value: "sf" } } match: true }
+    resource { value { labels { key: "genre" value: "x" } } match: false }
+    resource { value { labels { key: "other" value: "sf" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "not equal needs the key"
+    filter: "labels.genre != sf"
+    cel: "\"genre\" in labels && labels[\"genre\"] != \"sf\""
+    resource { value { labels { key: "genre" value: "x" } } match: true }
+    resource { value { labels { key: "genre" value: "sf" } } match: false }
+    resource { value { labels { key: "other" value: "x" } } match: false }
+  }
+  test {
+    name: "has with a value after a key"
+    filter: "labels.genre:sf"
+    cel: "\"genre\" in labels && labels[\"genre\"] == \"sf\""
+    resource { value { labels { key: "genre" value: "sf" } } match: true }
+    resource { value { labels { key: "genre" value: "x" } } match: false }
+  }
+  test {
+    name: "key in quotes with a space"
+    filter: "labels.\"my key\" = x"
+    cel: "\"my key\" in labels && labels[\"my key\"] == \"x\""
+    resource { value { labels { key: "my key" value: "x" } } match: true }
+    resource { value { labels { key: "my" value: "x" } } match: false }
+  }
+  test {
+    name: "number key"
+    filter: "names.7 = x"
+    cel: "7 in names && names[7] == \"x\""
+    resource { value { names { key: 7 value: "x" } } match: true }
+    resource { value { names { key: 8 value: "x" } } match: false }
+  }
+  test {
+    name: "negative number key"
+    filter: "names.-1 = x"
+    cel: "-1 in names && names[-1] == \"x\""
+    resource { value { names { key: -1 value: "x" } } match: true }
+    resource { value { names { key: 1 value: "x" } } match: false }
+  }
+  test {
+    name: "word as a number key"
+    filter: "names.abc = x"
+    error { code: "InvalidFilterValue" start: 6 length: 3 subject: "names.abc" }
+  }
+  test {
+    name: "word of letters as a number key"
+    filter: "names.five = x"
+    error { code: "InvalidFilterValue" start: 6 length: 4 subject: "names.five" }
+  }
+  test {
+    name: "key of a struct"
+    filter: "single_struct.k = v"
+    cel: "\"k\" in single_struct && single_struct[\"k\"] == \"v\""
+    resource { value { single_struct { fields { key: "k" value { string_value: "v" } } } } match: true }
+    resource { value { single_struct { fields { key: "k" value { string_value: "w" } } } } match: false }
+    resource { value { single_struct { fields { key: "j" value { string_value: "v" } } } } match: false }
+  }
+  test {
+    name: "order of a value of a map of objects"
+    filter: "editions_by_name.first.year > 1990"
+    cel: "\"first\" in editions_by_name && editions_by_name[\"first\"] != null && editions_by_name[\"first\"].year > 1990"
+    resource { value { editions_by_name { key: "first" value { year: 2005 } } } match: true }
+    resource { value { editions_by_name { key: "first" value { year: 1965 } } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "pattern of a value of a key"
+    filter: "labels.genre = \"s*\""
+    cel: "\"genre\" in labels && labels[\"genre\"].startsWith(\"s\")"
+    resource { value { labels { key: "genre" value: "sf" } } match: true }
+    resource { value { labels { key: "genre" value: "fantasy" } } match: false }
+    resource { value {} match: false }
+  }
+}
+
+section {
+  name: "fields that are not values"
+  description: "A list, a map and an object are not compared; a repeated field is only for the has operator."
+
+  test {
+    name: "object"
+    filter: "author = X"
+    error { code: "InvalidFilterRestriction" start: 7 length: 1 subject: "author" }
+  }
+  test {
+    name: "nested object"
+    filter: "author.address = Paris"
+    error { code: "InvalidFilterRestriction" start: 15 length: 1 subject: "author.address" }
+  }
+  test {
+    name: "list of strings"
+    filter: "repeated_string = sf"
+    error { code: "InvalidFilterRestriction" start: 16 length: 1 subject: "repeated_string" }
+  }
+  test {
+    name: "list of objects"
+    filter: "editions = x"
+    error { code: "InvalidFilterRestriction" start: 9 length: 1 subject: "editions" }
+  }
+  test {
+    name: "map"
+    filter: "labels = x"
+    error { code: "InvalidFilterRestriction" start: 7 length: 1 subject: "labels" }
+  }
+}
+
+section {
+  name: "names that are not declared"
+  description: "A field that the environment does not declare is an error of type checking, at its place in the filter."
+
+  test {
+    name: "variable that is not declared"
+    filter: "isbn = 1"
+    error { code: "UndeclaredReference" start: 0 length: 4 }
+  }
+  test {
+    name: "path from a variable that is not declared"
+    filter: "isbn.x = 1"
+    error { code: "UndeclaredReference" start: 0 length: 4 }
+  }
+  test {
+    name: "longer name that is not declared"
+    filter: "unknown_field = 1"
+    error { code: "UndeclaredReference" start: 0 length: 13 }
+  }
+  test {
+    name: "empty name of a field"
+    filter: "\"\" = x"
+    error { code: "InvalidFilterRestriction" start: 0 length: 2 }
+  }
+}

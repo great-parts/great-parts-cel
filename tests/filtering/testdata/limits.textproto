@@ -1,0 +1,132 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# The limits of a filter that comes from a client: the length, the depth of the parentheses, the number of errors, and long chains of one
+# operator. A filter too long to write here is a unit that is repeated (repeat) followed by a tail.
+
+name: "limits"
+description: "Limits of length, of nesting and of the number of errors, and long chains of AND, OR and a sequence."
+
+section {
+  name: "length"
+  description: "The longest filter is 65536 UTF-16 code units and 65536 bytes of UTF-8."
+
+  test {
+    name: "longest filter"
+    filter: " "
+    repeat: 65536
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "one code unit too long"
+    filter: "a"
+    repeat: 65537
+    error { code: "ExpressionTooLong" start: 0 length: 0 }
+  }
+  test {
+    name: "fewer characters but more bytes than the limit"
+    filter: "€"
+    repeat: 21846
+    error { code: "ExpressionTooLong" start: 0 length: 0 }
+  }
+}
+
+section {
+  name: "nesting"
+  description: "At most 250 open parentheses, of groups and of calls; deeper is an error at the first parenthesis over the limit."
+
+  test {
+    name: "250 groups"
+    filter: "((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((single_int64 = 1))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
+    cel: "single_int64 == 1"
+    resource { value { single_int64: 1 } match: true }
+    resource { value { single_int64: 2 } match: false }
+  }
+  test {
+    name: "251 groups"
+    filter: "(((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((single_int64 = 1)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
+    error { code: "NestingTooDeep" start: 250 length: 1 }
+  }
+  test {
+    name: "65000 open parentheses without a stack overflow"
+    filter: "("
+    repeat: 65000
+    error { code: "NestingTooDeep" start: 250 length: 1 }
+  }
+  test {
+    name: "251 calls"
+    filter: "lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(lower(x)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))"
+    error { code: "NestingTooDeep" start: 1505 length: 1 }
+  }
+  test {
+    name: "path of 251 parts"
+    filter: "a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a.a = 1"
+    error { code: "NestingTooDeep" start: 0 length: 501 }
+  }
+}
+
+section {
+  name: "errors"
+  description: "At most 100 errors of the translation; the next error says that there are more."
+
+  test {
+    name: "100 errors"
+    filter: "single_int64 = a AND "
+    repeat: 99
+    tail: "single_int64 = a"
+    error { code: "InvalidFilterValue" start: 15 length: 1 subject: "single_int64" error_count: 100 last_code: "InvalidFilterValue" }
+  }
+  test {
+    name: "101 errors"
+    filter: "single_int64 = a AND "
+    repeat: 100
+    tail: "single_int64 = a"
+    error { code: "InvalidFilterValue" start: 15 length: 1 error_count: 101 last_code: "TooManyErrors" }
+  }
+  test {
+    name: "1000 errors"
+    filter: "single_int64 = a AND "
+    repeat: 999
+    tail: "single_int64 = a"
+    error { code: "InvalidFilterValue" start: 15 length: 1 error_count: 101 last_code: "TooManyErrors" }
+  }
+}
+
+section {
+  name: "long chains"
+  description: "A chain of one operator is a balanced tree, so its depth does not grow with its length."
+
+  test {
+    name: "2500 restrictions joined by AND"
+    filter: "single_int32=1 AND "
+    repeat: 2500
+    tail: "single_int32=1"
+    resource { value { single_int32: 1 } match: true }
+    resource { value { single_int32: 2 } match: false }
+  }
+  test {
+    name: "2500 restrictions joined by OR"
+    filter: "single_int32=1 OR "
+    repeat: 2500
+    tail: "single_int32=2"
+    resource { value { single_int32: 2 } match: true }
+    resource { value { single_int32: 3 } match: false }
+  }
+  test {
+    name: "2500 restrictions in a sequence"
+    filter: "single_int32=1 "
+    repeat: 2500
+    tail: "single_int32=1"
+    resource { value { single_int32: 1 } match: true }
+    resource { value { single_int32: 2 } match: false }
+  }
+  test {
+    name: "1000 groups in a sequence"
+    filter: "(single_int32=1) "
+    repeat: 1000
+    tail: "(single_int32=1)"
+    resource { value { single_int32: 1 } match: true }
+    resource { value { single_int32: 2 } match: false }
+  }
+}

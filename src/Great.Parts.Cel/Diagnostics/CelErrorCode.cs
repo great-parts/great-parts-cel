@@ -112,6 +112,14 @@ public enum CelErrorCode
     InvalidProtobuf = 1009,
 
     /// <summary>
+    /// A filter does not follow the AIP-160 grammar: an unexpected token, a string or a parenthesis that is not closed, a
+    /// keyword out of place (<c>AND</c> and <c>OR</c> need white space on both sides, <c>NOT</c> after it), empty parentheses,
+    /// or text after the end of the filter. Reported by the package <c>Great.Parts.Cel.Filtering</c>; parsing stops at the
+    /// first such error. Location: the token at which parsing stopped; at the end of the text, a fragment of length 0.
+    /// </summary>
+    FilterSyntaxError = 1012,
+
+    /// <summary>
     /// A document read by an extension package, such as a CEL policy, is not YAML: a syntax error of YAML 1.2, a tab in an
     /// indentation, an unclosed quote or flow collection, an unknown alias, or nesting deeper than the limit of the reader. The
     /// first syntax error stops the reading. The message tells what was expected. Location: the position in the document.
@@ -239,6 +247,25 @@ public enum CelErrorCode
     /// visible variable and <see cref="CelError.ActualType"/> the type of the new one.
     /// </summary>
     OverlappingVariable = 2014,
+
+    /// <summary>
+    /// A value of a filter does not fit the type of its field: a fraction or an exponent for an <c>int</c> field, a negative
+    /// number for a <c>uint</c> field, a text that is not RFC 3339 for a <c>timestamp</c> field or not a duration for a
+    /// <c>duration</c> field, a name that is not a constant of the enumeration of the field, a wildcard <c>*</c> for a field
+    /// that is not a string. Reported by the package <c>Great.Parts.Cel.Filtering</c>. Parts: the subject is the path of the
+    /// field as written in the filter; the expected type is the type of the field. Location: the value.
+    /// </summary>
+    InvalidFilterValue = 2015,
+
+    /// <summary>
+    /// A restriction of a filter is not allowed for the type of its field: <c>&lt;</c>, <c>&lt;=</c>, <c>&gt;</c> or
+    /// <c>&gt;=</c> for a <c>bool</c> or an enumeration, a comparison other than <c>:</c> through a repeated field, a
+    /// comparison of a list, a map or an object, <c>:</c> with a value for a field of type <c>dyn</c>, or a value without a
+    /// field when the filter has no search fields. Reported by the package <c>Great.Parts.Cel.Filtering</c>. Parts: the
+    /// subject is the path of the field; the actual type is the type of the field. Location: the comparator; for a value
+    /// without a field, the value.
+    /// </summary>
+    InvalidFilterRestriction = 2016,
 
     // Evaluation: 3000-3999.
 

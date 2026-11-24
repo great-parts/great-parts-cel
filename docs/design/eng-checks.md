@@ -47,6 +47,7 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `duplicates` | C# files, `eng/ratchet.json` | `ENG601` | the same | [eng-checks-source.md](eng-checks-source.md) |
 | `ratchet` | `eng/ratchet.json`, `CodeMetricsConfig.txt`, results of the two commands above | `ENG600`, `ENG602`–`ENG605` | the same | [eng-checks-source.md](eng-checks-source.md) |
 | `traces` | text files of `src/`, `tests/`, `docs/`, `eng/packages/`, `README.md`, `CHANGELOG.md` | `ENG103` | the same | [eng-checks-source.md](eng-checks-source.md#traces) |
+| `corpus` | the files of `tests/filtering/testdata`, the README of the filtering package, `docs/conformance.md` | `ENG307` | the same | [filtering-corpus.md](filtering-corpus.md#publication) |
 | `packages` | result of `dotnet pack`, `eng/packages/*.txt` | `ENG200`–`ENG208` | the same | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
 | `package-closure` | `artifacts/packages`, `eng/packages/*.txt`, the restore of each package in an application (needs nuget.org) | `ENG200`, `ENG209`, `ENG210` | CI, cell JIT Linux `net11.0`; `release.yml`, the job `build` | [eng-checks-artifacts.md](eng-checks-artifacts.md#package-closure) |
 | `signoff` | commits of a range | `ENG701` | CI: push to `main`, pull request of an outside contributor | [eng-checks-artifacts.md](eng-checks-artifacts.md) |
@@ -72,6 +73,7 @@ Commands run in the given order. Several commands in one run share their scans: 
 | `ReleaseGates/` | one class per gate of `release-gates`, the reader of the lists, the clone of cel-spec, the access to the API of GitHub and to `gh`, [eng-release.md](eng-release.md) |
 | `QuickStart/` | the reader of the block of `README.md`, the session in the container, [eng-release.md](eng-release.md) |
 | `Traces/` | the files that `traces` reads, its patterns and the files with Cyrillic test data |
+| `Corpus/` | the count of the cases of the corpus of the filtering package and the check of its publication line |
 
 A command added later puts the types that only it uses, the readers of its input formats included, into a directory of its own named after it.
 

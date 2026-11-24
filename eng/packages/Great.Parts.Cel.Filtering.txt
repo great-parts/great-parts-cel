@@ -1,0 +1,19 @@
+# Expected content of the Great.Parts.Cel.Filtering package.
+# The package depends only on Great.Parts.Cel: the AIP-160 parser and the translation are its own code.
+
+dependencies net10.0: Great.Parts.Cel
+dependencies net11.0: Great.Parts.Cel
+
+closure net10.0: Great.Parts.Cel
+closure net11.0: Great.Parts.Cel
+
+license Apache-2.0
+
+file NOTICE
+file README.md
+file AGENTS.md
+file icon.png
+file lib/net10.0/Great.Parts.Cel.Filtering.dll
+file lib/net10.0/Great.Parts.Cel.Filtering.xml
+file lib/net11.0/Great.Parts.Cel.Filtering.dll
+file lib/net11.0/Great.Parts.Cel.Filtering.xml

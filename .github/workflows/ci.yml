@@ -90,7 +90,7 @@ jobs:
       # adds beyond the closure lines of its list ENG209 (Policy: Great.Parts.Cel only), a missing one ENG210.
       - name: Repository checks
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
-        run: dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages package-closure traces --no-build
+        run: dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages package-closure traces corpus --no-build
 
   # Native AOT cells, linux-x64. A cell builds the solution, runs the test projects with PublishAot under JIT for its target (the
   # reference of the test count), publishes them as eng/test does, runs the executables and compares the tests of both runs

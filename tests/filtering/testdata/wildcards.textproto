@@ -1,0 +1,183 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# The star in a string value: at the start, at the end, on both sides, alone, in the middle, escaped, outside the quotes, and on a field
+# that is not a string.
+
+name: "wildcards"
+description: "The star of a string value is a pattern at its start or its end; everywhere else it is a character."
+
+section {
+  name: "patterns"
+  description: "A star at the start, the end or both sides of a quoted string."
+
+  test {
+    name: "star at the start"
+    filter: "single_string = \"*une\""
+    cel: "single_string.endsWith(\"une\")"
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { single_string: "Dun" } match: false }
+  }
+  test {
+    name: "star at the end"
+    filter: "single_string = \"Du*\""
+    cel: "single_string.startsWith(\"Du\")"
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { single_string: "Sudu" } match: false }
+  }
+  test {
+    name: "star on both sides"
+    filter: "single_string = \"*un*\""
+    cel: "single_string.contains(\"un\")"
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { single_string: "Dine" } match: false }
+  }
+  test {
+    name: "not equal to a pattern at the end"
+    filter: "single_string != \"Du*\""
+    cel: "!single_string.startsWith(\"Du\")"
+    resource { value { single_string: "Dune" } match: false }
+    resource { value { single_string: "Frank" } match: true }
+  }
+  test {
+    name: "not equal to a pattern at the start"
+    filter: "single_string != \"*une\""
+    cel: "!single_string.endsWith(\"une\")"
+    resource { value { single_string: "Dune" } match: false }
+    resource { value { single_string: "Frank" } match: true }
+  }
+  test {
+    name: "two stars match everything"
+    filter: "single_string = \"**\""
+    cel: "single_string.contains(\"\")"
+    resource { value { single_string: "x" } match: true }
+    resource { value { single_string: "" } match: true }
+  }
+  test {
+    name: "pattern of a wrapper"
+    filter: "single_string_wrapper = \"Du*\""
+    cel: "single_string_wrapper != null && single_string_wrapper.startsWith(\"Du\")"
+    resource { value { single_string_wrapper { value: "Dune" } } match: true }
+    resource { value { single_string_wrapper { value: "Sudu" } } match: false }
+    resource { value {} match: false }
+  }
+  test {
+    name: "pattern of a string of an object"
+    filter: "author.name = \"Frank*\""
+    cel: "author != null && author.name.startsWith(\"Frank\")"
+    resource { value { author { name: "Frank Herbert" } } match: true }
+    resource { value { author { name: "Herbert" } } match: false }
+    resource { value {} match: false }
+  }
+}
+
+section {
+  name: "lone star"
+  description: "A lone star in quotes is presence, as the has operator with a star."
+
+  test {
+    name: "string is always set"
+    filter: "single_string = \"*\""
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "string is never not set"
+    filter: "single_string != \"*\""
+    cel: "false"
+    resource { value {} match: false }
+  }
+  test {
+    name: "wrapper is set"
+    filter: "single_string_wrapper = \"*\""
+    cel: "single_string_wrapper != null"
+    resource { value { single_string_wrapper { value: "x" } } match: true }
+    resource { value {} match: false }
+  }
+  test {
+    name: "string of an object is set"
+    filter: "author.name = \"*\""
+    cel: "author != null && has(author.name)"
+    resource { value { author { name: "x" } } match: true }
+    resource { value { author {} } match: false }
+  }
+}
+
+section {
+  name: "star that is a character"
+  description: "A star in the middle, an escaped star and a star outside the quotes are characters of the value."
+
+  test {
+    name: "star in the middle"
+    filter: "single_string = \"D*e\""
+    cel: "single_string == \"D*e\""
+    resource { value { single_string: "D*e" } match: true }
+    resource { value { single_string: "Dune" } match: false }
+  }
+  test {
+    name: "escaped star alone"
+    filter: "single_string = \"\\*\""
+    cel: "single_string == \"*\""
+    resource { value { single_string: "*" } match: true }
+    resource { value { single_string: "x" } match: false }
+  }
+  test {
+    name: "escaped star in the middle"
+    filter: "single_string = \"a\\*b\""
+    cel: "single_string == \"a*b\""
+    resource { value { single_string: "a*b" } match: true }
+    resource { value { single_string: "axb" } match: false }
+  }
+  test {
+    name: "escaped star at the start and a star at the end"
+    filter: "single_string = \"\\**\""
+    cel: "single_string.startsWith(\"*\")"
+    resource { value { single_string: "*a" } match: true }
+    resource { value { single_string: "a*" } match: false }
+  }
+  test {
+    name: "star at the start and an escaped star at the end"
+    filter: "single_string = \"*\\*\""
+    cel: "single_string.endsWith(\"*\")"
+    resource { value { single_string: "a*" } match: true }
+    resource { value { single_string: "*a" } match: false }
+  }
+  test {
+    name: "star outside the quotes"
+    filter: "single_string = *une"
+    cel: "single_string == \"*une\""
+    resource { value { single_string: "*une" } match: true }
+    resource { value { single_string: "Dune" } match: false }
+  }
+}
+
+section {
+  name: "fields that are not strings"
+  description: "A star stands for any text only in a string, with = and !=."
+
+  test {
+    name: "int"
+    filter: "single_int64 = \"*1\""
+    error { code: "InvalidFilterValue" start: 15 length: 4 subject: "single_int64" }
+  }
+  test {
+    name: "bytes"
+    filter: "single_bytes = \"a*\""
+    error { code: "InvalidFilterValue" start: 15 length: 4 }
+  }
+  test {
+    name: "lone star for a double"
+    filter: "single_double = \"*\""
+    error { code: "InvalidFilterValue" start: 16 length: 3 }
+  }
+  test {
+    name: "lone star for a timestamp"
+    filter: "single_timestamp = \"*\""
+    error { code: "InvalidFilterValue" start: 19 length: 3 }
+  }
+  test {
+    name: "string with an order"
+    filter: "single_string < \"a*\""
+    error { code: "InvalidFilterValue" start: 16 length: 4 }
+  }
+}

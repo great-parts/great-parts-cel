@@ -1,0 +1,393 @@
+# proto-file: tests/filtering/proto/filter_test.proto
+# proto-message: FilterTestFile
+#
+# The lexical rules and the grammar of AIP-160: white space, strings, escapes, comparators, keywords, precedence, and the errors of the
+# syntax with their places. A place is (start, length) in UTF-16 code units of the text of the filter.
+
+name: "syntax"
+description: "Lexical rules and grammar of AIP-160, and the errors of the syntax with their places."
+
+section {
+  name: "lexical"
+  description: "Tokens: white space, strings and their escapes, text, a minus, characters outside ASCII."
+
+  test {
+    name: "empty filter is true"
+    filter: ""
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "white space only is true"
+    filter: "  \t\r\n  "
+    cel: "true"
+    resource { value {} match: true }
+  }
+  test {
+    name: "double quoted string"
+    filter: "single_string = \"Dune\""
+    cel: "single_string == \"Dune\""
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { single_string: "Dune II" } match: false }
+  }
+  test {
+    name: "single quoted string"
+    filter: "single_string = 'Dune'"
+    cel: "single_string == \"Dune\""
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { single_string: "dune" } match: false }
+  }
+  test {
+    name: "text without quotes"
+    filter: "single_string = Dune"
+    cel: "single_string == \"Dune\""
+    resource { value { single_string: "Dune" } match: true }
+    resource { value { single_string: "Duny" } match: false }
+  }
+  test {
+    name: "escaped double quote"
+    filter: 'single_string = "say \\"hi\\""'
+    cel: 'single_string == "say \\"hi\\""'
+    resource { value { single_string: 'say "hi"' } match: true }
+    resource { value { single_string: "say hi" } match: false }
+  }
+  test {
+    name: "escaped single quote"
+    filter: "single_string = 'it\\'s'"
+    cel: "single_string == \"it's\""
+    resource { value { single_string: "it's" } match: true }
+    resource { value { single_string: "its" } match: false }
+  }
+  test {
+    name: "backslash before an ordinary character drops the backslash"
+    filter: "single_string = \"a\\b\""
+    cel: "single_string == \"ab\""
+    resource { value { single_string: "ab" } match: true }
+    resource { value { single_string: "a\\b" } match: false }
+  }
+  test {
+    name: "escaped star is a literal star"
+    filter: "single_string = \"\\*a\""
+    cel: "single_string == \"*a\""
+    resource { value { single_string: "*a" } match: true }
+    resource { value { single_string: "xa" } match: false }
+  }
+  test {
+    name: "letters outside ASCII"
+    filter: "single_string = Grüße"
+    cel: "single_string == \"Grüße\""
+    resource { value { single_string: "Grüße" } match: true }
+    resource { value { single_string: "Gruesse" } match: false }
+  }
+  test {
+    name: "hyphen inside text is part of the text"
+    filter: "single_string = a-b"
+    cel: "single_string == \"a-b\""
+    resource { value { single_string: "a-b" } match: true }
+    resource { value { single_string: "ab" } match: false }
+  }
+  test {
+    name: "tab and new line are white space"
+    filter: "single_string\t=\n\"x\""
+    cel: "single_string == \"x\""
+    resource { value { single_string: "x" } match: true }
+  }
+  test {
+    name: "white space around a comparator is not needed"
+    filter: "single_string=\"x\""
+    cel: "single_string == \"x\""
+    resource { value { single_string: "x" } match: true }
+  }
+  test {
+    name: "character outside the basic plane"
+    filter: "single_string = 😀"
+    cel: "single_string == \"😀\""
+    resource { value { single_string: "😀" } match: true }
+    resource { value { single_string: "x" } match: false }
+  }
+  test {
+    name: "a quoted string can name a field"
+    filter: "\"single_string\" = x"
+    cel: "single_string == \"x\""
+    resource { value { single_string: "x" } match: true }
+  }
+  test {
+    name: "empty string value"
+    filter: "single_string = \"\""
+    cel: "single_string == \"\""
+    resource { value { single_string: "" } match: true }
+    resource { value { single_string: "a" } match: false }
+  }
+}
+
+section {
+  name: "comparators"
+  description: "The seven comparators on an int field, at the boundary."
+
+  test {
+    name: "equal"
+    filter: "single_int64 = 5"
+    cel: "single_int64 == 5"
+    resource { value { single_int64: 5 } match: true }
+    resource { value { single_int64: 6 } match: false }
+  }
+  test {
+    name: "not equal"
+    filter: "single_int64 != 5"
+    cel: "single_int64 != 5"
+    resource { value { single_int64: 5 } match: false }
+    resource { value { single_int64: 6 } match: true }
+  }
+  test {
+    name: "less"
+    filter: "single_int64 < 5"
+    cel: "single_int64 < 5"
+    resource { value { single_int64: 4 } match: true }
+    resource { value { single_int64: 5 } match: false }
+  }
+  test {
+    name: "less or equal"
+    filter: "single_int64 <= 5"
+    cel: "single_int64 <= 5"
+    resource { value { single_int64: 5 } match: true }
+    resource { value { single_int64: 6 } match: false }
+  }
+  test {
+    name: "greater"
+    filter: "single_int64 > 5"
+    cel: "single_int64 > 5"
+    resource { value { single_int64: 6 } match: true }
+    resource { value { single_int64: 5 } match: false }
+  }
+  test {
+    name: "greater or equal"
+    filter: "single_int64 >= 5"
+    cel: "single_int64 >= 5"
+    resource { value { single_int64: 5 } match: true }
+    resource { value { single_int64: 4 } match: false }
+  }
+  test {
+    name: "has on a scalar is equality"
+    filter: "single_int64:5"
+    cel: "single_int64 == 5"
+    resource { value { single_int64: 5 } match: true }
+    resource { value { single_int64: 6 } match: false }
+  }
+  test {
+    name: "bang alone is not an operator"
+    filter: "single_int64 ! 5"
+    error { code: "FilterSyntaxError" start: 13 length: 1 }
+  }
+  test {
+    name: "double equal sign"
+    filter: "single_int64 == 5"
+    error { code: "FilterSyntaxError" start: 14 length: 1 }
+  }
+  test {
+    name: "comparator without a value"
+    filter: "single_int64 ="
+    error { code: "FilterSyntaxError" start: 14 length: 0 }
+  }
+  test {
+    name: "comparator without a field"
+    filter: "= 5"
+    error { code: "FilterSyntaxError" start: 0 length: 1 }
+  }
+}
+
+section {
+  name: "grammar"
+  description: "Precedence of OR, a sequence and AND, negation, groups and composites."
+
+  test {
+    name: "OR binds tighter than AND"
+    filter: "single_int64 = 1 AND single_int64 = 2 OR single_int64 = 3"
+    cel: "single_int64 == 1 && (single_int64 == 2 || single_int64 == 3)"
+    resource { value { single_int64: 1 } match: false }
+    resource { value { single_int64: 2 } match: false }
+  }
+  test {
+    name: "OR on both sides of AND"
+    filter: "single_int64 = 1 OR single_int64 = 2 AND single_bool = true"
+    cel: "(single_int64 == 1 || single_int64 == 2) && single_bool == true"
+    resource { value { single_int64: 2 single_bool: true } match: true }
+    resource { value { single_int64: 2 } match: false }
+    resource { value { single_int64: 3 single_bool: true } match: false }
+  }
+  test {
+    name: "a sequence is AND"
+    filter: "single_int64 > 1 single_int64 < 9"
+    cel: "single_int64 > 1 && single_int64 < 9"
+    resource { value { single_int64: 5 } match: true }
+    resource { value { single_int64: 9 } match: false }
+  }
+  test {
+    name: "a sequence binds tighter than AND"
+    filter: "single_int64 > 1 single_int64 < 9 AND single_bool = true single_int32 = 3"
+    cel: "(single_int64 > 1 && single_int64 < 9) && (single_bool == true && single_int32 == 3)"
+  }
+  test {
+    name: "NOT negates a restriction"
+    filter: "NOT single_bool = true"
+    cel: "!(single_bool == true)"
+    resource { value { single_bool: true } match: false }
+    resource { value { single_bool: false } match: true }
+  }
+  test {
+    name: "minus negates a restriction"
+    filter: "-single_bool = true"
+    cel: "!(single_bool == true)"
+    resource { value { single_bool: true } match: false }
+    resource { value { single_bool: false } match: true }
+  }
+  test {
+    name: "NOT negates a group"
+    filter: "NOT (single_int64 = 1 OR single_int64 = 2)"
+    cel: "!(single_int64 == 1 || single_int64 == 2)"
+    resource { value { single_int64: 1 } match: false }
+    resource { value { single_int64: 3 } match: true }
+  }
+  test {
+    name: "group changes the precedence"
+    filter: "(single_int64 = 1 OR single_int64 = 2) AND single_bool = true"
+    cel: "(single_int64 == 1 || single_int64 == 2) && single_bool == true"
+    resource { value { single_int64: 1 single_bool: true } match: true }
+    resource { value { single_int64: 1 } match: false }
+  }
+  test {
+    name: "composite value repeats the field"
+    filter: "single_int64 = (1 OR 2)"
+    cel: "single_int64 == 1 || single_int64 == 2"
+    resource { value { single_int64: 2 } match: true }
+    resource { value { single_int64: 3 } match: false }
+  }
+  test {
+    name: "composite value with NOT"
+    filter: "single_int64 = (1 OR NOT 2)"
+    cel: "single_int64 == 1 || !(single_int64 == 2)"
+    resource { value { single_int64: 1 } match: true }
+    resource { value { single_int64: 2 } match: false }
+    resource { value { single_int64: 3 } match: true }
+  }
+  test {
+    name: "composite value with AND and a comparator"
+    filter: "single_int64 > (1 AND 9)"
+    cel: "single_int64 > 1 && single_int64 > 9"
+    resource { value { single_int64: 10 } match: true }
+    resource { value { single_int64: 5 } match: false }
+  }
+  test {
+    name: "nested groups"
+    filter: "((single_int64 = 1))"
+    cel: "single_int64 == 1"
+    resource { value { single_int64: 1 } match: true }
+  }
+  test {
+    name: "keywords are case sensitive"
+    filter: "single_int64 = 1 and single_int64 = 2"
+    error { code: "InvalidFilterRestriction" start: 17 length: 3 }
+  }
+  test {
+    name: "keyword glued to text is text"
+    filter: "single_int64 = 1 ANDsingle_int64 = 2"
+    error { code: "UndeclaredReference" start: 17 length: 15 }
+  }
+  test {
+    name: "AND needs white space before it"
+    filter: "(single_int64 = 1)AND single_int64 = 2"
+    error { code: "FilterSyntaxError" start: 18 length: 3 }
+  }
+  test {
+    name: "AND is a name after a dot"
+    filter: "labels.AND = x"
+    cel: "\"AND\" in labels && labels[\"AND\"] == \"x\""
+    resource { value { labels { key: "AND" value: "x" } } match: true }
+    resource { value { labels { key: "and" value: "x" } } match: false }
+  }
+}
+
+section {
+  name: "syntax errors"
+  description: "The first error of a text that is not a filter, and the place where parsing stopped."
+
+  test {
+    name: "AND at the end"
+    filter: "single_int64 = 1 AND"
+    error { code: "FilterSyntaxError" start: 20 length: 0 }
+  }
+  test {
+    name: "OR at the end"
+    filter: "single_int64 = 1 OR"
+    error { code: "FilterSyntaxError" start: 19 length: 0 }
+  }
+  test {
+    name: "AND at the start"
+    filter: "AND single_int64 = 1"
+    error { code: "FilterSyntaxError" start: 0 length: 3 }
+  }
+  test {
+    name: "NOT at the end"
+    filter: "NOT"
+    error { code: "FilterSyntaxError" start: 3 length: 0 }
+  }
+  test {
+    name: "NOT NOT"
+    filter: "NOT NOT single_bool = true"
+    error { code: "FilterSyntaxError" start: 4 length: 3 }
+  }
+  test {
+    name: "NOT directly before a parenthesis is a function call"
+    filter: "NOT(single_int64 = 1)"
+    error { code: "FilterSyntaxError" start: 17 length: 1 }
+  }
+  test {
+    name: "unclosed parenthesis"
+    filter: "(single_int64 = 1"
+    error { code: "FilterSyntaxError" start: 17 length: 0 }
+  }
+  test {
+    name: "extra closing parenthesis"
+    filter: "single_int64 = 1)"
+    error { code: "FilterSyntaxError" start: 16 length: 1 }
+  }
+  test {
+    name: "empty parentheses"
+    filter: "()"
+    error { code: "FilterSyntaxError" start: 1 length: 1 }
+  }
+  test {
+    name: "unclosed string"
+    filter: "single_string = \"abc"
+    error { code: "FilterSyntaxError" start: 16 length: 4 }
+  }
+  test {
+    name: "string that ends with a backslash"
+    filter: "single_string = \"abc\\"
+    error { code: "FilterSyntaxError" start: 16 length: 5 }
+  }
+  test {
+    name: "dot with white space before it"
+    filter: "author . name = x"
+    error { code: "FilterSyntaxError" start: 7 length: 1 }
+  }
+  test {
+    name: "dot at the end"
+    filter: "author."
+    error { code: "FilterSyntaxError" start: 7 length: 0 }
+  }
+  test {
+    name: "call without the closing parenthesis"
+    filter: "lower(single_string = \"a\""
+    error { code: "FilterSyntaxError" start: 20 length: 1 }
+  }
+  test {
+    name: "time with colons needs quotes"
+    filter: "single_timestamp > 2026-01-01T00:00:00Z"
+    error { code: "FilterSyntaxError" start: 32 length: 1 }
+  }
+  test {
+    name: "a value without a comparator is a value without a field"
+    filter: "single_int64 = 1 2"
+    error { code: "InvalidFilterRestriction" start: 17 length: 1 }
+  }
+}
