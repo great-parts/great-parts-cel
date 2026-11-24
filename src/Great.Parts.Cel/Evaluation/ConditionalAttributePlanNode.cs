@@ -14,7 +14,8 @@ namespace Great.Parts.Cel.Evaluation;
 // patterns it evaluates the condition, once, and stores the value in the partial state, where the wrapped chain takes it from the
 // KeyPlanNode of the condition. A condition that is not a bool, which is an error, an unknown value or an operand that no overload
 // takes, is left to the wrapped node, which reports it. Then, as AttributePlanNode does, it evaluates the keys of the chosen branch
-// and of the chain from left to right — an error or an unknown value is the result — and matches the patterns against the access of
+// and of the chain from left to right — an error is the result, and a key that is an unknown value is the result as in
+// AttributePlanNode (OfUnknownKey) — and matches the patterns against the access of
 // the branch followed by the access of the chain, and gives the first match as an unknown value that charges 1. A chosen branch
 // that is no attribute of a variable that a pattern names has no access to match. When none matches, the wrapped node is evaluated
 // and reads the stored values, so that the condition and the keys are evaluated once.
@@ -55,20 +56,29 @@ internal sealed class ConditionalAttributePlanNode : PlanNode
         {
             result = error;
         }
-        else if (access.Variable is { } variable
-            && AttributePlanNode.Match(state.Patterns, variable, access.Ids.AsSpan(0, access.IdCount), access.Qualifiers.AsSpan(0, access.Count)) is { } entry)
-        {
-            frame.Offset = Offset;
-            if (frame.Metered)
-            {
-                frame.Charge(1);
-            }
-
-            result = CelValue.FromUnknown(UnknownSet.Of(entry));
-        }
         else
         {
-            result = _chain.Evaluate(frame);
+            UnknownEntry? entry = access.Variable is { } variable
+                ? AttributePlanNode.Match(state.Patterns, variable, access.Ids.AsSpan(0, access.IdCount), access.Qualifiers.AsSpan(0, access.Count))
+                : null;
+            if (access.Unknown.IsUnknown)
+            {
+                result = AttributePlanNode.OfUnknownKey(frame, _chain, access.Unknown, entry is not null);
+            }
+            else if (entry is { } matched)
+            {
+                frame.Offset = Offset;
+                if (frame.Metered)
+                {
+                    frame.Charge(1);
+                }
+
+                result = CelValue.FromUnknown(UnknownSet.Of(matched));
+            }
+            else
+            {
+                result = _chain.Evaluate(frame);
+            }
         }
 
         Forget(state);
@@ -90,7 +100,7 @@ internal sealed class ConditionalAttributePlanNode : PlanNode
     }
 
     // Evaluates the conditions and the keys along the branches that the conditions choose, from left to right, and adds the access to
-    // the arrays. False, with the error, when a key is an error or an unknown value. When the access has no variable to match, the
+    // the arrays. False, with the error, when a key is an error; an unknown key goes into the access and is kept in Access.Unknown. When the access has no variable to match, the
     // variable of the access is left null: the chosen branch is no attribute of a variable with a pattern, or a condition is not a
     // bool.
     private static bool TryCollect(Frame frame, PartialState state, AttributeSource source, Access access, out CelValue error)
@@ -145,10 +155,15 @@ internal sealed class ConditionalAttributePlanNode : PlanNode
             }
 
             CelValue value = key.EvaluateKey(frame);
-            if (value.Kind == CelValueKind.Error)
+            if (value.Kind == CelValueKind.Error && !value.IsUnknown)
             {
                 error = value;
                 return false;
+            }
+
+            if (value.IsUnknown && !access.Unknown.IsUnknown)
+            {
+                access.Unknown = value;
             }
 
             access.Qualifiers[access.Count++] = value;
@@ -180,5 +195,8 @@ internal sealed class ConditionalAttributePlanNode : PlanNode
         internal int IdCount { get; set; }
 
         internal string? Variable { get; set; }
+
+        // The first key that is an unknown value, or the default value when there is none.
+        internal CelValue Unknown { get; set; }
     }
 }

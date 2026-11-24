@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -121,6 +122,24 @@ public sealed class AttributePatternTests
         Assert.True(result.IsUnknown);
         Assert.Equal("d", Trails(result));
         Assert.Empty(Assert.Single(result.Unknowns).Attribute!.Qualifiers);
+    }
+
+    // The run of difftest 4cba15e, case 168328: x2.b[x2.a] under the pattern x2.a[*]. The key is an unknown value that matches no pattern
+    // with the access, and the field before it is not there: an error, which a strict call gives precedence over an unknown value, and
+    // which cel-go reports too. With the field there, the unknown key is the result. Where a pattern matches the access, the pattern
+    // names the whole variable here, the chain is not evaluated and the unknown key is the result.
+    [Fact]
+    [Trait("Requirement", "F-22")]
+    public void ErrorOfTheChainBeforeAnUnknownKey_IsTheResult()
+    {
+        CelPartialEvalResult<CelValue> failed = Evaluate("request.nothing[request.auth.user]", [P("request", "auth", "user")], Data);
+        CelPartialEvalResult<CelValue> unknown = Evaluate("request.auth[request.auth.user]", [P("request", "auth", "user")], Data);
+        CelPartialEvalResult<CelValue> matched = Evaluate("request.nothing[request.auth.user]", [P("request")], Data);
+
+        Assert.False(failed.IsUnknown);
+        Assert.Equal(CelErrorCode.EvalNoSuchField, Assert.Single(failed.Errors).Code);
+        Assert.Equal("request.auth.user", Trails(unknown));
+        Assert.Equal("request", Trails(matched));
     }
 
     [Fact]

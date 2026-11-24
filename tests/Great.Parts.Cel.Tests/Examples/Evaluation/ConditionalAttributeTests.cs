@@ -133,6 +133,19 @@ public sealed class ConditionalAttributeTests
         Assert.Equal(CelErrorCode.DivisionByZero, Assert.Single(result.Errors).Code);
     }
 
+    // A key that is an unknown value comes after a field that is not there: the error of the chain is the result, as for a chain that
+    // starts at a variable, and with a field that is there the unknown key is.
+    [Fact]
+    [Trait("Requirement", "F-22")]
+    public void UnknownKeyAfterTheBranch_YieldsToTheErrorOfTheChainBeforeIt()
+    {
+        CelPartialEvalResult<CelValue> failed = Evaluate("(b ? request : resource).nothing[request.auth.user]", [P("request", "auth", "user")], Data(true));
+        CelPartialEvalResult<CelValue> unknown = Evaluate("(b ? request : resource).auth[request.auth.user]", [P("request", "auth", "user")], Data(true));
+
+        Assert.Equal(CelErrorCode.EvalNoSuchField, Assert.Single(failed.Errors).Code);
+        Assert.Equal("request.auth.user", Trails(unknown));
+    }
+
     // Without an unknown value the plan evaluates as before: the same expressions, evaluated in full and by a partial program with no
     // pattern or with a pattern for another variable, give the values of the language.
     [Theory]

@@ -244,7 +244,8 @@ jobs:
 
       # The control example of the gate above: the same application with one intentional warning IL2070 (-p:IlControl=true adds
       # tests/Great.Parts.Cel.Wasm.App/IlControl/IlWarning.cs) is published, and the gate has to turn red on its log. A gate that stayed
-      # green here would show nothing. The publish itself may fail on the warning; only its log is read.
+      # green here would show nothing. The publish itself may fail on the warning; only its log is read. The lines of the gate are not
+      # printed here: the problem matcher of the runner would turn the intentional warning into an annotation of the run.
       - name: Control example (the gate of 0 IL warnings goes red)
         env:
           TARGET: ${{ matrix.tfm }}
@@ -252,7 +253,7 @@ jobs:
           set -u
           log="artifacts/wasm/control-$TARGET.log"
           dotnet publish tests/Great.Parts.Cel.Wasm.App -f "$TARGET" -c Release --no-restore -p:IlControl=true -o "artifacts/wasm/control/$TARGET" > "$log" 2>&1 || true
-          if node .github/scripts/il-gate.mjs "$log"; then
+          if node .github/scripts/il-gate.mjs "$log" > /dev/null; then
             echo "The control example has an IL warning, but the gate stayed green."
             exit 1
           fi

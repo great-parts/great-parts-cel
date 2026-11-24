@@ -111,10 +111,12 @@ Every pull request and every push to `main` runs [CI](.github/workflows/ci.yml):
 | :- | :- |
 | [`Great.Parts.Cel`](https://www.nuget.org/packages/Great.Parts.Cel) | The core: compile and evaluate CEL, the standard library, extension sets, the source generator |
 | [`Great.Parts.Cel.Protobuf`](https://www.nuget.org/packages/Great.Parts.Cel.Protobuf) | Messages of protobuf in expressions |
-| [`Great.Parts.Cel.DependencyInjection`](https://www.nuget.org/packages/Great.Parts.Cel.DependencyInjection) | An environment, a compilation cache and an evaluator as services; the validation of options |
-| [`Great.Parts.Cel.AspNetCore`](https://www.nuget.org/packages/Great.Parts.Cel.AspNetCore) | Authorization policies and the validation of requests of minimal API endpoints |
-| [`Great.Parts.Cel.Policy`](https://www.nuget.org/packages/Great.Parts.Cel.Policy) | Policies in the CEL policy format (2.0) |
-| [`Great.Parts.Cel.Filtering`](https://www.nuget.org/packages/Great.Parts.Cel.Filtering) | AIP-160 filters as CEL expressions (2.0) |
+| `Great.Parts.Cel.DependencyInjection` | An environment, a compilation cache and an evaluator as services; the validation of options |
+| `Great.Parts.Cel.AspNetCore` | Authorization policies and the validation of requests of minimal API endpoints |
+| `Great.Parts.Cel.Policy` | Policies in the CEL policy format (2.0) |
+| `Great.Parts.Cel.Filtering` | AIP-160 filters as CEL expressions (2.0) |
+
+A package without a link is not published yet; its link appears with its first release.
 
 ## Documentation
 

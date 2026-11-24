@@ -9,12 +9,14 @@ namespace Great.Parts.Cel.Evaluation;
 // qualifiers in order, and the id of the syntax node at each length — and wraps the node that evaluates the chain.
 //
 // Without patterns of unknown data in the frame it evaluates the wrapped node. With patterns for its variable it first evaluates the
-// keys that are expressions, from left to right — an error or an unknown value is the result — and matches the patterns in the order
-// they were given: the variable name equal, and each qualifier that both have equal, a null qualifier of the pattern matching any;
-// numbers of the kinds int, uint and double are equal by their value, as CEL equality has it. The first pattern that matches gives
-// an unknown value with the trail of the access up to the length of the pattern, and the id of the node of the chain at that length,
-// or of the last node when the access is shorter; it charges 1. When none matches, the wrapped node is evaluated and reads the keys
-// that were evaluated from the partial state, so that they are evaluated once.
+// keys that are expressions, from left to right — an error is the result — and matches the patterns in the order they were given:
+// the variable name equal, and each qualifier that both have equal, a null qualifier of the pattern matching any; numbers of the
+// kinds int, uint and double are equal by their value, as CEL equality has it; a key that is an unknown value is equal to no
+// qualifier that a pattern names, and a null qualifier matches it. The first pattern that matches gives an unknown value with the
+// trail of the access up to the length of the pattern, and the id of the node of the chain at that length, or of the last node when
+// the access is shorter; it charges 1. When none matches, the wrapped node is evaluated and reads the keys that were evaluated from
+// the partial state, so that they are evaluated once. A key that is an unknown value makes the unknown key the result, whether a
+// pattern matches or not, unless none does and the wrapped chain reports an error before it reaches the key (OfUnknownKey).
 internal sealed class AttributePlanNode : PlanNode
 {
     private readonly PlanNode _chain;
@@ -41,6 +43,7 @@ internal sealed class AttributePlanNode : PlanNode
         }
 
         CelValue[] access = _steps.Length == 0 ? [] : new CelValue[_steps.Length];
+        CelValue unknownKey = default;
         for (int i = 0; i < access.Length; i++)
         {
             if (_steps[i].Key is not { } key)
@@ -50,34 +53,65 @@ internal sealed class AttributePlanNode : PlanNode
             }
 
             CelValue value = key.EvaluateKey(frame);
-            if (value.Kind == CelValueKind.Error)
+            if (value.Kind == CelValueKind.Error && !value.IsUnknown)
             {
                 Forget(state);
                 return value;
+            }
+
+            if (value.IsUnknown && !unknownKey.IsUnknown)
+            {
+                unknownKey = value;
             }
 
             access[i] = value;
             state.StoreKey(key.Slot, value);
         }
 
-        CelValue result;
-        if (Match(state.Patterns, _variable, _ids.AsSpan(), access) is { } entry)
-        {
-            frame.Offset = Offset;
-            if (frame.Metered)
-            {
-                frame.Charge(1);
-            }
-
-            result = CelValue.FromUnknown(UnknownSet.Of(entry));
-        }
-        else
-        {
-            result = _chain.Evaluate(frame);
-        }
-
+        CelValue result = Resolve(frame, state, access, unknownKey);
         Forget(state);
         return result;
+    }
+
+    // The result for the keys that were evaluated: the unknown of the first pattern that matches the access, the unknown key (see
+    // OfUnknownKey), or the value of the wrapped chain.
+    private CelValue Resolve(Frame frame, PartialState state, CelValue[] access, CelValue unknownKey)
+    {
+        UnknownEntry? entry = Match(state.Patterns, _variable, _ids.AsSpan(), access);
+        if (unknownKey.IsUnknown)
+        {
+            return OfUnknownKey(frame, _chain, unknownKey, entry is not null);
+        }
+
+        if (entry is null)
+        {
+            return _chain.Evaluate(frame);
+        }
+
+        frame.Offset = Offset;
+        if (frame.Metered)
+        {
+            frame.Charge(1);
+        }
+
+        return CelValue.FromUnknown(UnknownSet.Of(entry));
+    }
+
+    // The result of a chain that has a key that is an unknown value. An unknown key matches no qualifier of a pattern that names one
+    // by its value, and the unknown of a key is the unknown of the access, so the unknown key is the result. Where no pattern matches
+    // the access, the wrapped chain is evaluated first, and an error that it reports before it reaches the key, as the field that is
+    // not there in x.b[k], is the result instead: the calls of a chain are strict, and an error takes precedence over an unknown value.
+    // Where a pattern matches, the chain is not evaluated, since the data that it reads may be the unknown data itself. The wrapped
+    // chain reads the keys that were stored, so that none is evaluated twice.
+    internal static CelValue OfUnknownKey(Frame frame, PlanNode chain, CelValue unknownKey, bool matched)
+    {
+        if (matched)
+        {
+            return unknownKey;
+        }
+
+        CelValue value = chain.Evaluate(frame);
+        return value.Kind == CelValueKind.Error && !value.IsUnknown ? value : unknownKey;
     }
 
     // The entry of the first pattern that matches the access of the variable, or null. ids has the id of the syntax node at each length
@@ -142,13 +176,14 @@ internal sealed class AttributePlanNode : PlanNode
         return qualifier;
     }
 
-    // Whether the qualifiers of the pattern and the access are equal as far as both go.
+    // Whether the qualifiers of the pattern and the access are equal as far as both go. A key that is an unknown value is equal to no
+    // qualifier of the pattern that names one, and a qualifier that matches any matches it.
     private static bool Agrees(UnknownPattern pattern, ReadOnlySpan<CelValue> access, int length)
     {
         for (int i = 0; i < length; i++)
         {
             if (pattern.Qualifiers[i] is { } qualifier
-                && !(CelValue.CelEquals(qualifier, access[i]).TryGetBoolean(out bool equal) && equal))
+                && (access[i].IsUnknown || !(CelValue.CelEquals(qualifier, access[i]).TryGetBoolean(out bool equal) && equal)))
             {
                 return false;
             }
