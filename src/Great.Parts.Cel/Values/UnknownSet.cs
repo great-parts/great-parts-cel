@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 
 namespace Great.Parts.Cel.Values;
@@ -41,8 +42,9 @@ internal sealed class UnknownEntry
     internal ImmutableArray<CelValue> Arguments { get; }
 }
 
-// The payload of an unknown value, which is a value of the kind Error: the entries, ordered by id, one for each id. A set is
-// immutable.
+// The payload of an unknown value, which is a value of the kind Error: the entries, ordered by id. A node that a loop runs many times
+// becomes unknown with a trail for each run — lx[0] and lx[1] for lx[i] — and cel-go keeps every trail under the id of the node, so
+// a set has one entry of an attribute for each different trail of an id, and one entry of a call for an id. A set is immutable.
 internal sealed class UnknownSet
 {
     private UnknownSet(ImmutableArray<UnknownEntry> entries)
@@ -54,8 +56,8 @@ internal sealed class UnknownSet
 
     internal static UnknownSet Of(UnknownEntry entry) => new([entry]);
 
-    // The union of two sets: the entries of both ordered by id, and for an id in both the entry of the first. An operand that
-    // the other adds nothing to is the result itself.
+    // The union of two sets: the entries of both ordered by id, and for an id in both the entries of the first, then those of the
+    // second that the first has no entry of the same trail as. An operand that the other adds nothing to is the result itself.
     internal static UnknownSet Merge(UnknownSet first, UnknownSet second)
     {
         if (ReferenceEquals(first, second) || Contains(first, second))
@@ -74,17 +76,17 @@ internal sealed class UnknownSet
         while (i < first.Entries.Length && j < second.Entries.Length)
         {
             int difference = first.Entries[i].Id.CompareTo(second.Entries[j].Id);
-            if (difference <= 0)
+            if (difference < 0)
             {
                 merged.Add(first.Entries[i++]);
-                if (difference == 0)
-                {
-                    j++;
-                }
+            }
+            else if (difference > 0)
+            {
+                merged.Add(second.Entries[j++]);
             }
             else
             {
-                merged.Add(second.Entries[j++]);
+                MergeId(first.Entries, ref i, second.Entries, ref j, merged);
             }
         }
 
@@ -101,18 +103,51 @@ internal sealed class UnknownSet
         return new UnknownSet(merged.ToImmutable());
     }
 
-    // Whether every id of the other set is an id of this one.
-    private static bool Contains(UnknownSet set, UnknownSet other)
+    // The entries of one id, which both sets have at i and j: those of the first, then those of the second that the first has no
+    // entry of the same trail as. i and j move past the entries of that id.
+    private static void MergeId(
+        ImmutableArray<UnknownEntry> first,
+        ref int i,
+        ImmutableArray<UnknownEntry> second,
+        ref int j,
+        ImmutableArray<UnknownEntry>.Builder merged)
     {
-        int i = 0;
-        foreach (UnknownEntry entry in other.Entries)
+        int id = first[i].Id;
+        int start = i;
+        while (i < first.Length && first[i].Id == id)
         {
-            while (i < set.Entries.Length && set.Entries[i].Id < entry.Id)
+            merged.Add(first[i++]);
+        }
+
+        while (j < second.Length && second[j].Id == id)
+        {
+            if (!Has(first, start, i, second[j]))
             {
-                i++;
+                merged.Add(second[j]);
             }
 
-            if (i == set.Entries.Length || set.Entries[i].Id != entry.Id)
+            j++;
+        }
+    }
+
+    // Whether every entry of the other set has an entry of the same id and the same trail in this one.
+    private static bool Contains(UnknownSet set, UnknownSet other)
+    {
+        int start = 0;
+        foreach (UnknownEntry entry in other.Entries)
+        {
+            while (start < set.Entries.Length && set.Entries[start].Id < entry.Id)
+            {
+                start++;
+            }
+
+            int end = start;
+            while (end < set.Entries.Length && set.Entries[end].Id == entry.Id)
+            {
+                end++;
+            }
+
+            if (!Has(set.Entries, start, end, entry))
             {
                 return false;
             }
@@ -120,4 +155,47 @@ internal sealed class UnknownSet
 
         return true;
     }
+
+    // Whether one of the entries from start up to end, which have the id of the entry, is the same unknown part: the same trail, an
+    // int and a uint of one value naming one element; or, for a call, any entry, since a node makes one call.
+    private static bool Has(ImmutableArray<UnknownEntry> entries, int start, int end, UnknownEntry entry)
+    {
+        for (int i = start; i < end; i++)
+        {
+            if (IsSame(entries[i], entry))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSame(UnknownEntry left, UnknownEntry right)
+    {
+        if (left.Variable is null || right.Variable is null)
+        {
+            return left.Variable is null && right.Variable is null;
+        }
+
+        if (!string.Equals(left.Variable, right.Variable, StringComparison.Ordinal) || left.Qualifiers.Length != right.Qualifiers.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < left.Qualifiers.Length; i++)
+        {
+            if (!QualifiersEqual(left.Qualifiers[i], right.Qualifiers[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool QualifiersEqual(CelValue? left, CelValue? right) =>
+        left is { } a && right is { } b
+            ? CelValue.CelEquals(a, b).TryGetBoolean(out bool equal) && equal
+            : left is null && right is null;
 }

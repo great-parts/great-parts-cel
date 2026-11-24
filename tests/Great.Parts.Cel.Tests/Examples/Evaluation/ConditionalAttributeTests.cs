@@ -1,4 +1,6 @@
+using System;
 using System.Threading;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Syntax;
 using Great.Parts.Cel.Values;
 using Xunit;
@@ -63,6 +65,7 @@ public sealed class ConditionalAttributeTests
         bool condition,
         string expected)
     {
+        ArgumentNullException.ThrowIfNull(pattern);
         string[] parts = pattern.Split('.');
 
         CelPartialEvalResult<CelValue> result = Evaluate(expression, [P(parts[0], parts[1..])], Data(condition));
@@ -94,6 +97,40 @@ public sealed class ConditionalAttributeTests
 
         Assert.Equal("7", partial.GetValueOrThrow().ToString());
         Assert.Equal(plain.Cost, partial.Cost);
+    }
+
+    // A condition that is not a bool, here a map of the type dyn, has no branch to match: the chain is evaluated as without patterns,
+    // and the condition is the error of the evaluation, though a pattern names a variable of a branch.
+    [Fact]
+    [Trait("Requirement", "F-22")]
+    public void ConditionThatIsNotABool_IsAnErrorWhateverThePatternsAre()
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate("(d ? request : resource).time", [P("request", "time")], Data(true));
+
+        Assert.False(result.IsSuccess);
+        Assert.False(result.IsUnknown);
+        _ = Assert.Single(result.Errors);
+    }
+
+    // An unknown condition has no branch either: it is the result, with the trail of the condition.
+    [Fact]
+    [Trait("Requirement", "F-22")]
+    public void UnknownCondition_IsTheResultWhateverThePatternsOfTheBranchesAre()
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate("(b ? request : resource).time", [P("b"), P("request", "time")], Data(true));
+
+        Assert.Equal("unknown b", Show(result));
+    }
+
+    // The error of a key of the chain after the branch is the result, before any pattern is matched.
+    [Fact]
+    [Trait("Requirement", "F-22")]
+    public void ErrorOfAKeyAfterTheBranch_IsTheResult()
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate("(b ? request : resource)[string(1 / 0)]", [P("request", "time")], Data(true));
+
+        Assert.False(result.IsUnknown);
+        Assert.Equal(CelErrorCode.DivisionByZero, Assert.Single(result.Errors).Code);
     }
 
     // Without an unknown value the plan evaluates as before: the same expressions, evaluated in full and by a partial program with no

@@ -105,6 +105,58 @@ public sealed class AttributePatternTests
         Assert.Equal(trail, Trails(result));
     }
 
+    // A key that a string, an int, a uint or a bool does not name — a double that is no whole number, NaN, an infinity, bytes — cannot
+    // be in the trail, which the public pattern holds with those four kinds: the trail stops before it, and the unknown is the data
+    // under the qualifiers before it.
+    [Theory]
+    [Trait("Requirement", "F-22")]
+    [InlineData("d[1.5]")]
+    [InlineData("d[0.0 / 0.0]")]
+    [InlineData("d[1.0 / 0.0]")]
+    [InlineData("d[b'a']")]
+    public static void KeyThatNoQualifierNames_StopsTheTrailBeforeIt(string expression)
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate(expression, [P("d", Any)], Data);
+
+        Assert.True(result.IsUnknown);
+        Assert.Equal("d", Trails(result));
+        Assert.Empty(Assert.Single(result.Unknowns).Attribute!.Qualifiers);
+    }
+
+    [Fact]
+    [Trait("Requirement", "F-22")]
+    public void KeyThatNoQualifierNames_StopsTheTrailAfterTheQualifiersBeforeIt()
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate("request.auth.claims[1.5]", [P("request", "auth", Any, Any)], Data);
+
+        Assert.True(result.IsUnknown);
+        Assert.Equal("request.auth.claims", Trails(result));
+        Assert.Equal(2, Assert.Single(result.Unknowns).Attribute!.Qualifiers.Length);
+    }
+
+    // The same node of a loop is unknown with a trail for each run, and the result lists them all, as cel-go does: the run of
+    // difftest 03465a2, case 2726, the unknowns lx[0] and lx[1] of lx[i].
+    [Fact]
+    [Trait("Requirement", "F-22")]
+    public void NodeOfALoop_IsUnknownWithTheTrailOfEveryRun()
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate("[0, 1].map(i, d[i])", [P("d", Any)], Data);
+
+        Assert.True(result.IsUnknown);
+        Assert.Equal("d[0],d[1]", Trails(result));
+        Assert.Equal(2, result.Unknowns.Length);
+        Assert.Equal(result.Unknowns[0].ExprId, result.Unknowns[1].ExprId);
+    }
+
+    [Fact]
+    [Trait("Requirement", "F-22")]
+    public void NodeOfALoop_IsUnknownOnceForARunWithTheSameTrail()
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate("[0, 1, 0, 1, 1].map(i, d[i])", [P("d", Any)], Data);
+
+        Assert.Equal("d[0],d[1]", Trails(result));
+    }
+
     [Fact]
     [Trait("Requirement", "F-22")]
     public void IndexThatDiffersFromTheQualifier_IsKnown()

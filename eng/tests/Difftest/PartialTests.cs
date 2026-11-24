@@ -245,8 +245,9 @@ public sealed class PartialTests
     [InlineData("contains(unknown, int) we-known", false)]
     [InlineData("contains(error, unknown) we-known", false)]
     [InlineData("contains(unknown, error) we-unknown", false)]
-    public void KnownSignatures_RowOfAnyCall_CoversTheCauseOfEveryCallOnly(string signature, bool known)
+    public static void KnownSignatures_RowOfAnyCall_CoversTheCauseOfEveryCallOnly(string signature, bool known)
     {
+        ArgumentNullException.ThrowIfNull(signature);
         Assert.Equal(known, KnownSignatures.Of("*(unknown, error) we-known").Contains(signature));
     }
 

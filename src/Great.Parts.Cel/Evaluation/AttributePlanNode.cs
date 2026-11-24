@@ -97,21 +97,33 @@ internal sealed class AttributePlanNode : PlanNode
                 continue;
             }
 
-            // The trail has the qualifier of the pattern where it names one, and that of the access where the pattern matches any.
+            // The trail has the qualifier of the pattern where it names one, and that of the access where the pattern matches any. It
+            // stops before a key that no string, int, uint or bool names, which is the whole of the data under the qualifiers before it.
             ImmutableArray<CelValue?>.Builder trail = ImmutableArray.CreateBuilder<CelValue?>(length);
             for (int i = 0; i < length; i++)
             {
-                trail.Add(pattern.Qualifiers[i] ?? TrailQualifier(access[i]));
+                CelValue qualifier = pattern.Qualifiers[i] ?? TrailQualifier(access[i]);
+                if (!IsNamed(qualifier))
+                {
+                    break;
+                }
+
+                trail.Add(qualifier);
             }
 
-            return new UnknownEntry(ids[length], variable, trail.MoveToImmutable());
+            return new UnknownEntry(ids[length], variable, trail.ToImmutable());
         }
 
         return null;
     }
 
+    // Whether a qualifier of a trail is one that the public pattern can hold: a string, an int, a uint or a bool.
+    private static bool IsNamed(CelValue qualifier) =>
+        qualifier.TryGetString(out _) || qualifier.TryGetInt64(out _) || qualifier.TryGetUInt64(out _) || qualifier.TryGetBoolean(out _);
+
     // A trail names a qualifier by a string, an int, a uint or a bool. A double key that is a whole number names the same element
-    // as the int or the uint of its value (the keys are equal by CEL equality), and cel-go writes it so; another double stays as it is.
+    // as the int or the uint of its value (the keys are equal by CEL equality), and cel-go writes it so; another double stays as it is,
+    // and so does a key of any other kind that a pattern with a qualifier that matches any lets through.
     private static CelValue TrailQualifier(CelValue qualifier)
     {
         if (qualifier.TryGetDouble(out double number) && Math.Floor(number) == number)

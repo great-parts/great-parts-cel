@@ -87,7 +87,9 @@ public sealed class CelPartialEvalResult<T>
     /// </summary>
     /// <remarks>
     /// The list follows the CEL language definition: in <c>a || b</c> with <c>a</c> unknown and <c>b</c> true the result is
-    /// known; in <c>a + b</c> with both unknown the result depends on both.
+    /// known; in <c>a + b</c> with both unknown the result depends on both. A node that a loop runs many times can be unknown with
+    /// a different attribute in each run, as in <c>items.map(i, data[i])</c>: the list then has an element for each attribute, with
+    /// the same <see cref="CelUnknown.ExprId"/>.
     /// </remarks>
     public ImmutableArray<CelUnknown> Unknowns => _unknowns;
 
