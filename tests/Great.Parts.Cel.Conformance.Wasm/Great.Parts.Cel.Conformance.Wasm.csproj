@@ -48,13 +48,18 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
     <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Policy/Great.Parts.Cel.Policy.csproj" />
     <ProjectReference Include="../../eng/findings/Great.Parts.Cel.Eng.Findings.csproj" />
   </ItemGroup>
 
-  <!-- The sources of the runner of the suite project: all but SuiteAssert.cs, which needs xUnit. -->
+  <!--
+    The sources of the runner of the suite project: all but SuiteAssert.cs, which needs xUnit, and TreePathEvaluators.cs, whose evaluators
+    only the tests of the suite project (CelSpecTreeTests) create, so here they would be classes that nothing instantiates (CA1812).
+  -->
   <ItemGroup>
-    <Compile Include="../Great.Parts.Cel.Conformance/Runner/*.cs" Exclude="../Great.Parts.Cel.Conformance/Runner/SuiteAssert.cs" Link="Runner/%(Filename)%(Extension)" />
+    <Compile Include="../Great.Parts.Cel.Conformance/Runner/*.cs" Exclude="../Great.Parts.Cel.Conformance/Runner/SuiteAssert.cs;../Great.Parts.Cel.Conformance/Runner/TreePathEvaluators.cs" Link="Runner/%(Filename)%(Extension)" />
     <Compile Include="../Great.Parts.Cel.Conformance/CelSpec/CelSpecSuite.cs" Link="CelSpec/CelSpecSuite.cs" />
+    <Compile Include="../Great.Parts.Cel.Conformance/CelPolicy/*.cs" Exclude="../Great.Parts.Cel.Conformance/CelPolicy/*Tests.cs" Link="CelPolicy/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- The messages of the cel-spec suite and the test messages, as in the suite project. -->
@@ -94,6 +99,10 @@
                   EncodedPath="$(CelSpecObj)$([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/').Replace('/', '__')).binpb" />
     <CelSuiteFile Include="../Great.Parts.Cel.Conformance/CelSpec/skips.md;../cel-spec/COMMIT"
                   RepoPath="$([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/'))" />
+    <!-- The CEL Policy suite: the YAML files of the categories, the version of the copy and the skip list, as in the suite project. -->
+    <CelPolicyFile Include="../cel-policy/**/policy.yaml;../cel-policy/**/config.yaml;../cel-policy/**/tests.yaml;../cel-policy/VERSION;../Great.Parts.Cel.Conformance/CelPolicy/skips.md"
+                   RepoPath="$([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/'))" />
+    <EmbeddedResource Include="@(CelPolicyFile)" LogicalName="%(RepoPath)" />
     <CelProtoSource Include="$(CelProtoRoot)**/*.proto" />
     <EmbeddedResource Include="@(CelSuiteText);@(CelSuiteFile)" LogicalName="%(RepoPath)" />
     <!-- The time zone data of the tests: the archive of the suite project, under the same name. -->

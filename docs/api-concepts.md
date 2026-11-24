@@ -1,6 +1,6 @@
 # API concepts
 
-This page lists every public type of the `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore` assemblies. For each type it names the cel-spec concept the type represents, or the purpose it serves when the type has no counterpart in cel-spec, and explains how the name differs from the cel-spec term.
+This page lists every public type of the `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection`, `Great.Parts.Cel.AspNetCore` and `Great.Parts.Cel.Policy` assemblies. For each type it names the cel-spec concept the type represents, or the purpose it serves when the type has no counterpart in cel-spec, and explains how the name differs from the cel-spec term.
 
 cel-spec sources:
 
@@ -93,6 +93,7 @@ How to read the table:
 | `CelErrorStage` | `Great.Parts.Cel.Diagnostics` | Purpose: the stage at which an error occurred: build, parse, check or evaluate | Not a cel-spec concept: error stage |
 | `CelSourceLocation` | `Great.Parts.Cel.Diagnostics` | `syntax.proto` `SourceInfo` (positions and line offsets): offset from the start of the text, line and column in UTF-16 code units | cel-spec term "source info"; here one location, not the whole table |
 | `CelSourceSpan` | `Great.Parts.Cel.Diagnostics` | `syntax.proto` `SourceInfo`: the fragment of an expression that an error refers to, its start and its length in UTF-16 code units | Not a cel-spec term: `SourceInfo` keeps positions of nodes, this type is one start with a length |
+| `CelSourceSegment` | `Great.Parts.Cel.Diagnostics` | Purpose: where a part of the text of an expression stands in the document that holds it — a YAML block without its indentation, a folded scalar, a string with escape sequences — so that errors report the position in the document | Not a cel-spec concept: `SourceInfo` describes positions inside an expression, not in a document around it |
 | `CelException` | `Great.Parts.Cel.Diagnostics` | Purpose: the exception that carries all errors of an unsuccessful result, thrown by `Get…OrThrow()`, by reading the value, program or environment of an unsuccessful result, by the simple entry and by `CelEnvironment.Create` | Not a cel-spec concept: errors are returned as results, this exception exists for the members that the documentation names |
 | `CelEnvironmentJson` | `Great.Parts.Cel.Configuration` | Purpose: reads an environment description from JSON (variables, types, extensions with versions, function declarations with implementations registered in code) into a `CelEnvironmentBuilder`; the format is a subset of the cel-go environment configuration format | Not a cel-spec concept: the JSON reader of an environment description |
 | `CelProtobufTypes` | `Great.Parts.Cel.Protobuf` | langdef "Protocol Buffer Data Conversion", "Dynamic Values": a type provider for protobuf messages built from file descriptors | Not a cel-spec term: the provider of protobuf message types |
@@ -105,3 +106,6 @@ How to read the table:
 | `CelAuthorizationRequirement` | `Great.Parts.Cel.AspNetCore` | Purpose: the authorization requirement that a CEL expression gives `true` | Not a cel-spec concept: an `IAuthorizationRequirement` of ASP.NET Core |
 | `CelEndpointExtensions` | `Great.Parts.Cel.AspNetCore` | Purpose: the validation of requests of minimal API endpoints by a CEL expression over the request | Not a cel-spec concept: endpoint filters of ASP.NET Core |
 | `CelValidateAttribute<TRequest>` | `Great.Parts.Cel.AspNetCore` | Purpose: the validation of an action argument of an MVC controller by a CEL expression over the argument | Not a cel-spec concept: an MVC action filter attribute |
+| `CelPolicy` | `Great.Parts.Cel.Policy` | CEL Policy "policy": a YAML document of rules with variables, conditions, outputs and nested rules that compiles into one CEL expression | The CEL Policy term with the `Cel` prefix; a type named `Policy` would clash with the namespace |
+| `CelPolicyParseResult` | `Great.Parts.Cel.Policy` | Purpose: the outcome of reading a policy from YAML, either the policy or all errors of the document | Not a CEL Policy concept: the result of `CelPolicy.Parse`, like `CelParseResult` |
+| `CelPolicyCompileResult<T>` | `Great.Parts.Cel.Policy` | Purpose: the outcome of compiling a policy in an environment, either the program and the composed expression or all errors | Not a CEL Policy concept: the result of `CelPolicy.Compile<T>`, like `CelCompileResult<T>` |

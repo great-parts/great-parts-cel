@@ -232,6 +232,27 @@ Great.Parts.Cel.Syntax.CelStructNode.TypeName.get -> string!
 static Great.Parts.Cel.CelSyntax.Format(Great.Parts.Cel.Syntax.CelParsedExpr! expression) -> string!
 static Great.Parts.Cel.Syntax.CelParsedExpr.FromCheckedExprProtobuf(System.ReadOnlySpan<byte> checkedExpr, string? sourceText = null) -> Great.Parts.Cel.Syntax.CelParseResult!
 static Great.Parts.Cel.Syntax.CelParsedExpr.FromProtobuf(System.ReadOnlySpan<byte> parsedExpr, string? sourceText = null) -> Great.Parts.Cel.Syntax.CelParseResult!
+Great.Parts.Cel.CelCompileOptions.SourceSegments.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Diagnostics.CelSourceSegment>
+Great.Parts.Cel.CelCompileOptions.SourceSegments.init -> void
+Great.Parts.Cel.CelEnvironmentBuilder.AddAbbreviation(string! qualifiedName) -> Great.Parts.Cel.CelEnvironmentBuilder!
+Great.Parts.Cel.Diagnostics.CelErrorCode.IncompatibleOutputTypes = 2012 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidAbbreviation = 4020 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidPolicy = 1011 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.InvalidYaml = 1010 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.OverlappingVariable = 2014 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelErrorCode.UnreachableMatch = 2013 -> Great.Parts.Cel.Diagnostics.CelErrorCode
+Great.Parts.Cel.Diagnostics.CelException.CelException(System.Collections.Generic.IEnumerable<Great.Parts.Cel.Diagnostics.CelError!>! errors) -> void
+Great.Parts.Cel.Diagnostics.CelSourceSegment
+Great.Parts.Cel.Diagnostics.CelSourceSegment.CelSourceSegment() -> void
+Great.Parts.Cel.Diagnostics.CelSourceSegment.CelSourceSegment(int expressionOffset, Great.Parts.Cel.Diagnostics.CelSourceLocation documentLocation) -> void
+Great.Parts.Cel.Diagnostics.CelSourceSegment.DocumentLocation.get -> Great.Parts.Cel.Diagnostics.CelSourceLocation
+Great.Parts.Cel.Diagnostics.CelSourceSegment.Equals(Great.Parts.Cel.Diagnostics.CelSourceSegment other) -> bool
+Great.Parts.Cel.Diagnostics.CelSourceSegment.ExpressionOffset.get -> int
+override Great.Parts.Cel.Diagnostics.CelSourceSegment.Equals(object? obj) -> bool
+override Great.Parts.Cel.Diagnostics.CelSourceSegment.GetHashCode() -> int
+static Great.Parts.Cel.Diagnostics.CelError.Create(Great.Parts.Cel.Diagnostics.CelErrorCode code, Great.Parts.Cel.Diagnostics.CelErrorStage stage, string! message, Great.Parts.Cel.Diagnostics.CelSourceLocation? location = null, int length = 0, string? subject = null, Great.Parts.Cel.Types.CelType? expectedType = null, Great.Parts.Cel.Types.CelType? actualType = null) -> Great.Parts.Cel.Diagnostics.CelError!
+static Great.Parts.Cel.Diagnostics.CelSourceSegment.operator !=(Great.Parts.Cel.Diagnostics.CelSourceSegment left, Great.Parts.Cel.Diagnostics.CelSourceSegment right) -> bool
+static Great.Parts.Cel.Diagnostics.CelSourceSegment.operator ==(Great.Parts.Cel.Diagnostics.CelSourceSegment left, Great.Parts.Cel.Diagnostics.CelSourceSegment right) -> bool
 Great.Parts.Cel.CelAttributePattern
 Great.Parts.Cel.CelAttributePattern.CelAttributePattern(string! variable) -> void
 Great.Parts.Cel.CelAttributePattern.Qualifiers.get -> System.Collections.Immutable.ImmutableArray<Great.Parts.Cel.Values.CelValue?>

@@ -53,6 +53,14 @@ internal sealed class SkipList
     internal static SkipList ReadCelSpec(string path, string text, string commit) =>
         Read(path, text, CelSpecColumns, cells => [ReferenceProblem(cells[3], commit)]);
 
+    /// <summary>
+    /// Reads the skip list of the CEL Policy suite: the columns of the cel-spec list, whose <c>Reference</c> is the minimal case, with no
+    /// link to check.
+    /// </summary>
+    /// <param name="path">The path of the list relative to the repository root.</param>
+    /// <param name="text">The text of the list.</param>
+    internal static SkipList ReadPolicy(string path, string text) => Read(path, text, CelSpecColumns, _ => []);
+
     /// <summary>Reads the skip list of the regression corpus.</summary>
     /// <param name="path">The path of the list relative to the repository root.</param>
     /// <param name="text">The text of the list.</param>

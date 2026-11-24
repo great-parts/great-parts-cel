@@ -36,6 +36,26 @@ Two groups of cases pass, but not through the public API alone. They are part of
 
 The runner differs from the cel-go runner in one more place: it neither declares nor binds the names `true`, `false`, `null` and `in` from the declarations and bindings of a case. They are keywords, never identifiers, and the library rejects them as variable names. The cases `basic/reserved_const/*` still check what they are for: a literal is never shadowed.
 
+## CEL Policy
+
+The package `Great.Parts.Cel.Policy` is measured by the conformance suite of [cel-policy](https://github.com/cel-expr/cel-policy): the 91 tests of the 41 categories of `conformance/testdata` at a pinned commit. A test gives a policy document, the declarations of its environment and either the value the policy must evaluate to or the strings that the errors of its compilation must contain. The runner is the one of the cel-spec suite; it runs on the same platforms and in the same modes, and `browser-wasm` too. A test counts as passed when the policy evaluates to a value equal to the expected one, or, for a test of errors, when the compilation fails and every expected string is a substring of the message of an error.
+
+| Item | Value |
+| :- | :- |
+| Pinned commit of cel-policy | `8e4cf0378e3f0d3406b537afbcc6f59562652ad6` (2026-08-18) |
+| Tests in the suite | 91 |
+| Tests that pass | 85 of 91 |
+| Date of the run | the first run of `ci.yml` on `main` with this commit |
+| Run | the first run of `ci.yml` on `main` with this commit |
+
+The runner translates the environment description of cel-go (`config.yaml`) into the JSON form of the library and gives every set of extensions the one version the library has: a version that the suite names, such as `strings` 2, or leaves out is read as that one, because the catalog of the library holds the functions of every version of a set and the result of an evaluation does not depend on the version. The functions of the declarations are written by the runner, as the harness of cel-go writes them. The [skip list](../tests/Great.Parts.Cel.Conformance/CelPolicy/skips.md) has 6 tests, each with its reason:
+
+| Test | Reason |
+| :- | :- |
+| `compile_errors/aggregate_false_condition/compile/false_condition`, `compile_errors/syntax/compile/syntax_error`, `compile_errors/aggregate_heterogeneous_outputs/compile/incompatible_types` | The suite was written for a newer implementation than the pinned cel-go v0.33.4. The policy is rejected as the test expects, but the text of the error differs from the expected one: the capital letter of `Condition is always false`, the message of the parser of this library instead of that of ANTLR, one error for the outputs that disagree instead of one for each. The oracle v0.33.4 gives the text of the library. |
+| `context_pb/valid/good spec`, `context_pb/invalid/bad spec` | The category declares the fields of a message as variables (`context_variable`), which the environment description of the library has no key for. |
+| `k8s/invalid/restricted_container` | The policy is a Kubernetes ValidatingAdmissionPolicy, which cel-go reads with a tag handler of its own; the library has none. |
+
 ## The master branch of cel-spec
 
 The workflow [`conformance-master.yml`](https://github.com/great-parts/great-parts-cel/actions/workflows/conformance-master.yml) runs the same suite every night on the last commit of the master branch of cel-spec, with an empty skip list, so a change in the test data shows up before the pinned commit moves. The report of each run is committed to the branch `reports`, in the directory `conformance-master/`: the date and the time of the run in UTC, the commit of cel-spec master, the commit of this repository, the result and the cases that fail, as `report.json` and `report.md`; the last report is also `conformance-master/latest.json`. The summary of the run has the same line.
@@ -58,4 +78,4 @@ Differences from cel-go that have been analysed and are not counted as bugs of t
 
 ## Reports of the runs
 
-Every figure on this page has the date of its run, the commit of cel-spec and a link to the report of the run. A report is a file in the branch `reports` of this repository, with the date and the time of the run (UTC), the commit of cel-spec and the commit of this repository. The link of a figure points to a commit of that branch, so it works as long as the figure is published; a link to a run of GitHub Actions would not, because GitHub keeps the logs of the runs for 90 days only. Workflows write the branch with the token of the run, and nothing of it is written to `main`. The result on the master branch of cel-spec is published to the branch automatically after each nightly run, and the result of the speed comparison after each measurement (directory `bench/`). The two tables above date from the days before the first report and link runs of GitHub Actions; the link of a figure is replaced by the link of the report of its run once the branch has it.
+Every figure on this page has the date of its run, the commit of cel-spec and a link to the report of the run. A report is a file in the branch `reports` of this repository, with the date and the time of the run (UTC), the commit of cel-spec and the commit of this repository. The link of a figure points to a commit of that branch, so it works as long as the figure is published; a link to a run of GitHub Actions would not, because GitHub keeps the logs of the runs for 90 days only. Workflows write the branch with the token of the run, and nothing of it is written to `main`. The result on the master branch of cel-spec is published to the branch automatically after each nightly run, and the result of the speed comparison after each measurement (directory `bench/`). The tables above date from the days before the first report and link runs of GitHub Actions; the link of a figure is replaced by the link of the report of its run once the branch has it.

@@ -7,6 +7,14 @@
 # The report of the run (report.json and report.md: the date and the time in UTC, the commit of cel-spec, the commit of this repository,
 # the result) is the artifact conformance-master-report; the job `publish` commits it to the branch `reports`
 # (publish-report.yml, docs/design/eng-release.md, "Reports of the runs"). Only that job has the permission `contents: write`.
+#
+# The same file runs the CEL Policy suite on the last commit of the main branch of cel-expr/cel-policy, in the jobs
+# `conformance-master-policy` and `publish-policy`, with the same steps and the same rules: the data of tests/cel-policy/ and its
+# version file are replaced in the workspace, the skip list of the policy suite is emptied, only PolicySuiteTests.AllCases_PassOrAreSkipped
+# runs, and the line "cel-policy master <SHA>: N/M passed, <date> (<cell>)" is the result. The two suites do not share a job: each job reads
+# only the summary line of its own suite. The report of the policy run is the artifact conformance-master-policy-report, written to the
+# directory conformance-master-policy of the branch `reports`. The categories of the suite are the directories of tests/cel-policy/ that
+# hold a tests.yaml (PolicySuite.cs), so a category that master adds is run, and one that master removes is not.
 name: conformance-master
 
 on:
@@ -142,3 +150,124 @@ jobs:
     with:
       artifact: conformance-master-report
       directory: conformance-master
+
+  # The CEL Policy suite on the last commit of the main branch of cel-expr/cel-policy (the repository has no tags). The data of
+  # tests/cel-policy/ is conformance/testdata of that commit, LICENSE and the file VERSION (the full SHA of the commit and its date),
+  # as the copy of the pinned commit has them.
+  conformance-master-policy:
+    name: cel-policy master
+    # Only the main branch: a manual run from another branch is skipped.
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      # The last commit of main, without the history. The directory of the data is emptied and filled again, so a category that master
+      # removed is not left behind.
+      - name: Take the data of cel-policy master
+        run: |
+          set -eu
+          master="$RUNNER_TEMP/cel-policy-master"
+          git clone --depth 1 --branch main https://github.com/cel-expr/cel-policy.git "$master"
+          data=tests/cel-policy
+          rm -rf "$data"
+          mkdir -p "$data"
+          cp -R "$master/conformance/testdata/." "$data/"
+          cp "$master/LICENSE" "$data/LICENSE"
+          {
+            git -C "$master" rev-parse HEAD
+            git -C "$master" log -1 --format=%cs
+          } > "$data/VERSION"
+          echo "cel-policy master $(git -C "$master" rev-parse --short=7 HEAD)"
+          find "$data" -name tests.yaml | wc -l
+
+      # The skip list of the pinned commit relates to that commit only: the list of the run has the table and no entries.
+      - name: Empty the skip list
+        run: |
+          set -eu
+          {
+            echo "# CEL Policy conformance skip list"
+            echo
+            echo "No entries: the run on master does not apply the skip list of the pinned commit."
+            echo
+            echo "| Case | Scope | Reason | Reference | Issue |"
+            echo "|---|---|---|---|---|"
+          } > tests/Great.Parts.Cel.Conformance/CelPolicy/skips.md
+
+      - name: Restore (locked)
+        run: dotnet restore tests/Great.Parts.Cel.Conformance --locked-mode
+
+      - name: Build
+        run: dotnet build tests/Great.Parts.Cel.Conformance -c Release -f net11.0 --no-restore
+
+      # JIT, linux-x64, net11.0: one cell. Only the test of the suite runs: the other tests of the policy classes depend on the pinned
+      # commit (its number of cases and its SHA). A failed case fails the test, which is not the result of the workflow: the process
+      # leaves its summary line and the findings in the log, and the step reads them.
+      - name: cel-policy master suite
+        run: |
+          set -u
+          output="$RUNNER_TEMP/conformance-master-policy.txt"
+          status=0
+          dotnet tests/Great.Parts.Cel.Conformance/bin/Release/net11.0/Great.Parts.Cel.Conformance.dll -noColor -showLiveOutput \
+            -method Great.Parts.Cel.Conformance.CelPolicy.PolicySuiteTests.AllCases_PassOrAreSkipped \
+            -result-xml "$RUNNER_TEMP/conformance-master-policy.xml" > "$output" 2>&1 || status=$?
+          cat "$output"
+          echo "exit code of the process: $status"
+
+          # "cel-policy <SHA>: N/M passed, <date> (<cell>)" becomes "cel-policy master <SHA>: N/M passed, <date> (<cell>)". The line of the
+          # other suite does not match: a suite is read by its own name.
+          summary=$(grep -oE 'cel-policy [0-9a-f]{7}: [0-9]+/[0-9]+ passed, [0-9]{4}-[0-9]{2}-[0-9]{2} \([^)]*\)' "$output" | tail -n 1 || true)
+          if [ -z "$summary" ] || [ ! -s "$RUNNER_TEMP/conformance-master-policy.xml" ]; then
+            {
+              echo "### cel-policy master"
+              echo
+              echo "No result: the run ended without the summary line or the report (exit code $status)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          failed=$(grep -cE 'error ENG801:' "$output" || true)
+          {
+            echo "### cel-policy master"
+            echo
+            echo '```text'
+            echo "${summary/cel-policy /cel-policy master }"
+            echo '```'
+            echo
+            echo "Cases that fail: $failed. The list of the pinned commit is not applied; the first 200 lines follow, the log has all."
+            echo
+            echo '```text'
+            grep -oE '[^ ]+\([0-9]+,[0-9]+\): error ENG801: .*' "$output" | head -n 200 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # The log of the suite and the data of the run give the report. The first line of tests/cel-policy/VERSION is the full commit of main.
+      - name: Report
+        run: node .github/scripts/conformance-report.mjs --suite cel-policy --log "$RUNNER_TEMP/conformance-master-policy.txt" --commit-file tests/cel-policy/VERSION --output report
+
+      - name: Report (artifact)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conformance-master-policy-report
+          path: report
+          if-no-files-found: error
+
+  # The branch `reports` takes the report of the policy suite in a directory of its own; the job runs when the suite gave its result, on
+  # the main branch. It and the job `publish` may write the branch at the same time: the workflow they call retries from the new head.
+  publish-policy:
+    name: Publish the report of the policy suite
+    needs: conformance-master-policy
+    if: ${{ needs.conformance-master-policy.result == 'success' }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-report.yml
+    with:
+      artifact: conformance-master-policy-report
+      directory: conformance-master-policy

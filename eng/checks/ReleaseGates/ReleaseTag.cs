@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace Great.Parts.Cel.Eng.Checks;
 
-/// <summary>The name of a release tag, <c>v</c> and a semantic version, and the version that the four packages of the release have.</summary>
+/// <summary>The name of a release tag, <c>v</c> and a semantic version, and the version that the five packages of the release have.</summary>
 internal sealed class ReleaseTag
 {
     private const string Number = "(?:0|[1-9][0-9]*)";

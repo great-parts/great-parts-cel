@@ -816,7 +816,8 @@ public sealed partial class CelEnvironmentBuilder
             _decimalLiterals,
             [.. _inputTypes],
             _defaultCostLimit,
-            _crossTypeNumericComparisons);
+            _crossTypeNumericComparisons,
+            [.. _abbreviations]);
         LibraryDeclarations library = _standardLibrary.Declarations;
         ImmutableArray<CelError> errors = DeclarationChecks.Check(
             declarations,
@@ -828,6 +829,7 @@ public sealed partial class CelEnvironmentBuilder
             out ImmutableArray<ExtensionDefinition> extensions,
             out CelObjectType? inputType,
             ExtensionCatalog.SetOfAbstractType);
+        errors = [.. errors, .. AbbreviationChecks.Check(declarations.Abbreviations, container, out FrozenDictionary<string, string> abbreviations)];
         if (!errors.IsEmpty)
         {
             return new(errors);
@@ -842,7 +844,8 @@ public sealed partial class CelEnvironmentBuilder
             types,
             patternCache,
             inputType,
-            declarations.CrossTypeNumericComparisons);
+            declarations.CrossTypeNumericComparisons,
+            abbreviations);
         return new(new CelEnvironment(_standardLibrary, declarations, index, SyntaxOf(extensions, declarations), patternCache));
     }
 
@@ -886,6 +889,7 @@ public sealed partial class CelEnvironmentBuilder
         _inputTypes.AddRange(declarations.InputTypes);
         _defaultCostLimit = declarations.DefaultCostLimit;
         _crossTypeNumericComparisons = declarations.CrossTypeNumericComparisons;
+        _abbreviations.AddRange(declarations.Abbreviations);
     }
 
     // The declarations of variables collected so far, in the order of the calls, each once.

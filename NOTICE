@@ -8,6 +8,10 @@ The directory tests/cel-spec/ holds an unchanged copy of test data, protocol def
 Common Expression Language specification (cel-spec), Copyright Google LLC, licensed under the Apache License, Version 2.0
 (see tests/cel-spec/LICENSE). The data are used by the tests only and are not part of the packages.
 
+The directory tests/cel-policy/ holds an unchanged copy of the conformance test data of the CEL Policy specification (cel-policy,
+https://github.com/cel-expr/cel-policy), Copyright Google LLC, licensed under the Apache License, Version 2.0 (see
+tests/cel-policy/LICENSE). The data are used by the tests only and are not part of the packages.
+
 The file tests/Great.Parts.Cel.Conformance/ZoneInfo/zoneinfo.zip is the file lib/time/zoneinfo.zip of Go 1.27.3 (https://go.dev),
 compiled from release 2026c of the IANA time zone database (https://www.iana.org/time-zones), which the IANA asserts
 to be in the public domain. The file is used by the tests only and is not part of the packages.
@@ -93,3 +97,40 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+The files src/Great.Parts.Cel.Policy/PolicyReader.cs, PolicyReader.Strings.cs, PolicyCompiler.cs, PolicyCompiler.Walk.cs,
+PolicyCompiler.Checks.cs, CompiledRules.cs, PolicyComposer.cs, VariableRewriter.cs, ExpressionUnnester.cs,
+ExplanationPolicy.cs and TypeRules.cs reimplement the policy package of cel-go v0.33.4 (https://github.com/cel-expr/cel-go):
+its parser (policy/parser.go), compiler (policy/compiler.go) and composer with its unnesting (policy/composer.go), and
+IsAssignableType of common/types/types.go. They follow the rules, the constants and the texts of the errors of that code,
+Copyright Google LLC, licensed under the Apache License, Version 2.0 (see LICENSE). The files are part of the package
+Great.Parts.Cel.Policy.
+
+The files src/Great.Parts.Cel.Policy/Yaml/YamlScanner.cs, YamlScanner.Scalars.cs and YamlScanner.Properties.cs are a port of
+the scanner of the library go.yaml.in/yaml/v3, version v3.0.4, scannerc.go, and YamlParser.cs and YamlParser.Nodes.cs are a
+port of its parser, parserc.go; the library ported both from libyaml, and they are Copyright (c) 2006-2011 Kirill Simonov,
+licensed under the MIT license, whose text follows. The file YamlResolver.cs takes the table of the forms of plain scalars of
+resolve.go of the same version, Copyright (c) 2011-2019 Canonical Ltd, licensed under the Apache License, Version 2.0 (see
+LICENSE). The other files of the directory src/Great.Parts.Cel.Policy/Yaml/ are the own work of this project and follow the
+reading of YAML by the same library without taking its code. All of them are part of the package Great.Parts.Cel.Policy.
+
+Copyright (c) 2006-2010 Kirill Simonov
+Copyright (c) 2006-2011 Kirill Simonov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

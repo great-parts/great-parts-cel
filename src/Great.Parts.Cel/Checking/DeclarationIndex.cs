@@ -38,6 +38,11 @@ internal sealed class DeclarationIndex
     // given to Create.
     private readonly FrozenDictionary<(string Function, bool IsReceiverStyle, int ArgumentCount), ImmutableArray<OverloadBinding>> _overloads;
 
+    // The abbreviations of qualified names by short name, and the same for a lookup by a name composed in a buffer.
+    private readonly FrozenDictionary<string, string> _abbreviations;
+
+    private readonly FrozenDictionary<string, string>.AlternateLookup<ReadOnlySpan<char>> _abbreviationsBySpan;
+
     // The cache of patterns of the environment, kept as an object that the checker and the planner hand on: this layer does not
     // refer to the library that defines it.
     private DeclarationIndex(
@@ -50,8 +55,11 @@ internal sealed class DeclarationIndex
         TypeIndex types,
         object? patternCache,
         CelObjectType? inputType,
-        bool crossTypeNumericComparisons)
+        bool crossTypeNumericComparisons,
+        FrozenDictionary<string, string> abbreviations)
     {
+        _abbreviations = abbreviations;
+        _abbreviationsBySpan = abbreviations.GetAlternateLookup<ReadOnlySpan<char>>();
         AllOverloads = allOverloads;
         InputType = inputType;
         CrossTypeNumericComparisons = crossTypeNumericComparisons;
@@ -120,7 +128,8 @@ internal sealed class DeclarationIndex
         TypeIndex? types = null,
         object? patternCache = null,
         CelObjectType? inputType = null,
-        bool crossTypeNumericComparisons = false)
+        bool crossTypeNumericComparisons = false,
+        FrozenDictionary<string, string>? abbreviations = null)
     {
         types ??= TypeIndex.Empty;
         if (types.ObjectTypes.Count != 0)
@@ -160,7 +169,27 @@ internal sealed class DeclarationIndex
             types,
             patternCache,
             inputType,
-            crossTypeNumericComparisons);
+            crossTypeNumericComparisons,
+            abbreviations ?? AbbreviationChecks.None);
+    }
+
+    // Whether the environment has abbreviations, so that a lookup of a name has to look for one.
+    internal bool HasAbbreviations => _abbreviations.Count != 0;
+
+    // The name with its first part expanded when that part is an abbreviation: the qualified name, followed by the rest of the name,
+    // which starts with a dot. The name has no leading dot. The rest is not looked up again.
+    internal bool TryExpandAbbreviation(ReadOnlySpan<char> name, [NotNullWhen(true)] out string? expanded)
+    {
+        int dot = name.IndexOf('.');
+        ReadOnlySpan<char> first = dot < 0 ? name : name[..dot];
+        if (!_abbreviationsBySpan.TryGetValue(first, out string? qualified))
+        {
+            expanded = null;
+            return false;
+        }
+
+        expanded = dot < 0 ? qualified : string.Concat(qualified, name[dot..]);
+        return true;
     }
 
     internal bool TryGetVariable(string name, [NotNullWhen(true)] out CelVariableDecl? variable) =>

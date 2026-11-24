@@ -31,6 +31,10 @@ The parts are values that the place of the error already has when it formats the
 
 The error helpers (`CheckErrors`, `CallSite`, the binders of the facade and the checks of the declarations) get one more argument each for the parts they own; no new allocation is made on a path without an error. The error value of the evaluation (`CelValue` of the kind `Error`) keeps the parts by reference to the objects that already exist, with one shared `ErrorTemplate` per kind of error, until the message or a part is read, so a function that returns an error value does not format text it may never need, and the error object does not grow.
 
+## Errors of other packages
+
+The internal constructor of `CelError` stays internal, and the core grants no `InternalsVisibleTo` to the packages that extend it, so `CelError.Create` is the public way to make an error with a code of the table: `Create(code, stage, message, location, length, subject, expectedType, actualType)`, all after the message optional. It checks the code and the stage with the generic `Enum.IsDefined` (no reflection, safe for Native AOT), the message (not empty) and the length (not negative), and makes the error with no exception. `location`, when given, names the document, and the error then has `Location`, `Span.Start` and `SourceLocation` equal: an error of a document knows no expression, so its place is the place in the document. `CelException(IEnumerable<CelError>)` copies the errors into an `ImmutableArray`, rejects an empty list and a `null` element, and keeps as `InnerException` the exception of the first error that has one, as `CelException.FromErrors` does for the errors of the library. The package `Great.Parts.Cel.Policy` makes the errors of its documents so ([policy](policy.md)).
+
 ## Texts for people
 
 `CelSourceLocation.ToString()`: `{line}:{column}`, and `{sourceName}:{line}:{column}` when there is a source name; `default` gives `""`. Line and column are 1-based, as now.

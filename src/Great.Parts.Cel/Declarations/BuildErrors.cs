@@ -121,6 +121,10 @@ internal static class BuildErrors
     internal static CelError InputConflict(string type1, string type2) =>
         Create(CelErrorCode.InputConflict, "the environment input is declared as both '" + type1 + "' and '" + type2 + "'", type1);
 
+    // The text is that of cel-go; the subject is the qualified name as the application gave it.
+    internal static CelError InvalidAbbreviation(string name, string message) =>
+        Create(CelErrorCode.InvalidAbbreviation, message, name);
+
     internal static CelError TimeZoneDatabaseConflict() =>
         Create(CelErrorCode.TimeZoneDatabaseConflict, "a different time zone database is already added to the environment", null);
 

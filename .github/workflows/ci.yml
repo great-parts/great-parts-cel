@@ -1,5 +1,9 @@
 # Build and tests on GitHub: JIT on Linux and macOS, Native AOT on linux-x64, browser-wasm under Node.js, all for net10.0 and net11.0, the documentation checks (examples,
 # error codes page, links) on Linux, the quick start of the README on the package of the commit, plus the Signed-off-by check.
+# The two suites of conformance, cel-spec and CEL Policy, run in every one of these modes: as tests of tests/Great.Parts.Cel.Conformance in the
+# JIT and the Native AOT cells (the CEL Policy package has its own tests, tests/Great.Parts.Cel.Policy.Tests, in the same loops), and in the
+# runner of browser-wasm, whose log must hold the summary line of each suite. The content and the closure of every package, the CEL Policy
+# package included, are checked once, in the cell JIT Linux net11.0.
 # The cells run the same commands as the container checks of eng/ (docs/design/eng-test.md), without containers: the runners have no
 # SDK 11, so actions/setup-dotnet installs the SDK of global.json and the SDK 10.0.x whose runtime the net10.0 tests need.
 name: ci
@@ -18,8 +22,9 @@ env:
 
 jobs:
   # JIT cells. Restore is locked in every cell: Directory.Build.props sets RestoreLockedMode when GITHUB_ACTIONS is true, and the
-  # explicit restore step names it. The cel-spec runner and the regression corpus are tests of tests/Great.Parts.Cel.Conformance, so
-  # they run in every cell; with -showLiveOutput the summary line of each suite is in the log of the cell.
+  # explicit restore step names it. The cel-spec runner, the CEL Policy suite and the regression corpus are tests of
+  # tests/Great.Parts.Cel.Conformance, so they run in every cell; with -showLiveOutput the summary line of each suite is in the log of
+  # the cell.
   jit:
     name: JIT ${{ matrix.os }} ${{ matrix.tfm }}
     runs-on: ${{ matrix.os }}
@@ -80,15 +85,18 @@ jobs:
 
       # Suppressions, duplicates, the ratchet, the content of the packages, what the restore of each package adds to an application
       # (package-closure restores from artifacts/packages that packages made, and from nuget.org, so it needs the network) and the
-      # traces of the plans in the texts.
+      # traces of the plans in the texts. Every package that the solution packs has its list eng/packages/<id>.txt, Great.Parts.Cel.Policy
+      # too: a package without a list is ENG205, a list without a package ENG206, and a package that the restore of an application
+      # adds beyond the closure lines of its list ENG209 (Policy: Great.Parts.Cel only), a missing one ENG210.
       - name: Repository checks
         if: ${{ matrix.os == 'ubuntu-latest' && matrix.tfm == 'net11.0' }}
         run: dotnet run --project eng/checks -c Release --no-build -- suppressions duplicates ratchet packages package-closure traces --no-build
 
-  # Native AOT cells, linux-x64. A cell builds the solution, runs the two published test projects under JIT for its target (the
+  # Native AOT cells, linux-x64. A cell builds the solution, runs the test projects with PublishAot under JIT for its target (the
   # reference of the test count), publishes them as eng/test does, runs the executables and compares the tests of both runs
-  # (ENG810, ENG811). A publish with a trimming or AOT warning fails, so 0 IL2xxx and IL3xxx is part of the cell. The cel-spec runner
-  # and the regression corpus are in tests/Great.Parts.Cel.Conformance, one of the published projects.
+  # (ENG810, ENG811). A publish with a trimming or AOT warning fails, so 0 IL2xxx and IL3xxx is part of the cell. The cel-spec runner,
+  # the CEL Policy suite and the regression corpus are in tests/Great.Parts.Cel.Conformance, one of the published projects; the tests
+  # of the CEL Policy package are another (tests/Great.Parts.Cel.Policy.Tests).
   aot:
     name: AOT linux-x64 ${{ matrix.tfm }}
     runs-on: ubuntu-latest
@@ -151,14 +159,15 @@ jobs:
           done
           exit $status
 
-  # browser-wasm cells (docs/design/conformance.md, "browser-wasm"), both targets. The cel-spec runner
-  # tests/Great.Parts.Cel.Conformance.Wasm is published as a console application of the runtime for WebAssembly in the default mode (the
+  # browser-wasm cells (docs/design/conformance.md, "browser-wasm"), both targets. The runner of the cel-spec and CEL Policy suites,
+  # tests/Great.Parts.Cel.Conformance.Wasm, is published as a console application of the runtime for WebAssembly in the default mode (the
   # interpreter of the runtime, IL trimming, no AOT compilation to WebAssembly) with the data of the suite embedded, and runs under Node.js
-  # in a container; its exit code is the result, and the summary line and the skipped cases are in the log. The runner is built with
+  # in a container; its exit code is the result, and the summary line of each suite and the skipped cases are in the log (a step reads
+  # both summary lines, so a suite that the run left out turns the cell red). The runner is built with
   # the invariant time zone mode of the runtime (the option System.TimeZoneInfo.Invariant, which a target of the project writes into
   # runtimeconfig.json after the SDK's own item with the value false), and it also checks that CelTimeZoneDatabase.FromSystem() then finds no zone (TimeZoneNotFound, never another zone).
-  # The test application tests/Great.Parts.Cel.Wasm.App, a Blazor WebAssembly application that takes the assemblies of both packages as
-  # roots of the trimmer, is published too: a publish with a trimming warning fails (every warning is an error), and the step counts the
+  # The test application tests/Great.Parts.Cel.Wasm.App, a Blazor WebAssembly application that takes the assemblies of the three packages
+  # that run in the browser (Great.Parts.Cel, Great.Parts.Cel.Protobuf, Great.Parts.Cel.Policy) as roots of the trimmer, is published too: a publish with a trimming warning fails (every warning is an error), and the step counts the
   # lines IL2xxx and IL3xxx of the log (.github/scripts/il-gate.mjs), so 0 of them is part of the cell; a control example with one
   # intentional warning shows that this gate turns red. The projects are not in the solution: a build of the solution on a runner that
   # does not run this job downloads no runtime pack for WebAssembly. The SDK needs no workload: the default mode needs no wasm-tools.
@@ -193,13 +202,34 @@ jobs:
         run: dotnet publish tests/Great.Parts.Cel.Conformance.Wasm -f "$TARGET" -c Release --no-restore -o "artifacts/wasm/runner/$TARGET"
 
       # The script that starts the runtime under Node.js is next to the published files, so the container mounts one directory.
-      - name: cel-spec under Node.js (container)
+      - name: cel-spec and CEL Policy under Node.js (container)
         env:
           TARGET: ${{ matrix.tfm }}
         run: |
           set -euo pipefail
           cp tests/Great.Parts.Cel.Conformance.Wasm/main.mjs "artifacts/wasm/runner/$TARGET/main.mjs"
           docker run --rm --volume "$PWD/artifacts/wasm/runner/$TARGET:/app:ro" --workdir /app "$NODE_IMAGE" node main.mjs | tee "artifacts/wasm/runner-$TARGET.log"
+
+      # The runner prints "<suite> <short SHA>: N/M passed, <date> (<cell>)" once for each suite; the shares are published per suite. The
+      # exit code of the runner above is the result; this step makes sure that both lines are in the log and copies them to the summary.
+      - name: Summary lines of the suites
+        env:
+          TARGET: ${{ matrix.tfm }}
+        run: |
+          set -eu
+          log="artifacts/wasm/runner-$TARGET.log"
+          status=0
+          for suite in cel-spec cel-policy; do
+            line=$(grep -E "^$suite [0-9a-f]{7}: [0-9]+/[0-9]+ passed, [0-9]{4}-[0-9]{2}-[0-9]{2} \(" "$log" | tail -n 1 || true)
+            if [ -z "$line" ]; then
+              echo "The log of the runner has no summary line of $suite."
+              status=1
+              continue
+            fi
+            echo "$line"
+            echo "$line" >> "$GITHUB_STEP_SUMMARY"
+          done
+          exit $status
 
       - name: Publish the Blazor WebAssembly application (0 warnings IL2xxx and IL3xxx)
         env:

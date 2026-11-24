@@ -105,58 +105,63 @@ public sealed partial class CelEnvironment
 
         // The expected type is derived before the text is read, so the same T and options throw for every text.
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
-        CelSourceLocation? start = options?.SourceLocation;
-        return ProgramOf<T>(CompileSteps(expression, expectedType, start, options?.PartialEvaluation ?? false), start);
+        return ProgramOf<T>(CompileSteps(expression, expectedType, options, options?.PartialEvaluation ?? false));
     }
 
     // The program of a compilation that got as far as the plan, or its errors.
-    private CelCompileResult<T> ProgramOf<T>(Compilation compiled, CelSourceLocation? start) =>
+    private CelCompileResult<T> ProgramOf<T>(Compilation compiled) =>
         compiled is { Plan: { } plan, Check.Expression: { } checkedExpression }
-            ? new CelCompileResult<T>(new CelProgram<T>(plan, checkedExpression.ResultType, start, DefaultCostLimit, InputType))
+            ? new CelCompileResult<T>(new CelProgram<T>(plan, checkedExpression.ResultType, compiled.Map, DefaultCostLimit, InputType))
             : new CelCompileResult<T>(compiled.Errors);
 
     // The steps that Compile and Validate share, so that both give the same errors: parse, check and planning. The plan exists
-    // only when all three succeeded; the check result holds the references resolved before an error of the check.
-    private Compilation CompileSteps(string expression, CelType expectedType, CelSourceLocation? start, bool partial = false)
+    // only when all three succeeded; the check result holds the references resolved before an error of the check. The errors have
+    // their positions in the document when the options give the place of the expression in one.
+    private Compilation CompileSteps(string expression, CelType expectedType, CelCompileOptions? options, bool partial = false)
     {
         CelParseResult parsed = Parse(expression, syntax: null);
-        return parsed.IsSuccess
-            ? CheckAndPlan(parsed.ParsedExpr, expectedType, start, partial)
-            : new Compilation(InDocument(parsed.Errors, start), null, null, default);
+        if (parsed.IsSuccess)
+        {
+            return CheckAndPlan(parsed.ParsedExpr, expectedType, DocumentMap.Create(options, parsed.ParsedExpr.Lines), partial);
+        }
+
+        DocumentMap map = DocumentMap.ForText(options, expression);
+        return new Compilation(map.Map(parsed.Errors), null, null, default, map);
     }
 
     // The steps for a tree of any source: the syntax that the environment accepts is checked unless its own parser made the tree,
     // then the tree is checked and planned.
-    private Compilation CompileTree(CelParsedExpr tree, CelType expectedType, CelSourceLocation? start, bool partial = false)
+    private Compilation CompileTree(CelParsedExpr tree, CelType expectedType, CelCompileOptions? options, bool partial = false)
     {
+        DocumentMap map = DocumentMap.Create(options, tree.Lines);
         if (!ReferenceEquals(tree.ParsedWith, Syntax) && TreeInput.Check(tree, Syntax) is { IsEmpty: false } inputErrors)
         {
-            return new Compilation(InDocument(inputErrors, start), null, null, default);
+            return new Compilation(map.Map(inputErrors), null, null, default, map);
         }
 
-        return CheckAndPlan(tree, expectedType, start, partial);
+        return CheckAndPlan(tree, expectedType, map, partial);
     }
 
-    private Compilation CheckAndPlan(CelParsedExpr parsed, CelType expectedType, CelSourceLocation? start, bool partial)
+    private Compilation CheckAndPlan(CelParsedExpr parsed, CelType expectedType, DocumentMap map, bool partial)
     {
         ImmutableArray<CelMacroCall> macroCalls = parsed.MacroCalls;
         CheckResult checkedResult = Check(parsed, expectedType);
         if (!checkedResult.IsSuccess)
         {
-            return new Compilation(InDocument(checkedResult.Errors, start), null, checkedResult, macroCalls);
+            return new Compilation(map.Map(checkedResult.Errors), null, checkedResult, macroCalls, map);
         }
 
         if (!TryPlanWithinBoundary(Planner.For(checkedResult.Expression, Declarations, TimeZones, partial), static planner => planner.Run(), out Plan? plan, out CelError? planningError))
         {
-            return new Compilation(InDocument([planningError], start), null, checkedResult, macroCalls);
+            return new Compilation(map.Map([planningError]), null, checkedResult, macroCalls, map);
         }
 
-        return new Compilation([], plan, checkedResult, macroCalls);
+        return new Compilation([], plan, checkedResult, macroCalls, map);
     }
 
     // The outcome of CompileSteps: the errors, and the plan, the check result and the macro calls of the text that exist when the
-    // steps got that far.
-    private readonly record struct Compilation(ImmutableArray<CelError> Errors, Plan? Plan, CheckResult? Check, ImmutableArray<CelMacroCall> MacroCalls);
+    // steps got that far, and the map of the expression to its document.
+    private readonly record struct Compilation(ImmutableArray<CelError> Errors, Plan? Plan, CheckResult? Check, ImmutableArray<CelMacroCall> MacroCalls, DocumentMap Map);
 
     /// <summary>
     /// The compilation boundary of planning: runs a planning step of the planner, and turns an unexpected exception other than
@@ -330,23 +335,6 @@ public sealed partial class CelEnvironment
         }
     }
 
-    // The errors with their positions in the document of the expression, when the compile options give its start.
-    private static ImmutableArray<CelError> InDocument(ImmutableArray<CelError> errors, CelSourceLocation? start)
-    {
-        if (start is not { } documentStart)
-        {
-            return errors;
-        }
-
-        ImmutableArray<CelError>.Builder mapped = ImmutableArray.CreateBuilder<CelError>(errors.Length);
-        foreach (CelError error in errors)
-        {
-            mapped.Add(error.InDocument(documentStart));
-        }
-
-        return mapped.MoveToImmutable();
-    }
-
     /// <summary>
     /// Checks the types of a parsed expression in this environment: the check step of <see cref="Compile{T}"/>, inside the
     /// compilation boundary of checking. An unexpected exception other than <see cref="OutOfMemoryException"/> becomes
@@ -389,7 +377,7 @@ public sealed partial class CelEnvironment
     {
         ArgumentNullException.ThrowIfNull(parsed);
         ArgumentNullException.ThrowIfNull(bindings);
-        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations, TimeZones), CelType.Dyn, bindings, null, null, CancellationToken.None);
+        return CelProgram<CelValue>.Run(Planner.PlanWithoutTypeCheck(parsed, Declarations, TimeZones), CelType.Dyn, bindings, null, default, CancellationToken.None);
     }
 
     /// <summary>
@@ -565,7 +553,7 @@ public sealed partial class CelEnvironment
         ArgumentNullException.ThrowIfNull(expression);
 
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
-        return ValidationOf(CompileSteps(expression, expectedType, options?.SourceLocation));
+        return ValidationOf(CompileSteps(expression, expectedType, options));
     }
 
     // The result of the validation of a compilation: its errors, the type of the result and the names it referred to.
@@ -608,8 +596,9 @@ public sealed partial class CelEnvironment
     /// as <see cref="Compile{T}(string, CelCompileOptions)"/> of the text. The tree does not refer to the environment.
     /// </para>
     /// <para>
-    /// Of the options only <see cref="CelCompileOptions.SourceLocation"/> is used: its source name becomes
-    /// <see cref="CelParsedExpr.SourceName"/>, and parse errors report the position in the document, as at compilation.
+    /// Of the options only <see cref="CelCompileOptions.SourceLocation"/> and <see cref="CelCompileOptions.SourceSegments"/> are
+    /// used: the source name of either becomes <see cref="CelParsedExpr.SourceName"/>, and parse errors report the position in
+    /// the document, as at compilation.
     /// </para>
     /// </remarks>
     /// <param name="expression">The text of the expression.</param>
@@ -619,14 +608,14 @@ public sealed partial class CelEnvironment
     public CelParseResult Parse(string expression, CelCompileOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        CelSourceLocation? start = options?.SourceLocation;
         CelParseResult parsed = Parse(expression, syntax: null);
         if (!parsed.IsSuccess)
         {
-            return start is null ? parsed : new CelParseResult(InDocument(parsed.Errors, start));
+            DocumentMap map = DocumentMap.ForText(options, expression);
+            return map.IsNone ? parsed : new CelParseResult(map.Map(parsed.Errors));
         }
 
-        return new CelParseResult(parsed.ParsedExpr.WithSource(start?.SourceName, Syntax));
+        return new CelParseResult(parsed.ParsedExpr.WithSource(DocumentMap.SourceNameOf(options), Syntax));
     }
 
     /// <summary>
@@ -662,8 +651,7 @@ public sealed partial class CelEnvironment
         ArgumentNullException.ThrowIfNull(expression);
 
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
-        CelSourceLocation? start = options?.SourceLocation;
-        return ProgramOf<T>(CompileTree(expression, expectedType, start, options?.PartialEvaluation ?? false), start);
+        return ProgramOf<T>(CompileTree(expression, expectedType, options, options?.PartialEvaluation ?? false));
     }
 
     /// <summary>
@@ -689,7 +677,7 @@ public sealed partial class CelEnvironment
         ArgumentNullException.ThrowIfNull(expression);
 
         CelType expectedType = ConversionRules.ExpectedType<T>(options?.ExpectedType, nameof(options), Declarations.Types);
-        return ValidationOf(CompileTree(expression, expectedType, options?.SourceLocation));
+        return ValidationOf(CompileTree(expression, expectedType, options));
     }
 
     /// <summary>

@@ -29,8 +29,8 @@ namespace Great.Parts.Cel;
 /// </typeparam>
 public sealed partial class CelProgram<T>
 {
-    // The position at which the expression starts in its source document, from the compile options, or null.
-    private readonly CelSourceLocation? _start;
+    // The map from the positions in the expression to those in its source document, from the compile options; none without one.
+    private readonly DocumentMap _map;
 
     // The cost limit of the environment, which applies when a call passes none; null for none.
     private readonly ulong? _defaultCostLimit;
@@ -38,11 +38,11 @@ public sealed partial class CelProgram<T>
     // The description of the input type of the environment; null when it has none.
     private readonly CelObjectType? _inputType;
 
-    internal CelProgram(Plan plan, CelType resultType, CelSourceLocation? start, ulong? defaultCostLimit = null, CelObjectType? inputType = null)
+    internal CelProgram(Plan plan, CelType resultType, DocumentMap map, ulong? defaultCostLimit = null, CelObjectType? inputType = null)
     {
         Plan = plan;
         ResultType = resultType;
-        _start = start;
+        _map = map;
         _defaultCostLimit = defaultCostLimit;
         _inputType = inputType;
     }
@@ -92,17 +92,17 @@ public sealed partial class CelProgram<T>
     {
         ArgumentNullException.ThrowIfNull(bindings);
         ulong? costLimit = options?.CostLimit ?? _defaultCostLimit;
-        return Plan.HasAsyncCalls ? AsyncRequired(costLimit) : Run(Plan, ResultType, bindings, costLimit, _start, cancellationToken);
+        return Plan.HasAsyncCalls ? AsyncRequired(costLimit) : Run(Plan, ResultType, bindings, costLimit, _map, cancellationToken);
     }
 
     // The result of a synchronous evaluation of a program that calls an overload that waits: the error at the first such call, before
     // anything is evaluated, so with the cost 0 when there is a limit.
     private CelEvalResult<T> AsyncRequired(ulong? costLimit) =>
-        new([InDocument(EvaluationErrors.AsyncEvaluationRequired(Plan.FirstAsyncFunction!, Plan.Lines, Plan.FirstAsyncOffset), _start)], costLimit is null ? null : 0UL);
+        new([_map.Map(EvaluationErrors.AsyncEvaluationRequired(Plan.FirstAsyncFunction!, Plan.Lines, Plan.FirstAsyncOffset))], costLimit is null ? null : 0UL);
 
     // The call of the simple entry: the limit of the call, whatever the default of the environment, and no options object.
     internal CelEvalResult<T> EvaluateWithLimit(CelBindings bindings, ulong costLimit, CancellationToken cancellationToken) =>
-        Run(Plan, ResultType, bindings, costLimit, _start, cancellationToken);
+        Run(Plan, ResultType, bindings, costLimit, _map, cancellationToken);
 
     // Evaluates a plan in a frame that the thread rents and gives back when the evaluation ends, with a cost limit, null for none, and the token of the evaluation, whose
     // cancellation passes through as OperationCanceledException, and converts the value of the root to T by the
@@ -114,14 +114,14 @@ public sealed partial class CelProgram<T>
         CelType resultType,
         CelBindings bindings,
         ulong? costLimit,
-        CelSourceLocation? start,
+        DocumentMap map,
         CancellationToken cancellationToken,
         object? input = null)
     {
         Frame frame = plan.RentFrame(bindings.Values, costLimit, cancellationToken, input);
         try
         {
-            return Run(plan, resultType, frame, start);
+            return Run(plan, resultType, frame, map);
         }
         finally
         {
@@ -131,24 +131,24 @@ public sealed partial class CelProgram<T>
 
     // The evaluation of a plan in a frame that the caller rented, and the conversion of the value of the root: the steps of Run. The
     // result holds nothing of the frame, so the caller may give it back as soon as this returns.
-    private static CelEvalResult<T> Run(Plan plan, CelType resultType, Frame frame, CelSourceLocation? start)
+    private static CelEvalResult<T> Run(Plan plan, CelType resultType, Frame frame, DocumentMap map)
     {
         // The cost is the sum the frame charged, reported only when a limit applied: on an error of the evaluation the sum including
         // the operation that failed, and for CostLimitExceeded the sum before the refused charge.
         CelValue value = plan.Run(frame);
         ulong? cost = frame.Metered ? frame.ChargedUnits : null;
-        return Result(plan, resultType, value, cost, start);
+        return Result(plan, resultType, value, cost, map);
     }
 
     // The result of the value of the root of the last pass of an asynchronous evaluation.
-    internal CelEvalResult<T> ResultOf(CelValue value, ulong? cost) => Result(Plan, ResultType, value, cost, _start);
+    internal CelEvalResult<T> ResultOf(CelValue value, ulong? cost) => Result(Plan, ResultType, value, cost, _map);
 
     // The result of the value of the root and the cost: the one error, or the value converted to T.
-    private static CelEvalResult<T> Result(Plan plan, CelType resultType, CelValue value, ulong? cost, CelSourceLocation? start)
+    private static CelEvalResult<T> Result(Plan plan, CelType resultType, CelValue value, ulong? cost, DocumentMap map)
     {
         if (value.TryGetError(out CelError? error))
         {
-            return new CelEvalResult<T>([InDocument(error, start)], cost);
+            return new CelEvalResult<T>([map.Map(error)], cost);
         }
 
         if (ConversionRules.TryToResult(value, resultType, out T? result, out string? actualType, out CelError? elementError, plan.Types))
@@ -159,16 +159,13 @@ public sealed partial class CelProgram<T>
         // An error value that an element of the result is, is the one error of the result, with the place of the root.
         if (elementError is not null && EvaluationErrors.Placed(CelValue.FromError(elementError), plan.Lines, plan.Root.Offset).TryGetError(out CelError? placed))
         {
-            return new CelEvalResult<T>([InDocument(placed, start)], cost);
+            return new CelEvalResult<T>([map.Map(placed)], cost);
         }
 
         var root = new CelSourceSpan(plan.Lines.GetLocation(plan.Root.Offset), plan.Lines.GetEnd(plan.Root.Offset) - plan.Root.Offset);
         CelType actual = ConversionRules.ResultActualType<T>(value, resultType, plan.Types);
-        return new CelEvalResult<T>([InDocument(ConversionRules.ResultConversionError<T>(actualType, actual, root), start)], cost);
+        return new CelEvalResult<T>([map.Map(ConversionRules.ResultConversionError<T>(actualType, actual, root))], cost);
     }
-
-    private static CelError InDocument(CelError error, CelSourceLocation? start) =>
-        start is { } documentStart ? error.InDocument(documentStart) : error;
 
     /// <summary>
     /// Evaluates the program on an instance of the input type of its environment and, optionally, on the bindings of the
@@ -237,7 +234,7 @@ public sealed partial class CelProgram<T>
                 cancellationToken);
             try
             {
-                return Run(Plan, ResultType, frame, _start);
+                return Run(Plan, ResultType, frame, _map);
             }
             finally
             {
@@ -248,6 +245,6 @@ public sealed partial class CelProgram<T>
         CelEnvironment.CheckInput(_inputType, input!);
         return Plan.HasAsyncCalls
             ? AsyncRequired(costLimit)
-            : Run(Plan, ResultType, bindings ?? CelBindings.Empty, costLimit, _start, cancellationToken, input);
+            : Run(Plan, ResultType, bindings ?? CelBindings.Empty, costLimit, _map, cancellationToken, input);
     }
 }

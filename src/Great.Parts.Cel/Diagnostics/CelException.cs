@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
@@ -26,7 +27,7 @@ namespace Great.Parts.Cel.Diagnostics;
 /// <see cref="CelError.Exception"/> of the first error in <see cref="Errors"/> that has one — for example the exception
 /// of a function of the application — so logs that follow the chain of inner exceptions show it; it is
 /// <see langword="null"/> when no error has an exception. Every original exception stays in <see cref="Errors"/>.
-/// Instances are created by the library only.
+/// Instances are created by the library, and by extension packages with the public constructor.
 /// </para>
 /// <para>
 /// Like <see cref="CelError.Message"/>, the text of <see cref="Exception.Message"/> is for people and is
@@ -48,24 +49,64 @@ public sealed class CelException : Exception
     }
 
     /// <summary>
+    /// Creates the exception that carries all errors of an unsuccessful result, as the library creates it in its
+    /// <c>Get…OrThrow</c> members: for the <c>Get…OrThrow</c> members of an extension package.
+    /// </summary>
+    /// <remarks>
+    /// The message lists the errors; the <see cref="Exception.InnerException"/> is the exception of application code of the
+    /// first error that has one, as for the exceptions the library throws.
+    /// </remarks>
+    /// <param name="errors">The errors, at least one.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="errors"/> or one of them is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException"><paramref name="errors"/> is empty.</exception>
+    public CelException(IEnumerable<CelError> errors)
+        : this(Copy(errors))
+    {
+    }
+
+    private CelException(ImmutableArray<CelError> errors)
+        : this(errors, FirstException(errors))
+    {
+    }
+
+    /// <summary>
     /// Creates the exception of an unsuccessful result: the one way the library makes it, so that every member that throws it
     /// gives the same exception for the same errors.
     /// </summary>
     /// <param name="errors">The errors of the result, not empty.</param>
     /// <returns>The exception; its inner exception is that of the first error that has one, or <see langword="null"/>.</returns>
-    internal static CelException FromErrors(ImmutableArray<CelError> errors)
+    internal static CelException FromErrors(ImmutableArray<CelError> errors) => new(errors);
+
+    // The exception of the first error that has one.
+    private static Exception? FirstException(ImmutableArray<CelError> errors)
     {
-        Exception? inner = null;
         foreach (CelError error in errors)
         {
             if (error.Exception is { } exception)
             {
-                inner = exception;
-                break;
+                return exception;
             }
         }
 
-        return new CelException(errors, inner);
+        return null;
+    }
+
+    // The errors of a caller as an array of their own: at least one, none null.
+    private static ImmutableArray<CelError> Copy(IEnumerable<CelError> errors)
+    {
+        ArgumentNullException.ThrowIfNull(errors);
+        ImmutableArray<CelError> copy = [.. errors];
+        if (copy.IsEmpty)
+        {
+            throw new ArgumentException("The exception carries at least one error.", nameof(errors));
+        }
+
+        foreach (CelError error in copy)
+        {
+            ArgumentNullException.ThrowIfNull(error, nameof(errors));
+        }
+
+        return copy;
     }
 
     /// <summary>

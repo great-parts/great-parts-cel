@@ -1,4 +1,4 @@
-# The release of the two packages (docs/design/eng-release.md): a push of a tag v* is the release, steps 1 to 8 of the order below.
+# The release of the five packages (docs/design/eng-release.md): a push of a tag v* is the release, steps 1 to 8 of the order below.
 # workflow_dispatch has two more uses. On main with the input tag it is the dry run: the gates and the build with the version of the
 # planned tag, nothing public; findings of the gates go to the summary and do not stop the build. On a tag v* it is the repeat of steps 7 and 8 after a failure of step 7: only verify and release run, and
 # nothing is published to nuget.org again. A dispatch on any other ref does nothing.
@@ -340,8 +340,8 @@ jobs:
         with:
           user: ${{ vars.NUGET_USER }}
 
-      # The .snupkg next to each .nupkg is pushed by the same command. --skip-duplicate makes a run again safe when one of the two packages
-      # was pushed and the other was not.
+      # The .snupkg next to each .nupkg is pushed by the same command. --skip-duplicate makes a run again safe when some of the packages
+      # were pushed and the others were not.
       - name: Push
         env:
           NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
@@ -410,7 +410,7 @@ jobs:
           run-id: ${{ steps.built.outputs.run-id }}
           github-token: ${{ github.token }}
 
-      # Sub-step 1: both packages of the version from nuget.org, as it gives them; the command waits until it gives them. Then it compares
+      # Sub-step 1: the five packages of the version from nuget.org (NuGetDownload.PackageIds), as it gives them; the command waits until it gives them. Then it compares
       # the content of each with the package of the build of the same name: the guard of the second attestation, which is issued only for a
       # file whose content is the content that the build attested.
       - name: Download the packages and compare them with the build

@@ -13,6 +13,9 @@ internal static class Program
         Console.WriteLine($"api.name + ' v' + api.version: {CelSamples.Message()}");
         Console.WriteLine($"inc(inc(x)) for x = 1: {await CelSamples.AsynchronousCallAsync().ConfigureAwait(false)}");
         Console.WriteLine($"residual of x + 1 > y with y unknown: {CelSamples.Residual()}");
+        Console.WriteLine($"policy greeting for user kim: {CelSamples.Greeting()}");
+        Console.WriteLine($"explanation of the policy limits for 42: {CelSamples.Explanation()}");
+        Console.WriteLine($"errors with segments: {CelSamples.Located()}");
         WebAssemblyHostBuilder builder = WebAssemblyHostBuilder.CreateDefault(args);
         await builder.Build().RunAsync().ConfigureAwait(false);
     }

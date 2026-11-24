@@ -26,7 +26,8 @@ namespace Great.Parts.Cel.Diagnostics;
 /// is reported.
 /// </para>
 /// <para>
-/// Instances are created by the library only. They are immutable and can be shared between threads.
+/// Instances are created by the library, and by extension packages through <see cref="Create"/>. They are immutable and can be
+/// shared between threads.
 /// </para>
 /// </remarks>
 public sealed class CelError
@@ -88,6 +89,79 @@ public sealed class CelError
         _second = second;
         _number = number;
         _small = small;
+    }
+
+    /// <summary>
+    /// Creates an error for a document that is not an expression — for example a policy document or a filter — so that its
+    /// errors come in the same list and the same <see cref="CelException"/> as the errors of its expressions.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The error has the given code, stage and message and no exception of application code. Its
+    /// <see cref="Location"/>, <see cref="Span"/> start and <see cref="SourceLocation"/> are all
+    /// <paramref name="location"/>: a position in the document, which names it; without a location the error has no position.
+    /// The parts <see cref="Subject"/>, <see cref="ExpectedType"/> and <see cref="ActualType"/> are those given.
+    /// </para>
+    /// <para>
+    /// The codes the library itself reports, and the parts each of them has, are listed in the documentation of
+    /// <see cref="CelErrorCode"/>; an error created here with one of those codes is an error of the creator, not of the library.
+    /// </para>
+    /// </remarks>
+    /// <param name="code">The code of the error.</param>
+    /// <param name="stage">The stage the error belongs to.</param>
+    /// <param name="message">The message for people, in English; not empty.</param>
+    /// <param name="location">The position in the document, or <see langword="null"/> for none.</param>
+    /// <param name="length">The length of the fragment in UTF-16 code units, 0 or more; 0 without a location.</param>
+    /// <param name="subject">The name the error is about, or <see langword="null"/>.</param>
+    /// <param name="expectedType">The expected CEL type, or <see langword="null"/>.</param>
+    /// <param name="actualType">The actual CEL type, or <see langword="null"/>.</param>
+    /// <returns>The error.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="message"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="message"/> is empty, <paramref name="code"/> or <paramref name="stage"/> is not a defined member, or
+    /// <paramref name="location"/> is given without a source name.
+    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="length"/> is negative, or positive without <paramref name="location"/>.
+    /// </exception>
+    public static CelError Create(
+        CelErrorCode code,
+        CelErrorStage stage,
+        string message,
+        CelSourceLocation? location = null,
+        int length = 0,
+        string? subject = null,
+        CelType? expectedType = null,
+        CelType? actualType = null)
+    {
+        if (!Enum.IsDefined(code))
+        {
+            throw new ArgumentException("The code is not a member of CelErrorCode.", nameof(code));
+        }
+
+        if (!Enum.IsDefined(stage))
+        {
+            throw new ArgumentException("The stage is not a member of CelErrorStage.", nameof(stage));
+        }
+
+        ArgumentException.ThrowIfNullOrEmpty(message);
+        ArgumentOutOfRangeException.ThrowIfNegative(length);
+        if (location is not { } place)
+        {
+            if (length != 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), length, "A fragment has a length only with the position it starts at.");
+            }
+
+            return new CelError(code, stage, message, default, null, null, 0, subject, expectedType, actualType);
+        }
+
+        if (place.SourceName is null)
+        {
+            throw new ArgumentException("The position of an error of a document must name the document.", nameof(location));
+        }
+
+        return new CelError(code, stage, message, place, place, null, length, subject, expectedType, actualType);
     }
 
     // The format of a message that is its first part; the error has no parts.
@@ -207,31 +281,13 @@ public sealed class CelError
     public Exception? Exception => _source is Given given ? given.Exception : _first as Exception ?? (_first as CelError)?.Exception;
 
     /// <summary>
-    /// Gives this error with its position in the document that holds the expression, from the position at which the
-    /// expression starts there: the offset of the start plus the offset, the line of the start plus the line minus 1,
-    /// and on the first line of the expression the column of the start plus the column minus 1, on the other lines the
-    /// column itself.
+    /// Gives this error with its position in the document that holds the expression, which the map of the expression to its document
+    /// computed from the position of the error in the expression.
     /// </summary>
-    /// <param name="start">The position of the start of the expression in the document, with its source name.</param>
+    /// <param name="place">The position in the document, with its source name.</param>
     /// <returns>A new error with the same code, stage, message, position and exception.</returns>
-    internal CelError InDocument(CelSourceLocation start)
-    {
-        if (Location.Line == 0)
-        {
-            return this;
-        }
-
-        int column = Location.Line == 1 ? Add(start.Column, Location.Column - 1) : Location.Column;
-        var place = new CelSourceLocation(
-            start.SourceName!,
-            Add(start.Offset, Location.Offset),
-            Add(start.Line, Location.Line - 1),
-            column);
-        return new CelError(Code, Stage, Message, Location, place, Exception, Span.Length, Subject, ExpectedType, ActualType);
-    }
-
-    // The start is any position the application gives; a sum past int.MaxValue stays at int.MaxValue.
-    private static int Add(int start, int value) => (int)Math.Min((long)start + value, int.MaxValue);
+    internal CelError AtDocument(CelSourceLocation place) =>
+        new(Code, Stage, Message, Location, place, Exception, Span.Length, Subject, ExpectedType, ActualType);
 
     // The message and the positions of an error that is created with them.
     private sealed class Given(

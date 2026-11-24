@@ -22,8 +22,10 @@ internal sealed class DeclarationSet
         bool decimalLiterals = false,
         ImmutableArray<Type> inputTypes = default,
         ulong? defaultCostLimit = null,
-        bool crossTypeNumericComparisons = false)
+        bool crossTypeNumericComparisons = false,
+        ImmutableArray<string> abbreviations = default)
     {
+        Abbreviations = abbreviations.IsDefault ? [] : abbreviations;
         InputTypes = inputTypes.IsDefault ? [] : inputTypes;
         CrossTypeNumericComparisons = crossTypeNumericComparisons;
         DefaultCostLimit = defaultCostLimit;
@@ -73,4 +75,7 @@ internal sealed class DeclarationSet
 
     // Whether the builder enabled the ordering between numeric types of known static types, EnableCrossTypeNumericComparisons.
     internal bool CrossTypeNumericComparisons { get; }
+
+    // The qualified names that AddAbbreviation added, in the order of the calls; Build checks them and keeps the valid ones.
+    internal ImmutableArray<string> Abbreviations { get; }
 }

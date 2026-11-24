@@ -111,6 +111,23 @@ public enum CelErrorCode
     /// </summary>
     InvalidProtobuf = 1009,
 
+    /// <summary>
+    /// A document read by an extension package, such as a CEL policy, is not YAML: a syntax error of YAML 1.2, a tab in an
+    /// indentation, an unclosed quote or flow collection, an unknown alias, or nesting deeper than the limit of the reader. The
+    /// first syntax error stops the reading. The message tells what was expected. Location: the position in the document.
+    /// </summary>
+    InvalidYaml = 1010,
+
+    /// <summary>
+    /// A YAML document is not a CEL policy: a node of the wrong type, an unsupported key or tag, both <c>match</c> and
+    /// <c>aggregate</c> in a rule, both an output and a rule in a match, a match with neither, an explanation on a nested
+    /// rule, an aggregate rule nested in an aggregate rule, a policy without a rule, a rule without a match with an output or
+    /// a nested rule, more than 100 variables and nested rules, or a document that stands for too many rules or too much
+    /// text through aliases. The message is that of cel-go where cel-go has one. Location: the node;
+    /// <see cref="CelError.Subject"/> is the key or the tag when there is one.
+    /// </summary>
+    InvalidPolicy = 1011,
+
     // Type checking: 2000-2999.
 
     /// <summary>
@@ -201,6 +218,27 @@ public enum CelErrorCode
     /// field; the message names the type and the field. Location: the literal.
     /// </summary>
     RequiredFieldNotSet = 2011,
+
+    /// <summary>
+    /// The outputs of the matches of a policy rule do not agree in type: neither type is assignable to the other. Location:
+    /// the output or the nested rule that disagrees with the outputs before it; <see cref="CelError.ExpectedType"/> is the
+    /// type of the outputs before it, <see cref="CelError.ActualType"/> its type.
+    /// </summary>
+    IncompatibleOutputTypes = 2012,
+
+    /// <summary>
+    /// A match of a first-match policy rule is unconditional and exhaustive but not the last, so the matches after it are
+    /// unreachable; or the condition of a match is the literal <c>false</c>. Location: the match or the nested rule.
+    /// </summary>
+    UnreachableMatch = 2013,
+
+    /// <summary>
+    /// A policy variable has the name of a variable of the same rule or of an enclosing rule and an expression of another
+    /// type. A variable with the same name and type shadows the other. Location: the variable;
+    /// <see cref="CelError.Subject"/> is <c>variables.</c> and the name, <see cref="CelError.ExpectedType"/> the type of the
+    /// visible variable and <see cref="CelError.ActualType"/> the type of the new one.
+    /// </summary>
+    OverlappingVariable = 2014,
 
     // Evaluation: 3000-3999.
 
@@ -594,6 +632,14 @@ public enum CelErrorCode
     /// replaced silently. The same type declared twice is one declaration. The message names both types.
     /// </summary>
     InputConflict = 4019,
+
+    /// <summary>
+    /// An abbreviation added with <c>CelEnvironmentBuilder.AddAbbreviation</c> is not a qualified identifier with at least
+    /// two parts, begins with a dot, repeats the last part of another abbreviation (even with the same name), or has a last
+    /// part that equals the container or begins the container followed by a dot. White space around the name is not part of
+    /// it. <see cref="CelError.Subject"/> is the name.
+    /// </summary>
+    InvalidAbbreviation = 4020,
 
     // Any stage: 9000-9999.
 

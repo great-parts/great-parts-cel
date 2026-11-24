@@ -6,12 +6,13 @@ namespace Great.Parts.Cel.Eng.Checks;
 
 /// <summary>
 /// The file set of the checks: all files under the root except the directories <c>.git</c>, <c>bin</c> and <c>obj</c> at any
-/// depth and <c>artifacts</c> and <c>tests/cel-spec</c> under the root.
+/// depth and <c>artifacts</c>, <c>tests/cel-spec</c> and <c>tests/cel-policy</c> under the root. The last two are copies of the data of
+/// other repositories, not text of this one.
 /// </summary>
 internal static class RepositoryFiles
 {
     private static readonly string[] ExcludedAnywhere = [".git", "bin", "obj"];
-    private static readonly string[] ExcludedUnderRoot = ["artifacts", "tests/cel-spec"];
+    private static readonly string[] ExcludedUnderRoot = ["artifacts", "tests/cel-spec", "tests/cel-policy"];
 
     /// <summary>Lists the files of the file set. Links to directories are not followed.</summary>
     /// <param name="root">The full path of the repository root.</param>

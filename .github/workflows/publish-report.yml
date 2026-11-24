@@ -1,5 +1,5 @@
 # The publication of a report of a run to the branch `reports` (docs/design/eng-release.md, "Reports of the runs"). A reusable workflow:
-# conformance-master.yml and bench.yml call it in a job of their own, after the job that made the report. It is the only place of the
+# conformance-master.yml (a job for each of its two suites) and bench.yml call it in a job of their own, after the job that made the report. It is the only place of the
 # repository that writes the branch.
 # The report is an artifact of the calling run: a directory <yyyy-MM-ddTHHmmssZ>/ with report.json and report.md. The workflow commits
 # it to <directory>/<stamp>/ of the branch with GITHUB_TOKEN and copies report.json to <directory>/latest.json, so the README and the
@@ -94,6 +94,7 @@ jobs:
                 echo "A workflow writes it with the token of its run; the rules of \`main\` do not apply to it. Nothing here is written by hand."
                 echo
                 echo "- \`conformance-master/<date>T<time>Z/\`: the result of the cel-spec suite on the master branch of cel-spec."
+                echo "- \`conformance-master-policy/<date>T<time>Z/\`: the result of the CEL Policy suite on the main branch of cel-policy."
                 echo "- \`bench/<date>T<time>Z/\`: the result of the speed comparison with other CEL libraries."
                 echo "- \`<directory>/latest.json\`: the \`report.json\` of the last report of the directory."
                 echo

@@ -48,6 +48,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
     <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Policy/Great.Parts.Cel.Policy.csproj" />
     <ProjectReference Include="../../eng/findings/Great.Parts.Cel.Eng.Findings.csproj" />
   </ItemGroup>
 
@@ -94,6 +95,16 @@
                   RepoPath="$([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/'))" />
     <CelProtoSource Include="$(CelProtoRoot)**/*.proto" />
     <EmbeddedResource Include="@(CelSuiteText);@(CelSuiteFile)" LogicalName="%(RepoPath)" />
+  </ItemGroup>
+
+  <!--
+    The CEL Policy suite: the files of the categories (the policy, the configuration and the tests, all in YAML) and the version of the
+    copy, as they are, and the skip list. The runner reads them with the YAML reader of the policy package; nothing is encoded.
+  -->
+  <ItemGroup>
+    <CelPolicyFile Include="../cel-policy/**/policy.yaml;../cel-policy/**/config.yaml;../cel-policy/**/tests.yaml;../cel-policy/VERSION;CelPolicy/skips.md"
+                   RepoPath="$([MSBuild]::MakeRelative('$(CelRepoRoot)', '%(FullPath)').Replace('\', '/'))" />
+    <EmbeddedResource Include="@(CelPolicyFile)" LogicalName="%(RepoPath)" />
   </ItemGroup>
 
   <!--

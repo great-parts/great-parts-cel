@@ -8,7 +8,8 @@ The tests of the library: `tests/Great.Parts.Cel.Tests` and `tests/Great.Parts.C
 | :- | :- | :- | :- | :- |
 | `tests/Great.Parts.Cel.Tests` | `net10.0`, `net11.0` | JIT, Native AOT | `xunit.v3.aot` 4.0.3 | unit tests, one directory per namespace of the library; `Examples/` |
 | `tests/Great.Parts.Cel.Properties` | `net10.0`, `net11.0` | JIT | `xunit.v3.aot` 4.0.3, `CsCheck` 5.0.1 | properties without an oracle |
-| `tests/Great.Parts.Cel.Conformance` | `net10.0`, `net11.0` | JIT, Native AOT | see the description of the suite runner | the cel-spec suite and the regression corpus |
+| `tests/Great.Parts.Cel.Policy.Tests` | `net10.0`, `net11.0` | JIT, Native AOT | `xunit.v3.aot` 4.0.3 | the tests of the package `Great.Parts.Cel.Policy`: the YAML reader, the format, the compilation; `Examples/` ([below](#tests-of-the-policy-package)) |
+| `tests/Great.Parts.Cel.Conformance` | `net10.0`, `net11.0` | JIT, Native AOT | see the description of the suite runner | the cel-spec suite, the CEL Policy suite and the regression corpus |
 | `tests/Great.Parts.Cel.Generator.Tests` | `net10.0` | JIT | `xunit.v3.aot` 4.0.3, `Microsoft.CodeAnalysis.CSharp` 5.0.0 | the tests of the source generator ([generator](generator.md)); `Examples/` |
 | `tests/Great.Parts.Cel.Generator.Samples` | `net10.0`, `net11.0` | none: a library | `Google.Protobuf`, `Grpc.Tools` | valid types and their type contexts, read by the other test projects; no tests |
 | `eng/tests` | `net10.0` | JIT | see [eng-tests.md](eng-tests.md) | tests of the own checks |
@@ -409,6 +410,20 @@ The tests of the core: `Types/WellKnownRulesTests` and `Types/AnyTypeTests` (the
 
 **Cases.** The ten files pass when the skip list has no entry of their cases, in every cell, Native AOT included; a case that fails is a finding, not a new entry ([conformance](conformance.md#messages-any-and-the-provider-of-the-cases)).
 
+## Tests of the Policy package
+
+`tests/Great.Parts.Cel.Policy.Tests` tests the package through its public API; the package grants it `InternalsVisibleTo` for the YAML reader, which the tests read directly. The core tests that serve the package (segments, `CelError.Create`, abbreviations, the slots of `cel.@block`) are in `tests/Great.Parts.Cel.Tests` by subject. The files:
+
+| Where | Covers |
+| :- | :- |
+| `Yaml/YamlSyntaxTests`, `Yaml/YamlTagTests` | each construct of the supported YAML and its errors with their positions; the tag table, a row per line of `resolve.go` |
+| `Yaml/YamlSegmentTests` | the segments of each style of scalar, `\n` and `\r\n` lines, and the property that every character of a random scalar stands in the document at the place of its segment |
+| `ParseStructureTests` | each key and each error of the structure of the format, the strings of expressions by style and tag, the alias, the empty stream, the limit of the walk |
+| `PolicyUntrustedTests`, `CompileUntrustedTests` | corrupted documents, nesting of 100 000 levels, many rules, matches and variables, an alias bomb, aliases on long strings and keys that the budget for text stops, a document of one megabyte, all without an exception and in linear time |
+| `Examples/` | the examples of the specification: the reader, `Parse`, compilation, composition against the expressions of cel-go, the positions |
+
+The tests run under Native AOT like those of the core (`PublishAot` in the project), so the publication calls every public member of the package. The suite of the package, the CEL Policy conformance suite, runs in the runner ([conformance](conformance.md#cel-policy-suite)).
+
 ## Asynchronous and partial evaluation
 
 The examples of partial evaluation and the residual are `Examples/Evaluation/UnknownPropagationTests.cs`, `AttributePatternTests.cs` and `Examples/Facade/PartialEvaluationTests.cs`, `ResidualTests.cs`; those of the asynchronous part are `Examples/Facade/AsyncFunctionTests.cs`, `AsyncEvaluationTests.cs`, `Registration/AsyncEvaluatorTests.cs` of the DI project and the tests of the policy and the two filters in the ASP.NET Core project. `PartialTestSupport` and `AsyncTestSupport` hold the environments and the test functions (`inc`, `name`, `fail`, `slow` and their synchronous twins). The number of passes that a test counts is read from an internal counter of the test assembly.
@@ -422,7 +437,7 @@ Properties (`Great.Parts.Cel.Properties`, `PropertyLoop`, a fixed seed and numbe
 
 ## Same tests under JIT and Native AOT
 
-`Great.Parts.Cel.Tests` and `Great.Parts.Cel.Conformance` are published under Native AOT and run as executables: in `eng/test` and in CI, on linux-x64, for both targets ([eng-test.md](eng-test.md)). `eng/checks test-count` compares the tests of each published run with the JIT run of the same commit, operating system and target ([eng-checks-artifacts.md](eng-checks-artifacts.md)). The other test projects run only under JIT.
+`Great.Parts.Cel.Tests`, `Great.Parts.Cel.Policy.Tests` and `Great.Parts.Cel.Conformance` are published under Native AOT and run as executables: in `eng/test` and in CI, on linux-x64, for both targets ([eng-test.md](eng-test.md)). `eng/checks test-count` compares the tests of each published run with the JIT run of the same commit, operating system and target ([eng-checks-artifacts.md](eng-checks-artifacts.md)). The other test projects run only under JIT.
 
 Rules that keep the two sets equal:
 

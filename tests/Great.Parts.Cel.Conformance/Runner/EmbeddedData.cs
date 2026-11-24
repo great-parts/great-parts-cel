@@ -41,6 +41,32 @@ internal static class EmbeddedData
         return paths;
     }
 
+    /// <summary>Returns the directories below a root that hold an embedded file of the given name, in ordinal order.</summary>
+    /// <param name="root">The directory relative to the repository root, with a trailing slash.</param>
+    /// <param name="fileName">The name of the file.</param>
+    /// <returns>The paths of the directories relative to <paramref name="root"/>, without a trailing slash.</returns>
+    internal static IReadOnlyList<string> DirectoriesWithFile(string root, string fileName)
+    {
+        string suffix = "/" + fileName;
+        List<string> directories = [];
+        foreach (string name in Source.GetManifestResourceNames())
+        {
+            if (name.StartsWith(root, StringComparison.Ordinal)
+                && name.EndsWith(suffix, StringComparison.Ordinal)
+                && name.Length > root.Length + suffix.Length)
+            {
+                directories.Add(name[root.Length..^suffix.Length]);
+            }
+        }
+
+        directories.Sort(StringComparer.Ordinal);
+        return directories;
+    }
+
+    /// <summary>Tells whether a file is embedded.</summary>
+    /// <param name="path">The path of the file relative to the repository root.</param>
+    internal static bool Exists(string path) => Source.GetManifestResourceInfo(path) is not null;
+
     /// <summary>Returns the text of an embedded file.</summary>
     /// <param name="path">The path of the file relative to the repository root.</param>
     internal static string ReadText(string path)

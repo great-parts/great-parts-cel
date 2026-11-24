@@ -45,7 +45,7 @@ public sealed class RepositoryTests
     // ---- File set ----
 
     [Fact]
-    public void FileSet_SkipsGitBinObjArtifactsAndCelSpec()
+    public void FileSet_SkipsGitBinObjArtifactsCelSpecAndCelPolicy()
     {
         using TempDirectory root = new();
         root.Write("src/A.cs", "x");
@@ -58,6 +58,8 @@ public sealed class RepositoryTests
         root.Write("artifacts/test-results/H.xml", "x");
         root.Write("tests/cel-spec/I.textproto", "x");
         root.Write("tests/cel-spec/deep/J.textproto", "x");
+        root.Write("tests/cel-policy/aggregate/policy.yaml", "x");
+        root.Write("tests/cel-policy/VERSION", "x");
         root.Write(".git/config", "x");
         root.Write(".git/objects/K", "x");
         root.Write("tests/other/L.cs", "x");

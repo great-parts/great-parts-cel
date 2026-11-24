@@ -23,11 +23,13 @@ public sealed class ReleaseGatesTests
     private const string ChangelogDate = "2026-06-01";
     private const string RegressionPath = "tests/Great.Parts.Cel.Conformance/Regression/skips.md";
     private const string CelSpecPath = "tests/Great.Parts.Cel.Conformance/CelSpec/skips.md";
+    private const string PolicyListPath = "tests/Great.Parts.Cel.Conformance/CelPolicy/skips.md";
     private const string IssueLink = "https://github.com/great-parts/great-parts-cel/issues/12";
     private const string PackageName = "Great.Parts.Cel.1.2.0.nupkg";
     private const string ProtobufName = "Great.Parts.Cel.Protobuf.1.2.0.nupkg";
     private const string InjectionName = "Great.Parts.Cel.DependencyInjection.1.2.0.nupkg";
     private const string AspNetCoreName = "Great.Parts.Cel.AspNetCore.1.2.0.nupkg";
+    private const string PolicyName = "Great.Parts.Cel.Policy.1.2.0.nupkg";
 
     // The text of Directory.Build.props and of a project under src/ at the commit of the long run, for the cases of the package metadata.
     private const string PropsBefore = "<Project><PropertyGroup><Nullable>enable</Nullable><PackageTags>cel</PackageTags></PropertyGroup></Project>";
@@ -404,6 +406,18 @@ public sealed class ReleaseGatesTests
         Result.Expect(fixture.Gates(), 1, $"{CelSpecPath}(5,1): error {EngCodes.Eng803}: {message}");
     }
 
+    [Theory]
+    [InlineData("", IssueLink, "entry 'x/y/z' has no reason")]
+    [InlineData("A reason.", "https://github.com/other/repo/issues/3", "entry 'x/y/z' has no issue link to great-parts/great-parts-cel")]
+    [InlineData("A reason.", "", "entry 'x/y/z' has no issue link to great-parts/great-parts-cel")]
+    public static void Eng803_PolicyEntryWithoutReasonOrWithoutLinkToTheRepository_IsReportedAtTheListOfThePolicy(string reason, string issue, string message)
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        fixture.Root.Write(PolicyListPath, CelSpecListText(CelSpecRow(reason, "A link.", issue)));
+
+        Result.Expect(fixture.Gates(), 1, $"{PolicyListPath}(5,1): error {EngCodes.Eng803}: {message}");
+    }
+
     // ENG906
 
     [Fact]
@@ -491,7 +505,7 @@ public sealed class ReleaseGatesTests
     [Fact]
     public void Eng907_SameContent_PackagesThatDifferOnlyBySignatureAndZipBytes_Pass()
     {
-        Result result = Compare([(".signature.p7s", "signature"), .. Entries], [.. Enumerable.Reverse(Entries)], "great.parts.cel.1.2.0.nupkg", ProtobufName, InjectionName, AspNetCoreName);
+        Result result = Compare([(".signature.p7s", "signature"), .. Entries], [.. Enumerable.Reverse(Entries)], "great.parts.cel.1.2.0.nupkg", ProtobufName, InjectionName, AspNetCoreName, PolicyName);
 
         Result.Expect(result, 0);
     }
@@ -510,7 +524,7 @@ public sealed class ReleaseGatesTests
         };
         (string Name, string Content)[] built = kind == "changed" ? [Entries[0], (Entries[1].Name, "other")] : Entries;
 
-        Result result = Compare(served, built, PackageName, ProtobufName, InjectionName, AspNetCoreName);
+        Result result = Compare(served, built, PackageName, ProtobufName, InjectionName, AspNetCoreName, PolicyName);
 
         Result.Expect(
             result,
@@ -518,6 +532,7 @@ public sealed class ReleaseGatesTests
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {PackageName}: {message}",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {AspNetCoreName}: {message}",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {InjectionName}: {message}",
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {PolicyName}: {message}",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {ProtobufName}: {message}");
     }
 
@@ -531,7 +546,8 @@ public sealed class ReleaseGatesTests
             1,
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {PackageName}: the build has no package of that name",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {AspNetCoreName}: the build has no package of that name",
-            $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {InjectionName}: the build has no package of that name");
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {InjectionName}: the build has no package of that name",
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: content check failed for {PolicyName}: the build has no package of that name");
     }
 
     [Theory]
@@ -552,7 +568,7 @@ public sealed class ReleaseGatesTests
     // ENG907: the download
 
     [Fact]
-    public void Eng907_Download_WritesTheFourPackagesAsNuGetGivesThemAfterWaitingForThem()
+    public void Eng907_Download_WritesTheFivePackagesAsNuGetGivesThemAfterWaitingForThem()
     {
         Stubs stubs = new();
         byte[] content = Zip(signed: true);
@@ -565,12 +581,14 @@ public sealed class ReleaseGatesTests
         Assert.Equal(content, File.ReadAllBytes(Path.Combine(target.Path, "nuget", ProtobufName)));
         Assert.Equal(content, File.ReadAllBytes(Path.Combine(target.Path, "nuget", InjectionName)));
         Assert.Equal(content, File.ReadAllBytes(Path.Combine(target.Path, "nuget", AspNetCoreName)));
+        Assert.Equal(content, File.ReadAllBytes(Path.Combine(target.Path, "nuget", PolicyName)));
         Assert.Equal(
             [
                 "https://api.nuget.org/v3-flatcontainer/great.parts.cel/1.2.0/great.parts.cel.1.2.0.nupkg",
                 "https://api.nuget.org/v3-flatcontainer/great.parts.cel.protobuf/1.2.0/great.parts.cel.protobuf.1.2.0.nupkg",
                 "https://api.nuget.org/v3-flatcontainer/great.parts.cel.dependencyinjection/1.2.0/great.parts.cel.dependencyinjection.1.2.0.nupkg",
                 "https://api.nuget.org/v3-flatcontainer/great.parts.cel.aspnetcore/1.2.0/great.parts.cel.aspnetcore.1.2.0.nupkg",
+                "https://api.nuget.org/v3-flatcontainer/great.parts.cel.policy/1.2.0/great.parts.cel.policy.1.2.0.nupkg",
             ],
             stubs.Source.Requests.Distinct().Select(address => address.AbsoluteUri));
         Assert.Equal([TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30)], stubs.Clock.Delays);
@@ -590,6 +608,7 @@ public sealed class ReleaseGatesTests
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {PackageName} is not on nuget.org after 15 minutes: the status is 404",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {AspNetCoreName} is not on nuget.org after 15 minutes: the status is 404",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {InjectionName} is not on nuget.org after 15 minutes: the status is 404",
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {PolicyName} is not on nuget.org after 15 minutes: the status is 404",
             $"tag/v1.2.0(1,1): error {EngCodes.Eng907}: {ProtobufName} is not on nuget.org after 15 minutes: the status is 404");
         Assert.Equal(TimeSpan.FromMinutes(15), stubs.Clock.Elapsed);
         Assert.False(File.Exists(Path.Combine(target.Path, PackageName)));
@@ -766,7 +785,7 @@ public sealed class ReleaseGatesTests
         return stream.ToArray();
     }
 
-    // nuget.org serves `served` as each of the four packages of the version; the directory of the build has the packages of the given file names with
+    // nuget.org serves `served` as each of the five packages of the version; the directory of the build has the packages of the given file names with
     // the content `built`. The result is that of the download with --same-content-as.
     private static Result Compare(IEnumerable<(string Name, string Content)> served, IEnumerable<(string Name, string Content)> built, params string[] builtNames)
     {
@@ -879,6 +898,7 @@ public sealed class ReleaseGatesTests
             root.Write("CHANGELOG.md", $"# Changelog\n\n## [{tag[1..]}] - {ChangelogDate}\n\n- Added a thing.\n\n## [0.9.0] - 2026-05-01\n\n- An older entry.\n");
             root.Write(RegressionPath, RegressionListText(RegressionRow("by-design", "S1")));
             root.Write(CelSpecPath, CelSpecListText(CelSpecRow("A reason.", "A link.", IssueLink)));
+            root.Write(PolicyListPath, CelSpecListText(CelSpecRow("A reason.", "A link.", IssueLink)));
             root.Write("tests/cel-spec/COMMIT", commits[1] + "\n");
             Fixture fixture = new(tag, root, celSpec, commits);
             fixture.Git("add", "-A");

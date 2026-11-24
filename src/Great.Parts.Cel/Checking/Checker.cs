@@ -31,6 +31,10 @@ internal sealed class Checker
     private const string OptionalSelectFunction = "_?._";
     private const string OptionalSelectId = "select_optional_field";
 
+    // The call cel.@block of the set bindings and the prefix of the names of its slots.
+    private const string BlockFunction = "cel.@block";
+    private const string SlotPrefix = "@index";
+
     private readonly CelParsedExpr _parsed;
     private readonly DeclarationIndex _declarations;
 
@@ -52,6 +56,17 @@ internal sealed class Checker
 
     // The variables of the enclosing comprehensions, the innermost last; a null type is the type error.
     private readonly List<(string Name, CelType? Type)> _locals = [];
+
+    // The list of slots of the block being checked, whose elements declare the locals @index0, @index1 and so on; null outside one.
+    private CelListNode? _slotList;
+
+    // The list that gives the result of the block being checked, when it is a list literal; null outside one. Like the list of slots,
+    // its element types are taken without the bindings of the type variables of the other elements, while _blockElementsFreeToDyn.
+    private CelListNode? _resultList;
+
+    // Whether the elements of the two lists of the block being checked take the types that cel-go gives a variable of its own: the
+    // type with its free type variables as dyn. False when the environment declares the slots itself.
+    private bool _blockElementsFreeToDyn;
 
     // The selections of the chain of names being resolved, the outermost first.
     private readonly List<CelSelectNode> _chain = [];
@@ -640,7 +655,26 @@ internal sealed class Checker
 
     private CelType? VisitGlobalCall(CelCallNode call)
     {
-        if (!VisitArguments(call.Arguments, 0, out CelType[] argumentTypes))
+        // The slots of a block are locals of its arguments: the list literal gives each one as its element is checked.
+        int localsBefore = _locals.Count;
+        CelListNode? outerSlots = _slotList;
+        CelListNode? outerResult = _resultList;
+        bool outerFreeToDyn = _blockElementsFreeToDyn;
+        if (call.Arguments.Length == 2
+            && string.Equals(call.Function, BlockFunction, StringComparison.Ordinal)
+            && call.Arguments[0] is CelListNode { OptionalIndices.IsEmpty: true } slots)
+        {
+            _slotList = slots;
+            _resultList = call.Arguments[1] as CelListNode;
+            _blockElementsFreeToDyn = !_declarations.TryGetVariable(SlotPrefix + "0", out _);
+        }
+
+        bool argumentsChecked = VisitArguments(call.Arguments, 0, out CelType[] argumentTypes);
+        _slotList = outerSlots;
+        _resultList = outerResult;
+        _blockElementsFreeToDyn = outerFreeToDyn;
+        _locals.RemoveRange(localsBefore, _locals.Count - localsBefore);
+        if (!argumentsChecked)
         {
             return null;
         }
@@ -936,6 +970,7 @@ internal sealed class Checker
         int nextOptional = 0;
         CelType? joined = null;
         bool hasError = false;
+        bool freeToDyn = _blockElementsFreeToDyn && (ReferenceEquals(list, _slotList) || ReferenceEquals(list, _resultList));
         for (int i = 0; i < elements.Length; i++)
         {
             CelType? type = Visit(elements[i]);
@@ -945,11 +980,35 @@ internal sealed class Checker
                 type = OptionalValue(elements[i], type);
             }
 
+            // cel-go checks each variable of a block alone and gives it the type of its expression, a free type variable as dyn: the
+            // type of the element itself keeps the variable, so that the node is dyn in the final types, but the join and the slot do
+            // not bind it to the other elements.
+            if (freeToDyn && type is not null)
+            {
+                type = SubstitutionRules.Apply(_substitution, type, freeToDyn: true);
+            }
+
             hasError |= type is null;
             joined = Join(joined, type);
+            if (ReferenceEquals(list, _slotList))
+            {
+                DeclareSlot(i, type);
+            }
         }
 
         return hasError ? null : CelType.ListOf(joined ?? NewVariable());
+    }
+
+    // The slot of the element at the index of the list of a block, as a local @index<N> with the type of the element, dyn when the
+    // element has an error. An environment that declares the name itself, as the internal set block of the runner of the
+    // cel-spec suite does, keeps its declaration.
+    private void DeclareSlot(int index, CelType? type)
+    {
+        string name = SlotPrefix + index.ToString(CultureInfo.InvariantCulture);
+        if (!_declarations.TryGetVariable(name, out _))
+        {
+            _locals.Add((name, type ?? CelType.Dyn));
+        }
     }
 
     // The joins of the key types and of the value types; the key types are not checked.
@@ -1023,7 +1082,7 @@ internal sealed class Checker
         bool leadingDot = name[0] == '.';
         ReadOnlySpan<char> written = leadingDot ? name.AsSpan(1) : name;
         written.CopyTo(NameRoom(written.Length));
-        var candidates = new NameCandidates(_names, _declarations.Container, written.Length, leadingDot);
+        NameCandidates candidates = CandidatesOf(written.Length, leadingDot);
         while (candidates.MoveNext(out ReadOnlySpan<char> candidate))
         {
             bool variable = _declarations.TryGetVariable(candidate, out _);
@@ -1268,11 +1327,25 @@ internal sealed class Checker
         return _names.AsSpan(start, length);
     }
 
+    // The candidates of the name in the name buffer: when its first part is an abbreviation and the name has no leading dot, the
+    // one name that the abbreviation expands to, instead of the candidates of the container, as cel-go v0.33.4 does; otherwise the
+    // candidates of the container.
+    private NameCandidates CandidatesOf(int length, bool asWritten)
+    {
+        string? expanded = null;
+        if (!asWritten && _declarations.HasAbbreviations)
+        {
+            _ = _declarations.TryExpandAbbreviation(_names.AsSpan(_declarations.Container.Length + 1, length), out expanded);
+        }
+
+        return new NameCandidates(_names, _declarations.Container, length, asWritten, expanded);
+    }
+
     // The variable, the type identifier or the enumeration constant that the name in the name buffer refers to, by the
     // candidates of the container; for each candidate in this order, as cel-go v0.33.4 Env.LookupIdent does.
     private bool TryResolveName(int length, bool asWritten, bool needsDot, [NotNullWhen(true)] out Reference? reference, [NotNullWhen(true)] out CelType? type)
     {
-        var candidates = new NameCandidates(_names, _declarations.Container, length, asWritten);
+        NameCandidates candidates = CandidatesOf(length, asWritten);
         while (candidates.MoveNext(out ReadOnlySpan<char> candidate))
         {
             if (_declarations.TryGetVariable(candidate, out CelVariableDecl? variable))
@@ -1312,7 +1385,7 @@ internal sealed class Checker
     // The declared function that the name in the name buffer refers to, by the candidates of the container.
     private bool TryResolveFunction(int length, bool asWritten, [NotNullWhen(true)] out string? function)
     {
-        var candidates = new NameCandidates(_names, _declarations.Container, length, asWritten);
+        NameCandidates candidates = CandidatesOf(length, asWritten);
         while (candidates.MoveNext(out ReadOnlySpan<char> candidate))
         {
             if (_declarations.TryGetFunction(candidate, out function))
@@ -1354,19 +1427,30 @@ internal sealed class Checker
         private readonly ReadOnlySpan<char> _container;
         private readonly int _length;
 
+        // The name with its first part expanded by an abbreviation, which is then the only candidate; null for none.
+        private string? _expanded;
+
         // The length of the prefix of the container in the next candidate; -1 after the last.
         private int _prefix;
 
-        internal NameCandidates(char[] buffer, string container, int length, bool asWritten)
+        internal NameCandidates(char[] buffer, string container, int length, bool asWritten, string? expanded = null)
         {
             _buffer = buffer;
             _container = container;
             _length = length;
-            _prefix = asWritten ? 0 : container.Length;
+            _expanded = expanded;
+            _prefix = expanded is not null ? -1 : asWritten ? 0 : container.Length;
         }
 
         internal bool MoveNext(out ReadOnlySpan<char> candidate)
         {
+            if (_expanded is not null)
+            {
+                candidate = _expanded;
+                _expanded = null;
+                return true;
+            }
+
             int nameStart = _container.Length + 1;
             if (_prefix <= 0)
             {

@@ -354,12 +354,13 @@ public sealed class BlockTests
         Assert.Equal(3, error.Location.Offset);
     }
 
-    // Names @index0 and the like are not declared: a tree with a slot reference does not pass the checker, which has no rule for them.
+    // The checker declares the slots of the list literal of a block, one for each of its elements: the name of a slot that the list does
+    // not have is not declared.
     [Fact]
-    public static void CheckedBlock_WithASlotReference_IsAnUndeclaredReference()
+    public static void CheckedBlock_WithAReferenceToASlotThatTheListDoesNotHave_IsAnUndeclaredReference()
     {
         var nodes = new NodeFactory();
-        CelExprNode root = Block(nodes, [Int(nodes, 1)], nodes.Ident("@index0", 12));
+        CelExprNode root = Block(nodes, [Int(nodes, 1)], nodes.Ident("@index1", 12));
 
         CheckResult checkedResult = BlockEnvironment().Check(nodes.Build(root, new LineTable(Text)));
 

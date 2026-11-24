@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Threading;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
@@ -85,7 +86,13 @@ public sealed partial class CelCompilationCache
     public CelCompileResult<T> GetOrCompile<T>(string expression, CelCompileOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(expression);
-        var key = new Key(expression, typeof(T), options?.ExpectedType, options?.SourceLocation, options?.PartialEvaluation ?? false);
+        var key = new Key(
+            expression,
+            typeof(T),
+            options?.ExpectedType,
+            options?.SourceLocation,
+            options?.PartialEvaluation ?? false,
+            new Segments(options?.SourceSegments ?? default));
         if (_entries.TryGetValue(key, out Entry? entry))
         {
             entry.Referenced = true;
@@ -198,9 +205,30 @@ public sealed partial class CelCompilationCache
         }
     }
 
-    // The text by ordinal comparison, the result type, the expected type by CelType.Equals, the source location by value and
-    // whether the program is compiled for partial evaluation; null options are options with the properties null and false.
-    private readonly record struct Key(string Text, Type ResultType, CelType? ExpectedType, CelSourceLocation? SourceLocation, bool PartialEvaluation);
+    // The text by ordinal comparison, the result type, the expected type by CelType.Equals, the source location by value, whether
+    // the program is compiled for partial evaluation and the source segments element by element; null options are options with
+    // every property null, false or empty.
+    private readonly record struct Key(
+        string Text,
+        Type ResultType,
+        CelType? ExpectedType,
+        CelSourceLocation? SourceLocation,
+        bool PartialEvaluation,
+        Segments SourceSegments);
+
+    // The source segments of the options as part of a key: an array of no segments, default or empty, equals any other such array,
+    // and two arrays are equal when their segments are equal one by one; the hash combines the count and the first and last segment.
+    private readonly struct Segments(ImmutableArray<CelSourceSegment> values) : IEquatable<Segments>
+    {
+        private readonly ImmutableArray<CelSourceSegment> _values = values.IsDefault ? [] : values;
+
+        public bool Equals(Segments other) => _values.AsSpan().SequenceEqual(other._values.AsSpan());
+
+        public override bool Equals(object? obj) => obj is Segments other && Equals(other);
+
+        public override int GetHashCode() =>
+            _values.IsDefaultOrEmpty ? 0 : HashCode.Combine(_values.Length, _values[0], _values[^1]);
+    }
 
     private sealed class Entry(Key key, object result)
     {

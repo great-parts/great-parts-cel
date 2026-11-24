@@ -30,3 +30,7 @@ Great.Parts.Cel.DependencyInjection ->
 
 [Great.Parts.Cel.AspNetCore]
 Great.Parts.Cel.AspNetCore ->
+
+[Great.Parts.Cel.Policy]
+Great.Parts.Cel.Policy -> Great.Parts.Cel.Policy.Yaml
+Great.Parts.Cel.Policy.Yaml ->

@@ -55,7 +55,10 @@ public sealed partial class CelCompileOptions
     /// a JSON string, shift the positions after them. A sum that would pass <see cref="int.MaxValue"/> stays at <see cref="int.MaxValue"/>.
     /// </para>
     /// </remarks>
-    /// <exception cref="ArgumentException">The value has no <see cref="CelSourceLocation.SourceName"/>, such as <c>default(CelSourceLocation)</c>.</exception>
+    /// <exception cref="ArgumentException">
+    /// The value has no <see cref="CelSourceLocation.SourceName"/>, such as <c>default(CelSourceLocation)</c>, or
+    /// <see cref="SourceSegments"/> is also set.
+    /// </exception>
     public CelSourceLocation? SourceLocation
     {
         get => _sourceLocation;
@@ -66,6 +69,11 @@ public sealed partial class CelCompileOptions
                 throw new ArgumentException(
                     "The start of an expression in a document must name the document; a position without a source name is a position in an expression.",
                     nameof(value));
+            }
+
+            if (value is not null && !_sourceSegments.IsDefaultOrEmpty)
+            {
+                throw new ArgumentException("The start of an expression and its source segments are exclusive: set one of them.", nameof(value));
             }
 
             _sourceLocation = value;

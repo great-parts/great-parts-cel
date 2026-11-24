@@ -280,7 +280,7 @@ public sealed partial class CelProgram<T>
             return new CelPartialEvalResult<T>(unknowns.MoveToImmutable(), cost, residual);
         }
 
-        CelEvalResult<T> result = Result(Plan, ResultType, value, cost, _start);
+        CelEvalResult<T> result = Result(Plan, ResultType, value, cost, _map);
         return result.IsSuccess
             ? new CelPartialEvalResult<T>(result.Value, cost, residual)
             : new CelPartialEvalResult<T>(result.Errors, cost, residual);

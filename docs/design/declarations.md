@@ -56,6 +56,19 @@ A conflicting pair is one error. In it the standard library comes before the app
 
 An overload of the application may extend a function of the standard library when it does not overlap it: `size` on an object of the application, `contains` with other argument types. Operators cannot be extended: their names fail 4015.
 
+## Abbreviations
+
+`AddAbbreviation(qualifiedName)` collects a qualified name whose last part becomes a short name in expressions (`dev.cel.example.Document` is `Document`), as `cel.Abbrevs` of cel-go. The names go to the `DeclarationSet`, so `ToBuilder()` keeps them, and `Build` checks them in the order of `string.CompareOrdinal` of the trimmed names, so the order of the calls changes neither the errors nor the abbreviation that is kept (`Declarations/AbbreviationChecks.cs`). Every error is `InvalidAbbreviation` (4020), stage `Build`, no location, `Subject` the name:
+
+| When | Message |
+| :- | :- |
+| the name is not a qualified identifier of two parts or more: an empty part, a part that is not an identifier, a reserved word, white space inside | `invalid qualified name: {name}, wanted name of the form 'qualified.name'` |
+| the name begins with a dot | `qualified name must not begin with a leading '.': {name}` |
+| the short name is the short name of an abbreviation that comes first, even with the same qualified name | `abbreviation collides with existing reference: name={name}, abbreviation={short}, existing={other}` |
+| the container is the short name, or begins with the short name and a dot (`x.T` with `a.b.T` is valid) | `abbreviation collides with container name: name={name}, abbreviation={short}, container={container}` |
+
+White space at the ends of a name is removed first, as `TrimSpace` of cel-go does, which a name read from a block of YAML needs. The container is checked against the abbreviations at `Build` in either order of the calls: cel-go checks it only when the abbreviation is added after the container. The valid abbreviations go to the name resolution of the checker ([checking](checking.md#name-resolution)).
+
 ## Extension sets in the declaration checks
 
 The sets of the builder go through the checks of [extensions](extensions.md#build-checks) first — 4003, 4004, 4005, 4018 — and only the surviving sets join the checks above. Their overloads are declarations like those of the standard library and the application, with the source `extension <name> v<version>` for a set of the catalog and `application` for a set of `CelExtension.Create`, which is a declaration of the application; the source of a catalog set sorts after `environment JSON` in the order of sources. What changes in each check:

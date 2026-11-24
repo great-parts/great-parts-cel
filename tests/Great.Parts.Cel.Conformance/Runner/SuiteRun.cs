@@ -38,14 +38,22 @@ internal static class SuiteRun
     /// <param name="skipList">The skip list of the suite.</param>
     /// <param name="evaluator">Runs a case.</param>
     /// <param name="cell">The cell of the run.</param>
-    internal static SuiteResult Run(IReadOnlyList<ConformanceCase> cases, SkipList skipList, ICaseEvaluator evaluator, RunCell cell)
+    internal static SuiteResult Run(IReadOnlyList<ConformanceCase> cases, SkipList skipList, ICaseEvaluator evaluator, RunCell cell) =>
+        Run(cases, skipList, testCase => Rule.Judge(testCase, evaluator.Evaluate(testCase)), cell);
+
+    /// <summary>Runs a suite whose cases are not judged by the <see cref="Rule"/> of the cel-go runner.</summary>
+    /// <param name="cases">The cases of the suite.</param>
+    /// <param name="skipList">The skip list of the suite.</param>
+    /// <param name="judge">Runs a case and judges its outcome.</param>
+    /// <param name="cell">The cell of the run.</param>
+    internal static SuiteResult Run(IReadOnlyList<ConformanceCase> cases, SkipList skipList, Func<ConformanceCase, Judgement> judge, RunCell cell)
     {
         ILookup<string, SkipEntry> entries = skipList.Entries.ToLookup(entry => entry.Case, StringComparer.Ordinal);
         List<Finding> findings = [.. skipList.Findings];
         int passed = 0;
         foreach (ConformanceCase testCase in cases)
         {
-            Judgement judgement = Rule.Judge(testCase, evaluator.Evaluate(testCase));
+            Judgement judgement = judge(testCase);
             SkipEntry? entry = entries[testCase.Name].FirstOrDefault(candidate => candidate.Scope.Contains(cell));
             if (judgement.Passed)
             {
