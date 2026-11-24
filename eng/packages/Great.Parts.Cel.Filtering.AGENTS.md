@@ -23,3 +23,14 @@ This file is for an agent that helps a developer use the package `Great.Parts.Ce
 - The value of a `decimal` field is checked as a number only: more than 34 digits is an error of evaluation of the item, not of the translation.
 - Do not parse the text of a filter yourself and do not build CEL text from it by hand: use `Parse` and the tree, or `Compile`.
 - The compiler is immutable and thread-safe: keep one per environment and options. It keeps no cache of programs; an application that compiles the same filter often keeps the program by the text of the filter.
+
+## Documentation
+
+The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
+
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
+- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)
+- [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)

@@ -8,13 +8,16 @@ namespace Great.Parts.Cel.Eng.Checks;
 
 /// <summary>
 /// The table of error codes of a Markdown page: the first table outside fenced code whose columns are <c>Code</c>, <c>Name</c>,
-/// <c>Stage</c> and <c>When it occurs</c> (<c>docs/design/eng-docs.md</c>, "error-codes"). It is read from the lines of the page, compared
-/// with the members of <c>CelErrorCode</c> and written from them.
+/// <c>Stage</c>, <c>When it occurs</c>, <c>Common cause</c> and <c>Fix</c> (<c>docs/design/eng-docs.md</c>, "error-codes"). It is read
+/// from the lines of the page, compared with the members of <c>CelErrorCode</c> and written from them. The first four columns come from
+/// the members; the last two are written by hand and kept when the table is written again.
 /// </summary>
 internal sealed class ErrorCodesTable
 {
-    private const string Separator = "| :- | :- | :- | :- |";
-    private static readonly string[] Columns = ["Code", "Name", "Stage", "When it occurs"];
+    private const string Separator = "| :- | :- | :- | :- | :- | :- |";
+    private const int CauseColumn = 4;
+    private const int FixColumn = 5;
+    private static readonly string[] Columns = ["Code", "Name", "Stage", "When it occurs", "Common cause", "Fix"];
 
     private ErrorCodesTable(int header, List<(int Line, List<string> Cells)> rows)
     {
@@ -57,17 +60,28 @@ internal sealed class ErrorCodesTable
 
     /// <summary>
     /// Returns the lines of the page with the table rewritten from the members, in the order of numbers; the other lines stay as they are.
+    /// The cells <c>Common cause</c> and <c>Fix</c> of a member are taken from its row of the page, and are empty for a member that has none.
     /// </summary>
     /// <param name="lines">The lines of the page.</param>
     /// <param name="members">The members of <c>CelErrorCode</c> sorted by number.</param>
     internal List<string> Rewrite(IReadOnlyList<string> lines, IReadOnlyList<ErrorCodeMember> members)
     {
+        Dictionary<string, List<string>> written = new(StringComparer.Ordinal);
+        foreach (List<string> row in Rows.Select(candidate => candidate.Cells).Where(candidate => candidate.Count > 1))
+        {
+            written.TryAdd(row[1].Trim('`'), row);
+        }
+
         List<string> result = [.. lines.Take(Header)];
         result.Add("| " + string.Join(" | ", Columns) + " |");
         result.Add(Separator);
-        result.AddRange(members.Select(member => string.Create(
-            CultureInfo.InvariantCulture,
-            $"| {member.Number} | `{member.Name}` | {member.Stage} | {member.Summary} |")));
+        result.AddRange(members.Select(member =>
+        {
+            written.TryGetValue(member.Name, out List<string>? existing);
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"| {member.Number} | `{member.Name}` | {member.Stage} | {member.Summary} | {Kept(existing, CauseColumn)} | {Kept(existing, FixColumn)} |");
+        }));
         int end = Rows.Count == 0 ? Header + 2 : Rows[^1].Line + 1;
         result.AddRange(lines.Skip(end));
         return result;
@@ -75,7 +89,8 @@ internal sealed class ErrorCodesTable
 
     /// <summary>
     /// Compares the rows with the members by name: a member without a row, and a row without a member, with another number, another stage
-    /// or another summary, is <c>ENG303</c>.
+    /// or another summary, is <c>ENG303</c>; a row of a member with an empty <c>Common cause</c> or an empty <c>Fix</c> is <c>ENG306</c>,
+    /// one finding for each empty cell.
     /// </summary>
     /// <param name="path">The path of the page relative to the repository root.</param>
     /// <param name="members">The members of <c>CelErrorCode</c>.</param>
@@ -90,6 +105,11 @@ internal sealed class ErrorCodesTable
             {
                 yield return Error(path, line, problem);
             }
+
+            foreach (string column in EmptyColumns(cells, byName))
+            {
+                yield return Gap(path, line, $"row '{cells[1].Trim('`')}' has an empty column '{column}'");
+            }
         }
 
         foreach (ErrorCodeMember member in members.Where(member => !seen.Contains(member.Name)))
@@ -100,6 +120,25 @@ internal sealed class ErrorCodesTable
 
     private static Finding Error(string path, int index, string message) =>
         new(path, index + 1, 1, FindingSeverity.Error, EngCodes.Eng303, message);
+
+    private static Finding Gap(string path, int index, string message) =>
+        new(path, index + 1, 1, FindingSeverity.Error, EngCodes.Eng306, message);
+
+    // The cell of a written column as it is written back: the cell is read with \| as |, so the bar is escaped again.
+    private static string Kept(List<string>? cells, int column) =>
+        cells is not null && cells.Count > column ? cells[column].Replace("|", "\\|", StringComparison.Ordinal) : string.Empty;
+
+    // The written columns that are empty in the row of a member. A row of six cells whose name is not a member, and a row of another
+    // number of cells, have only ENG303.
+    private static IEnumerable<string> EmptyColumns(List<string> cells, Dictionary<string, ErrorCodeMember> byName)
+    {
+        if (cells.Count != Columns.Length || !byName.ContainsKey(cells[1].Trim('`')))
+        {
+            return [];
+        }
+
+        return Columns.Skip(CauseColumn).Where((_, offset) => cells[CauseColumn + offset].Length == 0);
+    }
 
     // What is wrong with the row, or null when it matches its member. A matching row is recorded in seen.
     private static string? Problem(List<string> cells, Dictionary<string, ErrorCodeMember> byName, HashSet<string> seen)

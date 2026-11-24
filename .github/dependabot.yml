@@ -8,10 +8,12 @@ updates:
     directory: /
     # eng/min-sdk is the sample application of the check min-sdk: it builds on the oldest SDK with the package of this build,
     # so it has nothing to update. bench/ is the benchmark rig: the versions of the libraries that it compares are pinned for a
-    # comparison and change only with it (docs/design/eng-bench.md, "Packages").
+    # comparison and change only with it (docs/design/eng-bench.md, "Packages"). samples/ holds the samples that a user copies whole:
+    # their package versions are chosen for the sample and are changed by hand together with it.
     exclude-paths:
       - "eng/min-sdk/**"
       - "bench/**"
+      - "samples/**"
     schedule:
       interval: weekly
     open-pull-requests-limit: 5

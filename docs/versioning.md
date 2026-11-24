@@ -1,12 +1,13 @@
 # Versioning and compatibility
 
-The packages `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection` and `Great.Parts.Cel.AspNetCore` follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) and always have the same version. A breaking change comes only in a major version. This page says what is breaking, what a minor version may change, and what an application can rely on. Which versions get fixes is in [SECURITY.md](../SECURITY.md): versions 1.x get none, and from release 2.0 only the latest release does.
+The six packages `Great.Parts.Cel`, `Great.Parts.Cel.Protobuf`, `Great.Parts.Cel.DependencyInjection`, `Great.Parts.Cel.AspNetCore`, `Great.Parts.Cel.Policy` and `Great.Parts.Cel.Filtering` follow [Semantic Versioning 2.0.0](https://semver.org/spec/v2.0.0.html) and always have the same version. A breaking change comes only in a major version. This page says what is breaking, what a minor version may change, and what an application can rely on. Which versions get fixes is in [SECURITY.md](../SECURITY.md): versions 1.x get none, and from release 2.0 only the latest release does.
 
 ## What is breaking
 
 A change is breaking, and comes only in a major version, when it is one of these:
 
 - a change of the public API that breaks code written against it: a type or a member is removed or renamed, or its signature changes;
+- an overload that makes a call written against an earlier version ambiguous (compiler error CS0121), for example a method with a second delegate type of the same shape, so that a lambda or an `async` lambda fits both, or an overload that takes an array next to one that takes a span; a form like that comes as a method with a new name, not as an overload, in a minor version;
 - a different result, or a different error, for an expression that was valid in an earlier version;
 - the end of support of a .NET version: the packages target `net10.0` and `net11.0`.
 
@@ -29,7 +30,11 @@ A member of the public API can be removed or replaced in a major version without
 
 ## Classes that an application derives from
 
-An application derives from `CelObjectType` and `CelTypeProvider` to describe types of its own. A member that is added to either class in a minor version is `virtual` and has an implementation, so a class compiled against an earlier minor version keeps working with a later one. `CelList` and `CelMap` cannot be derived from outside the assembly: values of these types come from the factories of the library.
+An application derives from `CelObjectType`, `CelObjectType<TInstance>`, `CelTypeProvider` and `CelTypeContext` to describe types of its own, and the code that the source generator writes derives from them too. A member that is added to any of these classes in a minor version is `virtual` and has an implementation, so a class compiled against an earlier minor version keeps working with a later one; a new `abstract` member, or a new constraint, is a breaking change. `CelList` and `CelMap` cannot be derived from outside the assembly: values of these types come from the factories of the library.
+
+## What the created code calls
+
+The code that the source generator of a version 2.x writes works with every later 2.x, so what it calls and overrides does not change or go away in a minor version. This is the protected members of the classes above that the code overrides or uses (`GetField(in TInstance, int)`, `HasField`, `FieldReadCost`, `GetExcludedFieldReason`, `IsConstructible`, `CreateInstance`, `CanSetField`, `IsRequiredField`, and the `From…` helpers and `FieldError` of `CelObjectType`); the constructors of `CelObjectField`, `CelEnumType` and `CelTypeContext`; the factories `CelValue.From…`, `CelList.CreateView`, `CreateCopy` and `CreateSorted`, and `CelMap.CreateView`; `CelAnonymousData.Register`, `CelEnvironmentBuilder.AddVariable<T>` and `CelBindings.Add<T>`; and the members that name a type or a value kind: `CelType.ObjectNamed`, `ListOf`, `MapOf`, `WrapperOf` and the scalar `CelType` members, `CelTimestamp.FromDateTimeOffset`, `CelDuration`, `CelValueKind.Null` and `Decimal`, and the error codes `CelErrorCode.InvalidArgument`, `UnexpectedNull` and `ConversionRange`. A new form of one of these comes as a new overload or a new member beside the old one, which stays. See [What is contract](design/generator-output.md#what-is-contract) for the form of the text.
 
 ## What does not change
 

@@ -12,6 +12,12 @@ internal sealed class DuplicatesCommand : ICheckCommand
     /// <summary>The length of the window of the search in tokens; the shortest repeat that is a pair.</summary>
     internal const int WindowTokens = 100;
 
+    /// <summary>
+    /// The directory under the root whose files are not searched and form no pair with other files. A sample is copied whole into another
+    /// project, so every sample carries its own introduction, and the samples repeat each other on purpose.
+    /// </summary>
+    internal const string ExcludedDirectory = "samples/";
+
     /// <inheritdoc/>
     public string Name => "duplicates";
 

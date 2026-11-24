@@ -1,16 +1,1 @@
 #nullable enable
-Great.Parts.Cel.AspNetCore.CelAuthorizationExtensions
-Great.Parts.Cel.AspNetCore.CelAuthorizationRequirement
-Great.Parts.Cel.AspNetCore.CelAuthorizationRequirement.Expression.get -> string!
-Great.Parts.Cel.AspNetCore.CelAuthorizationRequirement.ResourceType.get -> System.Type?
-Great.Parts.Cel.AspNetCore.CelEndpointExtensions
-Great.Parts.Cel.AspNetCore.CelValidateAttribute<TRequest>
-Great.Parts.Cel.AspNetCore.CelValidateAttribute<TRequest>.CelValidateAttribute(string! expression, string! message) -> void
-Great.Parts.Cel.AspNetCore.CelValidateAttribute<TRequest>.Expression.get -> string!
-Great.Parts.Cel.AspNetCore.CelValidateAttribute<TRequest>.Message.get -> string!
-Great.Parts.Cel.AspNetCore.CelValidateAttribute<TRequest>.OnActionExecutionAsync(Microsoft.AspNetCore.Mvc.Filters.ActionExecutingContext! context, Microsoft.AspNetCore.Mvc.Filters.ActionExecutionDelegate! next) -> System.Threading.Tasks.Task!
-static Great.Parts.Cel.AspNetCore.CelAuthorizationExtensions.AddCelAuthorization(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string? environmentName = null) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
-static Great.Parts.Cel.AspNetCore.CelAuthorizationExtensions.RequireCel(this Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder! builder, string! expression) -> Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder!
-static Great.Parts.Cel.AspNetCore.CelAuthorizationExtensions.RequireCel<TResource>(this Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder! builder, string! expression) -> Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder!
-static Great.Parts.Cel.AspNetCore.CelEndpointExtensions.WithCelValidation<TRequest>(this Microsoft.AspNetCore.Builder.RouteHandlerBuilder! builder, string! expression, string! message) -> Microsoft.AspNetCore.Builder.RouteHandlerBuilder!
-static Great.Parts.Cel.AspNetCore.CelEndpointExtensions.WithCelValidation<TRequest>(this Microsoft.AspNetCore.Routing.RouteGroupBuilder! builder, string! expression, string! message) -> Microsoft.AspNetCore.Routing.RouteGroupBuilder!

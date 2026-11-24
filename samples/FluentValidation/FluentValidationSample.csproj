@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!--
+    FluentValidation is the package of this sample only: the libraries of Great.Parts.Cel do not depend on it. The version is named here,
+    as it is in the project of a user. The project is not called FluentValidation, so that its assembly does not take the name of the
+    package.
+  -->
+  <ItemGroup>
+    <PackageReference Include="FluentValidation" Version="12.2.0" />
+  </ItemGroup>
+
+  <!--
+    These two items build the packages from the sources of this repository. In your own project delete them and run
+    `dotnet add package Great.Parts.Cel`: the package carries the source generator.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

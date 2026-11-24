@@ -55,7 +55,7 @@ Reading C# sources has its own cases in `SuppressionsTests` and `DuplicatesTests
 - `PackagesTests` build `.nupkg` files with `System.IO.Compression`: one package per case, with an entry, a group or a license expression that breaks the list.
 - `SignoffTests` create a git repository in the temporary root with `git init` and make commits with and without the trailer: a plain commit, a merge and a commit of a bot.
 - `ExamplesTests` build and run generated example programs, so they take longer than the others.
-- `ErrorCodesPageTests` compare pages with member lists given by the test; one test reads the members from the built library.
+- `ErrorCodesPageTests` compare pages with member lists given by the test; one test reads the members from the built library. The pages have the six columns `Code`, `Name`, `Stage`, `When it occurs`, `Common cause` and `Fix`: the cases for `ENG306` give a row without a cause, a row without a fix, a row without both (one finding for each column), a row that has `ENG303` and `ENG306` at the same place, and a row that is not the row of a member (`ENG303` only); the cases of `--write` check that the cells `Common cause` and `Fix` of a row are kept whatever the order of the rows and are empty for a member that had no row; a table of the four columns of the earlier form is not the table.
 
 `SignoffTests` and `ExamplesTests` need `git` and the .NET SDK; both are in the container image and on the CI runners.
 ## Rules shared with all tests

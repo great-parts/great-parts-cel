@@ -1,0 +1,16 @@
+<Project>
+
+  <!--
+    The samples are applications of a user, not code of the library. This file stands between them and the Directory.Build.props of the
+    repository root, whose strict checks (analyzers as errors, XML documentation, the architecture analyzer, restore from lock files)
+    are written for the library, so no setting of the root applies here. Each project keeps in its own file what a project of a user
+    needs: the target framework, nullable reference types and implicit usings.
+  -->
+  <PropertyGroup>
+    <!-- A warning of the compiler, also one about the source generator of the package, is a build error. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- A new advisory about a package must not break the build of a sample that did not change. -->
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+
+</Project>

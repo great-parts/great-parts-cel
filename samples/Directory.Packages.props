@@ -1,0 +1,12 @@
+<Project>
+
+  <!--
+    This file stands between the samples and the Directory.Packages.props of the repository root, so the central management of
+    package versions does not apply here. A sample that needs a package names its version in its own project file, as the project of
+    a user does; no sample restores from a lock file.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+</Project>

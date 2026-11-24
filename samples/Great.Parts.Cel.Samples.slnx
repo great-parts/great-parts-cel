@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="SimpleEntry/SimpleEntry.csproj" />
+  <Project Path="EnvironmentAndJson/EnvironmentAndJson.csproj" />
+  <Project Path="AppObject/AppObject.csproj" />
+  <Project Path="ValidateOnSave/ValidateOnSave.csproj" />
+  <Project Path="AppFunctions/AppFunctions.csproj" />
+  <Project Path="WebService/WebService.csproj" />
+  <Project Path="CacheAndBulk/CacheAndBulk.csproj" />
+  <Project Path="FluentValidation/FluentValidationSample.csproj" />
+</Solution>

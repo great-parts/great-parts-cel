@@ -19,6 +19,8 @@ public sealed class DuplicatesTests
     private const int MethodTokens = (Statements * (Statements + 5)) + 8;
     private const int ClassTokens = MethodTokens + 4;
 
+    private static readonly string[] SamplesPaths = ["samples/First/Program.cs", "samples/Second/Program.cs", "samples-extra/Third.cs", "src/Fourth.cs"];
+
     // ---- What is found ----
 
     [Fact]
@@ -129,6 +131,21 @@ public sealed class DuplicatesTests
             Error("src/A.cs", 1, 1, $"{ClassTokens} tokens duplicated at src/B.cs(1,1)"),
             Error("src/A.cs", 1, 1, $"{ClassTokens} tokens duplicated at src/C.cs(1,1)"),
             Error("src/B.cs", 1, 1, $"{ClassTokens} tokens duplicated at src/C.cs(1,1)"));
+    }
+
+    [Fact]
+    public void FilesUnderSamples_AreNotSearchedAndFormNoPairWithOtherFiles()
+    {
+        string code = ClassFile("Same", Method("F", "v", "1"));
+        using TempDirectory root = new();
+        foreach (string path in SamplesPaths)
+        {
+            root.Write(path, code);
+        }
+
+        // The directory samples-extra only starts like samples: it is searched, so its file and the file of src repeat each other.
+        FindingAssert.Exactly(Run(root, 100), Error("samples-extra/Third.cs", 1, 1, $"{ClassTokens} tokens duplicated at src/Fourth.cs(1,1)"));
+        Assert.Equal("samples/", DuplicatesCommand.ExcludedDirectory);
     }
 
     // ---- What is not a token ----

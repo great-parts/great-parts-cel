@@ -3,12 +3,17 @@
 ![Great.Parts.Cel logo](https://raw.githubusercontent.com/great-parts/great-parts-cel/main/eng/packages/icon.png)
 
 [![NuGet version](https://img.shields.io/nuget/v/Great.Parts.Cel.Filtering)](https://www.nuget.org/packages/Great.Parts.Cel.Filtering)
+[![NuGet downloads](https://img.shields.io/nuget/dt/Great.Parts.Cel.Filtering)](https://www.nuget.org/packages/Great.Parts.Cel.Filtering)
 [![CI status](https://img.shields.io/github/actions/workflow/status/great-parts/great-parts-cel/ci.yml?branch=main&label=ci)](https://github.com/great-parts/great-parts-cel/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/LICENSE)
+[![OpenSSF Best Practices](https://img.shields.io/cii/level/16897)](https://www.bestpractices.dev/projects/16897)
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/great-parts/great-parts-cel?label=openssf%20scorecard&style=flat)](https://scorecard.dev/viewer/?uri=github.com/great-parts/great-parts-cel)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/great-parts/great-parts-cel/blob/main/LICENSE)
 
 AIP-160 filters for [Great.Parts.Cel](https://www.nuget.org/packages/Great.Parts.Cel), the CEL (Common Expression Language) library for .NET / C#.
 
 A list method of an API often takes a `filter`: the text of [AIP-160](https://google.aip.dev/160), such as `author.name = "Frank Herbert" AND published > "2026-01-01T00:00:00Z"`. The package translates the text into an ordinary CEL expression of your environment, type-checks it there and compiles it into a program that tells for each item whether it matches. Every error has its place in the text of the filter, and a client that sends the filter gets the errors back, not an exception. The package depends only on `Great.Parts.Cel` and uses no reflection, so it works under trimming and Native AOT and in the browser.
+
+Documentation: start with [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md), seven short scenarios from the first expression to a web service; the pages are listed in the Documentation section below.
 
 ## Install
 
@@ -104,6 +109,17 @@ The corpus is a set of cases, not a measure of conformance: there is no share an
 
 The package carries a file `AGENTS.md` in its root: when to use the package, what the translation does, and the mistakes that are easy to make. The NuGet MCP server returns it with its tool `get_package_context` for a package that is restored on the machine.
 
+## Documentation
+
+The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
+
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
+- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)
+- [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)
+
 ## License
 
-[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/LICENSE).
+[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/main/LICENSE).

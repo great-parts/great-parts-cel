@@ -1,6 +1,6 @@
 # eng/docs
 
-`eng/docs` checks the documentation: the C# examples of `README.md`, `docs/` and the XML documentation compile and print what they show, the error codes page matches the error codes of the library, and relative links, files and anchors exist. It is separate from `eng/test`, which stays fast. It is the service `docs` of `eng/compose.yaml` with the image stage `docs`, see [eng-test.md](eng-test.md).
+`eng/docs` checks the documentation: the C# examples of `README.md`, `docs/` and the XML documentation compile and print what they show, the error codes page matches the error codes of the library and has a common cause and a fix for each of them, and relative links, files and anchors exist. The samples of `samples/` are checked beside it, in CI only, see [samples](#samples). It is separate from `eng/test`, which stays fast. It is the service `docs` of `eng/compose.yaml` with the image stage `docs`, see [eng-test.md](eng-test.md).
 
 ## Steps
 
@@ -48,7 +48,7 @@ CI runs the checks of this page, with the external links, on every push to `main
 | `Directory.Build.props`, `Directory.Packages.props` | the settings and the package versions of the build of step 1 |
 | `.github/workflows/ci.yml` | the cell of the examples and of the external links |
 
-Not triggers: `tests/`, `eng/tests/`, `eng/difftest/`, `eng/oracle/`, `eng/analyzers/`, `eng/min-sdk/`, the rest of `eng/packages/`, `eng/ratchet.json`, `eng/layers.txt`, `eng/BannedSymbols.txt`, `eng/stryker-control.json`, `stryker-config.json`, `.editorconfig`, `NuGet.config`, `.config/dotnet-tools.json`; the files of the root that lychee does not read — `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `AGENTS.md`. A failing test of the checks is shown by the jobs of the tests of `ci.yml`. The external links are not checked by the run on the host: the job `Docs` of CI checks them.
+Not triggers: `samples/` (the job `Samples` of CI checks it, see [samples](#samples)), `tests/`, `eng/tests/`, `eng/difftest/`, `eng/oracle/`, `eng/analyzers/`, `eng/min-sdk/`, the rest of `eng/packages/`, `eng/ratchet.json`, `eng/layers.txt`, `eng/BannedSymbols.txt`, `eng/stryker-control.json`, `stryker-config.json`, `.editorconfig`, `NuGet.config`, `.config/dotnet-tools.json`; the files of the root that lychee does not read — `CONTRIBUTING.md`, `SECURITY.md`, `SUPPORT.md`, `CODE_OF_CONDUCT.md`, `CHANGELOG.md`, `AGENTS.md`. A failing test of the checks is shown by the jobs of the tests of `ci.yml`. The external links are not checked by the run on the host: the job `Docs` of CI checks them.
 
 ## examples
 
@@ -101,14 +101,25 @@ Checks that the page of error codes matches the members of `CelErrorCode`.
 
 - **Members.** The command reads `src/Great.Parts.Cel/bin/Release/net10.0/Great.Parts.Cel.dll`, built by step 1, with `System.Reflection.Metadata`: the name and the constant value of every field of `Great.Parts.Cel.Diagnostics.CelErrorCode`. The summaries come from `Great.Parts.Cel.xml` next to it. Nothing of the library is loaded or run.
 - **Stage.** It follows from the number, as the documentation of `CelErrorCode` states: 1000–1999 `Parse`, 2000–2999 `Check`, 3000–3999 `Evaluate`, 4000–4999 `Build`, 9000–9999 `Any`.
-- **Page.** The path is given by `--page`. The table of codes is the first table of the page with the columns `Code`, `Name`, `Stage` and `When it occurs`.
-- **Comparison** by name: a member without a row — `ENG303` at the first line of the table, the message names the member; a row without a member, another number, another stage, another summary, a second row of the same member or a row without four cells — `ENG303` at the row. The summary of a member is compared in the form that `--write` gives it: one line, `<c>`, `<see cref>`, `<see langword>` and `<paramref>` as code spans, `|` as `\|`, white space collapsed.
+- **Page.** The path is given by `--page`. The table of codes is the first table of the page with the six columns `Code`, `Name`, `Stage`, `When it occurs`, `Common cause` and `Fix`. The first four come from the members and the XML documentation; `Common cause` and `Fix` are written by hand, and every code has both, so that the page of troubleshooting is the table. The other table of the page, "Parts of an error", has other columns and is not read. A table with the four columns of an earlier form is not the table.
+- **Comparison** by name: a member without a row — `ENG303` at the first line of the table, the message names the member; a row without a member, another number, another stage, another summary, a second row of the same member or a row without six cells — `ENG303` at the row. The summary of a member is compared in the form that `--write` gives it: one line, `<c>`, `<see cref>`, `<see langword>` and `<paramref>` as code spans, `|` as `\|`, white space collapsed.
+- **Troubleshooting columns.** In the row of a member the cell `Common cause` or `Fix` that is empty, or only white space, is `ENG306` at the row; the message names the column, and a row with both cells empty has two findings. The text of the cells is not compared with anything: the check only requires that the author wrote it. A row that is not the row of a member, and a row without six cells, have `ENG303` only.
 - **Input.** A missing library, XML documentation or page, a page without the table, and a member whose number is in none of the ranges of the stages are inputs that cannot be used: exit code 2, the message names the file or the member.
-- **Writing.** With `--write` the command rewrites the table from the members, in the order of numbers, with the summary of each member in the last column; the rest of the page stays as it is. The page is thus built from the members and their XML documentation, and the check finds a page that was not rebuilt.
+- **Writing.** With `--write` the command rewrites the table from the members, in the order of numbers, with the summary of each member in the fourth column; the rest of the page stays as it is. The cells `Common cause` and `Fix` of a row that the page already has for the member are kept as they were written (a `|` in a cell is read and written back as `\|`); a member that has no row gets empty cells, which `ENG306` then reports until they are written. The page is thus built from the members and their XML documentation, and the check finds a page that was not rebuilt.
 
 ```text
 docs/error-codes.md(57,1): error ENG303: row 'TimeZoneNotFound' differs from CelErrorCode: number 3021, expected 3022
+docs/error-codes.md(31,1): error ENG306: row 'TypeMismatch' has an empty column 'Fix'
 ```
+
+## samples
+
+Checks that the samples of `samples/` build and run. A sample is a console application that shows one scenario of the page `docs/getting-started.md`, or a recipe, and that a user copies whole into a project of their own. The samples are listed in `samples/Great.Parts.Cel.Samples.slnx`, which is not part of `Great.Parts.Cel.slnx`: the solution of the library neither builds nor packs them, and `release.yml` and `coverage.yml` do not touch them. They stand apart from the settings of the repository (`samples/Directory.Build.props`, `samples/Directory.Packages.props`, `samples/.editorconfig`), refer to the projects of the packages, and have no lock files.
+
+- **Where.** The job `Samples` of `ci.yml`, on every push to `main` and every pull request. It is not a step of `eng/docs`: one sample restores `FluentValidation` from nuget.org, and the container of `eng/docs` has no network. For a manual run on the host the two commands of the job are the check.
+- **Build.** `dotnet build samples/Great.Parts.Cel.Samples.slnx -c Release -p:TreatWarningsAsErrors=true`. The restore is not locked, because the samples have no lock files. Every warning is an error, also in a project that turned the setting off. The SDK is the one of `global.json`: the samples refer to the projects of the packages, which build for `net10.0` and `net11.0`.
+- **Run.** Every project of `samples/*/` must have been built, or the step fails, so a project that is not in the solution is found. The step runs each application of the build, once for each target framework it has, in the directory of its project, with a time limit of 60 seconds (`timeout`, exit code 124). The exit code must be 0. A project with no `runtimeconfig.json` in its output is a library and is not run. A sample must end by itself: `WebService` starts the host, sends its request to itself and stops it.
+- **Not in the checks of `eng/checks`.** The samples are C# files of the repository, so `suppressions` reads them: a suppression in a sample needs its reason and raises the baseline of `eng/ratchet.json`, as anywhere else. `duplicates` does not read them, see [eng-checks.md](eng-checks.md#repository-helpers): the samples repeat each other on purpose. `examples` and `links` do not read `samples/` either.
 
 ## links
 

@@ -22,8 +22,10 @@ namespace Great.Parts.Cel.Values;
 /// a <see cref="CelTypeContext"/>; <see cref="CelObjectTypeBuilder{TCarrier}"/> and
 /// <see cref="CelObjectTypeBuilder"/>, which describe types at run time, without a .NET type; and the
 /// package for protobuf messages. An application adds descriptions to an environment through a
-/// <see cref="CelTypeProvider"/>. Deriving from this class directly is not a supported way to describe
-/// application types: field numbers, presence and equality would have to be written by hand.
+/// <see cref="CelTypeProvider"/>. Deriving from this class directly is not the recommended way to describe
+/// application types: field numbers, presence and equality would have to be written by hand. Its protected
+/// members follow the compatibility rules of the page
+/// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md">Versioning</see>.
 /// </para>
 /// <para>
 /// The protected and abstract members are the contract between the library and the code that derives

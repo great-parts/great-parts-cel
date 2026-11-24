@@ -37,6 +37,24 @@ Replace the content of `Program.cs` with the example:
 ```csharp
 using Great.Parts.Cel;
 
+Console.WriteLine(CelExpression.Evaluate<long>("(x + 2) / 3", new { x = 40L })); // Output: 14
+Console.WriteLine(CelExpression.Evaluate<long>("(x + 2) / 3", new { x = -5L })); // Output: -1
+```
+
+Run it:
+
+```shell
+dotnet run
+```
+<!-- quick-start:end -->
+
+`CelExpression.Evaluate<T>` is the simple entry: it compiles the expression, binds the variables from the properties of the anonymous object (here `x`, of the CEL type `int`) and returns the result as `T`. Every error is thrown as `CelException`, and every call has a cost limit.
+
+For rules that run many times, build an environment once and compile each expression once. The environment declares what an expression may use: here the standard library and one variable `x`. `Compile<long>` parses the expression, checks its types and returns a program. The program is immutable: it is evaluated any number of times, from any number of threads. Errors are returned as results, each with its place in the expression; `Get…OrThrow()` turns an error into an exception and keeps the example short.
+
+```csharp
+using Great.Parts.Cel;
+
 CelEnvironment environment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
     .AddVariable<long>("x")
     .Build()
@@ -48,14 +66,7 @@ Console.WriteLine(program.Evaluate(new CelBindings().Add("x", 40L)).GetValueOrTh
 Console.WriteLine(program.Evaluate(new CelBindings().Add("x", -5L)).GetValueOrThrow()); // Output: -1
 ```
 
-Run it:
-
-```shell
-dotnet run
-```
-<!-- quick-start:end -->
-
-The environment declares what an expression may use: here the standard library and one variable `x` of the CEL type `int`. `Compile<long>` parses the expression, checks its types and returns a program. The program is immutable: it is evaluated any number of times, from any number of threads. Errors are returned as results, each with its place in the expression; `Get…OrThrow()` turns an error into an exception and keeps the example short.
+[Getting Started](docs/getting-started.md) has seven scenarios, from the simple entry on: an environment with variables and `JsonElement`, objects of the application, validation of a rule when a user saves it, functions of the application, a web service, and the compilation cache.
 
 ## What it covers
 
@@ -94,10 +105,24 @@ Every pull request and every push to `main` runs [CI](.github/workflows/ci.yml):
 - The examples of this README and of `docs/` are compiled and run, and their output is compared with the output they show. The links are checked.
 - A differential run compares the library with cel-go on generated expressions on every push to `main` and every night, and a run of at least two hours on the commit of a release must pass before the release is published. A release also waits for every difference that is not analysed yet. Differences that have been analysed are listed in [known-differences.md](tests/Great.Parts.Cel.Conformance/Regression/known-differences.md); see [Conformance](docs/conformance.md#differential-run-against-cel-go).
 
+## Packages
+
+| Package | What it gives |
+| :- | :- |
+| [`Great.Parts.Cel`](https://www.nuget.org/packages/Great.Parts.Cel) | The core: compile and evaluate CEL, the standard library, extension sets, the source generator |
+| [`Great.Parts.Cel.Protobuf`](https://www.nuget.org/packages/Great.Parts.Cel.Protobuf) | Messages of protobuf in expressions |
+| [`Great.Parts.Cel.DependencyInjection`](https://www.nuget.org/packages/Great.Parts.Cel.DependencyInjection) | An environment, a compilation cache and an evaluator as services; the validation of options |
+| [`Great.Parts.Cel.AspNetCore`](https://www.nuget.org/packages/Great.Parts.Cel.AspNetCore) | Authorization policies and the validation of requests of minimal API endpoints |
+| [`Great.Parts.Cel.Policy`](https://www.nuget.org/packages/Great.Parts.Cel.Policy) | Policies in the CEL policy format (2.0) |
+| [`Great.Parts.Cel.Filtering`](https://www.nuget.org/packages/Great.Parts.Cel.Filtering) | AIP-160 filters as CEL expressions (2.0) |
+
 ## Documentation
 
 The documentation of a release is the content of this repository at the tag of the release, for example `v1.0.0`. The pages below and the links in the XML documentation of the packages point to the branch `main`, which can be newer than the version you use: open the page at the tag of your version.
 
+- [Getting Started](docs/getting-started.md): seven scenarios, from a first expression to a web service, each with a runnable sample.
+- [Samples](samples/): the projects of the scenarios, `SimpleEntry`, `EnvironmentAndJson`, `AppObject`, `ValidateOnSave`, `AppFunctions`, `WebService`, `CacheAndBulk`, and `FluentValidation`.
+- [FluentValidation recipe](docs/recipes/fluentvalidation.md): CEL rules next to the validators of FluentValidation.
 - [Standard library](docs/standard-library.md): the functions, operators, macros and type identifiers of version 1, with their errors.
 - [Extension sets](docs/extensions.md): the catalog, the versions and every function of every set.
 - [API concepts](docs/api-concepts.md): every public type and the CEL concept it stands for.

@@ -29,7 +29,10 @@ internal sealed class TokenStream
     /// <summary>The number of tokens of all the files.</summary>
     internal int Count => _kinds.Length;
 
-    /// <summary>Builds the stream of the files under the symbol set at the index.</summary>
+    /// <summary>
+    /// Builds the stream of the files under the symbol set at the index. The files of <see cref="DuplicatesCommand.ExcludedDirectory"/>
+    /// have no tokens in it; the index of a file stays its index in <paramref name="files"/>.
+    /// </summary>
     /// <param name="files">The C# files that are not generated, in the order of their paths.</param>
     /// <param name="setIndex">The index of the symbol set: the parse of each file under it is read.</param>
     internal static TokenStream Build(IReadOnlyList<CSharpFile> files, int setIndex)
@@ -40,6 +43,11 @@ internal sealed class TokenStream
         List<int> owners = [];
         for (int file = 0; file < files.Count; file++)
         {
+            if (files[file].Path.StartsWith(DuplicatesCommand.ExcludedDirectory, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             foreach (SyntaxToken token in files[file].Parses[setIndex].Tree.GetRoot().DescendantTokens())
             {
                 if (token.IsMissing || token.IsKind(SyntaxKind.EndOfFileToken))

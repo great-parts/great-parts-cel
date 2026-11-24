@@ -1,5 +1,6 @@
 # Build and tests on GitHub: JIT on Linux and macOS, Native AOT on linux-x64, browser-wasm under Node.js, all for net10.0 and net11.0, the documentation checks (examples,
-# error codes page, links) on Linux, the quick start of the README on the package of the commit, plus the Signed-off-by check.
+# error codes page, links) on Linux, the quick start of the README on the package of the commit, the samples of samples/ (built and run),
+# plus the Signed-off-by check.
 # The two suites of conformance, cel-spec and CEL Policy, run in every one of these modes: as tests of tests/Great.Parts.Cel.Conformance in the
 # JIT and the Native AOT cells (the CEL Policy package has its own tests, tests/Great.Parts.Cel.Policy.Tests, in the same loops), and in the
 # runner of browser-wasm, whose log must hold the summary line of each suite. The content and the closure of every package, the CEL Policy
@@ -405,6 +406,51 @@ jobs:
 
       - name: Quick start (eng/checks quick-start)
         run: dotnet run --project eng/checks -c Release --no-build -- quick-start --packages artifacts/quick-start/packages --image "$QUICK_START_IMAGE"
+
+  # The samples (docs/design/eng-docs.md, "samples"): every project of samples/Great.Parts.Cel.Samples.slnx is built with every warning an
+  # error, and every application is run once: the exit code has to be 0 and the run has to end within 60 seconds. The samples are isolated
+  # from the settings of the repository (samples/Directory.Build.props) and refer to the projects of the packages, so the SDK is the one of
+  # global.json. They have no lock files and no central package versions, so the restore is not locked; one of them restores
+  # FluentValidation from nuget.org. This is a job of its own, not a step of eng/docs: the container of eng/docs has no network.
+  samples:
+    name: Samples
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          global-json-file: global.json
+          dotnet-version: 10.0.x
+
+      # The property is global, so a project of the samples that turned the setting off would still fail on a warning.
+      - name: Build (warnings are errors)
+        run: dotnet build samples/Great.Parts.Cel.Samples.slnx -c Release -p:TreatWarningsAsErrors=true
+
+      # A project of samples/ without a build output is not in the solution: it would never be built or run. A project whose build
+      # has no runtimeconfig.json is a library and has nothing to run. An application runs in its own directory, once for each target
+      # it has, and WebService makes its request to itself and ends, so no sample waits for a stop.
+      - name: Run every sample (exit code 0 within 60 s)
+        run: |
+          set -u
+          status=0
+          for project in samples/*/*.csproj; do
+            directory=$(dirname "$project")
+            if [ ! -d "$directory/bin/Release" ]; then
+              echo "== $project was not built: it is not in samples/Great.Parts.Cel.Samples.slnx"
+              status=1
+              continue
+            fi
+            for config in "$directory"/bin/Release/*/*.runtimeconfig.json; do
+              [ -e "$config" ] || continue
+              app="${config%.runtimeconfig.json}.dll"
+              echo "== run $app"
+              ( cd "$directory" && timeout 60 dotnet "${app#"$directory"/}" ) || { echo "== $app failed with the exit code $? (124 is the time limit)"; status=1; }
+            done
+          done
+          exit $status
 
   # Signed-off-by of every commit that reaches main (push: before..after, merges and bots included) and of every commit of a pull
   # request except those of Dependabot. A new branch or the first push has before = 0000..., then all commits of after are checked.

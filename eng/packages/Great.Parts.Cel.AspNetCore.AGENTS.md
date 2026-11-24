@@ -86,7 +86,7 @@ public sealed record CreateOrder(long Id, IReadOnlyList<string> Items, long Tota
 ```
 
 - The fields of `TRequest` are the variables of the expression (`items`, `total`), not `request.items`. The environment is derived with `UseInput<TRequest>()`, so a type source of the registered environment must describe `TRequest`; the derived environment and the compiled expression are created once.
-- `true` runs the handler. `false` answers 400 with a validation problem that has your message. A compilation or evaluation error also answers 400 with the code of the error. A handler without an argument of the type `TRequest` answers 400 too.
+- `true` runs the handler. `false` answers 400 with a validation problem whose `errors` map holds your message under the empty key: `errors[""]` is `["<your message>"]`. A compilation or evaluation error answers 400 with `detail` set to `The validation rule failed with the error <code>.`, where `<code>` is the `CelErrorCode`. A handler without an argument of the type `TRequest` answers 400 with `detail` set to `The request has no argument of the type <type>.` Test the status and, for a failed rule, `errors[""]`; do not parse `detail`.
 - The call on a group applies the filter to every endpoint of the group.
 - `WithCelValidation` takes one type argument: write `WithCelValidation<CreateOrder>(…)`, nothing else.
 - MVC controllers: `[CelValidate<TRequest>("expression", "message")]` on an action or a controller (an `IAsyncActionFilter`) works the same way, with the argument of the action of the type `TRequest`. The attribute itself uses no reflection, but MVC does not support Native AOT: an application published with Native AOT uses minimal API endpoints and `WithCelValidation`.
@@ -105,12 +105,14 @@ public sealed record CreateOrder(long Id, IReadOnlyList<string> Items, long Tota
 
 ## Documentation
 
-The documentation of a release is the content of the repository at the tag of the release; these links point to the tag `v2.0.0`.
+The documentation of a release is the content of the repository at the tag of the release; until the release of 2.0, these links point to the `main` branch of the repository.
 
-- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/README.md)
-- [API concepts](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/api-concepts.md)
-- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/type-mapping.md)
-- [Error codes](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/error-codes.md)
-- [Limits](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/limits.md) and [Cost](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/cost.md)
-- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/versioning.md)
-- [Changelog](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/CHANGELOG.md)
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios; the sixth is a web service with this package
+- [FluentValidation recipe](https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/fluentvalidation.md)
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
+- [API concepts](https://github.com/great-parts/great-parts-cel/blob/main/docs/api-concepts.md)
+- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)
+- [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
+- [Limits](https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md) and [Cost](https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)

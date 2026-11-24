@@ -119,7 +119,8 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     /// Returns an enumerator over the entries in the order described for the map. Values are read as
     /// with <see cref="TryGetValue"/>.
     /// </summary>
-    /// <returns>The enumerator, a structure.</returns>
+    /// <returns>The enumerator, a structure. Unlike <c>foreach</c> over a <see cref="CelList"/>, <c>foreach</c> over a map
+    /// allocates the enumerator of the entries that the structure holds.</returns>
     public Enumerator GetEnumerator()
     {
         return new Enumerator(GetEnumeratorCore());

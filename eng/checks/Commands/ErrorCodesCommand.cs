@@ -9,9 +9,11 @@ namespace Great.Parts.Cel.Eng.Checks;
 
 /// <summary>
 /// Checks that the page of error codes matches the members of <c>CelErrorCode</c> (<c>docs/design/eng-docs.md</c>, "error-codes"): a
-/// member without a row, a row without a member, another number, another stage or another summary is <c>ENG303</c>. The members come
+/// member without a row, a row without a member, another number, another stage or another summary is <c>ENG303</c>; an empty
+/// <c>Common cause</c> or <c>Fix</c> cell in the row of a member is <c>ENG306</c>. The members come
 /// from the Release build of <c>net10.0</c> that step 1 of <c>eng/docs</c> made; the page is given by <c>--page</c>. With <c>--write</c> the command
-/// first rewrites the table of the page from the members and their summaries, and the rest of the page stays as it is.
+/// first rewrites the table of the page from the members and their summaries, keeps the cells <c>Common cause</c> and <c>Fix</c> of the rows
+/// that are already there, and the rest of the page stays as it is.
 /// </summary>
 internal sealed class ErrorCodesCommand : ICheckCommand
 {
@@ -67,5 +69,5 @@ internal sealed class ErrorCodesCommand : ICheckCommand
 
     private static ErrorCodesTable Table(IReadOnlyList<string> lines, string page) =>
         ErrorCodesTable.Find(lines)
-        ?? throw new CheckInputException($"the page {page} has no table with the columns Code, Name, Stage and When it occurs");
+        ?? throw new CheckInputException($"the page {page} has no table with the columns Code, Name, Stage, When it occurs, Common cause and Fix");
 }

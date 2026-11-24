@@ -1,1 +1,21 @@
 #nullable enable
+Great.Parts.Cel.DependencyInjection.CelOptions
+Great.Parts.Cel.DependencyInjection.CelOptions.CacheMaxEntryCount.get -> int
+Great.Parts.Cel.DependencyInjection.CelOptions.CacheMaxEntryCount.set -> void
+Great.Parts.Cel.DependencyInjection.CelOptions.CacheMaxTotalTextLength.get -> int
+Great.Parts.Cel.DependencyInjection.CelOptions.CacheMaxTotalTextLength.set -> void
+Great.Parts.Cel.DependencyInjection.CelOptions.CelOptions() -> void
+Great.Parts.Cel.DependencyInjection.CelOptions.DefaultCostLimit.get -> ulong?
+Great.Parts.Cel.DependencyInjection.CelOptions.DefaultCostLimit.set -> void
+Great.Parts.Cel.DependencyInjection.CelOptionsBuilderExtensions
+Great.Parts.Cel.DependencyInjection.CelServiceCollectionExtensions
+Great.Parts.Cel.DependencyInjection.ICelEvaluator
+Great.Parts.Cel.DependencyInjection.ICelEvaluator.Environment.get -> Great.Parts.Cel.CelEnvironment!
+Great.Parts.Cel.DependencyInjection.ICelEvaluator.Evaluate<T>(string! expression, Great.Parts.Cel.CelBindings! bindings, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.DependencyInjection.ICelEvaluator.EvaluateAsync<T>(string! expression, Great.Parts.Cel.CelBindings! bindings, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelEvalResult<T>>
+Great.Parts.Cel.DependencyInjection.ICelEvaluator.EvaluateInput<T>(string! expression, object! input, Great.Parts.Cel.CelBindings? bindings = null, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Great.Parts.Cel.CelEvalResult<T>
+Great.Parts.Cel.DependencyInjection.ICelEvaluator.EvaluateInputAsync<T>(string! expression, object! input, Great.Parts.Cel.CelBindings? bindings = null, Great.Parts.Cel.CelCompileOptions? compileOptions = null, Great.Parts.Cel.CelEvalOptions? evalOptions = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.ValueTask<Great.Parts.Cel.CelEvalResult<T>>
+Great.Parts.Cel.DependencyInjection.ICelEvaluator.Validate<T>(string! expression, Great.Parts.Cel.CelCompileOptions? options = null) -> Great.Parts.Cel.CelValidationResult!
+static Great.Parts.Cel.DependencyInjection.CelOptionsBuilderExtensions.ValidateCel<TOptions>(this Microsoft.Extensions.Options.OptionsBuilder<TOptions!>! builder, string! expression, string! failureMessage, string? environmentName = null) -> Microsoft.Extensions.Options.OptionsBuilder<TOptions!>!
+static Great.Parts.Cel.DependencyInjection.CelServiceCollectionExtensions.AddCel(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, System.Action<Great.Parts.Cel.CelEnvironmentBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!
+static Great.Parts.Cel.DependencyInjection.CelServiceCollectionExtensions.AddKeyedCel(this Microsoft.Extensions.DependencyInjection.IServiceCollection! services, string! name, System.Action<Great.Parts.Cel.CelEnvironmentBuilder!>! configure) -> Microsoft.Extensions.DependencyInjection.IServiceCollection!

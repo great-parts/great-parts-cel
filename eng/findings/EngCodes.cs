@@ -63,6 +63,9 @@ public static class EngCodes
     /// <summary>The steps of the quick start of the README all passed, but their time is more than 300 seconds.</summary>
     public const string Eng305 = "ENG305";
 
+    /// <summary>A row of the table of the page of error codes has an empty <c>Common cause</c> cell or an empty <c>Fix</c> cell: the code of the library has no troubleshooting text.</summary>
+    public const string Eng306 = "ENG306";
+
     /// <summary>The line of the corpus of the filtering package, <c>AIP-160: own test corpus, N cases, run on yyyy-MM-dd</c>, is missing from the README of the package or from the page of conformance, is not in that form, counts another number of cases than the corpus has, or has a percentage.</summary>
     public const string Eng307 = "ENG307";
 

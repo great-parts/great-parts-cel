@@ -13,6 +13,8 @@ CEL (Common Expression Language) for .NET / C#.
 
 [CEL](https://cel.dev/) is an expression language that is not Turing complete: an expression reads only the data that the application passes to it. An application compiles an expression once and evaluates it on different data many times. Great.Parts.Cel does both in a .NET application, under JIT and under Native AOT.
 
+Documentation: start with [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md), seven short scenarios from the first expression to a web service; the pages are listed in the Documentation section below.
+
 ## Install
 
 The library targets `net10.0` and `net11.0`. Add the package to a project:
@@ -61,7 +63,9 @@ The package carries a file `AGENTS.md` in its root: what the library is for and 
 
 The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
 
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
 - [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
+- [FluentValidation recipe](https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/fluentvalidation.md): CEL rules next to FluentValidation
 - [Standard library](https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md)
 - [Extension sets](https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md)
 - [API concepts](https://github.com/great-parts/great-parts-cel/blob/main/docs/api-concepts.md)

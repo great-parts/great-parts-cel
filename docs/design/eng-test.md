@@ -168,6 +168,7 @@ The service is not part of `test`; CI runs it in its own job ([CI](#ci)). A manu
 | `Docs` | the build of the library, `examples`, `error-codes`, lychee offline and `links`, then lychee for external links and `links` | `docs`, with the external links ([eng-docs.md](eng-docs.md)) |
 | `min-sdk` | restore, build, `dotnet pack`, then the service `min-sdk` ([min-sdk](#min-sdk)) | the order `test`, `min-sdk` of a manual run |
 | `Quick start` | restore, the build of `eng/checks`, `dotnet pack` of the library with the version `1.0.0`, then `quick-start`: the steps of the README in a clean container of the SDK 10 ([eng-release.md](eng-release.md#engchecks-quick-start)) | |
+| `Samples` | build of `samples/Great.Parts.Cel.Samples.slnx` with every warning an error, then a run of every application of `samples/`, exit code 0 within 60 seconds ([eng-docs.md](eng-docs.md#samples)) | no command of `eng/run`: not a step of `docs`, since one sample restores `FluentValidation` from nuget.org and the container of `docs` has no network |
 | `Signed-off-by` | `eng/checks signoff` on the new commits | |
 
 The differential run `difftest-main` is not a job of `ci`: it runs on a push to `main` only, never on a pull request, and has its own section ([eng-difftest.md](eng-difftest.md#run-on-a-push-to-main)).

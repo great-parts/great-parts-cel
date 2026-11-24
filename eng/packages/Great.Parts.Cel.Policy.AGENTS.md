@@ -14,3 +14,14 @@ This file is for an agent that helps a developer use the package `Great.Parts.Ce
 - The result type: the type of the outputs; `CelOptional<T>` when not every path gives an output; a list for `aggregate`.
 - An expression written as a YAML block scalar (`|` or `>`) keeps its indentation and line breaks, as in cel-go: a multiline string literal in it contains the indentation.
 - Do not read files in library code: pass the text of the document and its name.
+
+## Documentation
+
+The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
+
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
+- [Extension sets](https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md)
+- [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)

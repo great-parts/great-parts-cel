@@ -19,18 +19,29 @@ namespace Great.Parts.Cel.Eng.Tests.Checks;
 public sealed class ErrorCodesPageTests
 {
     private const string PagePath = "docs/error-codes.md";
-    private const string Header = "| Code | Name | Stage | When it occurs |";
-    private const string Separator = "| :- | :- | :- | :- |";
-
-    private const string SyntaxRow = "| 1000 | `SyntaxError` | Parse | The text does not follow the grammar. Location: the `token`. |";
-    private const string UndeclaredRow = "| 2002 | `UndeclaredReference` | Check | A name is not declared; compare `SyntaxError`. Chains of `\\|\\|` and `&&` do not add depth. |";
-    private const string DivisionRow = "| 3001 | `DivisionByZero` | Evaluate | The divisor is zero. |";
-    private const string DuplicateRow = "| 4000 | `DuplicateDeclaration` | Build | A name is declared twice. |";
-    private const string InternalRow = "| 9001 | `InternalError` | Any | An error of the library, shown as `null`. |";
+    private const string Header = "| Code | Name | Stage | When it occurs | Common cause | Fix |";
+    private const string Separator = "| :- | :- | :- | :- | :- | :- |";
 
     // The lines of the page: the header of the table is at line 5, the rows at the lines 7 to 11.
     private const int HeaderLine = 5;
     private const int FirstRowLine = 7;
+
+    // A row is its head, the first four cells that the members give, and then the cells that are written by hand. The head ends with the bar.
+    private const string SyntaxHead = "| 1000 | `SyntaxError` | Parse | The text does not follow the grammar. Location: the `token`. |";
+    private const string UndeclaredHead = "| 2002 | `UndeclaredReference` | Check | A name is not declared; compare `SyntaxError`. Chains of `\\|\\|` and `&&` do not add depth. |";
+    private const string DivisionHead = "| 3001 | `DivisionByZero` | Evaluate | The divisor is zero. |";
+    private const string DuplicateHead = "| 4000 | `DuplicateDeclaration` | Build | A name is declared twice. |";
+    private const string InternalHead = "| 9001 | `InternalError` | Any | An error of the library, shown as `null`. |";
+
+    private const string UndeclaredCause = " A name is misspelled or not declared. |";
+    private const string DivisionCause = " The divisor is computed as zero. |";
+    private const string DivisionFix = " Check the divisor before the division. |";
+
+    private const string SyntaxRow = SyntaxHead + " A typo in the text. | Correct the text. |";
+    private const string UndeclaredRow = UndeclaredHead + UndeclaredCause + " Declare the name or correct it. |";
+    private const string DivisionRow = DivisionHead + DivisionCause + DivisionFix;
+    private const string DuplicateRow = DuplicateHead + " A name is declared in two places. | Remove one of the declarations. |";
+    private const string InternalRow = InternalHead + " A defect of the library. | Report the defect. |";
 
     private const string LibrarySource = """
         namespace Great.Parts.Cel.Diagnostics;
@@ -139,7 +150,7 @@ public sealed class ErrorCodesPageTests
     {
         using TempDirectory root = new();
         Build(root, LibrarySource);
-        root.Write(PagePath, Page([.. Rows, "| 3002 | `Ghost` | Evaluate | There is no such member. |"]));
+        root.Write(PagePath, Page([.. Rows, "| 3002 | `Ghost` | Evaluate | There is no such member. | No cause. | No fix. |"]));
 
         Result result = Check(root);
 
@@ -209,7 +220,70 @@ public sealed class ErrorCodesPageTests
         AssertErrors(
             result,
             Error(FirstRowLine + Rows.Length, "row 'DivisionByZero' repeats an earlier row"),
-            Error(FirstRowLine + Rows.Length + 1, "row has 2 cells, expected 4"));
+            Error(FirstRowLine + Rows.Length + 1, "row has 2 cells, expected 6"));
+    }
+
+    [Fact]
+    public void Eng306_ARowWithoutACause_IsReportedAtTheRowWithTheNameOfTheColumn()
+    {
+        using TempDirectory root = new();
+        Build(root, LibrarySource);
+        root.Write(PagePath, Page(Changed(DivisionRow, (DivisionCause, " |"))));
+
+        Result result = Check(root);
+
+        AssertErrors(result, Gap(FirstRowLine + 2, "DivisionByZero", "Common cause"));
+    }
+
+    [Fact]
+    public void Eng306_ARowWithoutAFix_IsReportedAtTheRowWithTheNameOfTheColumn()
+    {
+        using TempDirectory root = new();
+        Build(root, LibrarySource);
+        root.Write(PagePath, Page(Changed(DivisionRow, (DivisionFix, " |"))));
+
+        Result result = Check(root);
+
+        AssertErrors(result, Gap(FirstRowLine + 2, "DivisionByZero", "Fix"));
+    }
+
+    [Fact]
+    public void Eng306_ARowWithNeitherCauseNorFix_IsOneFindingForEachColumn()
+    {
+        using TempDirectory root = new();
+        Build(root, LibrarySource);
+        root.Write(PagePath, Page(Changed(DivisionRow, (DivisionCause, " |"), (DivisionFix, " |"))));
+
+        Result result = Check(root);
+
+        AssertErrors(result, Gap(FirstRowLine + 2, "DivisionByZero", "Common cause"), Gap(FirstRowLine + 2, "DivisionByZero", "Fix"));
+    }
+
+    [Fact]
+    public void Eng306_ARowWithAnotherSummaryAndNoFix_IsEng303AndEng306AtTheSameRow()
+    {
+        using TempDirectory root = new();
+        Build(root, LibrarySource);
+        root.Write(PagePath, Page(Changed(DivisionRow, ("The divisor is zero.", "The divisor is one."), (DivisionFix, " |"))));
+
+        Result result = Check(root);
+
+        AssertErrors(
+            result,
+            Error(FirstRowLine + 2, "row 'DivisionByZero' differs from CelErrorCode: summary differs from the XML documentation, rebuild the page with --write"),
+            Gap(FirstRowLine + 2, "DivisionByZero", "Fix"));
+    }
+
+    [Fact]
+    public void Eng306_ARowThatIsNotARowOfAMember_HasOnlyEng303()
+    {
+        using TempDirectory root = new();
+        Build(root, LibrarySource);
+        root.Write(PagePath, Page([.. Rows, "| 3002 | `Ghost` | Evaluate | There is no such member. |  |  |"]));
+
+        Result result = Check(root);
+
+        AssertErrors(result, Error(FirstRowLine + Rows.Length, "row 'Ghost' has no member in CelErrorCode"));
     }
 
     [Fact]
@@ -248,14 +322,47 @@ public sealed class ErrorCodesPageTests
     {
         using TempDirectory root = new();
         Build(root, LibrarySource);
-        string stale = "| 1000 | `SyntaxError` | Check | old |\n| 3001 | `Gone` | Evaluate | old |";
+        string stale = "| 1000 | `SyntaxError` | Check | old | The kept cause. | The kept fix. |\n| 3001 | `Gone` | Evaluate | old | A cause. | A fix. |";
         root.Write(PagePath, "# Error codes\n\nBefore the table.\n\n" + Header + "\n" + Separator + "\n" + stale + "\n\nAfter the table.\n");
+
+        Result result = Check(root, write: true);
+
+        // The rows of the members that the page had no row for have empty cells: the command writes them and reports ENG306.
+        string[] rows = [SyntaxHead + " The kept cause. | The kept fix. |", Blank(UndeclaredHead), Blank(DivisionHead), Blank(DuplicateHead), Blank(InternalHead)];
+        AssertErrors(
+            result,
+            Gap(FirstRowLine + 1, "UndeclaredReference", "Common cause"),
+            Gap(FirstRowLine + 1, "UndeclaredReference", "Fix"),
+            Gap(FirstRowLine + 2, "DivisionByZero", "Common cause"),
+            Gap(FirstRowLine + 2, "DivisionByZero", "Fix"),
+            Gap(FirstRowLine + 3, "DuplicateDeclaration", "Common cause"),
+            Gap(FirstRowLine + 3, "DuplicateDeclaration", "Fix"),
+            Gap(FirstRowLine + 4, "InternalError", "Common cause"),
+            Gap(FirstRowLine + 4, "InternalError", "Fix"));
+        Assert.Equal(Page(rows, intro: "Before the table.", outro: "After the table."), File.ReadAllText(Path.Combine(root.Path, PagePath)));
+    }
+
+    [Fact]
+    public void Write_KeepsTheCauseAndTheFixOfTheRowsWhateverTheirOrderAndTheOtherCells()
+    {
+        using TempDirectory root = new();
+        Build(root, LibrarySource);
+        string[] expected = Changed(UndeclaredRow, (UndeclaredCause, " A cause with a bar \\| inside. |"));
+        string[] stale =
+        [
+            InternalRow,
+            DuplicateRow.Replace("A name is declared twice.", "Old.", StringComparison.Ordinal),
+            expected[1],
+            DivisionRow.Replace("| Evaluate |", "| Check |", StringComparison.Ordinal),
+            SyntaxRow.Replace("| 1000 |", "| 1001 |", StringComparison.Ordinal),
+        ];
+        root.Write(PagePath, Page(stale));
 
         Result result = Check(root, write: true);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Empty(result.Lines);
-        Assert.Equal(Page(Rows, intro: "Before the table.", outro: "After the table."), File.ReadAllText(Path.Combine(root.Path, PagePath)));
+        Assert.Equal(Page(expected), File.ReadAllText(Path.Combine(root.Path, PagePath)));
     }
 
     [Fact]
@@ -263,7 +370,7 @@ public sealed class ErrorCodesPageTests
     {
         using TempDirectory root = new();
         Build(root, LibrarySource);
-        string crlf = Page([.. Rows.Where(row => row != DivisionRow)]).Replace("\n", "\r\n", StringComparison.Ordinal);
+        string crlf = Page(Changed(DivisionRow, ("The divisor is zero.", "Old text."))).Replace("\n", "\r\n", StringComparison.Ordinal);
         string path = Path.Combine(root.Path, PagePath);
         root.Write(PagePath, crlf);
 
@@ -304,14 +411,17 @@ public sealed class ErrorCodesPageTests
 
         Result result = Check(root, write: true);
 
-        Assert.Equal(0, result.ExitCode);
+        // The cells written by hand are empty: the command reports each of them.
+        Assert.Equal(1, result.ExitCode);
+        Assert.Equal(6, result.Lines.Length);
+        Assert.All(result.Lines, line => Assert.Contains("ENG306", line, StringComparison.Ordinal));
         Assert.Equal(
-            Page(["| 1000 | `First` | Parse | The first. |", "| 3001 | `Second` | Evaluate | The second. |", "| 9001 | `Third` | Any | Not documented as the others: the summary is empty. |"]),
+            Page([Blank("| 1000 | `First` | Parse | The first. |"), Blank("| 3001 | `Second` | Evaluate | The second. |"), Blank("| 9001 | `Third` | Any | Not documented as the others: the summary is empty. |")]),
             File.ReadAllText(Path.Combine(root.Path, PagePath)));
     }
 
     [Fact]
-    public void AMemberWithoutASummary_IsARowWithAnEmptyLastCell()
+    public void AMemberWithoutASummary_IsARowWithEmptyCells()
     {
         using TempDirectory root = new();
         Build(
@@ -329,8 +439,8 @@ public sealed class ErrorCodesPageTests
 
         Result result = Check(root, write: true);
 
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal(Page(["| 1000 | `Undocumented` | Parse |  |"]), File.ReadAllText(Path.Combine(root.Path, PagePath)));
+        Assert.Equal(1, result.ExitCode);
+        Assert.Equal(Page(["| 1000 | `Undocumented` | Parse |  |  |  |"]), File.ReadAllText(Path.Combine(root.Path, PagePath)));
     }
 
     [Fact]
@@ -364,8 +474,22 @@ public sealed class ErrorCodesPageTests
 
         Result result = Check(root, write: true);
 
-        AssertInputError(result, PagePath, "no table", "Code, Name, Stage and When it occurs");
+        AssertInputError(result, PagePath, "no table", "Code, Name, Stage, When it occurs, Common cause and Fix");
         Assert.Equal("# Error codes\n\nNo table here.\n", File.ReadAllText(Path.Combine(root.Path, PagePath)));
+    }
+
+    [Fact]
+    public void ATableOfTheFourColumnsOfTheOldForm_IsNotTheTableAndIsNotWritten()
+    {
+        using TempDirectory root = new();
+        Build(root, LibrarySource);
+        string page = "# Error codes\n\n| Code | Name | Stage | When it occurs |\n| :- | :- | :- | :- |\n" + DivisionHead + "\n";
+        root.Write(PagePath, page);
+
+        Result result = Check(root, write: true);
+
+        AssertInputError(result, PagePath, "no table");
+        Assert.Equal(page, File.ReadAllText(Path.Combine(root.Path, PagePath)));
     }
 
     [Fact]
@@ -492,6 +616,12 @@ public sealed class ErrorCodesPageTests
     }
 
     private static Finding Error(int line, string message) => FindingAssert.Error(EngCodes.Eng303, PagePath, line, 1, message);
+
+    private static Finding Gap(int line, string name, string column) =>
+        FindingAssert.Error(EngCodes.Eng306, PagePath, line, 1, $"row '{name}' has an empty column '{column}'");
+
+    // The row of a head whose cells written by hand are empty.
+    private static string Blank(string head) => head + "  |  |";
 
     // Compiles the source into the place of the Release build with the XML documentation next to it, as `dotnet build` leaves them.
     private static void Build(TempDirectory root, string source, bool documented = true)

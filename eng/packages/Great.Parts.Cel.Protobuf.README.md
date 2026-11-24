@@ -15,6 +15,8 @@ The package gives a CEL environment the messages of protobuf: expressions read t
 
 ![The descriptors of protobuf files feed a type provider, the provider is added to a CEL environment, and the expression api.name + ' v' + api.version gives "orders v2"](https://raw.githubusercontent.com/great-parts/great-parts-cel/main/eng/packages/images/great-parts-cel-protobuf-pipeline.png)
 
+Documentation: start with [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md), seven short scenarios from the first expression to a web service; the pages are listed in the Documentation section below.
+
 ## Install
 
 The package targets `net10.0` and `net11.0`. Add it next to `Great.Parts.Cel`:
@@ -58,6 +60,7 @@ The package carries a file `AGENTS.md` in its root: when to use the package, how
 The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
 
 - [Protobuf messages](https://github.com/great-parts/great-parts-cel/blob/main/docs/protobuf.md): the files, the names, the fields and their presence, object literals, `Any`, the well-known types and extensions.
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
 - [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
 - [Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)
 - [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
