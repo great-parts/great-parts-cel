@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Text;
+using System.Threading;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
 using Xunit;
@@ -110,9 +111,25 @@ public sealed class CompileUntrustedTests
         CelPolicyCompileResult<string> result = Compile<string>(text.ToString());
 
         Assert.True(result.IsSuccess, string.Join('\n', result.Errors));
-        Assert.Equal("m0", Run(result, 0));
-        Assert.Equal("m9999", Run(result, Count - 1));
-        Assert.Equal("none", Run(result, -1));
+        Assert.Equal("m0", RunOnLargeStack(result, 0));
+        Assert.Equal("m9999", RunOnLargeStack(result, Count - 1));
+        Assert.Equal("none", RunOnLargeStack(result, -1));
+    }
+
+    // The slots keep the tree of the policy shallow for the compiler, but the evaluation of a match at the end of ten thousand goes
+    // through that many conditionals, one level of the stack each. A thread of the test runner has less stack on macOS than on Linux (the
+    // run 633c7ad ended at about the 7700th level there with InsufficientStack, the guard of the library), so the evaluation has a stack
+    // of its own, larger than any default.
+    private static T RunOnLargeStack<T>(CelPolicyCompileResult<T> result, long x)
+    {
+        CelProgram<T> program = result.GetProgramOrThrow();
+        CelEvalResult<T> evaluated = default;
+        var thread = new Thread(
+            () => evaluated = program.Evaluate(new CelBindings { ["x"] = x }, cancellationToken: CancellationToken.None),
+            64 * 1024 * 1024);
+        thread.Start();
+        thread.Join();
+        return evaluated.GetValueOrThrow();
     }
 
     // The depth of the nested rules that a document can have is bounded by the depth of its YAML, 10000 nodes: a nested rule written in

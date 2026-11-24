@@ -70,6 +70,8 @@ public sealed class SkipListTests
     // json.encode of a duration, of a timestamp, of U+007F in a string, a list and a map and of a map with a key that is not a string, the negation of a duration, has() and or of optional,
     // the key of an index of an optional) — and
     // the cases of the corpus that minimize them: one entry of the list for each signature but three, the entries in ordinal order.
+    // The registry also has the differences of partial evaluation, whose signatures name an unknown outcome or argument: the cases
+    // of the corpus are evaluated in full, so they have no case in the corpus and no entry in the list.
     [Fact]
     public void PinnedCorpusListAndRegistry_HaveNoFindingAndAnEntryForEachSignatureOfTheRegistry()
     {
@@ -77,16 +79,20 @@ public sealed class SkipListTests
         string text = EmbeddedData.ReadText(CorpusPath);
 
         SkipList list = SkipList.ReadCorpus(CorpusPath, text, registry.Signatures);
+        string[] ofFullEvaluation = [.. registry.Signatures.Where(signature => !IsOfPartialEvaluation(signature))];
 
         Assert.Empty(registry.Findings);
         Assert.Empty(list.Findings);
-        Assert.Equal(176, registry.Signatures.Count);
+        Assert.Equal(176, ofFullEvaluation.Length);
         Assert.Equal(173, list.Entries.Count);
         Assert.Equal(
-            registry.Signatures.Except(SignaturesWithoutEntry).Order(StringComparer.Ordinal),
+            ofFullEvaluation.Except(SignaturesWithoutEntry).Order(StringComparer.Ordinal),
             EntrySignatures(text).Order(StringComparer.Ordinal));
         Assert.Equal(list.Entries.Select(entry => entry.Case).Order(StringComparer.Ordinal), list.Entries.Select(entry => entry.Case));
     }
+
+    // A signature of partial evaluation has the type or the kind unknown: (unknown, error) we-known, we-unknown, unknown-mismatch.
+    private static bool IsOfPartialEvaluation(string signature) => signature.Contains("unknown", StringComparison.Ordinal);
 
     // The signature column of the rows of a corpus list, after the head of the table.
     private static List<string> EntrySignatures(string text) =>

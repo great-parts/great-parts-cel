@@ -501,7 +501,8 @@ public sealed class AsyncEvaluationTests
     }
 
     // A NaN equals a NaN at any depth, so the call that holds one is found again in the next pass: incd runs once and the evaluation
-    // ends, with a limit and without.
+    // ends, with a limit and without. A call that is not found again is made in every pass and the evaluation without a limit never
+    // ends, so the evaluation has a time of its own: a regression ends the test with a cancellation, not a hang.
     [Theory]
     [Trait("Requirement", "R-11")]
     [InlineData("incd(0.0 / 0.0) == 2")]
@@ -512,9 +513,10 @@ public sealed class AsyncEvaluationTests
     public async Task ACallWithANaNInItsArgument_IsFoundAgainInEveryPass(string expression)
     {
         CelProgram<bool> program = Compile<bool>(functions.Async, expression);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
 
-        CelEvalResult<bool> unlimited = await program.EvaluateAsync(AsyncFunctions.Bindings(), null, CancellationToken.None).ConfigureAwait(true);
-        CelEvalResult<bool> limited = await program.EvaluateAsync(AsyncFunctions.Bindings(), new CelEvalOptions { CostLimit = 10_000 }, CancellationToken.None).ConfigureAwait(true);
+        CelEvalResult<bool> unlimited = await program.EvaluateAsync(AsyncFunctions.Bindings(), null, timeout.Token).ConfigureAwait(true);
+        CelEvalResult<bool> limited = await program.EvaluateAsync(AsyncFunctions.Bindings(), new CelEvalOptions { CostLimit = 10_000 }, timeout.Token).ConfigureAwait(true);
 
         Assert.True(unlimited.GetValueOrThrow());
         Assert.True(limited.GetValueOrThrow());

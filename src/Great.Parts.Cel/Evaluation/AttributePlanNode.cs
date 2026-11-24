@@ -61,7 +61,7 @@ internal sealed class AttributePlanNode : PlanNode
         }
 
         CelValue result;
-        if (Match(state.Patterns, access) is { } entry)
+        if (Match(state.Patterns, _variable, _ids.AsSpan(), access) is { } entry)
         {
             frame.Offset = Offset;
             if (frame.Metered)
@@ -80,12 +80,13 @@ internal sealed class AttributePlanNode : PlanNode
         return result;
     }
 
-    // The entry of the first pattern that matches the access, or null.
-    private UnknownEntry? Match(UnknownPattern[] patterns, CelValue[] access)
+    // The entry of the first pattern that matches the access of the variable, or null. ids has the id of the syntax node at each length
+    // of the access: the variable first, then after each qualifier.
+    internal static UnknownEntry? Match(UnknownPattern[] patterns, string variable, ReadOnlySpan<int> ids, ReadOnlySpan<CelValue> access)
     {
         foreach (UnknownPattern pattern in patterns)
         {
-            if (!string.Equals(pattern.Variable, _variable, StringComparison.Ordinal))
+            if (!string.Equals(pattern.Variable, variable, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -100,17 +101,37 @@ internal sealed class AttributePlanNode : PlanNode
             ImmutableArray<CelValue?>.Builder trail = ImmutableArray.CreateBuilder<CelValue?>(length);
             for (int i = 0; i < length; i++)
             {
-                trail.Add(pattern.Qualifiers[i] ?? access[i]);
+                trail.Add(pattern.Qualifiers[i] ?? TrailQualifier(access[i]));
             }
 
-            return new UnknownEntry(_ids[length], _variable, trail.MoveToImmutable());
+            return new UnknownEntry(ids[length], variable, trail.MoveToImmutable());
         }
 
         return null;
     }
 
+    // A trail names a qualifier by a string, an int, a uint or a bool. A double key that is a whole number names the same element
+    // as the int or the uint of its value (the keys are equal by CEL equality), and cel-go writes it so; another double stays as it is.
+    private static CelValue TrailQualifier(CelValue qualifier)
+    {
+        if (qualifier.TryGetDouble(out double number) && Math.Floor(number) == number)
+        {
+            if (number >= -9223372036854775808.0 && number < 9223372036854775808.0)
+            {
+                return CelValue.FromInt64((long)number);
+            }
+
+            if (number >= 9223372036854775808.0 && number < 18446744073709551616.0)
+            {
+                return CelValue.FromUInt64((ulong)number);
+            }
+        }
+
+        return qualifier;
+    }
+
     // Whether the qualifiers of the pattern and the access are equal as far as both go.
-    private static bool Agrees(UnknownPattern pattern, CelValue[] access, int length)
+    private static bool Agrees(UnknownPattern pattern, ReadOnlySpan<CelValue> access, int length)
     {
         for (int i = 0; i < length; i++)
         {

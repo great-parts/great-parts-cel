@@ -26,13 +26,12 @@ internal enum AsyncCallState
 // it. The driver starts it and stores its outcome between two passes; the node of the call reads it in the next pass.
 internal sealed class AsyncCall : IEvaluationMeter
 {
-    internal AsyncCall(int id, int offset, OverloadBinding overload, ImmutableArray<CelValue> arguments, int hash, UnknownSet description)
+    internal AsyncCall(int id, int offset, OverloadBinding overload, ImmutableArray<CelValue> arguments, UnknownSet description)
     {
         Id = id;
         Offset = offset;
         Overload = overload;
         Arguments = arguments;
-        Hash = hash;
         Description = description;
     }
 
@@ -45,8 +44,6 @@ internal sealed class AsyncCall : IEvaluationMeter
     internal OverloadBinding Overload { get; }
 
     internal ImmutableArray<CelValue> Arguments { get; }
-
-    internal int Hash { get; }
 
     // The unknown value that stands for the call until it has completed: one entry that names the function, the overload and the arguments.
     internal UnknownSet Description { get; }

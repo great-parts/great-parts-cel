@@ -230,6 +230,35 @@ public sealed class PartialTests
         _ = Assert.Throws<InvalidOperationException>(() => search.CheckPartial(SignatureTests.RunSeed, SignatureTests.CaseNumber, SignatureTests.Case(One), []));
     }
 
+    // The registry writes one row for the cause "cel-go gives the unknown first argument of a call and not the error of the second"
+    // (the run 633c7ad found it for 54 functions), and the row covers the signature of every call, but of no other node.
+    [Theory]
+    [InlineData("_+_(unknown, error) we-known", true)]
+    [InlineData("contains(unknown, error) we-known", true)]
+    [InlineData("math.bitOr(unknown, error) we-known", true)]
+    [InlineData("_[_](unknown, error) we-known", true)]
+    [InlineData("_&&_(unknown, error) we-known", false)]
+    [InlineData("_||_(unknown, error) we-known", false)]
+    [InlineData("list(unknown, error) we-known", false)]
+    [InlineData("comprehension(unknown, error) we-known", false)]
+    [InlineData("(unknown, error) we-known", false)]
+    [InlineData("contains(unknown, int) we-known", false)]
+    [InlineData("contains(error, unknown) we-known", false)]
+    [InlineData("contains(unknown, error) we-unknown", false)]
+    public void KnownSignatures_RowOfAnyCall_CoversTheCauseOfEveryCallOnly(string signature, bool known)
+    {
+        Assert.Equal(known, KnownSignatures.Of("*(unknown, error) we-known").Contains(signature));
+    }
+
+    [Fact]
+    public void KnownSignatures_WithoutTheRowOfAnyCall_KnowsTheRowsOnly()
+    {
+        KnownSignatures known = KnownSignatures.Of("_+_(unknown, error) we-known");
+
+        Assert.True(known.Contains("_+_(unknown, error) we-known"));
+        Assert.False(known.Contains("contains(unknown, error) we-known"));
+    }
+
     // ---- Helpers ----
 
     private static string Print(Expr node) => ExprPrinter.PrintCase(node);

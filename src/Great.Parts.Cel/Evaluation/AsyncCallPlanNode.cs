@@ -117,7 +117,7 @@ internal sealed class AsyncCallPlanNode : PlanNode
 
         ImmutableArray<CelValue> copy = [.. arguments];
         UnknownSet description = Describe(overload, copy);
-        table.Register(new AsyncCall(_id, Offset, overload, copy, hash, description), ref bucket);
+        table.Register(new AsyncCall(_id, Offset, overload, copy, description), ref bucket);
         return CelValue.FromUnknown(description);
     }
 

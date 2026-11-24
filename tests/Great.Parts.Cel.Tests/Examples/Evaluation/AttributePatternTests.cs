@@ -91,6 +91,20 @@ public sealed class AttributePatternTests
         Assert.Equal(trail, Trails(result));
     }
 
+    // The key of the run of difftest 633c7ad, case 11024: mx[x2] with x2 = -9223372036854775808.0 under the pattern mx[*].
+    [Theory]
+    [Trait("Requirement", "F-22")]
+    [InlineData("d[1.0]", "d[1]")]
+    [InlineData("d[-9223372036854775808.0]", "d[-9223372036854775808]")]
+    [InlineData("d[18446744073709549568.0]", "d[18446744073709549568u]")]
+    public static void DoubleKeyThatIsAWholeNumber_IsTheIntOrUintOfItsValueInTheTrail(string expression, string trail)
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate(expression, [P("d", Any)], Data);
+
+        Assert.True(result.IsUnknown);
+        Assert.Equal(trail, Trails(result));
+    }
+
     [Fact]
     [Trait("Requirement", "F-22")]
     public void IndexThatDiffersFromTheQualifier_IsKnown()

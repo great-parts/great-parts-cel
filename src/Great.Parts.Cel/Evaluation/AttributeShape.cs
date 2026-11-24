@@ -10,24 +10,34 @@ namespace Great.Parts.Cel.Evaluation;
 // A chain of attributes as the planner of a partial plan sees it in the checked tree: a variable and the selections, optional
 // selections, indexes, optional indexes and presence tests applied to it, as far as each applies to the result of the one before. The
 // variable is a declared variable, also one resolved as the qualified name of a selection chain, or a field of the input of the
-// environment; a variable of a comprehension, a slot of a block and any other expression start no chain.
+// environment; a variable of a comprehension, a slot of a block and any other expression start no chain. A conditional expression
+// starts a chain too, when a qualifier is applied to it, (c ? a : b).f, as cel-go applies the qualifiers to both its branches.
 internal sealed class AttributeShape
 {
     private const string IndexFunction = "_[_]";
     private const string OptionalIndexFunction = "_[?_]";
     private const string OptionalSelectFunction = "_?._";
+    private const string ConditionalFunction = "_?_:_";
 
-    private AttributeShape(string variable, ImmutableArray<CelExprNode> spine, ImmutableArray<AttributeQualifier> qualifiers)
+    private AttributeShape(
+        string variable,
+        CelCallNode? conditional,
+        ImmutableArray<CelExprNode> spine,
+        ImmutableArray<AttributeQualifier> qualifiers)
     {
         Variable = variable;
+        Conditional = conditional;
         Spine = spine;
         Qualifiers = qualifiers;
     }
 
-    // The full name of the variable, as the bindings hold it.
+    // The full name of the variable, as the bindings hold it; empty for a chain that starts at a conditional expression.
     internal string Variable { get; }
 
-    // The nodes of the chain, the outermost first and the node of the variable last.
+    // The conditional expression the chain starts at, or null when it starts at a variable.
+    internal CelCallNode? Conditional { get; }
+
+    // The nodes of the chain, the outermost first and the node of the variable, or of the conditional expression, last.
     internal ImmutableArray<CelExprNode> Spine { get; }
 
     // The qualifiers in the order of the access.
@@ -46,8 +56,13 @@ internal sealed class AttributeShape
     }
 
     // The chain whose outermost node is the node, or null when the node is not the end of a chain. isSlot tells an identifier that
-    // names a slot of a block being planned, which is not a variable.
-    internal static AttributeShape? TryCreate(CelExprNode node, CheckedExpression checkedExpression, Func<CelIdentNode, bool> isSlot)
+    // names a slot of a block being planned, which is not a variable. A conditional expression with no qualifier applied to it is a
+    // chain only when it is a branch of the conditional expression at the base of another chain: bare is true then.
+    internal static AttributeShape? TryCreate(
+        CelExprNode node,
+        CheckedExpression checkedExpression,
+        Func<CelIdentNode, bool> isSlot,
+        bool bare)
     {
         var spine = new List<CelExprNode>();
         var qualifiers = new List<AttributeQualifier>();
@@ -60,7 +75,7 @@ internal sealed class AttributeShape
                 return !isSlot(identifier)
                     && checkedExpression.References.TryGetValue(identifier.Id, out Reference? read)
                     && read.Variable is { } variable
-                        ? Create(variable.Name, spine, qualifiers)
+                        ? Create(variable.Name, null, spine, qualifiers)
                         : null;
             }
 
@@ -71,7 +86,7 @@ internal sealed class AttributeShape
                 {
                     if (reference.Variable is { } qualified)
                     {
-                        return Create(qualified.Name, spine, qualifiers);
+                        return Create(qualified.Name, null, spine, qualifiers);
                     }
 
                     if (reference.ObjectType is null)
@@ -90,18 +105,26 @@ internal sealed class AttributeShape
 
             if (operand is null)
             {
-                return null;
+                return TryStartAtConditional(current, bare, spine, qualifiers);
             }
 
             current = operand;
         }
     }
 
-    private static AttributeShape Create(string variable, List<CelExprNode> spine, List<AttributeQualifier> qualifiers)
+    private static AttributeShape Create(string variable, CelCallNode? conditional, List<CelExprNode> spine, List<AttributeQualifier> qualifiers)
     {
         qualifiers.Reverse();
-        return new AttributeShape(variable, [.. spine], [.. qualifiers]);
+        return new AttributeShape(variable, conditional, [.. spine], [.. qualifiers]);
     }
+
+    // The chain that starts at the node when it is a conditional expression with a qualifier applied to it, or bare; else null.
+    private static AttributeShape? TryStartAtConditional(CelExprNode node, bool bare, List<CelExprNode> spine, List<AttributeQualifier> qualifiers) =>
+        node is CelCallNode { Target: null, Arguments.Length: 3 } call
+        && string.Equals(call.Function, ConditionalFunction, StringComparison.Ordinal)
+        && (bare || qualifiers.Count > 0)
+            ? Create(string.Empty, call, spine, qualifiers)
+            : null;
 
     // The operand of an index or an optional selection, with its qualifier added; null for any other call.
     private static CelExprNode? TryQualify(CelCallNode call, List<AttributeQualifier> qualifiers)

@@ -19,6 +19,18 @@ internal sealed class KnownSignatures
     /// <summary>The corpus skip list, relative to the repository root.</summary>
     internal const string SkipListPath = "tests/Great.Parts.Cel.Conformance/Regression/skips.md";
 
+    /// <summary>
+    /// The tail of the one signature that the registry may write with <c>*</c> for the node: a call whose first argument is unknown
+    /// and whose second is an error, where cel-go gives the unknown and the library the error. It is one cause, whatever the function.
+    /// </summary>
+    internal const string UnknownBeforeError = "(unknown, error) we-known";
+
+    private const string AnyNode = "*";
+
+    // The nodes of that signature that are no strict call: cel-go gives the unknown in the same way as the library for the logical
+    // operators, and the elements of a list or the entries of a map are not the arguments of a call. A divergence there is not the cause.
+    private static readonly HashSet<string> NodesWithoutTheCause = ["_&&_", "_||_", "list", "map", "select", "has", "ident", "literal", "comprehension", "parse"];
+
     private static readonly string[] RegistryColumns = ["Signature", "Class", "Reference"];
     private static readonly string[] SkipListColumns = ["Case", "Scope", "Signature", "Verdict", "Severity", "Reason", "Issue"];
 
@@ -38,9 +50,23 @@ internal sealed class KnownSignatures
             .. Column(Path.Combine(root, SkipListPath), SkipListColumns, 2),
         ]);
 
-    /// <summary>Whether a signature is known.</summary>
+    /// <summary>
+    /// Whether a signature is known: a row has it, or it is <c>&lt;call&gt;(unknown, error) we-known</c> and a row has
+    /// <c>*(unknown, error) we-known</c>.
+    /// </summary>
     /// <param name="signature">The signature, <c>&lt;node&gt;(&lt;types&gt;) &lt;kind&gt;</c>.</param>
-    internal bool Contains(string signature) => signatures.Contains(signature);
+    internal bool Contains(string signature) => signatures.Contains(signature) || IsCoveredByTheRowOfAnyCall(signature);
+
+    private bool IsCoveredByTheRowOfAnyCall(string signature)
+    {
+        if (!signature.EndsWith(UnknownBeforeError, StringComparison.Ordinal) || !signatures.Contains(AnyNode + UnknownBeforeError))
+        {
+            return false;
+        }
+
+        string node = signature[..^UnknownBeforeError.Length];
+        return node.Length > 0 && !NodesWithoutTheCause.Contains(node);
+    }
 
     private static IEnumerable<string> Column(string file, string[] columns, int index) =>
         MarkdownTable.Read(File.ReadAllText(file), columns).Rows.Select(row => row.Cells[index]);

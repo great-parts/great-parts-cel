@@ -35,11 +35,20 @@ The planner of a program compiled with `PartialEvaluation` (`PartialPlanner`) wr
 
 Patterns are matched by a linear scan. The number of patterns is small in practice.
 
+**A chain that starts at a conditional expression.** In `(c ? a : b).f[k]` cel-go appends the qualifiers `.f` and `[k]` to both branches (`conditionalAttribute.AddQualifier`, recursively when a branch is a conditional expression itself), so the access that a pattern meets is that of the branch the condition chooses, with the qualifiers after it. A chain with a qualifier applied to a conditional expression is therefore one chain, and its outermost node is a `ConditionalAttributePlanNode`; a branch is described to it (`AttributeSource`: an attribute of a variable, a conditional expression of its own, or neither) and is not wrapped in an `AttributePlanNode` itself, which would match the short access of the branch alone. The node evaluates as follows:
+
+1. if the frame has no partial state, or no pattern names the variable of any branch, evaluate the wrapped node;
+2. evaluate the condition once, through its `KeyPlanNode`, and store the value in the partial state, where the `ConditionalPlanNode` of the wrapped chain takes it; a condition that is not a `bool` is left to the wrapped node, which returns the unknown value, the error or `NoMatchingOverload` as `_?_:_` does;
+3. take the branch the condition chooses, and as `AttributePlanNode` does evaluate the keys that are expressions from left to right (an error or an unknown is the result), first those of the branch, then those of the qualifiers of the chain, with the nested conditions of a branch that is a conditional expression evaluated first; a chosen branch that is no attribute of a variable with a pattern has no access;
+4. match the patterns against the access of the branch followed by the qualifiers of the chain, as above, with the id of the chain node at the matched length; a match is an unknown that charges 1, otherwise the wrapped chain is evaluated and reads the stored values.
+
+The condition and the keys are evaluated, and charged, once. A plan without the flag has none of these nodes.
+
 ## Partial programs and their evaluation
 
 `CelCompileOptions.PartialEvaluation` is a field of the key of the compilation cache next to the expected type and the source location. A partial program keeps:
 
-- the plan with `AttributePlanNode`, `KeyPlanNode` and `RecordPlanNode(id, inner)` wrappers (`Plan.Tree` and `Plan.KeyCount` are set only for it); the classes of the synchronous plan get no new field and a plan made without the flag contains none of these nodes, so the memory of a synchronous plan and of a cache entry does not change;
+- the plan with `AttributePlanNode`, `ConditionalAttributePlanNode`, `KeyPlanNode` and `RecordPlanNode(id, inner)` wrappers (`Plan.Tree` and `Plan.KeyCount` are set only for it); the classes of the synchronous plan get no new field and a plan made without the flag contains none of these nodes, so the memory of a synchronous plan and of a cache entry does not change;
 - the parsed expression (`CelParsedExpr`) and the source text its positions belong to.
 
 `EvaluatePartial` rents a frame as `Evaluate` does and sets `Frame.Partial` to a `PartialState`: the pattern array, the slots of the keys and the record of values, a `CelValue[]` indexed by node id and sized by `CelParsedExpr.IdCount`, rented from `ArrayPool<CelValue>` and returned before the call returns. Each `RecordPlanNode` writes the value of its node after the inner node evaluates, unless it is an error or an unknown; the partial planner puts no wrapper inside the loop condition and the loop step of a comprehension (the range and the result are wrapped). `PartialState.Release` returns the written ids and values as a compact sorted `ValueRecord`, which the result keeps for the residual. A synchronous evaluation never sets `Frame.Partial`, so every node that serves partial evaluation tests one reference and does nothing.
