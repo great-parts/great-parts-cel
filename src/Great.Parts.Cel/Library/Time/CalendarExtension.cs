@@ -114,15 +114,7 @@ internal static class CalendarExtension
             Global("_>=_", CalendarOverloadIds.GreaterEqualsTimeOfDay, [TimeOfDay, TimeOfDay], Bool, TimeOfDayOrdering(Relation.GreaterEquals)),
         ];
 
-        ImmutableArray<OverloadBinding>.Builder described = ImmutableArray.CreateBuilder<OverloadBinding>(table.Length);
-        foreach (OverloadBinding binding in table)
-        {
-            described.Add(Descriptions.TryGetValue(binding.Function, out string? text)
-                ? binding.WithDeclaration(binding.Declaration.WithDescription(text))
-                : binding);
-        }
-
-        return described.MoveToImmutable();
+        return FunctionDescriptions.Describe(table, Descriptions);
     }
 
     // A function called as f(arguments), or an operator.

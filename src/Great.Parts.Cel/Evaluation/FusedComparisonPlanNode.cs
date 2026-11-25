@@ -29,9 +29,8 @@ internal sealed class FusedComparisonPlanNode : PlanNode
     private readonly CelValue _literal;
     private readonly Relation _relation;
 
-    // The call of the comparison: one candidate, or the dispatch among several.
-    private readonly CallPlanNode? _call;
-    private readonly DispatchPlanNode? _dispatch;
+    // The call of the comparison: a CallPlanNode with one candidate, or a DispatchPlanNode among several; TryCreate makes no other.
+    private readonly PlanNode _call;
 
     // The candidate of the dispatch for values of the kind of the literal; null when the node has no dispatch or none fits.
     private readonly OverloadBinding? _chosen;
@@ -55,8 +54,7 @@ internal sealed class FusedComparisonPlanNode : PlanNode
         ulong units)
         : base(call.Offset, call.Cost)
     {
-        _call = call as CallPlanNode;
-        _dispatch = call as DispatchPlanNode;
+        _call = call;
         _field = field;
         _literalNode = literalNode;
         _literal = literal;
@@ -188,12 +186,12 @@ internal sealed class FusedComparisonPlanNode : PlanNode
         }
 
         ReadOnlySpan<CelValue> values = [left, _literal];
-        if (_dispatch is null)
+        if (_call is DispatchPlanNode dispatch)
         {
-            return _call!.Complete(frame, values);
+            return _chosen is not null && sameKind ? dispatch.Invoke(frame, _chosen, values) : dispatch.Call(frame, values);
         }
 
-        return _chosen is not null && sameKind ? _dispatch.Invoke(frame, _chosen, values) : _dispatch.Call(frame, values);
+        return ((CallPlanNode)_call).Complete(frame, values);
     }
 
     private void Charge(Frame frame)

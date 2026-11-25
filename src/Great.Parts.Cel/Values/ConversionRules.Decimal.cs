@@ -164,9 +164,14 @@ internal static partial class ConversionRules
             var systemRow = new SystemDecimalRow();
 #if NET11_0_OR_GREATER
             var exactRow = new Decimal128Row();
-            return [exactRow, systemRow, new NullableTimeRow<Decimal128>(exactRow), new NullableTimeRow<decimal>(systemRow)];
+            return
+            [
+                exactRow, systemRow,
+                new NullableRow<Decimal128>(exactRow, wrapped: false, leaf: false),
+                new NullableRow<decimal>(systemRow, wrapped: false, leaf: false),
+            ];
 #else
-            return [systemRow, new NullableTimeRow<decimal>(systemRow)];
+            return [systemRow, new NullableRow<decimal>(systemRow, wrapped: false, leaf: false)];
 #endif
         }
     }

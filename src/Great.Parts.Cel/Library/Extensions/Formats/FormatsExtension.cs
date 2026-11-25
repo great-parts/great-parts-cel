@@ -58,13 +58,7 @@ internal static class FormatsExtension
             Receiver("isUriRef", "string_is_uri_ref", [], FormatsFunctions.IsUriRef),
         ];
 
-        ImmutableArray<OverloadBinding>.Builder described = ImmutableArray.CreateBuilder<OverloadBinding>(table.Length);
-        foreach (OverloadBinding binding in table)
-        {
-            described.Add(binding.WithDeclaration(binding.Declaration.WithDescription(Descriptions[binding.Function])));
-        }
-
-        return described.MoveToImmutable();
+        return FunctionDescriptions.Describe(table, Descriptions);
 
         // A method of string: the receiver is the first parameter, and the call costs the unit of the call and the length of the receiver.
         OverloadBinding Receiver(string function, string overloadId, ImmutableArray<CelType> parameterTypes, OverloadImplementation implementation) =>

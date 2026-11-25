@@ -151,79 +151,122 @@ internal static partial class ValueTypeRules
     /// <param name="nullElements">Whether the elements and the values at the top take <c>null</c>.</param>
     /// <param name="types">The type index of the environment, which names the description of an object value.</param>
     /// <returns>The actual type; <see langword="null"/> when the value fits.</returns>
-    internal static string? MismatchType(CelValue value, CelType type, bool nullElements, TypeIndex? types = null)
+    internal static string? MismatchType(CelValue value, CelType type, bool nullElements, TypeIndex? types = null) =>
+        Mismatch<string, NameShape>(value, type, nullElements, types);
+
+    // How an actual type is made, for the walk that finds it: as the text that a message writes, or as a CEL type. The walk is
+    // the same; what a type of a value is at the top, and how the first element, key or value that does not fit is named inside
+    // list(…), optional_type(…) and map(…, …), is the shape's. A shape is a struct, so that each walk is its own code and the calls
+    // of the shape are direct.
+    private interface IMismatchShape<TResult>
+        where TResult : class
+    {
+        // The actual type of a value that does not fit the top level of the declared type.
+        static abstract TResult OfValue(CelValue value, TypeIndex? types);
+
+        static abstract TResult ListOf(TResult element);
+
+        static abstract TResult OptionalOf(TResult held);
+
+        // A map whose key is the actual type and whose value is the declared one, and the other way round.
+        static abstract TResult MapWithKey(TResult key, CelType value);
+
+        static abstract TResult MapWithValue(CelType key, TResult value);
+    }
+
+    // The walk of a mismatch: the actual type of the value at the top level when it does not fit, otherwise that of the first element,
+    // key or value that does not fit, in the order of enumeration, inside the declared type; null when the value fits. With nullElements
+    // a null element, value or held value fits, a null key never.
+    private static TResult? Mismatch<TResult, TShape>(CelValue value, CelType type, bool nullElements, TypeIndex? types)
+        where TResult : class
+        where TShape : struct, IMismatchShape<TResult>
     {
         if (!FitsTopLevel(value, type, types))
         {
-            return NameOf(value, types);
+            return TShape.OfValue(value, types);
         }
 
         if (value.TryGetList(out CelList? list) && !type.Parameters.IsEmpty && Descends(type.Parameters[0]))
         {
-            return ElementMismatch(list, type.Parameters[0], nullElements, types);
+            return ElementMismatch<TResult, TShape>(list, type.Parameters[0], nullElements, types);
         }
 
         if (type.Kind == CelTypeKind.Optional && value.TryGetOptional(out CelOptional<CelValue> optional))
         {
-            return HeldMismatch(optional, type.Parameters[0], nullElements, types);
+            return HeldMismatch<TResult, TShape>(optional, type.Parameters[0], nullElements, types);
         }
 
         return value.TryGetMap(out CelMap? map) && !type.Parameters.IsEmpty
-            ? EntryMismatch(map, type.Parameters[0], type.Parameters[1], nullElements, types)
+            ? EntryMismatch<TResult, TShape>(map, type.Parameters[0], type.Parameters[1], nullElements, types)
             : null;
     }
 
-    // The mismatch type of the held value of an optional that does not fit optional_type(E), as optional_type(…); with nullElements
-    // a null held value fits.
-    private static string? HeldMismatch(CelOptional<CelValue> optional, CelType held, bool nullElements, TypeIndex? types)
+    // The mismatch of the held value of an optional that does not fit optional_type(E); with nullElements a null held value fits.
+    private static TResult? HeldMismatch<TResult, TShape>(CelOptional<CelValue> optional, CelType held, bool nullElements, TypeIndex? types)
+        where TResult : class
+        where TShape : struct, IMismatchShape<TResult>
     {
         if (!optional.HasValue || !Descends(held) || (nullElements && optional.Value.Kind == CelValueKind.Null))
         {
             return null;
         }
 
-        string? heldType = MismatchType(optional.Value, held, nullElements, types);
-        return heldType is null ? null : "optional_type(" + heldType + ")";
+        return Mismatch<TResult, TShape>(optional.Value, held, nullElements, types) is { } heldType ? TShape.OptionalOf(heldType) : null;
     }
 
-    // The mismatch type of the first element that does not fit list(E), as list(…); with nullElements a null element fits.
-    private static string? ElementMismatch(CelList list, CelType element, bool nullElements, TypeIndex? types)
+    // The mismatch of the first element that does not fit list(E); with nullElements a null element fits.
+    private static TResult? ElementMismatch<TResult, TShape>(CelList list, CelType element, bool nullElements, TypeIndex? types)
+        where TResult : class
+        where TShape : struct, IMismatchShape<TResult>
     {
         for (int index = 0; index < list.Count; index++)
         {
             CelValue item = list[index];
-            string? itemType = nullElements && item.Kind == CelValueKind.Null ? null : MismatchType(item, element, false, types);
-            if (itemType is not null)
+            if (!(nullElements && item.Kind == CelValueKind.Null) && Mismatch<TResult, TShape>(item, element, false, types) is { } itemType)
             {
-                return "list(" + itemType + ")";
+                return TShape.ListOf(itemType);
             }
         }
 
         return null;
     }
 
-    // The mismatch type of the first key or value that does not fit map(K, V), as map(…, …); with nullElements a null
-    // value fits, a null key never.
-    private static string? EntryMismatch(CelMap map, CelType key, CelType value, bool nullElements, TypeIndex? types)
+    // The mismatch of the first key or value that does not fit map(K, V); with nullElements a null value fits, a null key never.
+    private static TResult? EntryMismatch<TResult, TShape>(CelMap map, CelType key, CelType value, bool nullElements, TypeIndex? types)
+        where TResult : class
+        where TShape : struct, IMismatchShape<TResult>
     {
         bool keys = Descends(key);
         bool values = Descends(value);
         foreach (KeyValuePair<CelValue, CelValue> entry in map)
         {
-            string? keyType = keys ? MismatchType(entry.Key, key, false, types) : null;
-            if (keyType is not null)
+            if (keys && Mismatch<TResult, TShape>(entry.Key, key, false, types) is { } keyType)
             {
-                return "map(" + keyType + ", " + value + ")";
+                return TShape.MapWithKey(keyType, value);
             }
 
-            string? valueType = values && !(nullElements && entry.Value.Kind == CelValueKind.Null) ? MismatchType(entry.Value, value, false, types) : null;
-            if (valueType is not null)
+            if (values && !(nullElements && entry.Value.Kind == CelValueKind.Null)
+                && Mismatch<TResult, TShape>(entry.Value, value, false, types) is { } valueType)
             {
-                return "map(" + key + ", " + valueType + ")";
+                return TShape.MapWithValue(key, valueType);
             }
         }
 
         return null;
+    }
+
+    // The actual type as the text of a message: the name of the type of the value, and the declared type written with it.
+    private readonly struct NameShape : IMismatchShape<string>
+    {
+        public static string OfValue(CelValue value, TypeIndex? types) => NameOf(value, types);
+
+        public static string ListOf(string element) => "list(" + element + ")";
+
+        public static string OptionalOf(string held) => "optional_type(" + held + ")";
+
+        public static string MapWithKey(string key, CelType value) => "map(" + key + ", " + value + ")";
+
+        public static string MapWithValue(CelType key, string value) => "map(" + key + ", " + value + ")";
     }
 
     // The elements of a list against list(E): n units before the descent into n elements; with nullElements a null

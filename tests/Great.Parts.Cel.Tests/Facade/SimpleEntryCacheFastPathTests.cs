@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Facade;
@@ -42,6 +43,9 @@ public sealed class SimpleEntryCacheFastPathTests
         Assert.Same(other, cache.GetOrCompile<long>(environment, Text));
     }
 
+    // The table is read by the instance of the text: in the place of an equal text of another instance there is an entry of the first
+    // instance, which is a miss, and level 2 gives the program by value. The planted entry stands in the place of the copy itself, so a
+    // table that took an equal text for the same would return it.
     [Fact]
     public void EqualTextInAnotherInstance_FindsTheSameProgramByValue()
     {
@@ -49,9 +53,11 @@ public sealed class SimpleEntryCacheFastPathTests
         SimpleEntryCache.EnvironmentEntry environment = SimpleEntryFixtures.AddEnvironment(cache, typeof(long));
         CelCompileResult<long> compiled = cache.GetOrCompile<long>(environment, Text);
         CelCompileResult<long> other = environment.Environment.Compile<long>("x + 2");
-        SimpleEntryCache.PublishProgram(environment, Plant(environment, other));
         string copy = new(Text.AsSpan());
         Assert.NotSame(Text, copy);
+        SimpleEntryCache.ProgramEntry planted = Plant(environment, other);
+        environment.Recent[RuntimeHelpers.GetHashCode(copy) & (SimpleEntryCache.RecentPrograms - 1)] = planted;
+        Assert.Same(planted, SimpleEntryCache.RecentProgram(environment, copy));
 
         Assert.Same(compiled, cache.GetOrCompile<long>(environment, copy));
         Assert.Equal(1, cache.Kept.Programs);

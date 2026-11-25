@@ -87,41 +87,7 @@ internal sealed class FilterParser
     }
 
     // expression = sequence { WS "AND" WS sequence }
-    private FilterExpr? ParseExpression()
-    {
-        FilterExpr? first = ParseSequence();
-        if (first is null || !IsKeyword("AND"))
-        {
-            return first;
-        }
-
-        List<FilterExpr> operands = [first];
-        List<(int, int)> keywords = [];
-        while (IsKeyword("AND"))
-        {
-            if (!_token.SpaceBefore)
-            {
-                return Fail("white space before AND");
-            }
-
-            keywords.Add((_token.Start, _token.End));
-            Advance();
-            if (!ValueFollows("AND"))
-            {
-                return null;
-            }
-
-            FilterExpr? next = ParseSequence();
-            if (next is null)
-            {
-                return null;
-            }
-
-            operands.Add(next);
-        }
-
-        return new FilterJoin(FilterJoinKind.And, operands, keywords);
-    }
+    private FilterExpr? ParseExpression() => ParseJoin(isOr: false);
 
     // sequence = factor { WS factor }
     private FilterExpr? ParseSequence()
@@ -159,31 +125,36 @@ internal sealed class FilterParser
         && !IsKeyword("AND");
 
     // factor = term { WS "OR" WS term }
-    private FilterExpr? ParseFactor()
+    private FilterExpr? ParseFactor() => ParseJoin(isOr: true);
+
+    // The rule of both joins: operands separated by a keyword, with white space before and after it. The operands of AND are
+    // sequences, those of OR are terms.
+    private FilterExpr? ParseJoin(bool isOr)
     {
-        FilterExpr? first = ParseTerm();
-        if (first is null || !IsKeyword("OR"))
+        string keyword = isOr ? "OR" : "AND";
+        FilterExpr? first = ParseOperand(isOr);
+        if (first is null || !IsKeyword(keyword))
         {
             return first;
         }
 
         List<FilterExpr> operands = [first];
         List<(int, int)> keywords = [];
-        while (IsKeyword("OR"))
+        while (IsKeyword(keyword))
         {
             if (!_token.SpaceBefore)
             {
-                return Fail("white space before OR");
+                return Fail("white space before " + keyword);
             }
 
             keywords.Add((_token.Start, _token.End));
             Advance();
-            if (!ValueFollows("OR"))
+            if (!ValueFollows(keyword))
             {
                 return null;
             }
 
-            FilterExpr? next = ParseTerm();
+            FilterExpr? next = ParseOperand(isOr);
             if (next is null)
             {
                 return null;
@@ -192,8 +163,10 @@ internal sealed class FilterParser
             operands.Add(next);
         }
 
-        return new FilterJoin(FilterJoinKind.Or, operands, keywords);
+        return new FilterJoin(isOr ? FilterJoinKind.Or : FilterJoinKind.And, operands, keywords);
     }
+
+    private FilterExpr? ParseOperand(bool isOr) => isOr ? ParseTerm() : ParseSequence();
 
     // After AND or OR: white space and then a term; the end of the text is an error at the end.
     private bool ValueFollows(string keyword)

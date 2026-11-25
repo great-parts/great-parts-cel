@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System;
 using Great.Parts.Cel.Types;
 
 namespace Great.Parts.Cel.Values;
@@ -7,6 +7,15 @@ namespace Great.Parts.Cel.Values;
 // names it, as CEL types instead of text.
 internal static partial class ValueTypeRules
 {
+    // The kinds whose name is a name of a type that the kind alone gives: neither an object nor an abstract value, which are named by
+    // their own types, nor an error value, which has no CEL type.
+    private static readonly CelValueKind[] NamedKinds =
+    [
+        CelValueKind.Null, CelValueKind.Bool, CelValueKind.Int, CelValueKind.UInt, CelValueKind.Double, CelValueKind.String,
+        CelValueKind.Bytes, CelValueKind.List, CelValueKind.Map, CelValueKind.Type, CelValueKind.Optional, CelValueKind.Timestamp,
+        CelValueKind.Duration, CelValueKind.Decimal, CelValueKind.Date, CelValueKind.TimeOfDay,
+    ];
+
     /// <summary>
     /// The CEL type of a value of a kind, for an error that kept only the kind of the value and, for an object or an abstract
     /// value, the name of its type: the description or the .NET type of an object, the name of the type of an abstract value.
@@ -44,26 +53,18 @@ internal static partial class ValueTypeRules
     /// </summary>
     /// <param name="name">The name.</param>
     /// <returns>The type.</returns>
-    internal static CelType TypeOfName(string name) => name switch
+    internal static CelType TypeOfName(string name)
     {
-        "null_type" => CelType.Null,
-        "bool" => CelType.Bool,
-        "int" => CelType.Int,
-        "uint" => CelType.UInt,
-        "double" => CelType.Double,
-        "string" => CelType.String,
-        "bytes" => CelType.Bytes,
-        "list" => ListType,
-        "map" => MapType,
-        "type" => TypeType,
-        "optional_type" => OptionalType,
-        "timestamp" => CelType.Timestamp,
-        "duration" => CelType.Duration,
-        "decimal" => CelType.Decimal,
-        "date" => CelType.Date,
-        "time_of_day" => CelType.TimeOfDay,
-        _ => CelType.ObjectNamed(name),
-    };
+        foreach (CelValueKind kind in NamedKinds)
+        {
+            if (string.Equals(ValueTypeNames.Of(kind), name, StringComparison.Ordinal))
+            {
+                return TypeOfKind(kind, null);
+            }
+        }
+
+        return CelType.ObjectNamed(name);
+    }
 
     // The object type of a description or of the .NET type of an instance that no description covers.
     private static CelType ObjectTypeNamed(object? name) => name is CelObjectType description
@@ -90,69 +91,20 @@ internal static partial class ValueTypeRules
     /// <param name="nullElements">Whether the elements and the values at the top take <c>null</c>.</param>
     /// <param name="types">The type index of the environment, which names the description of an object value.</param>
     /// <returns>The actual type; <see langword="null"/> when the value fits.</returns>
-    internal static CelType? MismatchCelType(CelValue value, CelType type, bool nullElements, TypeIndex? types = null)
+    internal static CelType? MismatchCelType(CelValue value, CelType type, bool nullElements, TypeIndex? types = null) =>
+        Mismatch<CelType, TypeShape>(value, type, nullElements, types);
+
+    // The actual type as a CEL type: the type of the value, and the declared type built with it.
+    private readonly struct TypeShape : IMismatchShape<CelType>
     {
-        if (!FitsTopLevel(value, type, types))
-        {
-            return TypeOfValue(value, types);
-        }
+        public static CelType OfValue(CelValue value, TypeIndex? types) => TypeOfValue(value, types);
 
-        if (value.TryGetList(out CelList? list) && !type.Parameters.IsEmpty && Descends(type.Parameters[0]))
-        {
-            return ElementMismatchType(list, type.Parameters[0], nullElements, types);
-        }
+        public static CelType ListOf(CelType element) => CelType.ListOf(element);
 
-        if (type.Kind == CelTypeKind.Optional && value.TryGetOptional(out CelOptional<CelValue> optional))
-        {
-            return HeldMismatchType(optional, type.Parameters[0], nullElements, types);
-        }
+        public static CelType OptionalOf(CelType held) => CelType.OptionalOf(held);
 
-        return value.TryGetMap(out CelMap? map) && !type.Parameters.IsEmpty
-            ? EntryMismatchType(map, type.Parameters[0], type.Parameters[1], nullElements, types)
-            : null;
-    }
+        public static CelType MapWithKey(CelType key, CelType value) => CelType.MapOf(key, value);
 
-    private static CelType? HeldMismatchType(CelOptional<CelValue> optional, CelType held, bool nullElements, TypeIndex? types)
-    {
-        if (!optional.HasValue || !Descends(held) || (nullElements && optional.Value.Kind == CelValueKind.Null))
-        {
-            return null;
-        }
-
-        return MismatchCelType(optional.Value, held, nullElements, types) is { } heldType ? CelType.OptionalOf(heldType) : null;
-    }
-
-    private static CelType? ElementMismatchType(CelList list, CelType element, bool nullElements, TypeIndex? types)
-    {
-        for (int index = 0; index < list.Count; index++)
-        {
-            CelValue item = list[index];
-            if (!(nullElements && item.Kind == CelValueKind.Null) && MismatchCelType(item, element, false, types) is { } itemType)
-            {
-                return CelType.ListOf(itemType);
-            }
-        }
-
-        return null;
-    }
-
-    private static CelType? EntryMismatchType(CelMap map, CelType key, CelType value, bool nullElements, TypeIndex? types)
-    {
-        bool keys = Descends(key);
-        bool values = Descends(value);
-        foreach (KeyValuePair<CelValue, CelValue> entry in map)
-        {
-            if (keys && MismatchCelType(entry.Key, key, false, types) is { } keyType)
-            {
-                return CelType.MapOf(keyType, value);
-            }
-
-            if (values && !(nullElements && entry.Value.Kind == CelValueKind.Null) && MismatchCelType(entry.Value, value, false, types) is { } valueType)
-            {
-                return CelType.MapOf(key, valueType);
-            }
-        }
-
-        return null;
+        public static CelType MapWithValue(CelType key, CelType value) => CelType.MapOf(key, value);
     }
 }

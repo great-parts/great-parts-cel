@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Numerics;
 using Great.Parts.Cel.Types;
 
@@ -10,34 +9,14 @@ namespace Great.Parts.Cel.Values;
 // are rows too, and char is a key.
 internal static partial class ConversionRules
 {
-    // Reads a CEL value as a .NET type of a leaf row; false when the value is of another kind or does not fit.
-    private delegate bool TryReadLeaf<T>(CelValue value, out T result);
-
-    // The row of a leaf type that a reader converts: char, Int128, UInt128, BigInteger, DateOnly and TimeOnly. char narrows: a string of
-    // another length does not fit. An int always fits Int128 and BigInteger, and a uint UInt128, so those rows cannot fail, nor can the
-    // rows of a date and a time of day.
-    private sealed class ReadRow<T>(CelType expectedType, bool narrowing, TryReadLeaf<T> read) : LeafRow<T>(expectedType, takesNull: false)
-    {
-        internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T result)
-        {
-            bool converted = read(value, out T item);
-            result = item;
-            return converted;
-        }
-
-        private protected override bool HoldsCore(CelType type) => type.Kind == ExpectedType.Kind;
-
-        private protected override bool CannotFailCore(CelType type) => !narrowing && type.Kind == ExpectedType.Kind;
-    }
-
     private static class WideRows
     {
         internal static ClrRow[] Create(out ClrRow<char> charRow)
         {
-            var characters = new ReadRow<char>(CelType.String, narrowing: true, TryReadChar);
-            var signed = new ReadRow<Int128>(CelType.Int, narrowing: false, TryReadInt128);
-            var unsigned = new ReadRow<UInt128>(CelType.UInt, narrowing: false, TryReadUInt128);
-            var big = new ReadRow<BigInteger>(CelType.Int, narrowing: false, TryReadBigInteger);
+            var characters = new ReadRow<char>(CelType.String, narrowing: true, leaf: true, TryReadChar);
+            var signed = new ReadRow<Int128>(CelType.Int, narrowing: false, leaf: true, TryReadInt128);
+            var unsigned = new ReadRow<UInt128>(CelType.UInt, narrowing: false, leaf: true, TryReadUInt128);
+            var big = new ReadRow<BigInteger>(CelType.Int, narrowing: false, leaf: true, TryReadBigInteger);
             charRow = characters;
             return
             [

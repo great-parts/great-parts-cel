@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Great.Parts.Cel.Diagnostics;
@@ -170,71 +169,36 @@ internal static partial class ConversionRules
         return type == typeof(CelDuration) || type == typeof(TimeSpan) ? CelType.Duration : null;
     }
 
-    // Reads a CEL value of one kind of time as a .NET type; false when the value is of another kind or does not fit.
-    private delegate bool TryReadTime<T>(CelValue value, out T result);
-
-    // CelTimestamp, DateTimeOffset, CelDuration and TimeSpan as a result or a parameter: a value of the CEL type of the row
-    // converts, except that the nanoseconds of a timestamp or a duration that are not a multiple of 100 do not fit the
-    // narrower .NET type. No collection row has time.
-    private sealed class TimeRow<T>(CelType expectedType, bool narrowing, TryReadTime<T> read) : ClrRow<T>(expectedType, takesNull: false)
-    {
-        internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T result)
-        {
-            bool converted = read(value, out T item);
-            result = item;
-            return converted;
-        }
-
-        private protected override bool HoldsCore(CelType type) => type.Kind == ExpectedType.Kind;
-
-        private protected override bool CannotFailCore(CelType type) => !narrowing && type.Kind == ExpectedType.Kind;
-    }
-
-    // Nullable<X> of time: null, or the value by the row of X. CEL has no wrapper of time, so the expected type is that of X.
-    private sealed class NullableTimeRow<T>(ClrRow<T> valueRow) : ClrRow<T?>(valueRow.ExpectedType, takesNull: true)
-        where T : struct
-    {
-        internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T? result)
-        {
-            if (value.Kind == CelValueKind.Null)
-            {
-                result = null;
-                return true;
-            }
-
-            bool converted = valueRow.TryConvert(value, type, meter, out T inner);
-            result = converted ? inner : null;
-            return converted;
-        }
-
-        private protected override bool HoldsCore(CelType type) => valueRow.Holds(type);
-
-        private protected override bool CannotFailCore(CelType type) => valueRow.CannotFail(type);
-    }
-
+    // CelTimestamp, DateTimeOffset, CelDuration and TimeSpan as a result or a parameter, and the Nullable<> of each: a value of the CEL
+    // type of the row converts, except that the nanoseconds of a timestamp or a duration that are not a multiple of 100 do not fit the
+    // narrower .NET type. CEL has no wrapper of time, so a Nullable<> has the type of its value, and no collection row has time.
     private static class TimeRows
     {
         internal static ClrRow[] Create()
         {
-            var timestampRow = new TimeRow<CelTimestamp>(
+            var timestampRow = new ReadRow<CelTimestamp>(
                 CelType.Timestamp,
                 narrowing: false,
+                leaf: false,
                 static (CelValue value, out CelTimestamp result) => value.TryGetTimestamp(out result));
-            var offsetRow = new TimeRow<DateTimeOffset>(
+            var offsetRow = new ReadRow<DateTimeOffset>(
                 CelType.Timestamp,
                 narrowing: true,
+                leaf: false,
                 static (CelValue value, out DateTimeOffset result) =>
                 {
                     result = default;
                     return value.TryGetTimestamp(out CelTimestamp timestamp) && timestamp.TryGetDateTimeOffset(out result);
                 });
-            var durationRow = new TimeRow<CelDuration>(
+            var durationRow = new ReadRow<CelDuration>(
                 CelType.Duration,
                 narrowing: false,
+                leaf: false,
                 static (CelValue value, out CelDuration result) => value.TryGetDuration(out result));
-            var spanRow = new TimeRow<TimeSpan>(
+            var spanRow = new ReadRow<TimeSpan>(
                 CelType.Duration,
                 narrowing: true,
+                leaf: false,
                 static (CelValue value, out TimeSpan result) =>
                 {
                     result = default;
@@ -243,8 +207,10 @@ internal static partial class ConversionRules
             return
             [
                 timestampRow, offsetRow, durationRow, spanRow,
-                new NullableTimeRow<CelTimestamp>(timestampRow), new NullableTimeRow<DateTimeOffset>(offsetRow),
-                new NullableTimeRow<CelDuration>(durationRow), new NullableTimeRow<TimeSpan>(spanRow),
+                new NullableRow<CelTimestamp>(timestampRow, wrapped: false, leaf: false),
+                new NullableRow<DateTimeOffset>(offsetRow, wrapped: false, leaf: false),
+                new NullableRow<CelDuration>(durationRow, wrapped: false, leaf: false),
+                new NullableRow<TimeSpan>(spanRow, wrapped: false, leaf: false),
             ];
         }
     }

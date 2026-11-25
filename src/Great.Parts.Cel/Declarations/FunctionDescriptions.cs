@@ -131,13 +131,16 @@ internal static class FunctionDescriptions
     internal static string? Of(string function) => Table.TryGetValue(function, out string? text) ? text : null;
 
     // The overloads with the description of their function; the same array when no function of them has one.
-    internal static ImmutableArray<OverloadBinding> Describe(ImmutableArray<OverloadBinding> overloads)
+    internal static ImmutableArray<OverloadBinding> Describe(ImmutableArray<OverloadBinding> overloads) => Describe(overloads, Table);
+
+    // The overloads with the description that a table of a set gives to their function; the same array when the table has none of them.
+    internal static ImmutableArray<OverloadBinding> Describe(ImmutableArray<OverloadBinding> overloads, FrozenDictionary<string, string> table)
     {
         ImmutableArray<OverloadBinding>.Builder? described = null;
         for (int i = 0; i < overloads.Length; i++)
         {
             OverloadBinding binding = overloads[i];
-            if (Of(binding.Function) is not string text)
+            if (!table.TryGetValue(binding.Function, out string? text))
             {
                 continue;
             }
