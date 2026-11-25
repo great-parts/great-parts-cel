@@ -19,7 +19,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
     <!-- The source generator runs in the compiler of the rig as an analyzer (the anonymous object of the simple entry) and is not a reference of the assembly. -->
     <ProjectReference Include="../../src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj"
@@ -27,10 +27,9 @@
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <!-- The classes of the order and the toolchain for net11.0, shared with the rig. -->
+  <!-- The classes of the order, shared with the rig. -->
   <ItemGroup>
     <Compile Include="../SpeedBench/Model.cs" Link="Model.cs" />
-    <Compile Include="../SpeedBench/Net11Toolchain.cs" Link="Net11Toolchain.cs" />
   </ItemGroup>
 
 </Project>

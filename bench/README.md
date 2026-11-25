@@ -15,7 +15,7 @@ The versions are pinned in `Directory.Packages.props`; the lock file is `SpeedBe
 | DotnetCel | 1.0.7 | compared library |
 | Cel.NET | 2.3.1 | compared library |
 | Cel (TELUS) | 0.3.3 | compared library; under the assembly alias `TelusCel`, because its namespace `Cel` is also the namespace of Cel.NET |
-| BenchmarkDotNet | 0.15.8 | the benchmark runner |
+| BenchmarkDotNet | 0.16.0-preview.2 | the benchmark runner (a preview: the release 0.15.8 cannot name .NET 11); both projects of the rig use it |
 | Grpc.Tools | 2.85.0 | build only: protoc for `SpeedBench/Proto/order.proto` |
 
 ## How each library receives the data

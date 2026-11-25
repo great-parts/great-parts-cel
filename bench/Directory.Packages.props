@@ -8,8 +8,8 @@
     <ManagePackageVersionsCentrally Condition="'$(MSBuildProjectName)' == 'SpeedBench'">true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <!-- The benchmark runner. -->
-    <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
+    <!-- The benchmark runner. A preview: the release 0.15.8 cannot name .NET 11, the preview 0.16.0 can. Only the rig takes it. -->
+    <PackageVersion Include="BenchmarkDotNet" Version="0.16.0-preview.2" />
     <!-- The libraries that are compared. -->
     <PackageVersion Include="Celly" Version="1.2.0" />
     <PackageVersion Include="DotnetCel" Version="1.0.7" />

@@ -7,13 +7,12 @@ using SpeedBench;
 
 namespace ThresholdBench;
 
-// No job of its own here: BenchmarkDotNet runs Job.Default unless the command line names another job (--job Dry); the only job
-// below sets the toolchain of every job (Net11Toolchain). run.mjs reads the full JSON reports and writes the verdicts of the limits.
+// No job of its own here: BenchmarkDotNet runs Job.Default unless the command line names another job (--job Dry).
+// run.mjs reads the full JSON reports and writes the verdicts of the limits.
 public sealed class ThresholdConfig : ManualConfig
 {
     public ThresholdConfig()
     {
-        AddJob(Net11Toolchain.Mutator);
         AddDiagnoser(MemoryDiagnoser.Default);
         AddColumn(StatisticColumn.Median);
         AddExporter(JsonExporter.Full);

@@ -61,8 +61,14 @@ jobs:
         with:
           global-json-file: global.json
 
+      # The lock file of the rig is recreated when the locked restore refuses it (a changed version of a package): the new file is in the
+      # artifact, and a commit takes it into the repository.
       - name: Restore (locked)
-        run: dotnet restore bench/SpeedBench/SpeedBench.csproj --locked-mode
+        run: |
+          if ! dotnet restore bench/SpeedBench/SpeedBench.csproj --locked-mode; then
+            echo "::warning::The lock file of the rig does not match the packages; it is recreated."
+            dotnet restore bench/SpeedBench/SpeedBench.csproj --force-evaluate
+          fi
 
       # run.mjs builds the rig, verifies every library on every case, then measures, then measures the limits of the speed-ups (it builds
       # bench/ThresholdBench, which restores its packages itself); the summary is written even after a failed run.
@@ -133,6 +139,14 @@ jobs:
             bench/results/thresholds/thresholds.json
             bench/results/thresholds/bdn/results
             bench/results/thresholds/bdn/*.log
+          if-no-files-found: warn
+
+      - name: Lock file of the rig
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-lock
+          path: bench/SpeedBench/packages.lock.json
           if-no-files-found: warn
 
       - name: Report (artifact)
