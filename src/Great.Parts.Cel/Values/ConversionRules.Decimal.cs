@@ -167,11 +167,11 @@ internal static partial class ConversionRules
             return
             [
                 exactRow, systemRow,
-                new NullableRow<Decimal128>(exactRow, wrapped: false, leaf: false),
-                new NullableRow<decimal>(systemRow, wrapped: false, leaf: false),
+                new NullableRow<Decimal128>(exactRow, wrapped: false),
+                new NullableRow<decimal>(systemRow, wrapped: false),
             ];
 #else
-            return [systemRow, new NullableRow<decimal>(systemRow, wrapped: false, leaf: false)];
+            return [systemRow, new NullableRow<decimal>(systemRow, wrapped: false)];
 #endif
         }
     }

@@ -179,12 +179,10 @@ internal static partial class ConversionRules
             var timestampRow = new ReadRow<CelTimestamp>(
                 CelType.Timestamp,
                 narrowing: false,
-                leaf: false,
                 static (CelValue value, out CelTimestamp result) => value.TryGetTimestamp(out result));
             var offsetRow = new ReadRow<DateTimeOffset>(
                 CelType.Timestamp,
                 narrowing: true,
-                leaf: false,
                 static (CelValue value, out DateTimeOffset result) =>
                 {
                     result = default;
@@ -193,12 +191,10 @@ internal static partial class ConversionRules
             var durationRow = new ReadRow<CelDuration>(
                 CelType.Duration,
                 narrowing: false,
-                leaf: false,
                 static (CelValue value, out CelDuration result) => value.TryGetDuration(out result));
             var spanRow = new ReadRow<TimeSpan>(
                 CelType.Duration,
                 narrowing: true,
-                leaf: false,
                 static (CelValue value, out TimeSpan result) =>
                 {
                     result = default;
@@ -207,10 +203,10 @@ internal static partial class ConversionRules
             return
             [
                 timestampRow, offsetRow, durationRow, spanRow,
-                new NullableRow<CelTimestamp>(timestampRow, wrapped: false, leaf: false),
-                new NullableRow<DateTimeOffset>(offsetRow, wrapped: false, leaf: false),
-                new NullableRow<CelDuration>(durationRow, wrapped: false, leaf: false),
-                new NullableRow<TimeSpan>(spanRow, wrapped: false, leaf: false),
+                new NullableRow<CelTimestamp>(timestampRow, wrapped: false),
+                new NullableRow<DateTimeOffset>(offsetRow, wrapped: false),
+                new NullableRow<CelDuration>(durationRow, wrapped: false),
+                new NullableRow<TimeSpan>(spanRow, wrapped: false),
             ];
         }
     }

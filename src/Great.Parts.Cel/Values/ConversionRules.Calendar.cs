@@ -14,9 +14,9 @@ internal static partial class ConversionRules
     {
         internal static ClrRow[] Create()
         {
-            var dateRow = new ReadRow<DateOnly>(CelType.Date, narrowing: false, leaf: true, static (CelValue value, out DateOnly result) => value.TryGetDate(out result));
-            var timeRow = new ReadRow<TimeOnly>(CelType.TimeOfDay, narrowing: false, leaf: true, static (CelValue value, out TimeOnly result) => value.TryGetTimeOfDay(out result));
-            return [dateRow, timeRow, new NullableRow<DateOnly>(dateRow, wrapped: false), new NullableRow<TimeOnly>(timeRow, wrapped: false)];
+            var dateRow = new LeafReadRow<DateOnly>(CelType.Date, narrowing: false, static (CelValue value, out DateOnly result) => value.TryGetDate(out result));
+            var timeRow = new LeafReadRow<TimeOnly>(CelType.TimeOfDay, narrowing: false, static (CelValue value, out TimeOnly result) => value.TryGetTimeOfDay(out result));
+            return [dateRow, timeRow, new LeafNullableRow<DateOnly>(dateRow, wrapped: false), new LeafNullableRow<TimeOnly>(timeRow, wrapped: false)];
         }
     }
 

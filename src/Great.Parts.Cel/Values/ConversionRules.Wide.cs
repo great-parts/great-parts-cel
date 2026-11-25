@@ -13,15 +13,16 @@ internal static partial class ConversionRules
     {
         internal static ClrRow[] Create(out ClrRow<char> charRow)
         {
-            var characters = new ReadRow<char>(CelType.String, narrowing: true, leaf: true, TryReadChar);
-            var signed = new ReadRow<Int128>(CelType.Int, narrowing: false, leaf: true, TryReadInt128);
-            var unsigned = new ReadRow<UInt128>(CelType.UInt, narrowing: false, leaf: true, TryReadUInt128);
-            var big = new ReadRow<BigInteger>(CelType.Int, narrowing: false, leaf: true, TryReadBigInteger);
+            var characters = new LeafReadRow<char>(CelType.String, narrowing: true, TryReadChar);
+            var signed = new LeafReadRow<Int128>(CelType.Int, narrowing: false, TryReadInt128);
+            var unsigned = new LeafReadRow<UInt128>(CelType.UInt, narrowing: false, TryReadUInt128);
+            var big = new LeafReadRow<BigInteger>(CelType.Int, narrowing: false, TryReadBigInteger);
             charRow = characters;
             return
             [
                 characters, signed, unsigned, big,
-                new NullableRow<char>(characters), new NullableRow<Int128>(signed), new NullableRow<UInt128>(unsigned), new NullableRow<BigInteger>(big),
+                new LeafNullableRow<char>(characters), new LeafNullableRow<Int128>(signed),
+                new LeafNullableRow<UInt128>(unsigned), new LeafNullableRow<BigInteger>(big),
             ];
         }
 

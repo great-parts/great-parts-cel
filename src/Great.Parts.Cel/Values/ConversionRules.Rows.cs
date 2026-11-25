@@ -52,9 +52,9 @@ internal static partial class ConversionRules
                 new ReferenceRow<CelList>(CelType.ListOf(CelType.Dyn), static (CelValue value, [NotNullWhen(true)] out CelList? list) => value.TryGetList(out list)),
                 new ReferenceRow<CelMap>(CelType.MapOf(CelType.Dyn, CelType.Dyn), static (CelValue value, [NotNullWhen(true)] out CelMap? map) => value.TryGetMap(out map)),
                 new ReferenceRow<CelType>(CelType.TypeOf(CelType.Dyn), static (CelValue value, [NotNullWhen(true)] out CelType? celType) => value.TryGetType(out celType)),
-                new NullableRow<long>(longRow), new NullableRow<int>(intRow), new NullableRow<ulong>(ulongRow),
-                new NullableRow<uint>(uintRow), new NullableRow<double>(doubleRow), new NullableRow<bool>(boolRow),
-                new NullableRow<ReadOnlyMemory<byte>>(memoryRow),
+                new LeafNullableRow<long>(longRow), new LeafNullableRow<int>(intRow), new LeafNullableRow<ulong>(ulongRow),
+                new LeafNullableRow<uint>(uintRow), new LeafNullableRow<double>(doubleRow), new LeafNullableRow<bool>(boolRow),
+                new LeafNullableRow<ReadOnlyMemory<byte>>(memoryRow),
                 .. wideRows,
                 .. CalendarRows.Create(),
                 .. TimeRows.Create(),
@@ -160,49 +160,43 @@ internal static partial class ConversionRules
         // Converts a value that is not an error value and fits the static type. A collection that cannot fail is a lazy
         // view; another, and a byte array, is a copy, which the meter is charged first.
         internal abstract bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T result);
+    }
 
-        // The rows of the lists and maps of T, and the rows of CelOptional<…> of T, of its list, of its maps and of CelOptional<T> itself,
-        // for a leaf row. The optional of an optional of a collection is no row: the tables nest one level, and a row that names its own
-        // kind again would make Native AOT compile such rows without end.
-        private protected void AddLeafCollections(Dictionary<Type, ClrRow> rows, KeyRows keys)
-        {
-            var list = new ListRow<T>(this);
-            var optional = new OptionalRow<T>(this);
-            rows.Add(typeof(IReadOnlyList<T>), list);
-            rows.Add(typeof(CelOptional<T>), optional);
-            rows.Add(typeof(CelOptional<CelOptional<T>>), new OptionalRow<CelOptional<T>>(optional));
-            rows.Add(typeof(CelOptional<IReadOnlyList<T>>), new OptionalRow<IReadOnlyList<T>>(list));
-            keys.AddMaps(rows, this);
-        }
+    // The rows of the lists and maps of a leaf row, and the rows of CelOptional<…> of T, of its list, of its maps and of CelOptional<T>
+    // itself. The optional of an optional of a collection is no row: the tables nest one level. It is a method of its own, called only
+    // by the types of the leaf rows, and no member of ClrRow<T>: a member there would exist for every row, the collection rows too, and Native AOT
+    // would compile the rows of the rows of a collection without end.
+    private static void AddLeafCollections<T>(ClrRow<T> row, Dictionary<Type, ClrRow> rows, KeyRows keys)
+    {
+        var list = new ListRow<T>(row);
+        var optional = new OptionalRow<T>(row);
+        rows.Add(typeof(IReadOnlyList<T>), list);
+        rows.Add(typeof(CelOptional<T>), optional);
+        rows.Add(typeof(CelOptional<CelOptional<T>>), new OptionalRow<CelOptional<T>>(optional));
+        rows.Add(typeof(CelOptional<IReadOnlyList<T>>), new OptionalRow<IReadOnlyList<T>>(list));
+        keys.AddMaps(rows, row);
     }
 
     // A row of a type that is not a collection of the tables: the element, key and value types of the collection rows.
     private abstract class LeafRow<T>(CelType expectedType, bool takesNull) : ClrRow<T>(expectedType, takesNull)
     {
-        internal sealed override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(rows, keys);
+        internal sealed override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(this, rows, keys);
     }
 
-    // The row of a type of one CEL kind: it holds the values of that kind, and it can fail only when it narrows. A leaf row has the rows
-    // of its collections; the rows of time and decimal are no leaves.
-    private abstract class KindRow<T>(CelType expectedType, bool narrowing, bool takesNull, bool leaf) : ClrRow<T>(expectedType, takesNull)
+    // The row of a type of one CEL kind: it holds the values of that kind, and it can fail only when it narrows. It has no rows of
+    // collections; the rows of the leaf types, which have, add them themselves.
+    private abstract class KindRow<T>(CelType expectedType, bool narrowing, bool takesNull) : ClrRow<T>(expectedType, takesNull)
     {
-        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys)
-        {
-            if (leaf)
-            {
-                AddLeafCollections(rows, keys);
-            }
-        }
-
         private protected override bool HoldsCore(CelType type) => type.Kind == ExpectedType.Kind;
 
         private protected override bool CannotFailCore(CelType type) => !narrowing && type.Kind == ExpectedType.Kind;
     }
 
     // bool, the integers, double, string and bytes; int and uint narrow with a range check.
-    private sealed class PrimitiveRow<T>(CelType expectedType, bool narrowing, bool takesNull)
-        : KindRow<T>(expectedType, narrowing, takesNull, leaf: true)
+    private sealed class PrimitiveRow<T>(CelType expectedType, bool narrowing, bool takesNull) : KindRow<T>(expectedType, narrowing, takesNull)
     {
+        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(this, rows, keys);
+
         internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T result) =>
             TryToPrimitive(value, meter, out result);
     }
@@ -210,13 +204,10 @@ internal static partial class ConversionRules
     // Reads a CEL value as a .NET type of a read row; false when the value is of another kind or does not fit.
     private delegate bool TryRead<T>(CelValue value, out T result);
 
-    // The row of a type that a reader converts: char, Int128, UInt128, BigInteger, DateOnly and TimeOnly, which are leaves, and
-    // DateTimeOffset, TimeSpan, CelTimestamp and CelDuration, which are not. A row narrows when a value of its CEL type can
-    // fail to fit: char, a string of another length; DateTimeOffset and TimeSpan, a timestamp or a duration whose nanoseconds are not a
-    // multiple of 100. An int always fits Int128 and BigInteger, and a uint UInt128, so those rows cannot fail, nor can the rows of a
-    // date and a time of day.
-    private sealed class ReadRow<T>(CelType expectedType, bool narrowing, bool leaf, TryRead<T> read)
-        : KindRow<T>(expectedType, narrowing, takesNull: false, leaf)
+    // The row of a type that a reader converts: DateTimeOffset, TimeSpan, CelTimestamp and CelDuration, which are no leaves. A row
+    // narrows when a value of its CEL type can fail to fit: DateTimeOffset and TimeSpan, a timestamp or a duration whose nanoseconds
+    // are not a multiple of 100.
+    private class ReadRow<T>(CelType expectedType, bool narrowing, TryRead<T> read) : KindRow<T>(expectedType, narrowing, takesNull: false)
     {
         internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T result)
         {
@@ -226,21 +217,21 @@ internal static partial class ConversionRules
         }
     }
 
+    // The row of a leaf type that a reader converts: char, Int128, UInt128, BigInteger, DateOnly and TimeOnly. char narrows: a string of
+    // another length does not fit. An int always fits Int128 and BigInteger, and a uint UInt128, so those rows cannot fail, nor can the
+    // rows of a date and a time of day.
+    private sealed class LeafReadRow<T>(CelType expectedType, bool narrowing, TryRead<T> read) : ReadRow<T>(expectedType, narrowing, read)
+    {
+        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(this, rows, keys);
+    }
+
     // Nullable<X> of a value type: null, or the value by the row of X. The expected type is the wrapper of that of X, except for the types
-    // that have no wrapper (date, time_of_day, time and decimal), whose Nullable<> has the type of its value. A leaf has the rows of its
-    // collections.
-    private sealed class NullableRow<T>(ClrRow<T> valueRow, bool wrapped = true, bool leaf = true)
+    // that have no wrapper (date, time_of_day, time and decimal), whose Nullable<> has the type of its value. It has no rows of
+    // collections; the Nullable<> of a leaf type has.
+    private class NullableRow<T>(ClrRow<T> valueRow, bool wrapped = true)
         : ClrRow<T?>(wrapped ? CelType.WrapperOf(valueRow.ExpectedType) : valueRow.ExpectedType, takesNull: true)
         where T : struct
     {
-        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys)
-        {
-            if (leaf)
-            {
-                AddLeafCollections(rows, keys);
-            }
-        }
-
         internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T? result)
         {
             if (value.Kind == CelValueKind.Null)
@@ -258,6 +249,13 @@ internal static partial class ConversionRules
         private protected override bool HoldsCore(CelType type) => valueRow.Holds(type);
 
         private protected override bool CannotFailCore(CelType type) => valueRow.CannotFail(type);
+    }
+
+    // Nullable<X> of a leaf type.
+    private sealed class LeafNullableRow<T>(ClrRow<T> valueRow, bool wrapped = true) : NullableRow<T>(valueRow, wrapped)
+        where T : struct
+    {
+        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(this, rows, keys);
     }
 
     // CelValue: any value as it is.
