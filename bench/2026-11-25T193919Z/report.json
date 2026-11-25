@@ -1,0 +1,78 @@
+{
+  "schema": 1,
+  "kind": "bench",
+  "generatedAtUtc": "2026-11-25T19:39:19Z",
+  "greatPartsCelCommit": "3292809e6c361befcf8367805f0f60d67f52517d",
+  "inputs": {
+    "runs": 3,
+    "job": "Default",
+    "cases": null
+  },
+  "runs": [
+    {
+      "run": 1,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-25T15:01:42.681Z",
+      "finished": "2026-11-25T16:23:02.896Z"
+    },
+    {
+      "run": 2,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-25T16:23:02.897Z",
+      "finished": "2026-11-25T17:44:13.322Z"
+    },
+    {
+      "run": 3,
+      "job": "Default",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-25T17:44:13.322Z",
+      "finished": "2026-11-25T19:04:46.022Z"
+    }
+  ],
+  "thresholds": {
+    "job": "Default",
+    "verdicts": [
+      {
+        "limit": "hybrid search of the literal prefix of matches, 64 code units",
+        "verdict": "holds: 64"
+      },
+      {
+        "limit": "build of the automaton of the pattern E5",
+        "verdict": "holds: 1385 ns"
+      },
+      {
+        "limit": "index of the values of a list (distinct, sets): scan or buckets, the limit of the library is 32 values",
+        "verdict": "no verdict; threshold by the rule: 64 (the limit of the library: 32)"
+      },
+      {
+        "limit": "substring search: time per cost unit",
+        "verdict": "no verdict; time per unit from M = 64 to M = 1024: 0.05 times for a literal, 0.49 times for the data"
+      },
+      {
+        "limit": "simple entry: evaluate and data",
+        "verdict": "no verdict; scalars: evaluate 363.7 ns, data 22.4 ns; lines: evaluate 2.06 us, data 22.5 ns"
+      },
+      {
+        "limit": "CelMap.Create of the row of an order",
+        "verdict": "no verdict; 65.4 ns, 248 B"
+      }
+    ]
+  },
+  "files": {
+    "summary": "report.md",
+    "verification": "verify.json",
+    "thresholds": "thresholds.json",
+    "runs": "runs/<k>/run.json and runs/<k>/summary.md"
+  },
+  "run": {
+    "id": 45640347087,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/45640347087"
+  }
+}
