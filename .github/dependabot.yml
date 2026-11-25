@@ -34,7 +34,9 @@ updates:
     open-pull-requests-limit: 5
     ignore:
       # The major version of an SDK image is the .NET it serves: 10 for the runtime of net10.0 and the oldest SDK, 11 for the build.
-      - dependency-name: "mcr.microsoft.com/dotnet/sdk"
+      # Dependabot names the image without the registry host ("dotnet/sdk", as in the titles of its pull requests), so the name
+      # "mcr.microsoft.com/dotnet/sdk" matched nothing and the oldest SDK was proposed for 11.
+      - dependency-name: "dotnet/sdk"
         update-types: ["version-update:semver-major"]
 
   # cel-go, the oracle of the differential run (eng/oracle). cel.dev/expr and google.golang.org/protobuf stay at the versions that
