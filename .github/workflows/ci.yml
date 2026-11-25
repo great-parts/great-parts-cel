@@ -344,7 +344,7 @@ jobs:
 
   # The check min-sdk (docs/design/eng-test.md, "min-sdk"): the source generator of the package loads into the compiler of the oldest
   # SDK of a user of the net10.0 package. The solution is built and packed on the host, as eng/test does before it; the sample
-  # application is built by the Compose service min-sdk, which runs the compiled eng/run on the image with the SDK 10.0.100. The job
+  # application is built by the Compose service min-sdk, which runs the compiled eng/run on the image with the SDK 10.0.404. The job
   # runs on every push and pull request: the package depends on the generator and on the library, not only on the paths of eng/.
   min-sdk:
     name: min-sdk
@@ -383,7 +383,7 @@ jobs:
     permissions:
       contents: read
     env:
-      QUICK_START_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.100@sha256:c7445f141c04f1a6b454181bd098dcfa606c61ba0bd213d0a702489e5bd4cd71
+      QUICK_START_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.404@sha256:8c6edfb26c85153f236d26efebd9ad349aec403583f343f201ee67838b23658d
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

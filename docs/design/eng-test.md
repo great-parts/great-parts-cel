@@ -18,7 +18,7 @@ docker compose -f eng/compose.yaml run --rm min-sdk
 | `test` | `eng/test` | `sdk-aot` | build, all tests under JIT, source and package checks, tests under Native AOT on linux-x64, test count |
 | `docs` | `eng/docs` | `docs` | examples, error codes page, offline links |
 | `mutate` | `eng/mutate` | `sdk` | mutation testing of the changed code |
-| `min-sdk` | `min-sdk` | `sdk-min` | builds a sample application on the .NET SDK 10.0.100 from the packed `Great.Parts.Cel`, see [min-sdk](#min-sdk) |
+| `min-sdk` | `min-sdk` | `sdk-min` | builds a sample application on the .NET SDK 10.0.404 from the packed `Great.Parts.Cel`, see [min-sdk](#min-sdk) |
 
 Every service:
 
@@ -40,7 +40,7 @@ The service `min-sdk` is the second exception: building `eng/run` needs the SDK 
 | `sdk` | `mcr.microsoft.com/dotnet/sdk` with the SDK version of `global.json` | the .NET 10 runtime and the ASP.NET Core 10 shared framework, copied from the `mcr.microsoft.com/dotnet/sdk` 10.0 image; `/repo` and `/git` registered as safe directories of `git` |
 | `sdk-aot` | the `-aot` variant of the same SDK version: it adds the native toolchain that Native AOT needs; the service `test` runs on it | the same as `sdk` |
 | `docs` | the `sdk` stage | the `lychee` program, copied from `lycheeverse/lychee` 0.24.2 |
-| `sdk-min` | `mcr.microsoft.com/dotnet/sdk:10.0.100`, the first .NET 10 SDK | `/repo` and `/git` registered as safe directories of `git` |
+| `sdk-min` | `mcr.microsoft.com/dotnet/sdk:10.0.404`, the oldest supported .NET 10 SDK | `/repo` and `/git` registered as safe directories of `git` |
 
 - Tags are exact versions; floating tags such as `latest` are not used. The SDK tag of `sdk` changes together with `global.json`, the tag of `sdk-min` together with `eng/min-sdk/global.json`.
 - The .NET 10 runtime runs the tests and examples for `net10.0` and the mutation tool; the ASP.NET Core 10 shared framework runs the tests of the ASP.NET Core package for `net10.0`.
@@ -122,13 +122,13 @@ The counters of the last line are the sums of the reports under `artifacts/test-
 
 ## min-sdk
 
-Shows that the source generator in the package `Great.Parts.Cel`, built against Roslyn 5.0.0, loads into the compiler of the .NET SDK 10.0.100 — the oldest SDK a user of the `net10.0` package can have — without `CS9057`, the warning with which a compiler skips an analyzer built against a newer compiler.
+Shows that the source generator in the package `Great.Parts.Cel`, built against Roslyn 5.0.0, loads into the compiler of the .NET SDK 10.0.404 — the oldest SDK a user of the `net10.0` package can have — without `CS9057`, the warning with which a compiler skips an analyzer built against a newer compiler.
 
 `eng/min-sdk/` is a small application that inherits nothing from the repository root. It is not part of `Great.Parts.Cel.slnx`: the solution builds on the SDK of the root `global.json`.
 
 | File | Contents |
 | :- | :- |
-| `global.json` | SDK `10.0.100`, `rollForward: disable` |
+| `global.json` | SDK `10.0.404`, `rollForward: disable` |
 | `Directory.Build.props`, `Directory.Packages.props` | empty `<Project />`: the props of the root, central package versions and the architecture analyzer do not apply |
 | `.editorconfig` | `root = true` and nothing else: the rules of the root `.editorconfig` do not apply |
 | `NuGet.config` | `<clear />` and the one package source `../../artifacts/packages`; the packages folder `../../artifacts/min-sdk/packages` |
@@ -139,14 +139,14 @@ Every local build packs version `0.0.0-dev`, and NuGet does not look at the sour
 
 **The context of the application.** `Program.cs` declares `[CelObject(typeof(Customer))] [CelObject(typeof(Order))] internal sealed partial class SampleContext : CelTypeContext;` with two small types in the same file — `Customer` with a `string` and a `long`, `Order` with a `long`, a `Customer` and a `List<string>` — and prints `SampleContext.Default.SourceName`. The project has no nullable context, which is what a project of this age may have, so the generator reads `string` as nullable there. `Default` exists only in the file that the generator creates: a compiler that skipped the generator (`CS9057`) or a generator that created nothing fails the build with `CS0117`, so a passing build already shows that the generator ran on this SDK and wrote a file that compiles in a project with warnings as errors and none of the settings of the repository. The text of the file is checked by the generator tests, not here.
 
-The command `min-sdk` of `eng/run` has four steps. They are C# in `eng/run/MinSdk.cs`, not a shell script, because the logic reads the output of the build. The image has only the SDK 10.0.100, which cannot build `eng/run` for the root `global.json`, so the service runs the `eng/run` that the service `test` compiled (`eng/run/bin/Release/net10.0/Great.Parts.Cel.Eng.Run.dll`, a `net10.0` program that the .NET 10 runtime of the image runs). The working directory of the container is `/repo`; the child processes of the steps run in `eng/min-sdk`, where its `global.json` selects the SDK. Before the first step `eng/run` deletes `artifacts/min-sdk/`. The steps:
+The command `min-sdk` of `eng/run` has four steps. They are C# in `eng/run/MinSdk.cs`, not a shell script, because the logic reads the output of the build. The image has only the SDK 10.0.404, which cannot build `eng/run` for the root `global.json`, so the service runs the `eng/run` that the service `test` compiled (`eng/run/bin/Release/net10.0/Great.Parts.Cel.Eng.Run.dll`, a `net10.0` program that the .NET 10 runtime of the image runs). The working directory of the container is `/repo`; the child processes of the steps run in `eng/min-sdk`, where its `global.json` selects the SDK. Before the first step `eng/run` deletes `artifacts/min-sdk/`. The steps:
 
 1. Stop with `min-sdk: failed: min-sdk: packages (no package in artifacts/packages; run the service test first)` when `artifacts/packages` has no `Great.Parts.Cel.<version>.nupkg`.
-2. `dotnet --version` in `eng/min-sdk`; any version other than `10.0.100` fails the run.
+2. `dotnet --version` in `eng/min-sdk`; any version other than `10.0.404` fails the run.
 3. `dotnet build -c Release --artifacts-path <artifacts/min-sdk>/build -p:ReportAnalyzer=true -p:EmitCompilerGeneratedFiles=true -p:CompilerGeneratedFilesOutputPath=<artifacts/min-sdk>/generated -flp:"LogFile=<artifacts/min-sdk>/build.log;Verbosity=diagnostic"` in `eng/min-sdk`. The console keeps the default verbosity, so the compiler lines appear in the output, and a copy of it goes to `artifacts/min-sdk/console.log`; the build passes when its exit code is 0 and the copy has the lines `0 Warning(s)` and `0 Error(s)`. The log file gets the analyzer report.
 4. Find the evidence that the generator loaded and created code, and print the lines found with their numbers: the `project.assets.json` of the restore names `analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll` as an analyzer of the package; the generator part of the analyzer report in `build.log` names `Great.Parts.Cel.Generator.CelTypeContextGenerator`; and a file `SampleContext.g.cs` under `<artifacts/min-sdk>/generated/` (the compiler writes the created files there, in a directory named for the generator) contains the line `partial class SampleContext`, which is the created file that went into the assembly.
 
-A failed step 1, 2 or 3 stops the command, as the next steps need its result. The run passes when every step succeeds: SDK 10.0.100, a build with no warning and no error, the three pieces of evidence found. `CS9057` and `CS8032` (an analyzer that cannot be created) are warnings, so `TreatWarningsAsErrors` makes either of them a failed build. The last line is the summary of `eng/run` ([eng/run](#engrun)): `min-sdk: passed` or `min-sdk: failed: <steps>`, the duration and the exit code 0 or 1. The sample application builds without SourceLink and reads no git; only `eng/run` reads it, for `head` and `tree`, so in a linked worktree the service needs the second Compose file as `test` does. The run shows that the generator loads and that it produces a file that compiles; what the file says is the business of the generator tests.
+A failed step 1, 2 or 3 stops the command, as the next steps need its result. The run passes when every step succeeds: SDK 10.0.404, a build with no warning and no error, the three pieces of evidence found. `CS9057` and `CS8032` (an analyzer that cannot be created) are warnings, so `TreatWarningsAsErrors` makes either of them a failed build. The last line is the summary of `eng/run` ([eng/run](#engrun)): `min-sdk: passed` or `min-sdk: failed: <steps>`, the duration and the exit code 0 or 1. The sample application builds without SourceLink and reads no git; only `eng/run` reads it, for `head` and `tree`, so in a linked worktree the service needs the second Compose file as `test` does. The run shows that the generator loads and that it produces a file that compiles; what the file says is the business of the generator tests.
 
 Order of a run, from the repository root; from a linked worktree both commands add the second Compose file ([Linked worktrees](#linked-worktrees)):
 

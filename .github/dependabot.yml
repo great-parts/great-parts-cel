@@ -26,7 +26,7 @@ updates:
     open-pull-requests-limit: 5
 
   # The images of the build containers of eng/ (eng/docker/Dockerfile). The tags of the stages sdk and sdk-aot change together
-  # with global.json; the tag 10.0.100 of the stage sdk-min is the oldest SDK and does not change.
+  # with global.json; the tag 10.0.404 of the stage sdk-min is the oldest SDK and does not change.
   - package-ecosystem: docker
     directory: /eng/docker
     schedule:

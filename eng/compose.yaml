@@ -50,7 +50,7 @@ services:
       - nuget:/root/.nuget/packages
     entrypoint: [dotnet, run, --project, eng/run, --, docs]
 
-  # Builds a sample application on the .NET SDK 10.0.100 from the packed Great.Parts.Cel of artifacts/packages; run it after the
+  # Builds a sample application on the .NET SDK 10.0.404 from the packed Great.Parts.Cel of artifacts/packages; run it after the
   # service test. The image has no SDK 11, which building eng/run needs, so the service runs the eng/run that the service test
   # compiled. It has its own packages folder under artifacts/min-sdk and does not use the volume nuget
   # (docs/design/eng-test.md, "min-sdk").

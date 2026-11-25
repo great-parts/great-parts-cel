@@ -33,7 +33,7 @@ internal sealed class DockerQuickStartContainer : IQuickStartContainer
     private readonly Process _session;
 
     /// <summary>Starts the container and the session.</summary>
-    /// <param name="image">The image of the clean container, such as <c>mcr.microsoft.com/dotnet/sdk:10.0.100</c>.</param>
+    /// <param name="image">The image of the clean container, such as <c>mcr.microsoft.com/dotnet/sdk:10.0.404</c>.</param>
     /// <param name="packages">The full path of the directory of the packages.</param>
     /// <exception cref="CheckInputException">Docker cannot be started or cannot start the container.</exception>
     internal DockerQuickStartContainer(string image, string packages)

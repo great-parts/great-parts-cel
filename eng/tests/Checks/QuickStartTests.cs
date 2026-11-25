@@ -16,7 +16,7 @@ namespace Great.Parts.Cel.Eng.Tests.Checks;
 // The container answers the commands by what the test gives it and moves the clock by the time the test gives them.
 public sealed class QuickStartTests
 {
-    private const string Image = "mcr.microsoft.com/dotnet/sdk:10.0.100";
+    private const string Image = "mcr.microsoft.com/dotnet/sdk:10.0.404";
     private const string ReadmePath = "README.md";
     private const string AddPackage = "dotnet add package Great.Parts.Cel";
     private const string RunExample = "dotnet run";

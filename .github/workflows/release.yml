@@ -111,7 +111,7 @@ jobs:
       contents: read
     env:
       # The tag of the stage sdk-min of the container file, as in the job Quick start of ci.yml; the two change together.
-      QUICK_START_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.100@sha256:c7445f141c04f1a6b454181bd098dcfa606c61ba0bd213d0a702489e5bd4cd71
+      QUICK_START_IMAGE: mcr.microsoft.com/dotnet/sdk:10.0.404@sha256:8c6edfb26c85153f236d26efebd9ad349aec403583f343f201ee67838b23658d
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

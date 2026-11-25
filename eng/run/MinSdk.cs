@@ -6,7 +6,7 @@ using System.Linq;
 namespace Great.Parts.Cel.Eng.Run;
 
 /// <summary>
-/// <c>min-sdk</c>: builds the sample application of <c>eng/min-sdk</c> on the .NET SDK 10.0.100 from the packed <c>Great.Parts.Cel</c> and
+/// <c>min-sdk</c>: builds the sample application of <c>eng/min-sdk</c> on the .NET SDK 10.0.404 from the packed <c>Great.Parts.Cel</c> and
 /// shows that the source generator of the package loads into that compiler (<c>docs/design/eng-test.md</c>, "min-sdk"). The steps run in
 /// this process, because they read the output of the build; the build itself is a child process in <c>eng/min-sdk</c>, where the
 /// <c>global.json</c> selects the SDK. The command runs from the compiled <c>eng/run</c> in the image with that SDK, which cannot build
@@ -20,7 +20,7 @@ internal static class MinSdk
     private const string Project = "eng/min-sdk";
     private const string Packages = "artifacts/packages";
     private const string PackagePrefix = "Great.Parts.Cel.";
-    private const string Sdk = "10.0.100";
+    private const string Sdk = "10.0.404";
     private const string GeneratorAssembly = "analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll";
     private const string GeneratorType = "Great.Parts.Cel.Generator.CelTypeContextGenerator";
 
