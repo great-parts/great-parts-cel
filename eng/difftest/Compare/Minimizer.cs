@@ -255,7 +255,7 @@ internal static class Minimizer
 
     // The sum of the first unknown instance of the transform and the next error one over the elements of a form; null when there is
     // none or an instance rules the sum out (FoldStep).
-    private static Expr? FoldStepOver(
+    private static Call? FoldStepOver(
         Comprehension macro,
         IReadOnlyList<IReadOnlyDictionary<string, Expr>> form,
         Func<Expr, Value?> rangeValue,
