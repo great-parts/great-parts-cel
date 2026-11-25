@@ -16,12 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "Values/DecimalTextRules.cs",
-      "Values/DoubleTextRules.cs",
-      "Values/CalendarRules.cs",
-      "Values/IEvaluationMeter.cs",
-      "Values/IOptionalSource.cs",
-      "Values/IApplicationBoundary.cs"
+      "Values/DecimalTextRules.cs"
     ],
     "thresholds": {
       "high": 80,

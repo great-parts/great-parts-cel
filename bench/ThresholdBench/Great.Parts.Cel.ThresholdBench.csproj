@@ -27,9 +27,10 @@
                       ReferenceOutputAssembly="false" />
   </ItemGroup>
 
-  <!-- The classes of the order, shared with the rig. -->
+  <!-- The classes of the order and the toolchain for net11.0, shared with the rig. -->
   <ItemGroup>
     <Compile Include="../SpeedBench/Model.cs" Link="Model.cs" />
+    <Compile Include="../SpeedBench/Net11Toolchain.cs" Link="Net11Toolchain.cs" />
   </ItemGroup>
 
 </Project>

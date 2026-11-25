@@ -8,11 +8,13 @@ using SpeedBench.Adapters;
 
 namespace SpeedBench;
 
-// No job here: BenchmarkDotNet runs Job.Default unless the command line names another job (--job Dry).
+// No job of its own here: BenchmarkDotNet runs Job.Default unless the command line names another job (--job Dry); the only job
+// below sets the toolchain of every job (Net11Toolchain).
 public sealed class BenchConfig : ManualConfig
 {
     public BenchConfig()
     {
+        AddJob(Net11Toolchain.Mutator);
         AddDiagnoser(MemoryDiagnoser.Default);
         AddColumn(StatisticColumn.Median);
         AddExporter(JsonExporter.Full);

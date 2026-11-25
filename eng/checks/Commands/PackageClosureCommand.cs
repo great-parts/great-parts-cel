@@ -11,16 +11,18 @@ namespace Great.Parts.Cel.Eng.Checks;
 /// <c>eng/packages/&lt;package id&gt;.txt</c> (<c>docs/design/eng-checks-artifacts.md</c>, "package-closure"). For every package of
 /// <c>artifacts/packages</c> that has a list, and for every target of its <c>closure</c> lines, it restores a console application
 /// with one reference to the package from <c>artifacts/packages</c> and nuget.org, and compares the packages of the restore, without
-/// the package itself and without versions, with the line. A package with a <c>browser</c> line is restored once more into a
-/// <c>browser-wasm</c> application of <c>net11.0</c>, and the assembly that this restore takes must be the one in
-/// <c>runtimes/browser-wasm/lib/net11.0/</c> (<c>ENG212</c>). It does not pack: <c>packages</c> does, in the same invocation or before.
+/// the package itself and without versions, with the line. A package with a <c>browser</c> line is restored once more into an
+/// application of <c>net11.0</c> for each WebAssembly runtime identifier, <c>browser-wasm</c> and <c>wasi-wasm</c>, and the assembly
+/// that each restore takes must be the one in <c>runtimes/&lt;runtime identifier&gt;/lib/net11.0/</c> (<c>ENG212</c>). It does not
+/// pack: <c>packages</c> does, in the same invocation or before.
 /// </summary>
 internal sealed class PackageClosureCommand : ICheckCommand
 {
     private const string WebFramework = "Microsoft.AspNetCore.App";
     private const string BrowserTarget = "net11.0";
-    private const string BrowserRuntime = "browser-wasm";
-    private const string BrowserFolder = "runtimes/browser-wasm/lib/net11.0/";
+
+    // The runtime identifiers of WebAssembly applications; the package carries the assembly without runtime async for each.
+    private static readonly string[] WebAssemblyRuntimes = ["browser-wasm", "wasi-wasm"];
 
     private readonly Func<ClosureRequest, string> _restore;
 
@@ -69,29 +71,34 @@ internal sealed class PackageClosureCommand : ICheckCommand
                 findings.AddRange(Compare(list, closure, package.Id, ClosureRestore.PackageIds(assets)));
             }
 
-            findings.AddRange(CheckBrowserAssemblies(list, package, new ClosureRequest(package.Id, package.Version, BrowserTarget, false, string.Empty, source, cache, context.Root, BrowserRuntime), scratch.Path));
+            foreach (string runtime in WebAssemblyRuntimes)
+            {
+                findings.AddRange(CheckWebAssemblyAssemblies(list, package, new ClosureRequest(package.Id, package.Version, BrowserTarget, false, string.Empty, source, cache, context.Root, runtime), scratch.Path));
+            }
         }
 
         return findings;
     }
 
-    // A package with a browser line whose list names assemblies in runtimes/browser-wasm/lib/net11.0/ is restored once more, into an
-    // application of net11.0 with the runtime identifier browser-wasm: the runtime assets of the package in that target must be those
+    // A package with a browser line whose list names assemblies in runtimes/<runtime identifier>/lib/net11.0/ is restored once more,
+    // into an application of net11.0 with that runtime identifier: the runtime assets of the package in that target must be those
     // assemblies, not the ones of lib/net11.0/ (ENG212). The packages of this restore are not compared: the closure lines did that.
-    private IEnumerable<Finding> CheckBrowserAssemblies(PackageList list, PackageContent package, ClosureRequest template, string scratch)
+    private IEnumerable<Finding> CheckWebAssemblyAssemblies(PackageList list, PackageContent package, ClosureRequest template, string scratch)
     {
-        string[] expected = [.. list.Files.Keys.Where(file => file.StartsWith(BrowserFolder, StringComparison.Ordinal) && file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal)];
+        string runtime = template.RuntimeIdentifier ?? string.Empty;
+        string folder = $"runtimes/{runtime}/lib/{BrowserTarget}/";
+        string[] expected = [.. list.Files.Keys.Where(file => file.StartsWith(folder, StringComparison.Ordinal) && file.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal)];
         if (list.BrowserLine == 0 || expected.Length == 0)
         {
             return [];
         }
 
-        string directory = Path.Combine(scratch, $"{package.Id}-{BrowserTarget}-{BrowserRuntime}");
+        string directory = Path.Combine(scratch, $"{package.Id}-{BrowserTarget}-{runtime}");
         Directory.CreateDirectory(directory);
         string assets = _restore(template with { Directory = directory });
-        List<string> actual = [.. ClosureRestore.RuntimeAssets(assets, $"{BrowserTarget}/{BrowserRuntime}", package.Id)];
+        List<string> actual = [.. ClosureRestore.RuntimeAssets(assets, $"{BrowserTarget}/{runtime}", package.Id)];
         int line = list.Closures.FirstOrDefault(closure => closure.Target == BrowserTarget)?.Line ?? list.BrowserLine;
-        string where = $"the restore of {package.Id} in a {BrowserTarget} application with the runtime identifier {BrowserRuntime}";
+        string where = $"the restore of {package.Id} in a {BrowserTarget} application with the runtime identifier {runtime}";
         return expected
             .Where(file => !actual.Contains(file))
             .Select(file => new Finding(

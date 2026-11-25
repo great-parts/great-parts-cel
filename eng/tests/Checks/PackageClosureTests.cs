@@ -46,6 +46,17 @@ public sealed class PackageClosureTests
         file runtimes/browser-wasm/lib/net11.0/Great.Parts.Cel.dll
         file runtimes/wasi-wasm/lib/net11.0/Great.Parts.Cel.dll
         """;
+    private const string BrowserOnlyCelList = """
+        # Expected content of the Great.Parts.Cel package.
+        dependencies net10.0:
+        dependencies net11.0:
+
+        closure net10.0:
+        closure net11.0:
+
+        browser
+        file runtimes/browser-wasm/lib/net11.0/Great.Parts.Cel.dll
+        """;
     private const string BrowserWithoutAssemblyList = """
         # Expected content of the Great.Parts.Cel package.
         dependencies net10.0:
@@ -297,58 +308,76 @@ public sealed class PackageClosureTests
     }
 
     [Fact]
-    public void BrowserLine_RestoresThePackageOnceMoreInABrowserWasmApplicationAndTakesTheAssemblyOfRuntimes()
+    public void BrowserLine_RestoresThePackageOnceMoreInAnApplicationOfEachWebAssemblyRuntimeAndTakesItsAssemblyOfRuntimes()
     {
         using TempDirectory root = Repository(Cel);
         root.Write(CelPath, BrowserCelList + Newline);
         List<ClosureRequest> requests = [];
 
-        List<Finding> findings = Check(root, request => RestoreWithRuntimes(requests, request, BrowserAssembly));
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes(requests, request, AssemblyOf));
 
         FindingAssert.None(findings);
-        ClosureRequest[] browser = [.. requests.Where(request => request.RuntimeIdentifier is not null)];
-        ClosureRequest only = Assert.Single(browser);
-        Assert.Equal(Cel, only.Id);
-        Assert.Equal("net11.0", only.Target);
-        Assert.Equal("browser-wasm", only.RuntimeIdentifier);
-        Assert.False(only.Web);
-        Assert.Equal(3, requests.Count);
+        ClosureRequest[] webAssembly = [.. requests.Where(request => request.RuntimeIdentifier is not null)];
+        Assert.Equal(["browser-wasm", "wasi-wasm"], webAssembly.Select(request => request.RuntimeIdentifier));
+        Assert.All(webAssembly, request =>
+        {
+            Assert.Equal(Cel, request.Id);
+            Assert.Equal("net11.0", request.Target);
+            Assert.False(request.Web);
+        });
+        Assert.Equal(4, requests.Count);
     }
 
     [Fact]
-    public void Eng212_RestoreThatTakesTheAssemblyOfLib_IsReportedAtTheClosureLineOfNet11()
+    public void BrowserLine_WithAnAssemblyOfRuntimesForBrowserWasmOnly_RestoresOnlyInBrowserWasm()
+    {
+        using TempDirectory root = Repository(Cel);
+        root.Write(CelPath, BrowserOnlyCelList + Newline);
+        List<ClosureRequest> requests = [];
+
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes(requests, request, AssemblyOf));
+
+        FindingAssert.None(findings);
+        Assert.Equal(["browser-wasm"], requests.Where(request => request.RuntimeIdentifier is not null).Select(request => request.RuntimeIdentifier));
+    }
+
+    [Fact]
+    public void Eng212_RestoreThatTakesTheAssemblyOfLib_IsReportedAtTheClosureLineOfNet11ForEachRuntimeIdentifier()
     {
         using TempDirectory root = Repository(Cel);
         root.Write(CelPath, BrowserCelList + Newline);
 
-        List<Finding> findings = Check(root, request => RestoreWithRuntimes([], request, LibraryAssembly));
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes([], request, static _ => LibraryAssembly));
 
         FindingAssert.Exactly(
             findings,
-            FindingAssert.Error(
-                EngCodes.Eng212,
-                CelPath,
-                6,
-                1,
-                $"the restore of {Cel} in a net11.0 application with the runtime identifier browser-wasm takes '{LibraryAssembly}' of the package, not '{BrowserAssembly}'"));
+            FindingAssert.Error(EngCodes.Eng212, CelPath, 6, 1, TakesLibrary("browser-wasm")),
+            FindingAssert.Error(EngCodes.Eng212, CelPath, 6, 1, TakesLibrary("wasi-wasm")));
     }
 
     [Fact]
-    public void Eng212_RestoreThatTakesNoAssemblyOfThePackage_IsReported()
+    public void Eng212_WasiWasmRestoreThatTakesTheAssemblyOfLib_IsReportedAloneWithItsRuntimeIdentifier()
     {
         using TempDirectory root = Repository(Cel);
         root.Write(CelPath, BrowserCelList + Newline);
 
-        List<Finding> findings = Check(root, request => RestoreWithRuntimes([], request, null));
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes([], request, runtime => runtime == "wasi-wasm" ? LibraryAssembly : AssemblyOf(runtime)));
+
+        FindingAssert.Exactly(findings, FindingAssert.Error(EngCodes.Eng212, CelPath, 6, 1, TakesLibrary("wasi-wasm")));
+    }
+
+    [Fact]
+    public void Eng212_RestoreThatTakesNoAssemblyOfThePackage_IsReportedForEachRuntimeIdentifier()
+    {
+        using TempDirectory root = Repository(Cel);
+        root.Write(CelPath, BrowserCelList + Newline);
+
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes([], request, static _ => null));
 
         FindingAssert.Exactly(
             findings,
-            FindingAssert.Error(
-                EngCodes.Eng212,
-                CelPath,
-                6,
-                1,
-                $"the restore of {Cel} in a net11.0 application with the runtime identifier browser-wasm takes no assembly of the package, not '{BrowserAssembly}'"));
+            FindingAssert.Error(EngCodes.Eng212, CelPath, 6, 1, TakesNone("browser-wasm")),
+            FindingAssert.Error(EngCodes.Eng212, CelPath, 6, 1, TakesNone("wasi-wasm")));
     }
 
     [Theory]
@@ -360,7 +389,7 @@ public sealed class PackageClosureTests
         root.Write(CelPath, list + Newline);
         List<ClosureRequest> requests = [];
 
-        List<Finding> findings = Check(root, request => RestoreWithRuntimes(requests, request, BrowserAssembly));
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes(requests, request, AssemblyOf));
 
         FindingAssert.None(findings);
         Assert.All(requests, request => Assert.Null(request.RuntimeIdentifier));
@@ -455,9 +484,18 @@ public sealed class PackageClosureTests
         return Assets(request);
     }
 
+    // The assembly of the package that the restore takes in an application of the runtime identifier, as the list expects it.
+    private static string AssemblyOf(string runtimeIdentifier) => $"runtimes/{runtimeIdentifier}/lib/net11.0/Great.Parts.Cel.dll";
+
+    private static string TakesLibrary(string runtimeIdentifier) =>
+        $"the restore of {Cel} in a net11.0 application with the runtime identifier {runtimeIdentifier} takes '{LibraryAssembly}' of the package, not '{AssemblyOf(runtimeIdentifier)}'";
+
+    private static string TakesNone(string runtimeIdentifier) =>
+        $"the restore of {Cel} in a net11.0 application with the runtime identifier {runtimeIdentifier} takes no assembly of the package, not '{AssemblyOf(runtimeIdentifier)}'";
+
     // The restore of a package as the lists above expect it. In an application with a runtime identifier the runtime asset of the package
-    // in the target of that identifier is the given path, or none when it is null.
-    private static string RestoreWithRuntimes(List<ClosureRequest> requests, ClosureRequest request, string? asset)
+    // in the target of that identifier is the path that the function gives for the identifier, or none when it gives null.
+    private static string RestoreWithRuntimes(List<ClosureRequest> requests, ClosureRequest request, Func<string, string?> assetOf)
     {
         requests.Add(request);
         Assert.True(Directory.Exists(request.Directory), "the directory of the application exists when the restore starts");
@@ -466,6 +504,7 @@ public sealed class PackageClosureTests
             return Assets(request);
         }
 
+        string? asset = assetOf(request.RuntimeIdentifier);
         string runtime = asset is null ? string.Empty : $", \"runtime\": {{ \"{asset}\": {{}} }}";
         string package = $"{request.Id}/{request.Version}";
         return $"{{ \"version\": 3, \"libraries\": {{ \"{package}\": {{ \"type\": \"package\" }} }}, \"targets\": {{ \"{request.Target}/{request.RuntimeIdentifier}\": {{ \"{package}\": {{ \"type\": \"package\"{runtime} }} }} }} }}";

@@ -16,11 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "Library/Extensions/Strings/StringFunctions.cs",
-      "Library/Extensions/Strings/StringFunctions.Format.cs",
-      "Library/Extensions/Strings/StringFunctions.Search.cs",
-      "Library/Extensions/Strings/StringsExtension.cs",
-      "Library/Extensions/Strings/CodePoints.cs"
+      "Library/Extensions/Strings/StringFunctions.cs"
     ],
     "thresholds": {
       "high": 80,

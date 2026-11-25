@@ -182,6 +182,7 @@ public sealed class HashedListsCostTests
         long distinct = Smallest(() => HashedLists.Distinct(CelValue.FromList(list), list, in site, mode: mode));
 
         string message = string.Create(CultureInfo.InvariantCulture, $"{length} values, {mode}: contains {contains}, intersects {intersects}, distinct {distinct} bytes");
+        TestContext.Current.TestOutputHelper?.WriteLine(message);
         Assert.True(contains <= IndexBytes && intersects <= IndexBytes, message);
         Assert.True(distinct <= IndexBytes + ResultBytes, message);
     }
