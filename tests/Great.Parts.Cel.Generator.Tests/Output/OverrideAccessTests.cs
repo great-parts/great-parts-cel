@@ -51,7 +51,7 @@ public sealed class OverrideAccessTests
         GeneratorDriverRunResult result = GeneratorExample.Run(compilation);
 
         Assert.DoesNotContain(GeneratorExample.Reported(result), diagnostic => diagnostic.Severity == DiagnosticSeverity.Error);
-        Assert.Empty(compilation.AddSyntaxTrees(result.GeneratedTrees).GetDiagnostics().Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
+        Assert.Empty(compilation.AddSyntaxTrees(result.GeneratedTrees).GetDiagnostics(TestContext.Current.CancellationToken).Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error));
         AssertAccess(GeneratorExample.CreatedText(result), internalAccess, false);
     }
 

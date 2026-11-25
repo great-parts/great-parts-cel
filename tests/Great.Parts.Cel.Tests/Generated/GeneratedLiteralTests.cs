@@ -99,7 +99,7 @@ public sealed class GeneratedLiteralTests
     [Fact]
     public static void ConstructorWithParameters_TakesTheFieldsByName()
     {
-        Pair pair = Evaluate<Pair>(Shop, "acme.Pair{left: 'l', right: 'r', extra: 4}", new CelBindings());
+        Great.Parts.Cel.Generator.Samples.Literals.Pair pair = Evaluate<Great.Parts.Cel.Generator.Samples.Literals.Pair>(Shop, "acme.Pair{left: 'l', right: 'r', extra: 4}", new CelBindings());
 
         Assert.Equal(("l", "r", 4), (pair.Left, pair.Right, pair.Extra));
         Assert.Equal(CelErrorCode.RequiredFieldNotSet, CompileError(Shop, "acme.Pair{left: 'l'}").Code);

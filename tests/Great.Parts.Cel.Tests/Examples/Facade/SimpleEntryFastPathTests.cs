@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Great.Parts.Cel.Diagnostics;
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Examples.Facade;
@@ -81,7 +82,7 @@ public sealed class SimpleEntryFastPathTests
 }
 
 // A class whose member evaluates an expression of its own through the simple entry.
-public sealed class ReentrantRow
+internal sealed class ReentrantRow
 {
     public long Base { get; init; }
 

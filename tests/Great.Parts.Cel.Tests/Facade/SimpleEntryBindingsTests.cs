@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Great.Parts.Cel.Diagnostics;
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Facade;

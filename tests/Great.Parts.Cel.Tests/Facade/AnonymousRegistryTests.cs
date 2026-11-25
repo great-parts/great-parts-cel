@@ -31,7 +31,12 @@ public sealed class AnonymousRegistryTests
     public void ReadsDuringRegistrations_SeeOneEntryForEachType()
     {
         const int Threads = 32;
-        var seen = new AnonymousRegistry.Entry?[Threads, Types.Length];
+        var seen = new AnonymousRegistry.Entry?[Threads][];
+        for (int row = 0; row < Threads; row++)
+        {
+            seen[row] = new AnonymousRegistry.Entry?[Types.Length];
+        }
+
         var failures = new string?[Threads];
 
         Parallel.For(0, Threads, new ParallelOptions { MaxDegreeOfParallelism = Threads }, thread =>
@@ -51,14 +56,14 @@ public sealed class AnonymousRegistryTests
                         continue;
                     }
 
-                    AnonymousRegistry.Entry? before = seen[thread, index];
+                    AnonymousRegistry.Entry? before = seen[thread][index];
                     if (before is not null && !ReferenceEquals(before, entry))
                     {
                         failures[thread] = "the entry of " + Types[index] + " changed between two reads";
                         break;
                     }
 
-                    seen[thread, index] = entry;
+                    seen[thread][index] = entry;
                 }
             }
         });
@@ -70,7 +75,7 @@ public sealed class AnonymousRegistryTests
             for (int thread = 1; thread < Threads; thread += 2)
             {
                 int index = Array.IndexOf(Types, type);
-                if (seen[thread, index] is { } read)
+                if (seen[thread][index] is { } read)
                 {
                     Assert.Same(final, read);
                 }

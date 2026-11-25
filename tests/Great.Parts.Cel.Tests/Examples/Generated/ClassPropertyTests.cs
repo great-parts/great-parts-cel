@@ -175,7 +175,7 @@ public sealed class ClassPropertyTests
 }
 
 // A structure of the application, read by its members.
-public struct CallPoint
+internal struct CallPoint
 {
     public long X { get; set; }
 
@@ -184,12 +184,12 @@ public struct CallPoint
 
 // An interface of the application and a class that implements it: the property of the interface type is read by the members of
 // the interface.
-public interface IPriced
+internal interface IPriced
 {
     double Price { get; }
 }
 
-public sealed class PricedItem : IPriced
+internal sealed class PricedItem : IPriced
 {
     public double Price { get; init; }
 }
