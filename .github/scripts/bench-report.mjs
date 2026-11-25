@@ -4,8 +4,9 @@
 //   node .github/scripts/bench-report.mjs --results bench/results --output <directory> [--runs <n>] [--job <job>] [--cases <ids>]
 //
 // The directory gets <stamp>/ with report.json (the date and the time of the report in UTC, the commit, the run, the inputs, the
-// runs), report.md (the summary of the rig), verify.json, thresholds.json (the verdicts on the limits of the speed-ups, when the
-// run measured them) and runs/<k>/ with run.json and summary.md; the stamp is yyyy-MM-ddTHHmmssZ. The full reports of BenchmarkDotNet stay in the artifact bench-results of the run. The workflow
+// runs), report.md (the summary of the rig, with the column Allocated of the table over the runs), verify.json, thresholds.json (the
+// verdicts on the limits of the speed-ups and the diagnostics without a verdict, when the run measured them; report.json lists the
+// limit and the verdict of each) and runs/<k>/ with run.json and summary.md; the stamp is yyyy-MM-ddTHHmmssZ. The full reports of BenchmarkDotNet stay in the artifact bench-results of the run. The workflow
 // publish-report.yml writes the directory to the branch. No npm dependencies.
 
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';

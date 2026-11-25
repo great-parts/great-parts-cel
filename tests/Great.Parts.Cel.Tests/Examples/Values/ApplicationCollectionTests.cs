@@ -40,7 +40,7 @@ public sealed class ApplicationCollectionTests
     // The view has the count of its source, converts an element at each read and reflects the source.
     [Fact]
     [Trait("Requirement", "F-2")]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void ListView_ConvertsAnElementAtEachRead()
     {
         var source = new List<long> { 1, 2, 3 };

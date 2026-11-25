@@ -106,7 +106,7 @@ What to know:
 
 ## 3. Give an expression an object of your application
 
-The simple entry does not read the classes of your application. Describe them in a type context: a `partial` class derived from `CelTypeContext`, with a `[CelObject]` attribute for each type that an expression may read. The source generator completes the class at build time. It reads the members by direct access, with no reflection, so the description works under trimming and Native AOT. It describes the types that the members reach as well, here `Customer` and `OrderLine`.
+The simple entry reads a class of your application only as a property of an anonymous object, `new { order }` (see [Type mapping](type-mapping.md#data-of-the-simple-entry)), and not as the data itself. For an environment that you build once, describe the classes in a type context: a `partial` class derived from `CelTypeContext`, with a `[CelObject]` attribute for each type that an expression may read. The source generator completes the class at build time. It reads the members by direct access, with no reflection, so the description works under trimming and Native AOT. It describes the types that the members reach as well, here `Customer` and `OrderLine`.
 
 ```csharp
 using Great.Parts.Cel;

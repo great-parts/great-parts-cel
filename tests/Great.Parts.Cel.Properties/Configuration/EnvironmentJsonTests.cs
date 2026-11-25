@@ -163,7 +163,7 @@ public sealed partial class EnvironmentJsonTests
         CelTypeKind.String => CelValue.FromString("v"),
         CelTypeKind.Bytes => CelValue.FromBytes(new byte[] { 1, 2 }),
         CelTypeKind.List => CelValue.FromList(full ? CelList.Create(Value(type.Parameters[0], full: false)) : CelList.Create()),
-        CelTypeKind.Map => CelValue.FromMap(CelMap.Create(full ? [new(Key(type.Parameters[0]), Value(type.Parameters[1], full: false))] : [])),
+        CelTypeKind.Map => CelValue.FromMap(full ? CelMap.Create([new(Key(type.Parameters[0]), Value(type.Parameters[1], full: false))]) : CelMap.Create([])),
         CelTypeKind.Type => CelValue.FromType(CelType.Int),
         CelTypeKind.Wrapper => full ? Value(type.Parameters[0], full: false) : CelValue.Null,
         CelTypeKind.Null or CelTypeKind.Object => CelValue.Null,

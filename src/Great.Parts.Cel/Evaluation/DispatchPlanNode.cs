@@ -89,7 +89,9 @@ internal sealed class DispatchPlanNode : PlanNode
         return result;
     }
 
-    private CelValue Call(Frame frame, ReadOnlySpan<CelValue> values)
+    // The call on the values of the arguments, which have been evaluated without an error, with the offset of the node recorded in the
+    // frame. The node of a fused comparison, which holds the values itself, calls it.
+    internal CelValue Call(Frame frame, ReadOnlySpan<CelValue> values)
     {
         for (int i = 0; i < Candidates.Length; i++)
         {
@@ -109,4 +111,30 @@ internal sealed class DispatchPlanNode : PlanNode
 
         return EvaluationErrors.NotMatched(TypeFit.No, _function, values, frame, Offset);
     }
+
+    // The candidate that Call would call for the values: the first, in the order of the reference map, that Matches them; null when none
+    // does, and when an element of a marked argument is an error value. With no meter, so for values that charge nothing to be checked.
+    internal OverloadBinding? Choose(ReadOnlySpan<CelValue> values, TypeIndex? types)
+    {
+        for (int i = 0; i < Candidates.Length; i++)
+        {
+            TypeFit fit = Candidates[i].Matches(values, _marks[i].AsSpan(), null, types);
+            if (fit.IsFit)
+            {
+                return Candidates[i];
+            }
+
+            if (fit.ElementError is not null)
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    // The call of a candidate that Choose gave for values of the same kinds as the values it was given, without the search among the
+    // candidates: the call that Call makes for them.
+    internal CelValue Invoke(Frame frame, OverloadBinding candidate, ReadOnlySpan<CelValue> values) =>
+        Invocation.Call(frame, candidate, values, Offset, _charges, _prepared, _cache);
 }

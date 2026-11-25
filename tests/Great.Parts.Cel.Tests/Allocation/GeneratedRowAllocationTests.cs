@@ -63,13 +63,13 @@ public sealed class GeneratedRowAllocationTests
     ];
 
     [Theory]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     [MemberData(nameof(Free))]
     public static void ReadOfAScalarAStringBytesATimeAndASealedObject_AllocatesNothing(string text) =>
         Assert.Equal(0, Allocated(text));
 
     [Theory]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     [InlineData("c.mutable", 1)]
     [InlineData("c.immutable", 1)]
     [InlineData("c.index", 1)]
@@ -79,7 +79,7 @@ public sealed class GeneratedRowAllocationTests
 
     // The string of a Guid is the one allocation of its row: 36 code units with the header, the length and the terminator.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void ReadOfAGuid_AllocatesTheStringOfItsRow()
     {
         long bytes = Allocated("s.id");
@@ -89,7 +89,7 @@ public sealed class GeneratedRowAllocationTests
 
     // The copy of a set is made at each read: its array of values and the view over it, and the length of it is the size of the set.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void ReadOfASet_AllocatesTheCopy()
     {
         long bytes = Allocated("c.hash");

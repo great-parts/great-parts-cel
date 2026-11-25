@@ -8,8 +8,10 @@ using Xunit;
 namespace Great.Parts.Cel.Generator.Tests.Examples.CallSites;
 
 // The generator of call sites of CelExpression.Evaluate (diagnostics GPCEL010 and GPCEL011). One created file per distinct
-// anonymous type (names, types and order of the properties), found by the symbol of the method; nothing for a listed dictionary; a warning where the static type hides
-// the data; an error for a property the simple entry cannot read. The compilation is the one of GeneratorExample.
+// anonymous type (names, types and order of the properties), found by the symbol of the method; nothing for a listed dictionary;
+// a warning where the static type hides the data; an error for a property the simple entry cannot read. The compilation is the
+// one of GeneratorExample. A class of the application in a property is read by the generator (ClassCallSiteTests), so it is no
+// case of GPCEL011 here.
 [Trait("Requirement", "U-7")]
 public sealed class CallSiteTests
 {
@@ -37,7 +39,7 @@ public sealed class CallSiteTests
                     global::Great.Parts.Cel.CelAnonymousData.Register(
                         new { x = default(long) },
                         static builder => builder.AddVariable<long>("x"),
-                        static (data, bindings) => bindings.Add("x", data.x));
+                        static (data, bindings) => bindings.Add("x", global::Great.Parts.Cel.Values.CelValue.FromInt64(data.x)));
             }
 
             """.Replace("\r\n", "\n", StringComparison.Ordinal),
@@ -116,7 +118,6 @@ public sealed class CallSiteTests
     }
 
     [Theory]
-    [InlineData("new { order = new Order() }", "order", "Acme.Order")]
     [InlineData("new { a = new { b = 1 } }", "a", "<anonymous type: int b>")]
     [InlineData("new { o = (object)1 }", "o", "object")]
     [InlineData("new { s = new HashSet<long>() }", "s", "System.Collections.Generic.HashSet<long>")]

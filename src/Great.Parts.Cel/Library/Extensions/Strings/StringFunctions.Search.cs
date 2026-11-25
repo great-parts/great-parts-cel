@@ -6,13 +6,16 @@ using Great.Parts.Cel.Values;
 
 namespace Great.Parts.Cel.Library.Extensions.Strings;
 
-// The functions of the set strings that look for a substring: indexOf and lastIndexOf, replace and split, all on SubstringSearch
-// over UTF-16 code units. A match counts only at a code point boundary. Each function has an internal form that takes the counter of
-// steps and the meter, and the property test of the search calls those forms; an overload only reads its arguments and calls the form.
+// The functions of the set strings that look for a substring: indexOf and lastIndexOf, replace and split, all on OrdinalSearch over
+// UTF-16 code units. A match counts only at a code point boundary. A pattern that is a literal of the expression arrives prepared in
+// the call site, as the SearchValues<string> that the expression made once, and is searched through it; any other pattern is searched
+// by the ordinal search. lastIndexOf has no preparation: .NET does not search from the end by SearchValues<string>. Each function has
+// a form that takes the values of the pattern, null for a pattern from the data, and the meter; an overload only reads its arguments
+// and calls the form.
 internal static partial class StringFunctions
 {
     // The result of IndexOf and LastIndexOf for an offset outside the string; the results otherwise are indexes from 0 and -1.
-    internal const long OffsetOutOfRange = -2;
+    private const long OffsetOutOfRange = -2;
 
     // string_index_of_string, string.indexOf(string) -> int.
     internal static CelValue IndexOfString(ReadOnlySpan<CelValue> arguments, in CallSite site)
@@ -22,8 +25,7 @@ internal static partial class StringFunctions
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        return CelValue.FromInt64(IndexOf(text, pattern, 0, ref steps));
+        return CelValue.FromInt64(IndexOf(text, pattern, SearchPattern.ValuesOf(in site), 0));
     }
 
     // string_index_of_string_int, string.indexOf(string, int) -> int: from the offset, in code points.
@@ -34,8 +36,7 @@ internal static partial class StringFunctions
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        long index = IndexOf(text, pattern, offset, ref steps);
+        long index = IndexOf(text, pattern, SearchPattern.ValuesOf(in site), offset);
         return index == OffsetOutOfRange ? IndexError(in site, offset) : CelValue.FromInt64(index);
     }
 
@@ -47,8 +48,7 @@ internal static partial class StringFunctions
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        return CelValue.FromInt64(LastIndexOf(text, pattern, null, ref steps));
+        return CelValue.FromInt64(LastIndexOf(text, pattern, null));
     }
 
     // string_last_index_of_string_int, string.lastIndexOf(string, int) -> int: the last occurrence that starts at or before the offset.
@@ -59,8 +59,7 @@ internal static partial class StringFunctions
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        long index = LastIndexOf(text, pattern, offset, ref steps);
+        long index = LastIndexOf(text, pattern, offset);
         return index == OffsetOutOfRange ? IndexError(in site, offset) : CelValue.FromInt64(index);
     }
 
@@ -72,8 +71,7 @@ internal static partial class StringFunctions
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        string result = Replace(text, oldText, newText, -1, site.Meter, ref steps);
+        string result = Replace(text, oldText, SearchPattern.ValuesOf(in site), newText, -1, site.Meter);
         return ReferenceEquals(result, text) ? arguments[0] : CelValue.FromString(result);
     }
 
@@ -86,8 +84,7 @@ internal static partial class StringFunctions
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        string result = Replace(text, oldText, newText, limit, site.Meter, ref steps);
+        string result = Replace(text, oldText, SearchPattern.ValuesOf(in site), newText, limit, site.Meter);
         return ReferenceEquals(result, text) ? arguments[0] : CelValue.FromString(result);
     }
 
@@ -99,8 +96,7 @@ internal static partial class StringFunctions
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        return Split(text, separator, -1, site.Meter, ref steps);
+        return Split(text, separator, SearchPattern.ValuesOf(in site), -1, site.Meter);
     }
 
     // string_split_string_int, string.split(string, int) -> list(string): at most n parts, the last holding the rest.
@@ -111,14 +107,14 @@ internal static partial class StringFunctions
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        return Split(text, separator, limit, site.Meter, ref steps);
+        return Split(text, separator, SearchPattern.ValuesOf(in site), limit, site.Meter);
     }
 
     // The index in code points of the first occurrence of the pattern at or after the offset in code points, -1 for none, or
     // OffsetOutOfRange when the offset is below 0 or above the number of code points. An empty pattern is found at the offset without
-    // a search; a non-empty one is not found at the offset equal to the length. The steps of the search are added to the counter.
-    internal static long IndexOf(string text, string pattern, long offset, ref long steps)
+    // a search; a non-empty one is not found at the offset equal to the length. The values are those of a pattern that is a literal,
+    // and null for a pattern from the data.
+    private static long IndexOf(string text, string pattern, SearchValues<string>? values, long offset)
     {
         int start = CodePoints.OffsetOf(text, offset);
         if (start < 0)
@@ -131,15 +127,15 @@ internal static partial class StringFunctions
             return offset;
         }
 
-        int found = FindFirst(text, pattern, start, ref steps);
+        int found = OrdinalSearch.FindFirst(text, pattern, values, start);
         return found < 0 ? -1 : offset + CodePoints.Count(text.AsSpan(start, found - start));
     }
 
     // The index in code points of the last occurrence of the pattern, -1 for none. With an offset, the last occurrence that starts at or
     // before it, and OffsetOutOfRange for an offset below 0 or above the number of code points; the empty pattern then gives the offset,
     // a non-empty one is not found at the offset equal to the length. Without an offset the empty pattern gives the number of code
-    // points. The steps of the search are added to the counter.
-    internal static long LastIndexOf(string text, string pattern, long? offset, ref long steps)
+    // points. The search is the ordinal search from the end, for a literal pattern too.
+    private static long LastIndexOf(string text, string pattern, long? offset)
     {
         int end = text.Length;
         if (offset is long given)
@@ -167,14 +163,15 @@ internal static partial class StringFunctions
             return CodePoints.Count(text);
         }
 
-        int found = FindLast(text, pattern, end, ref steps);
+        int found = OrdinalSearch.FindLast(text, pattern, end);
         return found < 0 ? -1 : CodePoints.Count(text.AsSpan(0, found));
     }
 
     // The receiver with at most limit occurrences of the old string replaced, all of them for a negative limit; with an empty old string
     // the new one is put before each code point and at the end, up to the limit. The result is the receiver itself when nothing
-    // changes, which is charged as a copy. The result is charged to the meter as it is built; the steps of the search are added to the counter.
-    internal static string Replace(string text, string oldText, string newText, long limit, IEvaluationMeter? meter, ref long steps)
+    // changes, which is charged as a copy. The result is charged to the meter as it is built. The values are those of an old string that
+    // is a literal, and null for one from the data.
+    private static string Replace(string text, string oldText, SearchValues<string>? values, string newText, long limit, IEvaluationMeter? meter)
     {
         if (limit < 0)
         {
@@ -193,9 +190,7 @@ internal static partial class StringFunctions
             return InsertAtBoundaries(text, newText, limit, meter);
         }
 
-        Span<byte> buffer = stackalloc byte[SubstringSearch.StackPatternLength];
-        SubstringSearch.PreparedPattern prepared = SubstringSearch.PreparedPattern.Create(oldText, false, buffer, ref steps);
-        int index = FindFrom(text, oldText.Length, in prepared, 0, ref steps);
+        int index = OrdinalSearch.FindFirst(text, oldText, values, 0);
         if (index < 0)
         {
             meter?.Charge(Costs.Tenths((ulong)text.Length));
@@ -218,7 +213,7 @@ internal static partial class StringFunctions
                     break;
                 }
 
-                index = FindFrom(text, oldText.Length, in prepared, from, ref steps);
+                index = OrdinalSearch.FindFirst(text, oldText, values, from);
                 if (index < 0)
                 {
                     break;
@@ -236,8 +231,9 @@ internal static partial class StringFunctions
 
     // The list of the parts of the receiver between the occurrences of the separator: at most limit parts, the last holding the rest
     // unsplit, all of them for a negative limit and none for 0. With an empty separator each code point is a part, and an empty string
-    // has none. Each part is charged, 1 and its length, before it is created; the steps of the search are added to the counter.
-    internal static CelValue Split(string text, string separator, long limit, IEvaluationMeter? meter, ref long steps)
+    // has none. Each part is charged, 1 and its length, before it is created. The values are those of a separator that is a literal, and
+    // null for one from the data.
+    private static CelValue Split(string text, string separator, SearchValues<string>? values, long limit, IEvaluationMeter? meter)
     {
         if (limit < 0)
         {
@@ -274,11 +270,9 @@ internal static partial class StringFunctions
             int from = 0;
             if (separator.Length <= text.Length && limit > 1)
             {
-                Span<byte> buffer = stackalloc byte[SubstringSearch.StackPatternLength];
-                SubstringSearch.PreparedPattern prepared = SubstringSearch.PreparedPattern.Create(separator, false, buffer, ref steps);
                 while (parts.Count < limit - 1)
                 {
-                    int index = FindFrom(text, separator.Length, in prepared, from, ref steps);
+                    int index = OrdinalSearch.FindFirst(text, separator, values, from);
                     if (index < 0)
                     {
                         break;
@@ -331,72 +325,6 @@ internal static partial class StringFunctions
         finally
         {
             builder.Dispose();
-        }
-    }
-
-    // The offset in code units of the first occurrence at or after from, or -1; the pattern is not empty.
-    private static int FindFirst(string text, string pattern, int from, ref long steps)
-    {
-        if (pattern.Length > text.Length - from)
-        {
-            return -1;
-        }
-
-        Span<byte> buffer = stackalloc byte[SubstringSearch.StackPatternLength];
-        SubstringSearch.PreparedPattern prepared = SubstringSearch.PreparedPattern.Create(pattern, false, buffer, ref steps);
-        return FindFrom(text, pattern.Length, in prepared, from, ref steps);
-    }
-
-    // The offset in code units of the last occurrence that ends at or before end, or -1; the pattern is not empty.
-    private static int FindLast(string text, string pattern, int end, ref long steps)
-    {
-        if (pattern.Length > end)
-        {
-            return -1;
-        }
-
-        Span<byte> buffer = stackalloc byte[SubstringSearch.StackPatternLength];
-        SubstringSearch.PreparedPattern prepared = SubstringSearch.PreparedPattern.Create(pattern, true, buffer, ref steps);
-        while (true)
-        {
-            int index = prepared.LastIndexOf(text, end, ref steps);
-            if (index < 0)
-            {
-                return -1;
-            }
-
-            // An occurrence that cuts a pair does not count; the next one ends before this one does.
-            if (!CodePoints.SplitsPair(text, index) && !CodePoints.SplitsPair(text, index + pattern.Length))
-            {
-                return index;
-            }
-
-            end = index + pattern.Length - 1;
-            if (end < pattern.Length)
-            {
-                return -1;
-            }
-        }
-    }
-
-    // The first occurrence at or after from that starts and ends at a code point boundary. The search goes on one unit further past an
-    // occurrence that cuts a pair, which only a pattern with a lone surrogate at an end can make.
-    private static int FindFrom(string text, int patternLength, in SubstringSearch.PreparedPattern prepared, int from, ref long steps)
-    {
-        while (true)
-        {
-            int index = prepared.IndexOf(text, from, ref steps);
-            if (index < 0)
-            {
-                return -1;
-            }
-
-            if (!CodePoints.SplitsPair(text, index) && !CodePoints.SplitsPair(text, index + patternLength))
-            {
-                return index;
-            }
-
-            from = index + 1;
         }
     }
 

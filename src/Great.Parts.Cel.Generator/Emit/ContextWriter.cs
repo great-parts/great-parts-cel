@@ -9,7 +9,7 @@ internal static class ContextWriter
     private const string Values = "global::Great.Parts.Cel.Values.";
 
     // The version of the generator assembly, the only text of the file that changes with a release of the library.
-    private static readonly string Version = typeof(ContextWriter).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
+    internal static readonly string Version = typeof(ContextWriter).Assembly.GetName().Version?.ToString() ?? "0.0.0.0";
 
     internal static string Write(ContextModel model)
     {
@@ -51,7 +51,7 @@ internal static class ContextWriter
         // the constructor reads the enumeration fields.
         foreach (EnumModel enumeration in model.Enums.Items)
         {
-            WriteEnum(w, enumeration);
+            WriteEnum(w, enumeration, "private");
             w.EmptyLine();
         }
 
@@ -64,13 +64,14 @@ internal static class ContextWriter
         foreach (ObjectTypeModel type in model.ObjectTypes.Items)
         {
             w.EmptyLine();
-            DescriptionWriter.Write(w, type, objects, Version);
+            DescriptionWriter.Write(w, type, objects, Version, "private");
         }
 
         w.Close();
     }
 
-    private static void WriteEnum(CodeWriter w, EnumModel enumeration)
+    // access is private for the field of a type context and internal for the one that the registrations of the call sites name.
+    internal static void WriteEnum(CodeWriter w, EnumModel enumeration, string access)
     {
         var constants = new List<string>();
         foreach (EnumConstantModel constant in enumeration.Constants.Items)
@@ -78,7 +79,7 @@ internal static class ContextWriter
             constants.Add("new(" + Literals.Quote(constant.Name) + ", " + Literals.Long(constant.Value) + ")");
         }
 
-        w.Line("private static readonly " + Values + "CelEnumType " + enumeration.FieldName + " = new(");
+        w.Line(access + " static readonly " + Values + "CelEnumType " + enumeration.FieldName + " = new(");
         w.Indent();
         w.Line(Literals.Quote(enumeration.CelName) + ",");
         w.Line("[" + string.Join(", ", constants) + "]);");

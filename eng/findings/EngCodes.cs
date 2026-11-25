@@ -48,6 +48,12 @@ public static class EngCodes
     /// <summary>A package of the <c>closure</c> line of the package list is not in the restore of the package in an application.</summary>
     public const string Eng210 = "ENG210";
 
+    /// <summary>The runtime-async flag of the <c>net11.0</c> assemblies of a package that runs in WebAssembly applications does not follow the kind of the build: an async method of <c>lib/net11.0/</c> without the flag, a method with the flag in an assembly for WebAssembly or in a package without one, or different public types and members in the two assemblies.</summary>
+    public const string Eng211 = "ENG211";
+
+    /// <summary>The restore of a package with a <c>runtimes/browser-wasm/lib/net11.0/</c> assembly in a <c>browser-wasm</c> application does not take that assembly.</summary>
+    public const string Eng212 = "ENG212";
+
     /// <summary>The output of a C# example of the documentation differs from the output shown next to it.</summary>
     public const string Eng301 = "ENG301";
 

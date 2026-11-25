@@ -12,7 +12,8 @@ namespace Great.Parts.Cel.Generator;
 /// The incremental source generator of the call sites of <c>CelExpression.Evaluate</c>. For each anonymous type that a call passes
 /// as the data it writes a file that registers the type with <c>CelAnonymousData</c> from a module initializer, so the simple entry
 /// reads the properties without reflection. It warns where the static type of the data hides what the call passes, and reports an
-/// error for a property the simple entry cannot read.
+/// error for a property the simple entry cannot read. A class, a structure or an interface of the application in a property is
+/// described by one more file of the assembly, written with the code of the type context generator.
 /// </summary>
 [Generator(LanguageNames.CSharp)]
 public sealed class CelAnonymousDataGenerator : IIncrementalGenerator
@@ -45,9 +46,28 @@ public sealed class CelAnonymousDataGenerator : IIncrementalGenerator
             .Select(static (all, _) => Merge(all))
             .WithTrackingName("CallSiteDiagnostics");
 
-        context.RegisterSourceOutput(shapes, static (production, all) => Write(production, all));
+        // The types that the classes in the properties reach, put together for the assembly: one description for each type whatever the
+        // number of the calls that reach it. Two outputs of one step, as for a type context: the places of the diagnostics of the whole
+        // move with the calls, and the model must stay equal then.
+        IncrementalValueProvider<ClassDescriptionsResult> descriptions = sites
+            .Where(static site => site.Shape is not null && site.Closure.Objects.Length > 0)
+            .Select(static (site, _) => new ClosureAtPlace(site.Closure, site.Place))
+            .Collect()
+            .Select(static (all, _) => ClassDescriptions.Merge(all))
+            .WithTrackingName("ClassDescriptions");
+        IncrementalValueProvider<ClassDescriptionsModel?> model = descriptions
+            .Select(static (result, _) => result.Model)
+            .WithTrackingName("ClassDescriptionsModel");
+        IncrementalValueProvider<EquatableArray<DiagnosticModel>> descriptionDiagnostics = descriptions
+            .Select(static (result, _) => result.Diagnostics)
+            .WithTrackingName("ClassDescriptionDiagnostics");
+
+        context.RegisterSourceOutput(shapes.Combine(model), static (production, pair) => Write(production, pair.Left, pair.Right));
         context.RegisterSourceOutput(
             diagnostics.Combine(context.CompilationProvider),
+            static (production, pair) => DiagnosticReporter.Report(production, pair.Left, pair.Right));
+        context.RegisterSourceOutput(
+            descriptionDiagnostics.Combine(context.CompilationProvider),
             static (production, pair) => DiagnosticReporter.Report(production, pair.Left, pair.Right));
     }
 
@@ -104,13 +124,26 @@ public sealed class CelAnonymousDataGenerator : IIncrementalGenerator
         return byFile != 0 ? byFile < 0 : left.Span.Start < right.Span.Start;
     }
 
-    private static void Write(SourceProductionContext production, EquatableArray<AnonymousShape> shapes)
+    // A form that reaches classes needs the descriptions: when the whole has none (the limit of the closure is passed, which is an
+    // error already) the form gets no file, as a form with an error gets none.
+    private static void Write(SourceProductionContext production, EquatableArray<AnonymousShape> shapes, ClassDescriptionsModel? descriptions)
     {
         AnonymousShape[] items = shapes.Items;
         for (int index = 0; index < items.Length; index++)
         {
+            AnonymousShape shape = items[index];
+            if (descriptions is null && (shape.Objects.Length > 0 || shape.Enums.Length > 0))
+            {
+                continue;
+            }
+
             int number = index + 1;
-            production.AddSource(RegistrationEmitter.HintName(number), SourceText.From(RegistrationEmitter.Write(items[index], number), Encoding.UTF8));
+            production.AddSource(RegistrationEmitter.HintName(number), SourceText.From(RegistrationEmitter.Write(shape, number, descriptions), Encoding.UTF8));
+        }
+
+        if (descriptions is not null)
+        {
+            production.AddSource(CallSiteNames.HintName, SourceText.From(DescriptionEmitter.Write(descriptions, shapes), Encoding.UTF8));
         }
     }
 }

@@ -22,6 +22,7 @@ internal sealed class PackageList
     private const string ClosureKeyword = "closure";
     private const string LicenseKeyword = "license";
     private const string FileKeyword = "file";
+    private const string BrowserKeyword = "browser";
 
     private readonly List<Finding> _problems = [];
     private readonly List<PackageListLine> _groups = [];
@@ -61,6 +62,11 @@ internal sealed class PackageList
 
     /// <summary>The line of the <c>license</c> line, or 1 when the list has none.</summary>
     internal int LicenseLine { get; private set; } = 1;
+
+    /// <summary>
+    /// The line of the <c>browser</c> line, which marks a package that runs in WebAssembly applications, or 0 when the list has none.
+    /// </summary>
+    internal int BrowserLine { get; private set; }
 
     /// <summary>Reads a list.</summary>
     /// <param name="path">The path of the list relative to the repository root, with <c>/</c>; the name of the file is the package ID.</param>
@@ -106,8 +112,11 @@ internal sealed class PackageList
             case FileKeyword:
                 ParseFile(rest, number);
                 break;
+            case BrowserKeyword:
+                ParseBrowser(rest, number);
+                break;
             default:
-                Problem(number, $"unknown line '{line}'; a line starts with '{DependenciesKeyword}', '{FrameworkKeyword}', '{ClosureKeyword}', '{LicenseKeyword}' or '{FileKeyword}'");
+                Problem(number, $"unknown line '{line}'; a line starts with '{DependenciesKeyword}', '{FrameworkKeyword}', '{ClosureKeyword}', '{LicenseKeyword}', '{FileKeyword}' or '{BrowserKeyword}'");
                 break;
         }
     }
@@ -202,6 +211,23 @@ internal sealed class PackageList
         }
 
         _files.TryAdd(rest, number);
+    }
+
+    private void ParseBrowser(string rest, int number)
+    {
+        if (rest.Length > 0)
+        {
+            Problem(number, $"a '{BrowserKeyword}' line has no text after the keyword");
+            return;
+        }
+
+        if (BrowserLine > 0)
+        {
+            Problem(number, $"the list has more than one '{BrowserKeyword}' line");
+            return;
+        }
+
+        BrowserLine = number;
     }
 
     private void Problem(int number, string message) =>

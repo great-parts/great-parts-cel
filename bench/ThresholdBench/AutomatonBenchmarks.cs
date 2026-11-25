@@ -5,8 +5,8 @@ namespace ThresholdBench;
 
 /// <summary>
 /// The cost of building the automaton of a pattern against the parse and the build of its program, which every pattern pays. The
-/// criterion for the pattern E5 of the rig, <c>^[^@]+@[^@]+[.][a-z]+$</c>, is a build of the automaton in at most 1 microsecond
-/// (the median of <see cref="BuildAutomaton"/>).
+/// criterion for the pattern E5 of the rig, <c>^[^@]+@[^@]+[.][a-z]+$</c>, is a build of the automaton in at most 2 microseconds on
+/// the standard GitHub Linux runner (the median of <see cref="BuildAutomaton"/>).
 /// </summary>
 [Config(typeof(ThresholdConfig))]
 public class AutomatonBenchmarks

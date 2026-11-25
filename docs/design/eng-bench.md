@@ -8,7 +8,8 @@ The rig is not part of the library, of its packages or of `Great.Parts.Cel.slnx`
 
 | Path | Contents |
 | :- | :- |
-| `bench/SpeedBench/SpeedBench.csproj` | the console application, `net10.0`: BenchmarkDotNet, the compared libraries, Great.Parts.Cel from nuget.org, Grpc.Tools (build only) |
+| `bench/SpeedBench/SpeedBench.csproj` | the console application, `net11.0`: BenchmarkDotNet, the compared libraries, Great.Parts.Cel from the sources of the commit (a project reference, with the source generator as an analyzer), Grpc.Tools (build only) |
+| `bench/ThresholdBench/` | the console application of the limits and diagnostics, `net11.0`: the benchmarks of [Limits and diagnostics](#limits-and-diagnostics); it sees the internals of the library |
 | `bench/SpeedBench/Scenarios.cs` | the texts of the expressions E1 to E9, the twelve cases, the data, the expected value of each case |
 | `bench/SpeedBench/Model.cs` | the classes of the data: `Order`, `Line`, `Customer` |
 | `bench/SpeedBench/Adapters/` | `ILibraryAdapter` with the three operations, the list of the libraries, one adapter for each library; `ProtoData.cs` turns the order into protobuf messages for the libraries that read protobuf |
@@ -32,13 +33,13 @@ An adapter has three operations. The environment of the library (declarations, p
 | evaluate | the evaluation of a compiled object on the data of the application: the creation of the activation of the library and, for a library that does not read .NET objects, the translation of the whole order graph into its own structure; the order object is created once, before the measurement |
 | full cycle | every call from the text to the value; for Great.Parts.Cel the one-step `Evaluate` of the environment |
 
-Each library gets the data in the way its documentation recommends. Great.Parts.Cel reads the classes through a type context that the source generator of the package writes at build time.
+Each library gets the data in the way its documentation recommends. Great.Parts.Cel reads the classes through a type context that the source generator of the package writes at build time. The variant of the simple entry passes the scalar fields of the order, the customer (`order.Customer`) and the lines (`order.Lines`) as properties of an anonymous object, without turning them into `CelMap` values; the texts are those without the prefix `order.`, as before.
 
 ### A new text for every compilation
 
 In compile and in full cycle a library gets, on every call, a text of the expression that it has not compiled in this process. The text is the expression followed by a tail of 16 white space characters of CEL (space, tab, line feed, carriage return, 2 bits each) that encodes a counter. The counter only grows and is never reset in the process, so the 2^32 tails do not repeat, and all the calls of a case do the same work: the length and the meaning of the text do not change. A cache of compilations by text, if a library has one, misses every time. Verification checks that a text with a tail gives the same result as the original.
 
-The cost of making the text is measured by `TextBench.CreateText`, which calls the same method as the operations. The decisive column of the tables is the median of the operation minus the median of the creation of the text, for time and for allocated memory; the column without the subtraction is next to it.
+The cost of making the text is measured by `TextBench.CreateText`, which calls the same method as the operations. The decisive column of the tables is the median of the operation minus the median of the creation of the text, for time and for allocated memory; the column without the subtraction is next to it. The summary over the runs has the column Allocated: the median over the runs of the allocated bytes per operation that BenchmarkDotNet reports (`MemoryDiagnoser`), less the allocation of making the text, as for the time.
 
 ## Verification
 
@@ -46,11 +47,22 @@ Before the measurement every library runs every case in three ways: the original
 
 ## Measurement and tables
 
-BenchmarkDotNet runs with the default job, `MemoryDiagnoser`, the median column and the JSON report; every case runs in a process of its own. The runtime is .NET 10 under JIT.
+BenchmarkDotNet runs with the default job, `MemoryDiagnoser`, the median column and the JSON report; every case runs in a process of its own. The runtime is .NET 11 under JIT: the projects of the rig target `net11.0`, and the SDK and the runtime are those of `global.json` on the runner.
 
 A run is one measurement of all the rows. `run.mjs --runs N` makes N runs one after another. In every run, for each scenario and operation, the ratio of a library is its decisive time divided by the decisive time of the fastest library with a correct result in the same run. For every row "scenario, operation, library" the summary shows the ratios of the runs, R (their median), the spread (the largest ratio divided by the smallest) and the fastest library of each run. The target is R not above 1.1 in every row of Great.Parts.Cel; a row with R above 1.1 is listed in the closing block. A row has a result when it has at least three runs; a row whose ratios lie on both sides of 1.1 is marked, and at five runs it is marked as at the threshold.
 
 The files of a run are in `bench/results/` (not in git): `verify.json`, `runs/<k>/` with the report of BenchmarkDotNet, `run.json` and the table of the run, and `summary.md` over all the runs. `node bench/run.mjs --summary-only` builds the summaries again from the saved runs.
+
+## Limits and diagnostics
+
+`bench/ThresholdBench/` measures, on the code of the commit, the limits of the speed-ups of the library; `run.mjs` runs it after the runs of the rig and writes the section "Limits of the speed-ups" of the summary. A limit has a verdict; a diagnostic has none.
+
+- **The hybrid search of a substring** is now the search for the literal prefix of `matches` only: a pattern of at most 64 code units by the ordinal search of .NET, a longer one by Knuth–Morris–Pratt ([library](library.md#substring-search)). The functions of strings do not use it.
+- **Substring search: time per cost unit**, a diagnostic without a verdict (`bench/ThresholdBench/SubstringBenchmarks.cs`, the class `SubstringCostBenchmarks`, and its rows in `bench/run.mjs`). `contains` on the text `(ab)^5000` with a pattern of M = 64, 256 and 1 024 code units — the prefix `(ab)^k` and the tail `bb`, as in the measurement of the hybrid — for a pattern that is a literal of the expression (the `SearchValues<string>` that compilation prepared) and for the same pattern read from a variable (the ordinal search). The table shows the median time of the evaluation, the cost from the formula of the page [Cost](../cost.md#the-search-for-a-substring) without the reads of the variables, and the time per unit. A rise of the time per unit from M = 64 to M = 1 024 above two times is the input of a decision on the divisor 64 of the factor q of the cost; the rig decides nothing.
+- **The build of the automaton of a literal pattern**, a limit with a verdict: the median of the build of the automaton of the pattern E5 of the rig is at most 2 µs on the standard GitHub Linux runner (`AutomatonBenchmarks`); the pattern UUID and the parse and the build of the program are shown for comparison.
+- **The index of the values of a list** (`distinct`, `sets.contains`), a diagnostic without a verdict (`HashingBenchmarks`): the index scans the hashes in order or uses buckets, and the measurement forces each way (`ValueIndexMode.Scan` and `ValueIndexMode.Buckets`) at N = 8, 16, 24, 32, 48 and 64 integers, next to the index as the library makes it (the scan up to 32 values, the buckets above), the index with one hash for every value and the pairwise group. The arrays are rented and returned as in a call of the library. The summary prints the threshold by the rule: the largest N at which, and at every smaller N measured, scan / buckets is at most 1.0 for both operations, and 8 when the scan is slower already at N = 8. The rig sets no limit: the constant of the library is set by a decision on the table of the first run with the scan. The evaluation of `distinct` and `sets.contains` through the public API at N = 16, 32, 33, 48 and 64 shows a jump of the time per element at the limit, if there is one.
+- **Simple entry: evaluate** and **simple entry: data**, diagnostics without a verdict (`SimpleEntryBenchmarks`). "Evaluate" is the call of `CelExpression.Evaluate` on an anonymous object that was built before the measurement, with the text of the variant with the input of the environment (the scalars, and a macro over the 10 lines of the order); "data" is the building of that object for one call, as the variant of the rig builds it (the scalar fields, the customer and the lines as properties, the classes as they are). Time and allocated bytes of both are in the table.
+- **`CelMap.Create` of the row of an order**, a diagnostic without a verdict (`CelMapBenchmarks`): a map of three entries (`sku`, `qty`, `price`) made with a collection expression, the form that the variant of the simple entry used to turn a line into data. Time and allocated bytes.
 
 ## Running on GitHub
 
@@ -66,7 +78,7 @@ gh workflow run bench.yml --ref main -f runs=3
 | `job` | `Default`: the measurement. `Dry`: one call per case, a check of the rig and the workflow without a measurement |
 | `cases` | the ids of the cases separated by commas, for example `E1,E5`; without it every case |
 
-The job restores in locked mode, then `run.mjs` builds, verifies and measures. The runner is `ubuntu-latest`, the SDK is the one of `global.json` with the SDK 10.0.x for the runtime. The job `bench` has no secret and no write permission, and no time limit of its own: the limit of a job on GitHub, 6 hours, applies. The full measurement has 147 cases per run; the estimate of the time is about an hour per run on a laptop, so three runs fit in the limit with a margin. The result is the artifact `bench-results` (the summary, the verification, the table and the reports of every run) and the step summary of the job.
+The job restores in locked mode, then `run.mjs` builds, verifies and measures. The runner is `ubuntu-latest`, the SDK and the runtime (.NET 11) are those of `global.json`. The job `bench` has no secret and no write permission, and no time limit of its own: the limit of a job on GitHub, 6 hours, applies. The full measurement has 147 cases per run; the estimate of the time is about an hour per run on a laptop, so three runs fit in the limit with a margin. The result is the artifact `bench-results` (the summary, the verification, the table and the reports of every run) and the step summary of the job.
 
 Check of the first run. Start `job=Dry` first: it builds the rig, verifies all libraries and calls every case once, which shows an error of the build or of an adapter in minutes. Then start the measurement and read the summary: the verification table (which pairs are excluded), the section "Conditions" (commit, runner, versions of the packages), the section "Measurement environment" (processor, runtime), and the number of runs of every row.
 

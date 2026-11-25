@@ -154,10 +154,10 @@ public sealed class GreatPartsCelInputAdapter : ILibraryAdapter
 
 /// <summary>
 /// The simple entry <c>CelExpression.Evaluate</c>: no environment, the data are an anonymous object whose properties are the
-/// variables. The simple entry does not read the classes of the application, so the order is turned into the data it reads on
-/// every call, as the libraries that read protobuf messages do: the scalars are properties, the customer is a <see cref="CelMap"/>,
-/// the lines are a list of <see cref="CelMap"/> values. The call compiles the text, or finds the program in the hidden cache of
-/// the process by the text. There is no separate compilation: <c>Compile</c> returns the text, the rig does not measure it, the
+/// variables. The object passes the scalar fields of the order, the customer and the lines as properties, the classes as they are,
+/// without turning them into <see cref="CelMap"/> values: the source generator describes <see cref="Customer"/> and
+/// <see cref="Line"/> and writes the translation of the values at the call. The call compiles the text, or finds the program in the
+/// hidden cache of the process by the text. There is no separate compilation: <c>Compile</c> returns the text, the rig does not measure it, the
 /// evaluation is the call on a text that is already in the cache, and the full cycle is the call on a new text.
 /// </summary>
 public sealed class GreatPartsCelSimpleAdapter : ILibraryAdapter
@@ -187,33 +187,9 @@ public sealed class GreatPartsCelSimpleAdapter : ILibraryAdapter
                 total = order.Total,
                 currency = order.Currency,
                 discount = order.Discount,
-                customer = CustomerMap(order.Customer),
+                customer = order.Customer,
                 created = order.Created,
-                lines = LineList(order.Lines),
+                lines = order.Lines,
                 now,
             }));
-
-    private static CelMap CustomerMap(Customer customer) => CelMap.Create(
-    [
-        Entry("name", CelValue.FromString(customer.Name)),
-        Entry("email", CelValue.FromString(customer.Email)),
-    ]);
-
-    private static List<CelValue> LineList(IReadOnlyList<Line> lines)
-    {
-        var items = new List<CelValue>(lines.Count);
-        foreach (Line line in lines)
-        {
-            items.Add(CelValue.FromMap(CelMap.Create(
-            [
-                Entry("sku", CelValue.FromString(line.Sku)),
-                Entry("qty", CelValue.FromInt64(line.Qty)),
-                Entry("price", CelValue.FromDouble(line.Price)),
-            ])));
-        }
-
-        return items;
-    }
-
-    private static KeyValuePair<CelValue, CelValue> Entry(string key, CelValue value) => new(CelValue.FromString(key), value);
 }

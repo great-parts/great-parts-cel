@@ -31,10 +31,19 @@ public sealed class SimpleEntryCacheMemoryTests
     // not the live heap on the GC of segments, which net10.0 has on macOS (regions came to macOS in net11.0): there it gave 8.1 to
     // 8.2 MiB for the same cache that the GC reports as 3.6 MiB, and so did net10.0 on Linux with the GC of segments (libclrgc.so).
     [Fact]
-    public void FullCache_IsWithinTheTarget()
+    public void FullCache_IsWithinTheTarget() => Calibrate("shapes of scalars", static cache => Fill(cache, Shapes, ProgramsPerShape));
+
+    // The same with all 64 environments of shapes with classes: 16 properties, four of them classes of 8 members and one a list of
+    // classes. The environments are built as the registration of a call site builds them (a source of types, then the variables) and
+    // added to the cache with the programs compiled against them; the number goes to the output for the decision on the number of
+    // environments, and the target is the same.
+    [Fact]
+    public void FullCacheOfShapesWithClasses_IsWithinTheTarget() => Calibrate("shapes with classes", static cache => ClassShapes.Fill(cache, Shapes, ProgramsPerShape));
+
+    private static void Calibrate(string label, Action<SimpleEntryCache> fill)
     {
         // The statics of the library and the generic instances that the fill needs are made before the measurement.
-        WarmUp();
+        WarmUp(fill);
 
         long used = long.MaxValue;
         var estimates = new List<long>();
@@ -42,7 +51,7 @@ public sealed class SimpleEntryCacheMemoryTests
         {
             long totalBefore = GC.GetTotalMemory(true);
             long before = Heap();
-            (long withCache, long totalWithCache, int environments, int programs, long totalTextLength) = FillAndMeasure();
+            (long withCache, long totalWithCache, int environments, int programs, long totalTextLength) = FillAndMeasure(fill);
             long released = Heap();
 
             Assert.Equal((Shapes, Shapes * ProgramsPerShape), (environments, programs));
@@ -53,12 +62,12 @@ public sealed class SimpleEntryCacheMemoryTests
             used = Math.Min(used, Math.Min(withCache - before, withCache - released));
             TestContext.Current.TestOutputHelper?.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
-                $"round {trial}: {environments} environments, {programs} programs, {totalTextLength} code units of text: {withCache - before} bytes over the heap before the fill, {withCache - released} bytes over the heap after the release; GC.GetTotalMemory(true) grew by {totalWithCache - totalBefore} bytes"));
+                $"{label}, round {trial}: {environments} environments, {programs} programs, {totalTextLength} code units of text: {withCache - before} bytes over the heap before the fill, {withCache - released} bytes over the heap after the release; GC.GetTotalMemory(true) grew by {totalWithCache - totalBefore} bytes"));
         }
 
         TestContext.Current.TestOutputHelper?.WriteLine(string.Create(
             CultureInfo.InvariantCulture,
-            $"the smallest estimate: {used} bytes ({used / 1024.0 / 1024.0:F2} MiB)"));
+            $"{label}, the smallest estimate: {used} bytes ({used / 1024.0 / 1024.0:F2} MiB)"));
         Assert.True(used <= Target, string.Create(CultureInfo.InvariantCulture, $"{used} bytes > {Target}; estimates: {string.Join(", ", estimates)}"));
     }
 
@@ -79,13 +88,13 @@ public sealed class SimpleEntryCacheMemoryTests
 
     // Separate methods that do not inline, so that no cache is alive in the frame of the test when the heap is measured.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void WarmUp() => Fill(new SimpleEntryCache(), Shapes, ProgramsPerShape);
+    private static void WarmUp(Action<SimpleEntryCache> fill) => fill(new SimpleEntryCache());
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static (long WithCache, long TotalWithCache, int Environments, int Programs, long TotalTextLength) FillAndMeasure()
+    private static (long WithCache, long TotalWithCache, int Environments, int Programs, long TotalTextLength) FillAndMeasure(Action<SimpleEntryCache> fill)
     {
         var cache = new SimpleEntryCache();
-        Fill(cache, Shapes, ProgramsPerShape);
+        fill(cache);
         long totalWithCache = GC.GetTotalMemory(true);
         long withCache = Heap();
         GC.KeepAlive(cache);

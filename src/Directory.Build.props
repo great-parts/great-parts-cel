@@ -1,0 +1,25 @@
+<Project>
+
+  <!-- The settings of the repository root apply to the projects of src/ as well; this file adds the build for WebAssembly. -->
+  <Import Project="$(MSBuildThisFileDirectory)../Directory.Build.props" />
+
+  <!--
+    The build for WebAssembly: a project of src/ built with the global property GpcBrowserBuild=true is the variant for WebAssembly
+    applications (browser-wasm and wasi-wasm), which is built without runtime async (src/Directory.Build.targets). It writes to its own
+    obj/browser/ and bin/browser/ directories, so it never overwrites the build of the same project without the property. The directory of
+    the restore (obj/) is the same for both: the packages and the references are the same, and so is project.assets.json. The property
+    is passed by the test applications of WebAssembly (tests/Great.Parts.Cel.Conformance.Wasm, tests/Great.Parts.Cel.Wasm.App), and by the
+    pack of Great.Parts.Cel, which adds the variant to the package. Configuration may still be empty here, so its default is written out.
+  -->
+  <PropertyGroup Condition="'$(GpcBrowserBuild)' == 'true'">
+    <GpcBrowserConfiguration>$(Configuration)</GpcBrowserConfiguration>
+    <GpcBrowserConfiguration Condition="'$(GpcBrowserConfiguration)' == ''">Debug</GpcBrowserConfiguration>
+    <OutputPath>bin/browser/$(GpcBrowserConfiguration)/</OutputPath>
+    <IntermediateOutputPath>obj/browser/$(GpcBrowserConfiguration)/</IntermediateOutputPath>
+    <!-- The symbols are in the assembly: a symbol package takes a .pdb only from lib/<framework>/, and this assembly goes to runtimes/. -->
+    <DebugType>embedded</DebugType>
+    <!-- The SDK of .NET 11 is told that the variant has no runtime async, in case it turns the feature on by default. -->
+    <UseRuntimeAsync>false</UseRuntimeAsync>
+  </PropertyGroup>
+
+</Project>

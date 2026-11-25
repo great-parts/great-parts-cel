@@ -198,7 +198,7 @@ public sealed class OptionalValueTests
     // of a header and one CelValue, within the 64 bytes that the unit of optional.of pays for. The smallest of three runs is counted, so
     // the few bytes that the runtime allocates on the test thread while it moves methods between tiers do not count.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void EmptyOptional_AllocatesNothing_AndAnOptionalThatHoldsAValueOneBox()
     {
         CelValue held = CelValue.FromInt64(1);

@@ -45,10 +45,20 @@
     <PackageReference Include="Grpc.Tools" PrivateAssets="all" />
   </ItemGroup>
 
+  <!--
+    The runtime for WebAssembly does not run runtime-async methods, and the net11.0 build of the library has them (src/Directory.Build.targets).
+    So the net11.0 runner takes the variant of the three projects built without runtime async: the property GpcBrowserBuild=true
+    (src/Directory.Build.props) is passed to every reference, so the projects that reference Great.Parts.Cel give the build one variant of
+    it and not two. The net10.0 build has no runtime async and takes the usual build.
+  -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <LibraryBuildProperties>GpcBrowserBuild=true</LibraryBuildProperties>
+  </PropertyGroup>
+
   <ItemGroup>
-    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
-    <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
-    <ProjectReference Include="../../src/Great.Parts.Cel.Policy/Great.Parts.Cel.Policy.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" AdditionalProperties="$(LibraryBuildProperties)" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" AdditionalProperties="$(LibraryBuildProperties)" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Policy/Great.Parts.Cel.Policy.csproj" AdditionalProperties="$(LibraryBuildProperties)" />
     <ProjectReference Include="../../eng/findings/Great.Parts.Cel.Eng.Findings.csproj" />
   </ItemGroup>
 

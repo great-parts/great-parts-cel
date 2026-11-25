@@ -22,7 +22,8 @@ internal static class Strings
     internal static CelValue BytesSize(ReadOnlySpan<CelValue> arguments, in CallSite site) =>
         arguments[0].TryGetBytes(out ReadOnlyMemory<byte> bytes) ? CelValue.FromInt64(bytes.Length) : site.NoMatchingOverload(arguments);
 
-    // contains_string, string.contains(string) -> bool: by the linear search for a substring.
+    // contains_string, string.contains(string) -> bool: by the search of a substring, through the values that the expression prepared for a
+    // literal pattern, otherwise by the ordinal search; a match counts only at a code point boundary.
     internal static CelValue Contains(ReadOnlySpan<CelValue> arguments, in CallSite site)
     {
         if (!arguments[0].TryGetString(out string? text) || !arguments[1].TryGetString(out string? pattern))
@@ -30,8 +31,7 @@ internal static class Strings
             return site.NoMatchingOverload(arguments);
         }
 
-        long steps = 0;
-        return CelValue.FromBoolean(SubstringSearch.IndexOf(text, pattern, ref steps) >= 0);
+        return CelValue.FromBoolean(OrdinalSearch.FindFirst(text, pattern, SearchPattern.ValuesOf(in site), 0) >= 0);
     }
 
     // starts_with_string, string.startsWith(string) -> bool.

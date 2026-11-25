@@ -19,7 +19,70 @@ public sealed class CallSiteStepTests
 
     private const string Unrelated = "namespace Acme; public class Unrelated { public long V { get; set; } }\n";
 
-    private static readonly string[] Steps = ["CallSite", "Shapes", "CallSiteDiagnostics"];
+    private static readonly string[] Steps = ["CallSite", "Shapes", "CallSiteDiagnostics", "ClassDescriptions", "ClassDescriptionsModel", "ClassDescriptionDiagnostics"];
+
+    // The steps whose values are what the files are made of: they do not change when a call only moves.
+    private static readonly string[] StepsOfTheFiles = ["Shapes", "ClassDescriptionsModel", "ClassDescriptionDiagnostics"];
+
+    // A call with a class of the application in a property: the class is read into the closure of the call and described by the file
+    // of descriptions, which the steps ClassDescriptions (the closures of all calls put together), ClassDescriptionsModel and
+    // ClassDescriptionDiagnostics make.
+    private const string ClassSource = "using Great.Parts.Cel;\nnamespace Acme;\npublic sealed class Line { public long Qty { get; set; } }\n"
+        + "class C\n{\n    void M()\n    {\n        CelExpression.Evaluate<long>(\"line.qty\", new { line = new Line() });\n    }\n}\n";
+
+    [Fact]
+    public void NothingChangedWithAClass_EveryStepIsCachedOrUnchanged()
+    {
+        CSharpCompilation compilation = Build(ClassSource);
+        GeneratorDriver driver = Driver(track: true).RunGenerators(compilation, TestContext.Current.CancellationToken);
+
+        GeneratorDriverRunResult second = driver.RunGenerators(compilation, TestContext.Current.CancellationToken).GetRunResult();
+
+        foreach (string step in Steps)
+        {
+            Assert.All(Reasons(second, step), reason => Assert.True(reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged, step + ": " + reason));
+        }
+
+        Assert.NotEmpty(Reasons(second, "ClassDescriptionsModel"));
+    }
+
+    // Lines inserted above a call that has a class move the place of the call and nothing that the files are made of: the shape, the
+    // closure of the call put together and the model of the file of descriptions stay equal, and the files are not made again.
+    [Fact]
+    public void LinesInsertedAboveACallWithAClass_ModifyTheCallAndNotTheShapeNorTheDescriptions()
+    {
+        CSharpCompilation first = Build(ClassSource);
+        GeneratorDriver driver = Driver(track: true).RunGenerators(first, TestContext.Current.CancellationToken);
+        string before = Texts(driver);
+        SyntaxTree old = first.SyntaxTrees.Single(tree => tree.FilePath == "Source.cs");
+        CSharpCompilation second = first.ReplaceSyntaxTree(old, CSharpSyntaxTree.ParseText("// one\n// two\n" + ClassSource, new CSharpParseOptions(LanguageVersion.CSharp12), path: "Source.cs", cancellationToken: TestContext.Current.CancellationToken));
+
+        driver = driver.RunGenerators(second, TestContext.Current.CancellationToken);
+        GeneratorDriverRunResult result = driver.GetRunResult();
+
+        Assert.Contains(IncrementalStepRunReason.Modified, Reasons(result, "CallSite"));
+        foreach (string step in StepsOfTheFiles)
+        {
+            Assert.All(Reasons(result, step), reason => Assert.True(reason is IncrementalStepRunReason.Cached or IncrementalStepRunReason.Unchanged, step + ": " + reason));
+        }
+
+        Assert.Equal(before, Texts(driver));
+    }
+
+    [Fact]
+    public void ChangeOfAMemberOfAClass_ModifiesTheDescriptionsAndTheText()
+    {
+        CSharpCompilation first = Build(ClassSource);
+        GeneratorDriver driver = Driver(track: true).RunGenerators(first, TestContext.Current.CancellationToken);
+        string before = Texts(driver);
+        SyntaxTree old = first.SyntaxTrees.Single(tree => tree.FilePath == "Source.cs");
+        CSharpCompilation second = first.ReplaceSyntaxTree(old, CSharpSyntaxTree.ParseText(ClassSource.Replace("long Qty", "string Qty", System.StringComparison.Ordinal), new CSharpParseOptions(LanguageVersion.CSharp12), path: "Source.cs", cancellationToken: TestContext.Current.CancellationToken));
+
+        driver = driver.RunGenerators(second, TestContext.Current.CancellationToken);
+
+        Assert.Contains(IncrementalStepRunReason.Modified, Reasons(driver.GetRunResult(), "ClassDescriptionsModel"));
+        Assert.NotEqual(before, Texts(driver));
+    }
 
     [Fact]
     public void NothingChanged_EveryCallSiteStepIsCachedOrUnchanged()

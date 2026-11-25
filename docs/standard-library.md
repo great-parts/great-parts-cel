@@ -162,7 +162,7 @@ The size of a string counts Unicode code points, a surrogate pair counting once;
 | `matches` | `matches` | `(string, string) -> bool` | whether some part of the string matches the pattern, see [`matches`](#matches) | `InvalidRegex` (2009) for a pattern that is a string constant, `EvalInvalidRegex` (3021) for another pattern |
 | `matches_string` | `matches` | `string.matches(string) -> bool` | the same | the same |
 
-The search for a substring takes time linear in the lengths of the string and of the substring in the worst case, so the cost on the page [Cost](cost.md) holds for every input.
+The search for a substring compares up to as many code units of the substring at each place of the string, so its worst case is not linear; the cost on the page [Cost](cost.md#the-search-for-a-substring) multiplies the part of the lengths by the factor q of the length of the substring, and holds for every input.
 
 ### `matches`
 

@@ -502,14 +502,16 @@ internal ref struct DfaBuilder
             }
         }
 
-        ushort[] finalTable = table.Items.AsSpan(0, rowCount * stride).ToArray();
-        var endAccepts = new bool[rowCount];
+        // One array: the transitions of the rows, then the answers for the end of the text, one for each row.
+        int transitions = rowCount * stride;
+        var finalTable = new ushort[transitions + rowCount];
+        table.Items.AsSpan(0, transitions).CopyTo(finalTable);
         for (int row = 0; row < rowCount; row++)
         {
-            endAccepts[row] = rows.Items[(row * RowFields) + 2] != 0;
+            finalTable[transitions + row] = (ushort)rows.Items[(row * RowFields) + 2];
         }
 
-        return new Dfa(finalTable, endAccepts, classes, initialRow, restRow, prefix, units, unitCount);
+        return new Dfa(finalTable, classes, initialRow, restRow, prefix, units, unitCount);
     }
 
     // The code units that leave the row of no live thread for another row, when they fit in the room given (the units of an interval

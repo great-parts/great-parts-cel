@@ -30,11 +30,29 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
   </ItemGroup>
 
+  <!--
+    The runtime for WebAssembly does not run runtime-async methods, and the net11.0 build of the library has them (src/Directory.Build.targets).
+    So the net11.0 application takes the variant of the four projects built without runtime async: the property GpcBrowserBuild=true
+    (src/Directory.Build.props) is passed to every reference, so the projects that reference Great.Parts.Cel give the build one variant of
+    it and not two. The net10.0 build has no runtime async and takes the usual build.
+  -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <LibraryBuildProperties>GpcBrowserBuild=true</LibraryBuildProperties>
+  </PropertyGroup>
+
   <ItemGroup>
-    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
-    <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" />
-    <ProjectReference Include="../../src/Great.Parts.Cel.Filtering/Great.Parts.Cel.Filtering.csproj" />
-    <ProjectReference Include="../../src/Great.Parts.Cel.Policy/Great.Parts.Cel.Policy.csproj" />
+    <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" AdditionalProperties="$(LibraryBuildProperties)" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Protobuf/Great.Parts.Cel.Protobuf.csproj" AdditionalProperties="$(LibraryBuildProperties)" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Filtering/Great.Parts.Cel.Filtering.csproj" AdditionalProperties="$(LibraryBuildProperties)" />
+    <ProjectReference Include="../../src/Great.Parts.Cel.Policy/Great.Parts.Cel.Policy.csproj" AdditionalProperties="$(LibraryBuildProperties)" />
+    <!--
+      The generator of call sites runs in the compiler of this application as an analyzer and is not a reference of the assembly. The
+      call of the simple entry with a class and a list of classes in CelSamples.cs needs the registration and the descriptions that it
+      creates; without this reference the call has none, and the publish would not analyze the created code.
+    -->
+    <ProjectReference Include="../../src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <!--

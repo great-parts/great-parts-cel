@@ -55,7 +55,7 @@ public sealed class FrameReuseAllocationTests
     private static int t_depth;
 
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public static void Evaluate_Repeated_AllocatesNoFrame()
     {
         CelProgram<bool> program = Environment.Compile<bool>("x + 1 > 0 && x < 100").GetProgramOrThrow();
@@ -72,7 +72,7 @@ public sealed class FrameReuseAllocationTests
     }
 
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public static void Evaluate_WithACostLimitAndACancelableToken_AllocatesNoFrame()
     {
         CelProgram<bool> program = Environment.Compile<bool>("[1, 2, 3].all(i, i > 0) && x < 100").GetProgramOrThrow();
@@ -86,7 +86,7 @@ public sealed class FrameReuseAllocationTests
     }
 
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public static void EvaluateInput_OnAStructure_Repeated_AllocatesNoFrameAndNoBox()
     {
         CelProgram<bool> program = StructEnvironment.Compile<bool>("id > 0 && name != ''").GetProgramOrThrow();
@@ -103,7 +103,7 @@ public sealed class FrameReuseAllocationTests
     // The getter of the field evaluates another program while the outer evaluation holds its frame: the thread rents a second frame, and
     // keeps both, so the next call allocates none.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public static void Evaluate_InsideAnEvaluation_AllocatesNoFrameAfterTheFirstCall()
     {
         CelProgram<bool> outer = RowEnvironment.Compile<bool>("row.doubled == 42").GetProgramOrThrow();
@@ -115,7 +115,7 @@ public sealed class FrameReuseAllocationTests
 
     // Evaluations nested deeper than the thread keeps frames make the others and give the values of the same program.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public static void Evaluate_NestedDeeperThanTheFramesKept_GivesTheValues()
     {
         for (int i = 0; i < Counted; i++)
@@ -126,7 +126,7 @@ public sealed class FrameReuseAllocationTests
 
     // A canceled evaluation gives its frame back: the evaluation after it takes that frame and allocates none.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public static void Evaluate_AfterACanceledEvaluation_TakesTheFrameThatItGaveBack()
     {
         CelProgram<bool> quick = Environment.Compile<bool>("x < 100").GetProgramOrThrow();
@@ -154,7 +154,7 @@ public sealed class FrameReuseAllocationTests
     // The frame that a program gives back is cleared: a program of the same variable, evaluated next on the thread, does not see the
     // value of the last one, the variable that it read, or the slots of its comprehensions.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public static void Evaluate_AfterAnotherProgram_SeesNothingOfIt()
     {
         CelProgram<long> sum = Environment.Compile<long>("[1, 2, 3].map(i, i * x).size() + [4, 5].filter(j, j > x).size()").GetProgramOrThrow();
@@ -171,7 +171,7 @@ public sealed class FrameReuseAllocationTests
 
     // The value of an evaluation holds nothing of its frame: the evaluations after it, on the same frame, do not change it.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public static void Result_AfterLaterEvaluationsOnTheSameFrame_IsUnchanged()
     {
         CelProgram<CelValue> pair = Environment.Compile<CelValue>("[x, x + 1]").GetProgramOrThrow();

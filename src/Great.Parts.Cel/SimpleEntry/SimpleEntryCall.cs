@@ -16,6 +16,15 @@ internal static class SimpleEntryCall
 {
     private const string AnonymousTypePrefix = "<>f__AnonymousType";
 
+    // The bindings of the thread: one instance that a call takes (the field is set to null), fills and evaluates with, and puts back
+    // cleared in a finally block, so that the references to the data of the application are not kept after the call. A call that finds the
+    // field empty makes an instance of its own: a call from inside an evaluation on the same thread (a getter of a member of an object
+    // that calls the simple entry), or a call after an exception that left the instance taken. Such an instance goes into the field
+    // when its call ends, and the call that took the first instance puts that one back over it. The simple entry has no asynchronous
+    // call, so the instance does not outlive a call.
+    [ThreadStatic]
+    private static CelBindings? t_bindings;
+
     // The overload with a dictionary of names and values.
     internal static T Evaluate<T>(
         SimpleEntryCache cache,
@@ -151,17 +160,29 @@ internal static class SimpleEntryCall
         }
 
         CelProgram<T> program = cache.GetOrCompile<T>(environment, expression).GetProgramOrThrow();
-        CelBindings bindings = count == 0 ? CelBindings.Empty : new CelBindings();
-        for (int i = 0; i < count; i++)
+        if (count == 0)
         {
-            bindings.Set(slots[i].Name, slots[i].Value);
+            return Run(program, CelBindings.Empty, costLimit, cancellationToken);
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        return program.EvaluateWithLimit(bindings, costLimit, cancellationToken).GetValueOrThrow();
+        CelBindings bindings = TakeBindings();
+        try
+        {
+            for (int i = 0; i < count; i++)
+            {
+                bindings.Set(slots[i].Name, slots[i].Value);
+            }
+
+            return Run(program, bindings, costLimit, cancellationToken);
+        }
+        finally
+        {
+            ReleaseBindings(bindings);
+        }
     }
 
-    // An anonymous object of a registered type: the environment of the type, the bindings by the delegate of the registration.
+    // An anonymous object of a registered type: the environment of the type by the reference of its entry of the registry, the program by
+    // the table of the recent programs of the environment, the bindings by the delegate of the registration.
     private static T EvaluateAnonymous<T>(
         SimpleEntryCache cache,
         string expression,
@@ -170,19 +191,48 @@ internal static class SimpleEntryCall
         ulong costLimit,
         CancellationToken cancellationToken)
     {
-        if (!cache.TryGetEnvironment(entry.Key, out SimpleEntryCache.EnvironmentEntry? environment))
-        {
-            var builder = new CelEnvironmentBuilder();
-            entry.Declare(builder);
-            environment = cache.AddEnvironment(entry.Key, builder.Build().GetEnvironmentOrThrow());
-        }
-
+        SimpleEntryCache.EnvironmentEntry environment = cache.GetEnvironment(entry);
         CelProgram<T> program = cache.GetOrCompile<T>(environment, expression).GetProgramOrThrow();
-        var bindings = new CelBindings();
-        entry.Bind(data, bindings);
+        CelBindings bindings = TakeBindings();
+        try
+        {
+            entry.Bind(data, bindings);
+            return Run(program, bindings, costLimit, cancellationToken);
+        }
+        finally
+        {
+            ReleaseBindings(bindings);
+        }
+    }
+
+    private static T Run<T>(CelProgram<T> program, CelBindings bindings, ulong costLimit, CancellationToken cancellationToken)
+    {
         cancellationToken.ThrowIfCancellationRequested();
         return program.EvaluateWithLimit(bindings, costLimit, cancellationToken).GetValueOrThrow();
     }
+
+    // Takes the bindings of the thread out of the field, or makes an instance when the field is empty.
+    private static CelBindings TakeBindings()
+    {
+        CelBindings? bindings = t_bindings;
+        if (bindings is null)
+        {
+            return new CelBindings();
+        }
+
+        t_bindings = null;
+        return bindings;
+    }
+
+    private static void ReleaseBindings(CelBindings bindings)
+    {
+        bindings.Clear();
+        t_bindings = bindings;
+    }
+
+    // The bindings that the current thread keeps between calls, or null while a call has taken them or when no call has been made: the
+    // tests read it to see that it is empty after a call and not shared by a call inside a call.
+    internal static CelBindings? ThreadBindings => t_bindings;
 
     // The hidden environment of a dictionary: the standard library version 1 and one variable per slot. A key that is not a name is
     // InvalidVariableName of the build; the shape is not kept then.
@@ -228,7 +278,7 @@ internal static class SimpleEntryCall
     private static string DataHint(Type type) =>
         type.Name.StartsWith(AnonymousTypePrefix, StringComparison.Ordinal)
             ? "; pass the anonymous object to CelExpression.Evaluate directly, or pass a dictionary"
-            : "; the simple entry reads a dictionary or an anonymous object: build a CelEnvironment with a type source and UseInput for other data";
+            : "; the simple entry reads a dictionary or an anonymous object: pass a class of the application as a property of an anonymous object, such as new { order }, or build a CelEnvironment with a type source and UseInput";
 
     private static bool IsDecimal(Type type) => type == typeof(decimal) || string.Equals(type.FullName, "System.Numerics.Decimal128", StringComparison.Ordinal);
 }

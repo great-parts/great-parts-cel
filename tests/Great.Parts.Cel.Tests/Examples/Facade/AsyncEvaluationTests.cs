@@ -334,7 +334,7 @@ public sealed class AsyncEvaluationTests
     // A structure that completes in the first pass is not boxed for it: the asynchronous call allocates what the synchronous one does.
     [Fact]
     [Trait("Requirement", "F-23")]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void EvaluateInputAsync_OnAStructure_AllocatesAsTheSynchronousCallDoes()
     {
         CelEnvironment environment = CelEnvironment.Create(builder => builder.AddTypes(KindsContext.Default).UseInput<StructKind>());
@@ -349,7 +349,7 @@ public sealed class AsyncEvaluationTests
 
     // A program that completes in the first pass costs the asynchronous call no more memory than the synchronous one.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void EvaluateAsync_WhenTheFirstPassCompletes_AllocatesAsEvaluateDoes()
     {
         CelProgram<long> sync = Compile<long>(functions.Sync, "x + 1");

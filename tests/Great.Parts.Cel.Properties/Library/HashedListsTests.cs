@@ -23,7 +23,10 @@ namespace Great.Parts.Cel.Properties.Library;
 // 2^53 or more, never those that only share a hash. The formula is computed here from the values, by the comparison of the library
 // on single pairs, so it does not depend on the seed of the hash of the process. A random seed hardly gives two values one hash, so
 // the same lists go again through the functions with the hash of every value made one: the cost, the result, the outcome with an
-// error and the calls of the application are those of the ordinary hash.
+// error and the calls of the application are those of the ordinary hash. The index scans the hashes of a short list and uses buckets
+// for a longer one; the lists go again through the functions with each of the two ways forced for a list of any length, with the
+// ordinary hash and with the constant one: the cost, the result, the outcome with an error and the calls of the application are the
+// same in all of them.
 public sealed class HashedListsTests
 {
     private const ulong Seed = 20261119;
@@ -42,7 +45,11 @@ public sealed class HashedListsTests
         .Build()
         .GetEnvironmentOrThrow();
 
-    private static readonly string[] Words = ["", "a", "b", "ab", "aaaaaaaaaaaaaaaaaaaaaaaaa", "é"];
+    private static readonly bool[] Hashes = [false, true];
+
+    private static readonly ValueIndexMode[] Modes = [ValueIndexMode.Automatic, ValueIndexMode.Scan, ValueIndexMode.Buckets];
+
+    private static readonly string[] Words =["", "a", "b", "ab", "aaaaaaaaaaaaaaaaaaaaaaaaa", "é"];
 
     private static readonly double[] Doubles = [0.0, -0.0, 1.0, 2.0, 0.5, 1.5, double.PositiveInfinity, double.NaN, double.NaN];
 
@@ -71,34 +78,41 @@ public sealed class HashedListsTests
             ?? Sets("sets.intersects(x, p)", first, second)
             ?? Sets("sets.equivalent(x, p)", first, second)
             ?? Sets("sets.equivalent(x, x)", first, first)
-            ?? ConstantHash(first, second);
+            ?? OtherWays(first, second);
     }
 
     // The functions of the library on the two lists with the ordinary hash and with a constant one, which puts every value of the
-    // group Hashed in one bucket: the same outcome, the same cost and the same calls of the application.
-    private static string? ConstantHash(CelValue[] first, CelValue[] second)
+    // group Hashed in one bucket, each with the index that scans the hashes and with the one that uses buckets: the same outcome, the
+    // same cost and the same calls of the application.
+    private static string? OtherWays(CelValue[] first, CelValue[] second)
     {
         CelList left = CelList.Create(first);
         CelList right = CelList.Create(second);
         CelValue argument = CelValue.FromList(left);
-        (string Name, Func<CallSite, bool, CelValue> Run)[] functions =
+        (string Name, Func<CallSite, bool, ValueIndexMode, CelValue> Run)[] functions =
         [
-            ("distinct", (site, constant) => HashedLists.Distinct(argument, left, in site, constantHash: constant)),
-            ("contains", (site, constant) => HashedLists.AllIn(right, left, in site, constantHash: constant)),
-            ("intersects", (site, constant) => HashedLists.Intersects(left, right, in site, constantHash: constant)),
-            ("equivalent", (site, constant) =>
+            ("distinct", (site, constant, mode) => HashedLists.Distinct(argument, left, in site, constantHash: constant, mode: mode)),
+            ("contains", (site, constant, mode) => HashedLists.AllIn(right, left, in site, constantHash: constant, mode: mode)),
+            ("intersects", (site, constant, mode) => HashedLists.Intersects(left, right, in site, constantHash: constant, mode: mode)),
+            ("equivalent", (site, constant, mode) =>
             {
-                CelValue forward = HashedLists.AllIn(right, left, in site, constantHash: constant);
-                return forward.TryGetBoolean(out bool holds) && holds ? HashedLists.AllIn(left, right, in site, constantHash: constant) : forward;
+                CelValue forward = HashedLists.AllIn(right, left, in site, constantHash: constant, mode: mode);
+                return forward.TryGetBoolean(out bool holds) && holds ? HashedLists.AllIn(left, right, in site, constantHash: constant, mode: mode) : forward;
             }),
         ];
-        foreach ((string name, Func<CallSite, bool, CelValue> run) in functions)
+        foreach ((string name, Func<CallSite, bool, ValueIndexMode, CelValue> run) in functions)
         {
-            Outcome ordinary = Observe(run, constant: false);
-            Outcome constant = Observe(run, constant: true);
-            if (!ordinary.Equals(constant))
+            Outcome ordinary = Observe(run, constant: false, mode: ValueIndexMode.Automatic);
+            foreach (bool constantHash in Hashes)
             {
-                return name + " with a constant hash: " + constant + "; with the ordinary hash: " + ordinary;
+                foreach (ValueIndexMode mode in Modes)
+                {
+                    Outcome other = Observe(run, constantHash, mode);
+                    if (!ordinary.Equals(other))
+                    {
+                        return name + " with " + (constantHash ? "a constant" : "the ordinary") + " hash and the mode " + mode + ": " + other + "; with the ordinary hash and the automatic mode: " + ordinary;
+                    }
+                }
             }
         }
 
@@ -106,7 +120,7 @@ public sealed class HashedListsTests
     }
 
     // One call of a function of the library with a meter of its own, through a call site; the exception of the application ends it.
-    private static Outcome Observe(Func<CallSite, bool, CelValue> run, bool constant)
+    private static Outcome Observe(Func<CallSite, bool, ValueIndexMode, CelValue> run, bool constant, ValueIndexMode mode)
     {
         Boxes.Calls.Clear();
         var meter = new CountingMeter();
@@ -114,7 +128,7 @@ public sealed class HashedListsTests
         string? thrown = null;
         try
         {
-            result = Rendered(run(new CallSite("f", 0, Lines, meter), constant));
+            result = Rendered(run(new CallSite("f", 0, Lines, meter), constant, mode));
         }
         catch (InvalidOperationException exception)
         {
@@ -237,12 +251,12 @@ public sealed class HashedListsTests
         return new ListsCase(first, second, text.ToString());
     }
 
-    // Lengths on both sides of the 24 elements at which the library changes from the scan to buckets, and of 32.
+    // Lengths on both sides of the 32 elements at which the library changes from the scan to buckets, up to 64 and beyond.
     private static int Length(PCG random) => random.Next(6) switch
     {
         0 => (int)random.Next(8),
         1 or 2 => 8 + (int)random.Next(23),
-        3 => 24 + (int)random.Next(17),
+        3 => 24 + (int)random.Next(41),
         4 => 40 + (int)random.Next(81),
         _ => 100 + (int)random.Next(101),
     };

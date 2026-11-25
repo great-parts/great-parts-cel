@@ -109,8 +109,19 @@ internal sealed class Planner
     private int _asyncOffset = -1;
     private string? _asyncFunction;
 
-    private Planner(CelParsedExpr parsed, CheckedExpression? checkedExpression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones, bool partial = false)
+    // Whether a read of a field and its comparison with a literal become one node (FusedComparisonPlanNode). The option exists for the
+    // test of equivalence, which plans each expression both ways; no plan for partial evaluation is fused whatever it says.
+    private readonly bool _fuse;
+
+    private Planner(
+        CelParsedExpr parsed,
+        CheckedExpression? checkedExpression,
+        DeclarationIndex declarations,
+        CelTimeZoneDatabase? timeZones,
+        bool partial = false,
+        bool fuse = true)
     {
+        _fuse = fuse;
         _timeZones = timeZones;
         _parsed = parsed;
         _checked = checkedExpression;
@@ -120,13 +131,18 @@ internal sealed class Planner
 
     // The planner of a checked expression, for the compilation boundary of planning, which runs it and handles its exception. A
     // partial plan keeps the parsed expression and records the value of each node, for evaluation with unknown data.
-    internal static Planner For(CheckedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null, bool partial = false) =>
-        new(expression.Parsed, expression, declarations, timeZones, partial);
+    internal static Planner For(
+        CheckedExpression expression,
+        DeclarationIndex declarations,
+        CelTimeZoneDatabase? timeZones = null,
+        bool partial = false,
+        bool fuse = true) =>
+        new(expression.Parsed, expression, declarations, timeZones, partial, fuse);
 
     // Plans a checked expression against the declarations it was checked with: a call with one candidate of the
     // reference map calls it, a call with several chooses among them by Matches.
-    internal static Plan Plan(CheckedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null) =>
-        For(expression, declarations, timeZones).Run();
+    internal static Plan Plan(CheckedExpression expression, DeclarationIndex declarations, CelTimeZoneDatabase? timeZones = null, bool fuse = true) =>
+        For(expression, declarations, timeZones, fuse: fuse).Run();
 
     // Plans a parsed expression without type checking: names resolve in the bindings at evaluation, and
     // every call other than the special forms chooses among all overloads of its name, call style and
@@ -763,7 +779,8 @@ internal sealed class Planner
                 return Dispatch(call, offset, candidates[0].Function, candidates, [Marks(candidates[0], argumentTypes)], arguments, prepared);
             }
 
-            return new CallPlanNode(offset, candidates[0], Marks(candidates[0], argumentTypes), !_added, arguments, prepared, _declarations.PatternCache);
+            var single = new CallPlanNode(offset, candidates[0], Marks(candidates[0], argumentTypes), !_added, arguments, prepared, _declarations.PatternCache);
+            return Fused(call, single, arguments);
         }
 
         ImmutableArray<ImmutableArray<bool>>.Builder marks = ImmutableArray.CreateBuilder<ImmutableArray<bool>>(candidates.Length);
@@ -772,7 +789,26 @@ internal sealed class Planner
             marks.Add(Marks(candidate, argumentTypes));
         }
 
-        return Dispatch(call, offset, NameInErrors(call, candidates), candidates, marks.MoveToImmutable(), arguments, prepared);
+        PlanNode dispatch = Dispatch(call, offset, NameInErrors(call, candidates), candidates, marks.MoveToImmutable(), arguments, prepared);
+        return Fused(call, dispatch, arguments);
+    }
+
+    // The node of a call of a comparison, or the fused node of the read of a field and the comparison when the call is of that form
+    // (FusedComparisonPlanNode): not for a call that the expansion of a standard macro adds, not in a plan for partial evaluation and
+    // not when the option of the planner is off.
+    private PlanNode Fused(CelCallNode call, PlanNode node, ImmutableArray<PlanNode> arguments)
+    {
+        if (!_fuse
+            || _partial is not null
+            || _added
+            || call.Target is not null
+            || call.Arguments.Length != 2
+            || call.Arguments[1] is not CelConstantNode { Value: var literal })
+        {
+            return node;
+        }
+
+        return FusedComparisonPlanNode.TryCreate(call.Function, node, arguments, literal, _declarations.Types) ?? node;
     }
 
     // The node of a call with several candidates, or with none, or with one that waits: the dispatch, or the node of a call that waits

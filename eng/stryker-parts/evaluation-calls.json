@@ -20,6 +20,7 @@
       "Evaluation/AsyncCallTable.cs",
       "Evaluation/CallPlanNode.cs",
       "Evaluation/DispatchPlanNode.cs",
+      "Evaluation/FusedComparisonPlanNode.cs",
       "Evaluation/Invocation.cs",
       "Evaluation/ComprehensionPlanNode.cs",
       "Evaluation/LogicalPlanNode.cs",

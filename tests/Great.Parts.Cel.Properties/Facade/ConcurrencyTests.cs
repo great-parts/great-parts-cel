@@ -78,6 +78,93 @@ public sealed partial class ConcurrencyTests
         }
     }
 
+    // The fast paths of the cache of the simple entry from 64 threads started together: 80 shapes of dictionaries and three registered
+    // anonymous types, so that more than 64 environments take turns, and 16 texts for each shape, so that more than 1 024 programs do. A
+    // text is given as the one instance of its place in the list or as a copy of it, so both ways of finding a program are used. Every
+    // result is that of a sequential call, and after the threads end no place of a table and no reference of the registry holds an
+    // evicted entry and the capacities hold. It runs on a cache with the capacities of the process and on one that evicts all the time.
+    [Fact]
+    [Trait("Requirement", "R-4")]
+    [Trait("Requirement", "U-7")]
+    public void SimpleEntryFastPaths_KeepTheirInvariants()
+    {
+        CelAnonymousData.Register(new { simpleA = default(long) }, static builder => builder.AddVariable<long>("simpleA"), static (data, bindings) => bindings.Add("simpleA", data.simpleA));
+        CelAnonymousData.Register(new { simpleB = default(long) }, static builder => builder.AddVariable<long>("simpleB"), static (data, bindings) => bindings.Add("simpleB", data.simpleB));
+        CelAnonymousData.Register(new { simpleC = default(long) }, static builder => builder.AddVariable<long>("simpleC"), static (data, bindings) => bindings.Add("simpleC", data.simpleC));
+
+        Assert.Null(SimpleEntryViolation(new SimpleEntryCache(), (SimpleEntryCache.MaxEnvironments, SimpleEntryCache.MaxPrograms, SimpleEntryCache.MaxTotalTextLength)));
+        Assert.Null(SimpleEntryViolation(new SimpleEntryCache(4, 8, 400), (4, 8, 400)));
+    }
+
+    private static string? SimpleEntryViolation(SimpleEntryCache cache, (int Environments, int Programs, int TextLength) capacity)
+    {
+        const int Dictionaries = 80;
+        const int Shapes = Dictionaries + 3;
+        const int TextsPerShape = 16;
+        const int CallsPerThread = 400;
+
+        string[] names = new string[Shapes];
+        var dictionaries = new Dictionary<string, object?>[Dictionaries];
+        string[][] texts = new string[Shapes][];
+        for (int shape = 0; shape < Shapes; shape++)
+        {
+            names[shape] = shape < Dictionaries ? "s" + shape.ToString(CultureInfo.InvariantCulture) : "simple" + (char)('A' + shape - Dictionaries);
+            if (shape < Dictionaries)
+            {
+                dictionaries[shape] = new Dictionary<string, object?> { [names[shape]] = (long)shape };
+            }
+
+            texts[shape] = new string[TextsPerShape];
+            for (int text = 0; text < TextsPerShape; text++)
+            {
+                texts[shape][text] = names[shape] + " * 10 + " + text.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        string? failure = ThreadRun.OnThreads(Threads, (thread, barrier) =>
+        {
+            var random = new PCG((uint)thread, Seed);
+            barrier.SignalAndWait();
+            for (int call = 0; call < CallsPerThread; call++)
+            {
+                int shape = (int)random.Next(Shapes);
+                int text = (int)random.Next(TextsPerShape);
+                string expression = random.Next(2) == 0 ? new string(texts[shape][text].AsSpan()) : texts[shape][text];
+                long value = shape;
+                object data = shape < Dictionaries
+                    ? dictionaries[shape]
+                    : shape == Dictionaries ? (object)new { simpleA = value } : shape == Dictionaries + 1 ? new { simpleB = value } : new { simpleC = value };
+                try
+                {
+                    long actual = SimpleEntryCall.Evaluate<long>(cache, expression, data, CelExpression.DefaultCostLimit, CancellationToken.None);
+                    if (actual != (value * 10) + text)
+                    {
+                        return $"thread {thread}: '{expression}' gave {actual}, sequential {(value * 10) + text}";
+                    }
+                }
+                catch (Exception exception) when (exception is not OutOfMemoryException)
+                {
+                    return $"thread {thread}: '{expression}': {exception.GetType()}: {exception.Message}";
+                }
+            }
+
+            return null;
+        });
+        if (failure is not null)
+        {
+            return failure;
+        }
+
+        (int environments, int programs, long textLength) = cache.Kept;
+        if (environments > capacity.Environments || programs > capacity.Programs || textLength > capacity.TextLength)
+        {
+            return $"the cache keeps {environments} environments, {programs} programs and {textLength} code units against {capacity}";
+        }
+
+        int evicted = cache.EvictedReachable();
+        return evicted == 0 ? null : $"{evicted} evicted entries are still reachable by a fast path";
+    }
+
     private static string[] BuildMatchPatterns()
     {
         string[] refused = ["(", "a**", "a{1001}"];

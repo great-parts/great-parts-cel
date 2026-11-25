@@ -27,6 +27,11 @@ internal sealed class SelectPlanNode : PlanNode
         _keyCost = ((ulong)field.Length + 9) / 10;
     }
 
+    // The node of the operand; null for the selection of a name without type checking.
+    internal PlanNode? Operand => _operand;
+
+    internal bool IsPresenceTest => _isPresenceTest;
+
     internal override CelValue Evaluate(Frame frame)
     {
         if (!HasStack(frame, out CelValue error))

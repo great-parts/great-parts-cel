@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Great.Parts.Cel.Library.Unicode;
 
 namespace Great.Parts.Cel.Library.Regex;
@@ -29,15 +30,16 @@ internal sealed class CodePointClasses
     private const int ClassShift = 24;
     private const int StartMask = (1 << ClassShift) - 1;
 
-    private readonly byte[] ascii;
-    private readonly int[] starts;
-    private readonly byte[] classOfInterval;
+    // The ints at the head of the array that hold the table of the code points below 128, a byte each.
+    private const int AsciiInts = AsciiLimit / sizeof(int);
 
-    private CodePointClasses(byte[] ascii, int[] starts, byte[] classOfInterval, int count)
+    // One array holds it all: the table of the code points below 128 (AsciiInts ints read as bytes), then the merged intervals, each
+    // as the start with the class number packed above it.
+    private readonly int[] data;
+
+    private CodePointClasses(int[] data, int count)
     {
-        this.ascii = ascii;
-        this.starts = starts;
-        this.classOfInterval = classOfInterval;
+        this.data = data;
         Count = count;
     }
 
@@ -45,31 +47,35 @@ internal sealed class CodePointClasses
     internal int Count { get; }
 
     // The number of intervals of consecutive code points that the classes are made of; the size of the search of a code point above 127.
-    internal int IntervalCount => starts.Length;
+    internal int IntervalCount => data.Length - AsciiInts;
 
     // What the classes hold, in bytes: the table of the code points below 128, the starts of the intervals and their class numbers.
-    internal int TableBytes => ascii.Length + (starts.Length * sizeof(int)) + classOfInterval.Length;
+    internal int TableBytes => AsciiLimit + (IntervalCount * (sizeof(int) + sizeof(byte)));
 
     // The class of a code point.
-    internal int Of(int codePoint) => (uint)codePoint < AsciiLimit ? ascii[codePoint] : Lookup(codePoint);
+    internal int Of(int codePoint) => (uint)codePoint < AsciiLimit ? AsciiBytes(data)[codePoint] : Lookup(codePoint);
 
     // The class of a code unit that is not a surrogate.
-    internal int OfUnit(char unit) => unit < AsciiLimit ? ascii[unit] : Lookup(unit);
+    internal int OfUnit(char unit) => unit < AsciiLimit ? AsciiBytes(data)[unit] : Lookup(unit);
+
+    private static Span<byte> AsciiBytes(int[] data) => MemoryMarshal.AsBytes(data.AsSpan(0, AsciiInts));
 
     // Adds the code units of a class to the list, counted in count, when the class holds only units of the Basic Multilingual Plane
     // that are not surrogates, not U+FFFD — a lone surrogate of a text is read as U+FFFD, so a search for the unit would pass it —
     // and that fit in the room left; false otherwise.
     internal bool TryAddUnits(int cls, Span<char> units, ref int count)
     {
-        for (int i = 0; i < classOfInterval.Length; i++)
+        int intervals = IntervalCount;
+        for (int i = 0; i < intervals; i++)
         {
-            if (classOfInterval[i] != cls)
+            int entry = data[AsciiInts + i];
+            if ((entry >> ClassShift) != cls)
             {
                 continue;
             }
 
-            int first = starts[i];
-            int last = i + 1 < starts.Length ? starts[i + 1] - 1 : MaxCodePoint;
+            int first = entry & StartMask;
+            int last = i + 1 < intervals ? (data[AsciiInts + i + 1] & StartMask) - 1 : MaxCodePoint;
             if (last > 0xFFFF
                 || (last >= 0xD800 && first <= 0xDFFF)
                 || (first <= ReplacementCharacter && last >= ReplacementCharacter)
@@ -164,15 +170,10 @@ internal sealed class CodePointClasses
             AddToMasks(scratch.Slice(cls * words, words), cls, masks);
         }
 
-        var starts = new int[merged];
-        var classOfInterval = new byte[merged];
-        for (int i = 0; i < merged; i++)
-        {
-            starts[i] = bounds[i] & StartMask;
-            classOfInterval[i] = (byte)(bounds[i] >> ClassShift);
-        }
-
-        return new CodePointClasses(AsciiTable(starts, classOfInterval), starts, classOfInterval, classCount);
+        var data = new int[AsciiInts + merged];
+        bounds[..merged].CopyTo(data.AsSpan(AsciiInts));
+        FillAscii(data, merged);
+        return new CodePointClasses(data, classCount);
     }
 
     // Finds the class of each interval; false when there are more than maxClasses of them. The signatures of the classes are kept in
@@ -228,16 +229,22 @@ internal sealed class CodePointClasses
         }
     }
 
-    private static byte[] AsciiTable(int[] starts, byte[] classOfInterval)
+    // Fills the table of the code points below 128 from the intervals that follow it in the array.
+    private static void FillAscii(int[] data, int intervals)
     {
-        var table = new byte[AsciiLimit];
-        for (int i = 0; i < starts.Length && starts[i] < AsciiLimit; i++)
+        Span<byte> table = AsciiBytes(data);
+        for (int i = 0; i < intervals; i++)
         {
-            int last = i + 1 < starts.Length ? Math.Min(starts[i + 1], AsciiLimit) : AsciiLimit;
-            table.AsSpan(starts[i], last - starts[i]).Fill(classOfInterval[i]);
-        }
+            int entry = data[AsciiInts + i];
+            int start = entry & StartMask;
+            if (start >= AsciiLimit)
+            {
+                break;
+            }
 
-        return table;
+            int last = i + 1 < intervals ? Math.Min(data[AsciiInts + i + 1] & StartMask, AsciiLimit) : AsciiLimit;
+            table.Slice(start, last - start).Fill((byte)(entry >> ClassShift));
+        }
     }
 
     // The instructions that accept a code point, as a set of bits.
@@ -360,11 +367,11 @@ internal sealed class CodePointClasses
     private int Lookup(int codePoint)
     {
         int low = 0;
-        int high = starts.Length - 1;
+        int high = data.Length - AsciiInts - 1;
         while (low < high)
         {
             int middle = (low + high + 1) >> 1;
-            if (starts[middle] <= codePoint)
+            if ((data[AsciiInts + middle] & StartMask) <= codePoint)
             {
                 low = middle;
             }
@@ -374,6 +381,6 @@ internal sealed class CodePointClasses
             }
         }
 
-        return classOfInterval[low];
+        return data[AsciiInts + low] >> ClassShift;
     }
 }

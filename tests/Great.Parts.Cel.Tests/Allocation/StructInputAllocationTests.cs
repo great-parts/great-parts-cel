@@ -23,7 +23,7 @@ public sealed class StructInputAllocationTests
     // frame of the structure input is larger by the structure and the reference to the typed description; a box of the structure would
     // be an object more, with its header, so the call would allocate more than that.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void EvaluateInput_OnAStructure_AllocatesTheFrameWithTheStructureAndNothingMore()
     {
         CelProgram<bool> structProgram = StructEnvironment.Compile<bool>(Text).GetProgramOrThrow();
@@ -40,7 +40,7 @@ public sealed class StructInputAllocationTests
 
     // The same with a cost limit, which makes the evaluation ask the description for the cost of each read before the read.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void EvaluateInput_OnAStructureWithACostLimit_AllocatesTheFrameWithTheStructureAndNothingMore()
     {
         CelProgram<bool> structProgram = StructEnvironment.Compile<bool>(Text).GetProgramOrThrow();

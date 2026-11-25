@@ -6,12 +6,12 @@ using Xunit;
 
 namespace Great.Parts.Cel.Properties.Examples.Library;
 
-// The search for a substring of contains is linear in the worst case: on a text of n and a pattern of m
-// UTF-16 code units it takes at most 4 · (n + m) steps, a step being one comparison of two code units, and
-// finds the first occurrence. The inputs are words with many long partial matches — the Fibonacci word and
-// the Thue–Morse word over 'a' and 'b' — with patterns cut from them, found and not found, of about a
-// million code units of text. The internal SubstringSearch.IndexOf counts the steps; contains of the
-// public API gives the same answer.
+// The search for a substring that matches uses for the literal prefix of a pattern is linear in the worst case:
+// on a text of n and a pattern of m UTF-16 code units it takes at most 4 · (n + m) steps, a step being one
+// comparison of two code units, and finds the first occurrence. The inputs are words with many long partial
+// matches — the Fibonacci word and the Thue–Morse word over 'a' and 'b' — with patterns cut from them, found and
+// not found, of about a million code units of text. The internal SubstringSearch.IndexOf counts the steps;
+// contains of the public API, which searches in its own way and promises no linear time, gives the same answer.
 [Trait("Requirement", "R-3")]
 public sealed class SubstringSearchStepsTests
 {

@@ -12,7 +12,7 @@ namespace Great.Parts.Cel.Values;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A map is either a table of entries, as created by a map literal or by <see cref="Create"/>, or a view
+/// A map is either a table of entries, as created by a map literal or by <see cref="Create(ReadOnlySpan{KeyValuePair{CelValue, CelValue}})"/>, or a view
 /// over a dictionary of the application or a JSON object that reads values on access without copying
 /// them. Only the library creates maps, so the class cannot be derived from outside it.
 /// </para>
@@ -79,8 +79,34 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     public static CelMap Create(IEnumerable<KeyValuePair<CelValue, CelValue>> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        KeyValuePair<CelValue, CelValue>[] copy = [.. entries];
-        foreach (KeyValuePair<CelValue, CelValue> entry in copy)
+        return CreateFromCopy([.. entries]);
+    }
+
+    /// <summary>
+    /// Creates a map of <paramref name="entries"/>; enumeration keeps their order.
+    /// The entries are copied, so a later change of the source does not change the map.
+    /// </summary>
+    /// <remarks>
+    /// A collection expression, <c>CelMap.Create([...])</c>, binds to this overload and makes no collection of its
+    /// own for the entries. The map is the same as the one that the overload with an enumerable makes, with the
+    /// same checks.
+    /// </remarks>
+    /// <param name="entries">The entries.</param>
+    /// <returns>The map.</returns>
+    /// <exception cref="ArgumentException">
+    /// A key is not of the kind <see cref="CelValueKind.Int"/>, <see cref="CelValueKind.UInt"/>,
+    /// <see cref="CelValueKind.Bool"/> or <see cref="CelValueKind.String"/>; two keys are equal by CEL
+    /// equality, such as <c>1</c> and <c>1u</c>; or a value is of the kind <see cref="CelValueKind.Error"/>.
+    /// </exception>
+    public static CelMap Create(params ReadOnlySpan<KeyValuePair<CelValue, CelValue>> entries)
+    {
+        return CreateFromCopy(entries.ToArray());
+    }
+
+    // The checks and the table of both overloads of Create; the array is the copy of the entries that the map takes over.
+    private static CelMap CreateFromCopy(KeyValuePair<CelValue, CelValue>[] entries)
+    {
+        foreach (KeyValuePair<CelValue, CelValue> entry in entries)
         {
             if (entry.Value.Kind == CelValueKind.Error)
             {
@@ -88,7 +114,7 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
             }
         }
 
-        EntryTableMap? map = EntryTableMap.TryCreate(copy, out EntryTableMap.Refusal refusal, out int index);
+        EntryTableMap? map = EntryTableMap.TryCreate(entries, out EntryTableMap.Refusal refusal, out int index);
         if (map is not null)
         {
             return map;
@@ -96,7 +122,7 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
 
         throw new ArgumentException(
             refusal == EntryTableMap.Refusal.KeyKind
-                ? string.Create(CultureInfo.InvariantCulture, $"The key of the entry {index} is of the kind {copy[index].Key.Kind}, which cannot be a key of a CEL map.")
+                ? string.Create(CultureInfo.InvariantCulture, $"The key of the entry {index} is of the kind {entries[index].Key.Kind}, which cannot be a key of a CEL map.")
                 : string.Create(CultureInfo.InvariantCulture, $"The key of the entry {index} is equal by CEL equality to the key of an earlier entry."),
             nameof(entries));
     }

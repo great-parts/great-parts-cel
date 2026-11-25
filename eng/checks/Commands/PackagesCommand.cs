@@ -65,6 +65,7 @@ internal sealed class PackagesCommand : ICheckCommand
             {
                 // A list with a line that does not parse is not compared: the missing line would show as differences of the package.
                 findings.AddRange(PackageComparison.Compare(list, package));
+                findings.AddRange(RuntimeAsyncCheck.Check(list, package, Path.Combine(context.Root, package.Path)));
             }
         }
 

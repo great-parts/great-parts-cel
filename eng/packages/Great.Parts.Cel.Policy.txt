@@ -9,6 +9,9 @@ closure net11.0: Great.Parts.Cel
 
 license Apache-2.0
 
+# The package runs in WebAssembly applications: its net11.0 assembly has no async method, so it has no runtime-async method either.
+browser
+
 file NOTICE
 file README.md
 file AGENTS.md

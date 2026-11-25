@@ -102,6 +102,8 @@ dotnet_diagnostic.CA1822.severity = none
 dotnet_diagnostic.CA1829.severity = none
 # JsonDocument.Parse(...).RootElement instead of JsonElement.Parse.
 dotnet_diagnostic.CA2026.severity = none
+# A public structure without equality members: the structure of the application that ClassPropertyTests reads.
+dotnet_diagnostic.CA1815.severity = none
 
 [*.{csproj,props,targets,slnx,config,json,xml}]
 indent_style = space

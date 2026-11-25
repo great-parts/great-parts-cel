@@ -19,7 +19,17 @@ namespace Great.Parts.Cel.Eng.Checks;
 /// <param name="Source">The full path of the directory of the packages of the commit, the local source of the restore.</param>
 /// <param name="Cache">The full path of the packages folder of the restore: nothing of an earlier run is in it.</param>
 /// <param name="Root">The full path of the repository root, whose <c>global.json</c> is copied next to the application.</param>
-internal sealed record ClosureRequest(string Id, string Version, string Target, bool Web, string Directory, string Source, string Cache, string Root);
+/// <param name="RuntimeIdentifier">The runtime identifier of the application, such as <c>browser-wasm</c>; <see langword="null"/> for an application without one.</param>
+internal sealed record ClosureRequest(
+    string Id,
+    string Version,
+    string Target,
+    bool Web,
+    string Directory,
+    string Source,
+    string Cache,
+    string Root,
+    string? RuntimeIdentifier = null);
 
 /// <summary>
 /// The restore of <c>package-closure</c> (<c>docs/design/eng-checks-artifacts.md</c>, "package-closure"): a console application of one
@@ -40,12 +50,18 @@ internal static class ClosureRestore
         // The application is outside the repository, so no Directory.Build.props or Directory.Packages.props of it applies; the
         // global.json of the repository selects the same SDK as the build.
         string sdk = request.Web ? "Microsoft.NET.Sdk.Web" : "Microsoft.NET.Sdk";
+        // A WebAssembly runtime identifier has no application host and no runtime pack of the plain SDK: without these two properties
+        // the restore asks for both (NETSDK1084).
+        string identifier = request.RuntimeIdentifier is null
+            ? string.Empty
+            : $"<RuntimeIdentifier>{request.RuntimeIdentifier}</RuntimeIdentifier><UseAppHost>false</UseAppHost><SelfContained>false</SelfContained>";
         string project = $"""
             <Project Sdk="{sdk}">
               <PropertyGroup>
                 <OutputType>Exe</OutputType>
                 <TargetFramework>{request.Target}</TargetFramework>
                 <NuGetAudit>false</NuGetAudit>
+                {identifier}
               </PropertyGroup>
               <ItemGroup>
                 <PackageReference Include="{request.Id}" Version="[{request.Version}]" />
@@ -91,6 +107,48 @@ internal static class ClosureRestore
             }
 
             return ids;
+        }
+        catch (JsonException exception)
+        {
+            throw new CheckInputException($"the assets file cannot be read: {exception.Message}", exception);
+        }
+    }
+
+    /// <summary>
+    /// The paths of the runtime assets of a package in one target of an assets file, in the order of the file: the keys of
+    /// <c>targets["&lt;target&gt;"]["&lt;id&gt;/&lt;version&gt;"].runtime</c>. A target or a package that the file does not have gives an empty list.
+    /// </summary>
+    /// <param name="assets">The text of <c>project.assets.json</c>.</param>
+    /// <param name="target">The key of the target, such as <c>net11.0/browser-wasm</c>.</param>
+    /// <param name="id">The ID of the package, compared without regard to case.</param>
+    /// <exception cref="CheckInputException">The text is not an assets file.</exception>
+    internal static IReadOnlyList<string> RuntimeAssets(string assets, string target, string id)
+    {
+        try
+        {
+            using JsonDocument document = JsonDocument.Parse(assets);
+            if (document.RootElement.ValueKind != JsonValueKind.Object || !document.RootElement.TryGetProperty("targets", out JsonElement targets) || targets.ValueKind != JsonValueKind.Object)
+            {
+                throw new CheckInputException("the assets file has no 'targets' object");
+            }
+
+            if (!targets.TryGetProperty(target, out JsonElement packages) || packages.ValueKind != JsonValueKind.Object)
+            {
+                return [];
+            }
+
+            foreach (JsonProperty package in packages.EnumerateObject())
+            {
+                // The name is '<id>/<version>'.
+                int slash = package.Name.IndexOf('/', StringComparison.Ordinal);
+                bool same = string.Equals(slash < 0 ? package.Name : package.Name[..slash], id, StringComparison.OrdinalIgnoreCase);
+                if (same && package.Value.ValueKind == JsonValueKind.Object && package.Value.TryGetProperty("runtime", out JsonElement runtime) && runtime.ValueKind == JsonValueKind.Object)
+                {
+                    return [.. runtime.EnumerateObject().Select(asset => asset.Name)];
+                }
+            }
+
+            return [];
         }
         catch (JsonException exception)
         {

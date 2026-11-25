@@ -46,7 +46,7 @@ What to do: list a type of your own that holds the data, a closed generic type, 
 
 **Member excluded from CEL type.** Severity: Warning.
 
-Message: `Member '{0}' of type '{1}' is excluded from the CEL type: {2}`. Where: the member; for a member of a type from another assembly, which has no place in your source, the argument of the `[CelObject]` attribute that reached the type.
+Message: `Member '{0}' of type '{1}' is excluded from the CEL type: {2}`. Where: the member; for a member of a type from another assembly, which has no place in your source, the argument of the `[CelObject]` attribute that reached the type, or, for a class in a property of an anonymous object passed to `CelExpression.Evaluate`, that property. The generator of those calls describes the classes with the rules of a type context, so it reports `GPCEL002`, `GPCEL003`, `GPCEL004`, `GPCEL005` and `GPCEL009` too.
 
 A property or a field of a described type is left out, because its type is one that GPCEL001 lists, or because it is marked `[Obsolete]`, `[Experimental]`, `[RequiresUnreferencedCode]` or `[RequiresDynamicCode]` (the mark may stand on the property or on its `get` accessor; the generated code would call it and the compiler of the application would warn). `{2}` is the reason: the one of the table above, or `the member is marked [<attribute>]`. For an element, a key or a value of a collection the reason names the part, for example `the element type System.IO.Stream cannot be read: streams are not data`; a dictionary key that is not `string`, an integer, `bool`, an enumeration or `Guid` is `dictionary keys must be string, an integer, bool, an enumeration or Guid`, and the elements of a set that CEL does not order are `set elements must be numbers, bool, string, bytes, timestamp, duration or decimal, which CEL orders`. An element, a key or a value, at any depth, that is a set, a collection without an index (`Queue<T>`, `Stack<T>`, `LinkedList<T>`) or a structure that is a collection other than `ImmutableArray<T>` has the reason `the element type {type} cannot be read: {type} is copied at each read of an element, which the cost does not charge; use a list, an array or a dictionary` (`the value type …` for a value): the copy would be made at each read of an element, where the limit of cost has no charge.
 
@@ -68,7 +68,7 @@ What to do: give one of them another name with `[CelName]`, or hide it.
 
 **Duplicate CEL type name.** Severity: Error.
 
-Message: `Types '{0}' and '{1}' in type context '{2}' both map to the CEL type name '{3}'`. Where: the argument of the `[CelObject]` attribute of the second type; for a type that a member reaches, the argument of the attribute of the root that reached it first.
+Message: `Types '{0}' and '{1}' in type context '{2}' both map to the CEL type name '{3}'`. Where: the argument of the `[CelObject]` attribute of the second type; for a type that a member reaches, the argument of the attribute of the root that reached it first. For the classes in the properties of anonymous objects passed to `CelExpression.Evaluate`, `{2}` is `CelExpression.Evaluate` and the place is the property that reached the second type, or the data of the call that reached it when another call reached the first.
 
 Two types of one context get the same CEL name: they have the same default name, such as `Acme.Box<Acme.A_B>` and the class `Acme.Box_Acme_A_B`, or `Name` gives one name to both, or one type is listed twice with different names. The type with the greater display name (ordinal) is the second; it is left out. The order of the attributes in the text does not decide.
 
@@ -114,6 +114,8 @@ Message: `The type closure of type context '{0}' contains more than {1} types`. 
 
 The types that the roots list and the types their members reach are more than the limit, 250 object types for a context (enumerations do not count). A context that pulled in a graph of entities by accident is the usual cause. The generator writes no code for the context.
 
+The classes in the properties of the anonymous objects that the calls of `CelExpression.Evaluate` of an assembly pass have one limit for the assembly, 250 object types, since their descriptions are one file. `{0}` is `CelExpression.Evaluate`; the place is the property whose types pass the limit, or, when two calls pass it together, the data of the call that does. No description is written then, and no registration that needs one.
+
 What to do: split the context into several, or hide the members that lead into the rest of the graph.
 
 ## GPCEL010
@@ -126,9 +128,9 @@ The generator reads the static type of the expression that a call of `CelExpress
 
 At run time such a call is a `CelException` with the error `TypeNotDeclared` and the full name of the .NET type, unless the value is a supported dictionary or an anonymous object of a registered type. Anonymous types belong to one assembly, and the registry is keyed by the type, not by the call: a call through a generic method or an `object` works when an anonymous object of the same property names, types and order is passed directly to `CelExpression.Evaluate` elsewhere in the same assembly, so the warning can be a false alarm there. The call of such a wrapper is the case where an application may suppress the warning, with `#pragma warning disable GPCEL010` at the call.
 
-`{1}` is the advice: `pass the anonymous object at the call or pass a dictionary` for a type parameter and `object`; `pass a dictionary with string keys and values of the list, or an anonymous object` for a dictionary outside the list; `build an environment with a type source and UseInput<T>` for a class or a structure.
+`{1}` is the advice: `pass the anonymous object at the call or pass a dictionary` for a type parameter and `object`; `pass a dictionary with string keys and values of the list, or an anonymous object` for a dictionary outside the list; `pass it as a property of an anonymous object, such as new { order }, or build an environment with a type source and UseInput<T>` for a class or a structure.
 
-What to do: pass the anonymous object in the call itself, pass a dictionary, or build an environment with `UseInput<T>`.
+What to do: pass the anonymous object in the call itself, pass a dictionary, pass the class as a property of an anonymous object, or build an environment with `UseInput<T>`.
 
 ## GPCEL011
 
@@ -140,7 +142,7 @@ A call of `CelExpression.Evaluate` passes an anonymous object with a property th
 
 | The property | Reason |
 | :- | :- |
-| a class or a structure of the application | `an object of the application` |
+| a delegate, `Uri` or another type that a type context cannot describe, alone or as the element of a collection of classes | `a type that a type context cannot describe: ` and the reason of [`GPCEL001`](#gpcel001), such as `System.Uri has no CEL type; use a string or your own type`; for a message of protobuf, `protobuf messages are described by Great.Parts.Cel.Protobuf, not by a type context` |
 | an anonymous object | `a nested anonymous object` |
 | `object` | `object` |
 | a type that is private, protected or file-local, alone or inside a collection | `not accessible from the created file` |

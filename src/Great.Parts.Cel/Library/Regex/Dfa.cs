@@ -32,10 +32,11 @@ internal sealed class Dfa
     // The offset of the state that cannot match; the offset of the one that has matched is the stride.
     private const int DeadOffset = 0;
 
+    // The transitions of the rows, stride ushorts each, then one ushort for each row: 1 when the text may end in the state, else 0.
     private readonly ushort[] table;
-    private readonly bool[] endAccepts;
     private readonly CodePointClasses classes;
     private readonly int stride;
+    private readonly int rowCount;
     private readonly int initial;
     private readonly int restOffset;
     private readonly char[]? prefix;
@@ -43,12 +44,13 @@ internal sealed class Dfa
     private readonly int unitCount;
 
     // The row of the state of no live thread is restRow, below 2 when the program has none; the skip is a prefix, or units, or none.
-    internal Dfa(ushort[] table, bool[] endAccepts, CodePointClasses classes, int initialRow, int restRow, char[]? prefix, SearchValues<char>? units, int unitCount)
+    // The table holds the transitions of the rows and after them the answers for the end of the text, one for each row.
+    internal Dfa(ushort[] table, CodePointClasses classes, int initialRow, int restRow, char[]? prefix, SearchValues<char>? units, int unitCount)
     {
         this.table = table;
-        this.endAccepts = endAccepts;
         this.classes = classes;
         stride = classes.Count;
+        rowCount = table.Length / (stride + 1);
         initial = initialRow * stride;
         this.prefix = prefix;
         this.units = units;
@@ -57,7 +59,7 @@ internal sealed class Dfa
     }
 
     // The number of states that can still change the answer; the two rows of the answers are not counted.
-    internal int StateCount => (table.Length / stride) - 2;
+    internal int StateCount => rowCount - 2;
 
     // The number of classes of code points, the columns of the table.
     internal int ClassCount => stride;
@@ -65,7 +67,10 @@ internal sealed class Dfa
     // What the tables hold, in bytes: the transitions, the answers at the end of the text, and the classes (their table of the code
     // points below 128, the starts of the intervals and their class numbers). The weight of the entry of the cache of patterns counts
     // it in units of 16 bytes.
-    internal int TableBytes => (table.Length * sizeof(ushort)) + endAccepts.Length + classes.TableBytes;
+    internal int TableBytes => (rowCount * stride * sizeof(ushort)) + rowCount + classes.TableBytes;
+
+    // Whether the text may end in the state at an offset of the table.
+    private bool EndAccepts(int offset) => table[(rowCount * stride) + (offset / stride)] != 0;
 
     // How the search for a match goes on from the state of no live thread.
     internal DfaSkip Skip => prefix is not null ? DfaSkip.Prefix : units is not null ? DfaSkip.Units : DfaSkip.None;
@@ -89,7 +94,7 @@ internal sealed class Dfa
                 int distance = SkipFrom(text, index);
                 if (distance < 0)
                 {
-                    return endAccepts[offset / stride];
+                    return EndAccepts(offset);
                 }
 
                 index += distance;
@@ -97,7 +102,7 @@ internal sealed class Dfa
 
             if (index >= text.Length)
             {
-                return endAccepts[offset / stride];
+                return EndAccepts(offset);
             }
 
             offset = table[offset + ClassAt(text, ref index)];

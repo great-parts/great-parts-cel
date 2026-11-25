@@ -218,44 +218,48 @@ M:System.Linq.Expressions.Expression`1.Compile;The evaluator interprets an immut
 M:System.Linq.Expressions.Expression`1.Compile(System.Boolean);The evaluator interprets an immutable plan and compiles no code
 M:System.Linq.Expressions.Expression`1.Compile(System.Runtime.CompilerServices.DebugInfoGenerator);The evaluator interprets an immutable plan and compiles no code
 
-// Substring search: the worst case is O(n*m), and the cost limit does not bound its time
-M:System.String.IndexOf(System.String);Use the library's linear-time substring search
-M:System.String.IndexOf(System.String,System.Int32);Use the library's linear-time substring search
-M:System.String.IndexOf(System.String,System.Int32,System.Int32);Use the library's linear-time substring search
-M:System.String.IndexOf(System.String,System.StringComparison);Use the library's linear-time substring search
-M:System.String.IndexOf(System.String,System.Int32,System.StringComparison);Use the library's linear-time substring search
-M:System.String.IndexOf(System.String,System.Int32,System.Int32,System.StringComparison);Use the library's linear-time substring search
-M:System.String.LastIndexOf(System.String);Use the library's linear-time substring search
-M:System.String.LastIndexOf(System.String,System.Int32);Use the library's linear-time substring search
-M:System.String.LastIndexOf(System.String,System.Int32,System.Int32);Use the library's linear-time substring search
-M:System.String.LastIndexOf(System.String,System.StringComparison);Use the library's linear-time substring search
-M:System.String.LastIndexOf(System.String,System.Int32,System.StringComparison);Use the library's linear-time substring search
-M:System.String.LastIndexOf(System.String,System.Int32,System.Int32,System.StringComparison);Use the library's linear-time substring search
-M:System.String.Contains(System.String);Use the library's linear-time substring search
-M:System.String.Contains(System.String,System.StringComparison);Use the library's linear-time substring search
-M:System.String.Replace(System.String,System.String);Use the library's linear-time substring search
-M:System.String.Replace(System.String,System.String,System.StringComparison);Use the library's linear-time substring search
-M:System.String.Replace(System.String,System.String,System.Boolean,System.Globalization.CultureInfo);Use the library's linear-time substring search
-M:System.String.Split(System.String,System.StringSplitOptions);Use the library's linear-time substring search
-M:System.String.Split(System.String,System.Int32,System.StringSplitOptions);Use the library's linear-time substring search
-M:System.String.Split(System.String[],System.StringSplitOptions);Use the library's linear-time substring search
-M:System.String.Split(System.String[],System.Int32,System.StringSplitOptions);Use the library's linear-time substring search
-M:System.Text.StringBuilder.Replace(System.String,System.String);Use the library's linear-time substring search
-M:System.Text.StringBuilder.Replace(System.String,System.String,System.Int32,System.Int32);Use the library's linear-time substring search
-M:System.Text.StringBuilder.Replace(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Use the library's linear-time substring search
-M:System.Text.StringBuilder.Replace(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.Int32,System.Int32);Use the library's linear-time substring search
-M:System.MemoryExtensions.IndexOf(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's linear-time substring search
-M:System.MemoryExtensions.IndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.IndexOf``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.IndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.LastIndexOf(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's linear-time substring search
-M:System.MemoryExtensions.LastIndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.LastIndexOf``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.LastIndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.Contains(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's linear-time substring search
-M:System.MemoryExtensions.Count``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.Count``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.Count``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.Split(System.ReadOnlySpan{System.Char},System.Span{System.Range},System.ReadOnlySpan{System.Char},System.StringSplitOptions);Use the library's linear-time substring search
-M:System.MemoryExtensions.Split``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's linear-time substring search
-M:System.MemoryExtensions.SplitAny(System.ReadOnlySpan{System.Char},System.Span{System.Range},System.ReadOnlySpan{System.String},System.StringSplitOptions);Use the library's linear-time substring search
+// Substring search: the worst case is O(n*m); the library searches in one place, and its cost pays for the worst case
+M:System.String.IndexOf(System.String);Use the library's substring search, whose cost pays for its worst case
+M:System.String.IndexOf(System.String,System.Int32);Use the library's substring search, whose cost pays for its worst case
+M:System.String.IndexOf(System.String,System.Int32,System.Int32);Use the library's substring search, whose cost pays for its worst case
+M:System.String.IndexOf(System.String,System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.String.IndexOf(System.String,System.Int32,System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.String.IndexOf(System.String,System.Int32,System.Int32,System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.String.LastIndexOf(System.String);Use the library's substring search, whose cost pays for its worst case
+M:System.String.LastIndexOf(System.String,System.Int32);Use the library's substring search, whose cost pays for its worst case
+M:System.String.LastIndexOf(System.String,System.Int32,System.Int32);Use the library's substring search, whose cost pays for its worst case
+M:System.String.LastIndexOf(System.String,System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.String.LastIndexOf(System.String,System.Int32,System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.String.LastIndexOf(System.String,System.Int32,System.Int32,System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Contains(System.String);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Contains(System.String,System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Replace(System.String,System.String);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Replace(System.String,System.String,System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Replace(System.String,System.String,System.Boolean,System.Globalization.CultureInfo);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Split(System.String,System.StringSplitOptions);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Split(System.String,System.Int32,System.StringSplitOptions);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Split(System.String[],System.StringSplitOptions);Use the library's substring search, whose cost pays for its worst case
+M:System.String.Split(System.String[],System.Int32,System.StringSplitOptions);Use the library's substring search, whose cost pays for its worst case
+M:System.Text.StringBuilder.Replace(System.String,System.String);Use the library's substring search, whose cost pays for its worst case
+M:System.Text.StringBuilder.Replace(System.String,System.String,System.Int32,System.Int32);Use the library's substring search, whose cost pays for its worst case
+M:System.Text.StringBuilder.Replace(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char});Use the library's substring search, whose cost pays for its worst case
+M:System.Text.StringBuilder.Replace(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.Int32,System.Int32);Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.IndexOf(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.IndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.IndexOf``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.IndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.LastIndexOf(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.LastIndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.LastIndexOf``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.LastIndexOf``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.Contains(System.ReadOnlySpan{System.Char},System.ReadOnlySpan{System.Char},System.StringComparison);Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.IndexOfAny(System.ReadOnlySpan{System.Char},System.Buffers.SearchValues{System.String});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.ContainsAny(System.ReadOnlySpan{System.Char},System.Buffers.SearchValues{System.String});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.IndexOfAny(System.Span{System.Char},System.Buffers.SearchValues{System.String});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.ContainsAny(System.Span{System.Char},System.Buffers.SearchValues{System.String});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.Count``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.Count``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0},System.Collections.Generic.IEqualityComparer{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.Count``1(System.Span{``0},System.ReadOnlySpan{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.Split(System.ReadOnlySpan{System.Char},System.Span{System.Range},System.ReadOnlySpan{System.Char},System.StringSplitOptions);Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.Split``1(System.ReadOnlySpan{``0},System.ReadOnlySpan{``0});Use the library's substring search, whose cost pays for its worst case
+M:System.MemoryExtensions.SplitAny(System.ReadOnlySpan{System.Char},System.Span{System.Range},System.ReadOnlySpan{System.String},System.StringSplitOptions);Use the library's substring search, whose cost pays for its worst case

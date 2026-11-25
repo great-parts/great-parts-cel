@@ -9,6 +9,10 @@ closure net11.0:
 
 license Apache-2.0
 
+# The package runs in WebAssembly applications. lib/net11.0 is built with runtime async, which the runtime for WebAssembly does not run,
+# so the same assembly built without it is also in runtimes/browser-wasm and runtimes/wasi-wasm (docs/design/async-evaluation.md).
+browser
+
 file NOTICE
 file README.md
 file AGENTS.md
@@ -17,4 +21,6 @@ file lib/net10.0/Great.Parts.Cel.dll
 file lib/net10.0/Great.Parts.Cel.xml
 file lib/net11.0/Great.Parts.Cel.dll
 file lib/net11.0/Great.Parts.Cel.xml
+file runtimes/browser-wasm/lib/net11.0/Great.Parts.Cel.dll
+file runtimes/wasi-wasm/lib/net11.0/Great.Parts.Cel.dll
 file analyzers/dotnet/cs/Great.Parts.Cel.Generator.dll

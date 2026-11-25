@@ -19,7 +19,7 @@ public sealed class InputAllocationTests
     private static readonly CelEnvironment Environment = CelEnvironment.Create(builder => builder.AddTypes(ShopContext.Default).UseInput<Order>());
 
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void EvaluateInput_OnAClassInput_AllocatesTheFrameOnly()
     {
         CelProgram<bool> program = Environment.Compile<bool>("total > 1000.0 && status == 'approved'").GetProgramOrThrow();

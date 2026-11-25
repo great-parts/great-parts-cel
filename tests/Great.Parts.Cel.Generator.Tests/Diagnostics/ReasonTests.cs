@@ -243,7 +243,7 @@ public sealed class ReasonTests
     // A closure of five thousand types in a chain is the limit and not an overflow of the stack of the compiler: the walk keeps its own
     // stack. No file is written for the context.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void GPCEL009_ChainOfFiveThousandTypes_IsTheLimitAndNotAnOverflow()
     {
         const int Count = 5000;

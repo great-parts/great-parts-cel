@@ -68,6 +68,43 @@ public sealed class PackagesTests
         file lib/net11.0/Great.Parts.Cel.AspNetCore.dll
         file README.md
         """;
+    private const string BrowserList = """
+        # Expected content of the Great.Parts.Cel package.
+        dependencies net10.0:
+        dependencies net11.0:
+
+        closure net10.0:
+        closure net11.0:
+
+        license Apache-2.0
+
+        browser
+
+        file NOTICE
+        file lib/net11.0/Great.Parts.Cel.dll
+        file runtimes/browser-wasm/lib/net11.0/Great.Parts.Cel.dll
+        file runtimes/wasi-wasm/lib/net11.0/Great.Parts.Cel.dll
+        file README.md
+        """;
+    private const string BrowserWithoutAssembliesList = """
+        # Expected content of the Great.Parts.Cel package.
+        dependencies net10.0:
+        dependencies net11.0:
+
+        closure net10.0:
+        closure net11.0:
+
+        license Apache-2.0
+
+        browser
+
+        file NOTICE
+        file lib/net11.0/Great.Parts.Cel.dll
+        file README.md
+        """;
+    private const string LibraryEntry = "lib/net11.0/Great.Parts.Cel.dll";
+    private const string BrowserEntry = "runtimes/browser-wasm/lib/net11.0/Great.Parts.Cel.dll";
+    private const string WasiEntry = "runtimes/wasi-wasm/lib/net11.0/Great.Parts.Cel.dll";
     private const string CelListPath = "eng/packages/Great.Parts.Cel.txt";
     private const string ProtobufListPath = "eng/packages/Great.Parts.Cel.Protobuf.txt";
     private const string AspNetCoreListPath = "eng/packages/Great.Parts.Cel.AspNetCore.txt";
@@ -127,12 +164,15 @@ public sealed class PackagesTests
             closure net11.0:
             closure : Great.Parts.Cel
             closure net9.0: Great.Parts.Cel,, Google.Protobuf
+            browser web
+            browser
+            browser
             """);
         Pack(root, "Great.Parts.Cel", ["NOTICE"], Groups(("net11.0", ["Great.Parts.Cel"])));
 
         FindingAssert.Exactly(
             Check(root),
-            Error(EngCodes.Eng200, CelListPath, 3, "unknown line 'nonsense line'; a line starts with 'dependencies', 'framework', 'closure', 'license' or 'file'"),
+            Error(EngCodes.Eng200, CelListPath, 3, "unknown line 'nonsense line'; a line starts with 'dependencies', 'framework', 'closure', 'license', 'file' or 'browser'"),
             Error(EngCodes.Eng200, CelListPath, 4, "a 'dependencies' line needs a colon after the target: 'dependencies <target>: <name>, <name>, ...'"),
             Error(EngCodes.Eng200, CelListPath, 5, "a 'dependencies' line needs one target before the colon: 'dependencies <target>: <name>, <name>, ...'"),
             Error(EngCodes.Eng200, CelListPath, 6, "the dependencies of 'net10.0' are not a list of package IDs separated by commas"),
@@ -144,7 +184,9 @@ public sealed class PackagesTests
             Error(EngCodes.Eng200, CelListPath, 16, "the list has more than one 'framework' line for 'net11.0'"),
             Error(EngCodes.Eng200, CelListPath, 18, "the list has more than one 'closure' line for 'net11.0'"),
             Error(EngCodes.Eng200, CelListPath, 19, "a 'closure' line needs one target before the colon: 'closure <target>: <name>, <name>, ...'"),
-            Error(EngCodes.Eng200, CelListPath, 20, "the packages of the closure of 'net9.0' are not a list of package IDs separated by commas"));
+            Error(EngCodes.Eng200, CelListPath, 20, "the packages of the closure of 'net9.0' are not a list of package IDs separated by commas"),
+            Error(EngCodes.Eng200, CelListPath, 21, "a 'browser' line has no text after the keyword"),
+            Error(EngCodes.Eng200, CelListPath, 23, "the list has more than one 'browser' line"));
     }
 
     [Fact]
@@ -166,7 +208,7 @@ public sealed class PackagesTests
 
         FindingAssert.Exactly(
             Check(root),
-            Error(EngCodes.Eng200, CelListPath, 2, "unknown line 'bad'; a line starts with 'dependencies', 'framework', 'closure', 'license' or 'file'"));
+            Error(EngCodes.Eng200, CelListPath, 2, "unknown line 'bad'; a line starts with 'dependencies', 'framework', 'closure', 'license', 'file' or 'browser'"));
     }
 
     [Fact]
@@ -180,7 +222,7 @@ public sealed class PackagesTests
 
         FindingAssert.Exactly(
             findings,
-            Error(EngCodes.Eng200, CelListPath, 2, "unknown line 'bad'; a line starts with 'dependencies', 'framework', 'closure', 'license' or 'file'"));
+            Error(EngCodes.Eng200, CelListPath, 2, "unknown line 'bad'; a line starts with 'dependencies', 'framework', 'closure', 'license', 'file' or 'browser'"));
     }
 
     [Fact]
@@ -454,6 +496,121 @@ public sealed class PackagesTests
     }
 
     [Fact]
+    public void RuntimeAsync_AssembliesThatFollowTheKindOfTheBuild_HaveNoFindings()
+    {
+        using TempDirectory root = Repository(BrowserList);
+        PackBrowser(root, AsyncKind.RuntimeAsync, AsyncKind.StateMachine, AsyncKind.StateMachine);
+
+        FindingAssert.None(Check(root));
+    }
+
+    [Fact]
+    public void Eng211_AsyncMethodOfTheLibraryWithoutTheFlag_IsReportedAtTheLineOfTheAssembly()
+    {
+        using TempDirectory root = Repository(BrowserList);
+        PackBrowser(root, AsyncKind.StateMachine, AsyncKind.StateMachine, AsyncKind.StateMachine);
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng211, CelListPath, 13, $"the async method 'Test.Driver.Run' of '{LibraryEntry}' has no runtime-async flag; the assemblies of lib/net11.0/ are built with runtime async"));
+    }
+
+    [Fact]
+    public void Eng211_MethodWithTheFlagInAnAssemblyForWebAssembly_IsReportedAtTheLineOfThatAssembly()
+    {
+        using TempDirectory root = Repository(BrowserList);
+        PackBrowser(root, AsyncKind.RuntimeAsync, AsyncKind.RuntimeAsync, AsyncKind.StateMachine);
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng211, CelListPath, 14, $"the method 'Test.Driver.Run' of '{BrowserEntry}' has the runtime-async flag; an assembly for WebAssembly applications is built without runtime async"));
+    }
+
+    [Fact]
+    public void Eng211_AssemblyForWasi_IsCheckedLikeTheOneForTheBrowser()
+    {
+        using TempDirectory root = Repository(BrowserList);
+        PackBrowser(root, AsyncKind.RuntimeAsync, AsyncKind.StateMachine, AsyncKind.RuntimeAsync);
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng211, CelListPath, 15, $"the method 'Test.Driver.Run' of '{WasiEntry}' has the runtime-async flag; an assembly for WebAssembly applications is built without runtime async"));
+    }
+
+    [Fact]
+    public void Eng211_MethodWithABuilderOfItsOwnAndNoFlag_IsNotAFinding()
+    {
+        using TempDirectory root = Repository(BrowserList);
+        PackBrowser(root, AsyncKind.StateMachineWithBuilder, AsyncKind.StateMachineWithBuilder, AsyncKind.StateMachineWithBuilder);
+
+        FindingAssert.None(Check(root));
+    }
+
+    [Fact]
+    public void Eng211_DifferentPublicSurfaceOfTheTwoAssemblies_IsReportedInBothDirections()
+    {
+        using TempDirectory root = Repository(BrowserList);
+        Pack(
+            root,
+            "Great.Parts.Cel",
+            ["NOTICE", LibraryEntry, BrowserEntry, WasiEntry],
+            Groups(("net10.0", []), ("net11.0", [])),
+            contents: new Dictionary<string, byte[]>
+            {
+                [LibraryEntry] = RuntimeAsyncAssemblies.Create(("Driver", "Run", AsyncKind.RuntimeAsync), ("Driver", "OnlyInLibrary", AsyncKind.None)),
+                [BrowserEntry] = RuntimeAsyncAssemblies.Create(("Driver", "Run", AsyncKind.StateMachine), ("Driver", "OnlyInBrowser", AsyncKind.None)),
+                [WasiEntry] = RuntimeAsyncAssemblies.Create(("Driver", "Run", AsyncKind.StateMachine), ("Driver", "OnlyInLibrary", AsyncKind.None)),
+            });
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng211, CelListPath, 14, $"the public surface of '{BrowserEntry}' differs from '{LibraryEntry}': 'M:Test.Driver.OnlyInBrowser(0,0)' is only in the first"),
+            Error(EngCodes.Eng211, CelListPath, 14, $"the public surface of '{BrowserEntry}' differs from '{LibraryEntry}': 'M:Test.Driver.OnlyInLibrary(0,0)' is only in the second"));
+    }
+
+    [Fact]
+    public void Eng211_PackageWithABrowserLineAndNoAssemblyForWebAssembly_HasNoMethodWithTheFlag()
+    {
+        using TempDirectory root = Repository(BrowserWithoutAssembliesList);
+        Pack(
+            root,
+            "Great.Parts.Cel",
+            ["NOTICE", LibraryEntry],
+            Groups(("net10.0", []), ("net11.0", [])),
+            contents: new Dictionary<string, byte[]> { [LibraryEntry] = RuntimeAsyncAssemblies.Create(("Driver", "Run", AsyncKind.RuntimeAsync)) });
+
+        FindingAssert.Exactly(
+            Check(root),
+            Error(EngCodes.Eng211, CelListPath, 13, $"the method 'Test.Driver.Run' of '{LibraryEntry}' has the runtime-async flag, but the package has no assembly of that name for WebAssembly applications under runtimes/"));
+    }
+
+    [Fact]
+    public void RuntimeAsync_PackageWithoutABrowserLineAndWithoutAssemblyForWebAssembly_IsNotChecked()
+    {
+        using TempDirectory root = Repository(CelList);
+        Pack(
+            root,
+            "Great.Parts.Cel",
+            CelFiles,
+            Groups(("net10.0", []), ("net11.0", [])),
+            contents: new Dictionary<string, byte[]> { ["lib/net11.0/Great.Parts.Cel.dll"] = RuntimeAsyncAssemblies.Create(("Driver", "Run", AsyncKind.RuntimeAsync)) });
+
+        FindingAssert.None(Check(root));
+    }
+
+    [Fact]
+    public void Eng211_AssemblyThatIsNotManaged_ExitCodeIsTwoAndTheMessageNamesTheAssembly()
+    {
+        using TempDirectory root = Repository(BrowserWithoutAssembliesList);
+        Pack(root, "Great.Parts.Cel", ["NOTICE", LibraryEntry], Groups(("net10.0", []), ("net11.0", [])));
+
+        Result result = Run(root);
+
+        Assert.Equal(2, result.ExitCode);
+        Assert.StartsWith($"eng/checks: the assembly {LibraryEntry} of the package artifacts/packages/Great.Parts.Cel.0.0.0-dev.nupkg cannot be read: ", result.Error, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void EveryLineOfTheOutput_MatchesTheFindingPattern()
     {
         using TempDirectory root = Repository(CelList, ProtobufList);
@@ -586,7 +743,8 @@ public sealed class PackagesTests
         Metadata? metadata = null,
         bool symbols = true,
         bool readmeEntry = true,
-        (string Target, string[] Dependencies)[]? frameworks = null)
+        (string Target, string[] Dependencies)[]? frameworks = null,
+        Dictionary<string, byte[]>? contents = null)
     {
         string path = Path.Combine(root.Path, "artifacts", "packages", $"{id}.{version}.nupkg");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -598,7 +756,14 @@ public sealed class PackagesTests
             AddEntry(archive, $"{id}.nuspec", Nuspec(id, version, groups, frameworks ?? [], license, licenseType, metadata ?? new Metadata()));
             foreach (string file in files)
             {
-                AddEntry(archive, file, file.EndsWith('/') ? string.Empty : "content");
+                if (contents is not null && contents.TryGetValue(file, out byte[]? bytes))
+                {
+                    AddEntry(archive, file, bytes);
+                }
+                else
+                {
+                    AddEntry(archive, file, file.EndsWith('/') ? string.Empty : "content");
+                }
             }
 
             if (readmeEntry)
@@ -619,6 +784,27 @@ public sealed class PackagesTests
         string? Description = "A description.",
         string? RepositoryUrl = "https://example.test/repo",
         string? Readme = "README.md");
+
+    // The package of BrowserList: the assembly of lib/net11.0/ and the two for WebAssembly, each with one method Test.Driver.Run.
+    private static void PackBrowser(TempDirectory root, AsyncKind library, AsyncKind browser, AsyncKind wasi) =>
+        Pack(
+            root,
+            "Great.Parts.Cel",
+            ["NOTICE", LibraryEntry, BrowserEntry, WasiEntry],
+            Groups(("net10.0", []), ("net11.0", [])),
+            contents: new Dictionary<string, byte[]>
+            {
+                [LibraryEntry] = RuntimeAsyncAssemblies.Create(("Driver", "Run", library)),
+                [BrowserEntry] = RuntimeAsyncAssemblies.Create(("Driver", "Run", browser)),
+                [WasiEntry] = RuntimeAsyncAssemblies.Create(("Driver", "Run", wasi)),
+            });
+
+    private static void AddEntry(ZipArchive archive, string name, byte[] content)
+    {
+        ZipArchiveEntry entry = archive.CreateEntry(name);
+        using Stream stream = entry.Open();
+        stream.Write(content);
+    }
 
     private static void AddEntry(ZipArchive archive, string name, string content)
     {

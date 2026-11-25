@@ -6,26 +6,17 @@ using static Great.Parts.Cel.Generator.Tests.CallSites.CallSiteRun;
 namespace Great.Parts.Cel.Generator.Tests.CallSites;
 
 // Each row of the list of the property types of the simple entry: the type of the property in the created file, which the created
-// code must compile with, and each kind of type outside the list with its reason. The examples take the list as one anonymous
-// object; these tests take it row by row.
+// code must compile with, how the value is bound, and each kind of type outside the list with its reason. The examples take the list
+// as one anonymous object; these tests take it row by row.
 [Trait("Requirement", "U-7")]
 public sealed class PropertyRuleTests
 {
+    private const string Cel = "global::Great.Parts.Cel.Values.CelValue";
+
     private static readonly string[] Reflection = ["typeof", "GetType", "System.Reflection", "Activator", "MakeGenericType", "RequiresUnreferencedCode", "RequiresDynamicCode", "dynamic"];
 
+    // The rows that no factory of CelValue binds: the property goes to the generic Add<T>, as written.
     [Theory]
-    [InlineData("true", "bool")]
-    [InlineData("(sbyte)1", "sbyte")]
-    [InlineData("(byte)1", "byte")]
-    [InlineData("(short)1", "short")]
-    [InlineData("(ushort)1", "ushort")]
-    [InlineData("1", "int")]
-    [InlineData("1u", "uint")]
-    [InlineData("1L", "long")]
-    [InlineData("1UL", "ulong")]
-    [InlineData("1.5", "double")]
-    [InlineData("\"s\"", "string")]
-    [InlineData("System.Guid.Empty", "global::System.Guid")]
     [InlineData("new byte[0]", "byte[]")]
     [InlineData("new System.ReadOnlyMemory<byte>()", "global::System.ReadOnlyMemory<byte>")]
     [InlineData("System.DateTimeOffset.UnixEpoch", "global::System.DateTimeOffset")]
@@ -33,9 +24,6 @@ public sealed class PropertyRuleTests
     [InlineData("System.TimeSpan.Zero", "global::System.TimeSpan")]
     [InlineData("default(System.Text.Json.JsonElement)", "global::System.Text.Json.JsonElement")]
     [InlineData("default(Great.Parts.Cel.Values.CelValue)", "global::Great.Parts.Cel.Values.CelValue")]
-    [InlineData("(Great.Parts.Cel.Values.CelList)null!", "global::Great.Parts.Cel.Values.CelList")]
-    [InlineData("(Great.Parts.Cel.Values.CelMap)null!", "global::Great.Parts.Cel.Values.CelMap")]
-    [InlineData("(int?)1", "int?")]
     [InlineData("(System.Guid?)null", "global::System.Guid?")]
     [InlineData("(System.TimeSpan?)null", "global::System.TimeSpan?")]
     [InlineData("new long[0]", "long[]")]
@@ -69,18 +57,51 @@ public sealed class PropertyRuleTests
         Assert.Empty(outcome.CompilerErrors);
     }
 
+    // The rows of the table that cannot fail are bound by the factory of CelValue, with the same handling of null as the row.
+    [Theory]
+    [InlineData("true", "bool", Cel + ".FromBoolean(data.p)")]
+    [InlineData("(sbyte)1", "sbyte", Cel + ".FromInt64(data.p)")]
+    [InlineData("(byte)1", "byte", Cel + ".FromUInt64(data.p)")]
+    [InlineData("(short)1", "short", Cel + ".FromInt64(data.p)")]
+    [InlineData("(ushort)1", "ushort", Cel + ".FromUInt64(data.p)")]
+    [InlineData("1", "int", Cel + ".FromInt64(data.p)")]
+    [InlineData("1u", "uint", Cel + ".FromUInt64(data.p)")]
+    [InlineData("1L", "long", Cel + ".FromInt64(data.p)")]
+    [InlineData("1UL", "ulong", Cel + ".FromUInt64(data.p)")]
+    [InlineData("1.5", "double", Cel + ".FromDouble(data.p)")]
+    [InlineData("\"s\"", "string", "data.p is null ? " + Cel + ".Null : " + Cel + ".FromString(data.p)")]
+    [InlineData("System.Guid.Empty", "global::System.Guid", Cel + ".FromString(data.p.ToString(\"D\"))")]
+    [InlineData("(Great.Parts.Cel.Values.CelList)null!", "global::Great.Parts.Cel.Values.CelList", "data.p is null ? " + Cel + ".Null : " + Cel + ".FromList(data.p)")]
+    [InlineData("(Great.Parts.Cel.Values.CelMap)null!", "global::Great.Parts.Cel.Values.CelMap", "data.p is null ? " + Cel + ".Null : " + Cel + ".FromMap(data.p)")]
+    [InlineData("(int?)1", "int?", "data.p.HasValue ? " + Cel + ".FromInt64(data.p.Value) : " + Cel + ".Null")]
+    [InlineData("(long?)null", "long?", "data.p.HasValue ? " + Cel + ".FromInt64(data.p.Value) : " + Cel + ".Null")]
+    [InlineData("(uint?)1", "uint?", "data.p.HasValue ? " + Cel + ".FromUInt64(data.p.Value) : " + Cel + ".Null")]
+    [InlineData("(bool?)null", "bool?", "data.p.HasValue ? " + Cel + ".FromBoolean(data.p.Value) : " + Cel + ".Null")]
+    [InlineData("(double?)1.5", "double?", "data.p.HasValue ? " + Cel + ".FromDouble(data.p.Value) : " + Cel + ".Null")]
+    public static void RowThatCannotFail_IsBoundByTheFactoryOfCelValue(string value, string csharpType, string binding)
+    {
+        Outcome outcome = Run(Body("CelExpression.Evaluate<long>(\"1\", new { p = " + value + " });\n"));
+
+        Assert.Empty(outcome.Reported);
+        string text = Assert.Single(outcome.Texts);
+        Assert.Contains("new { p = default(" + csharpType + ") }", text, StringComparison.Ordinal);
+        Assert.Contains("builder.AddVariable<" + csharpType + ">(\"p\")", text, StringComparison.Ordinal);
+        Assert.Contains(".Add(\"p\", " + binding + ")", text, StringComparison.Ordinal);
+        Assert.Empty(outcome.CompilerErrors);
+    }
+
     [Theory]
     [InlineData("1.5f", "float", "a type outside the list")]
     [InlineData("1m", "decimal", "a type outside the list")]
     [InlineData("System.DateOnly.MinValue", "System.DateOnly", "a type outside the list")]
     [InlineData("System.TimeOnly.MinValue", "System.TimeOnly", "a type outside the list")]
     [InlineData("System.DayOfWeek.Monday", "System.DayOfWeek", "a type outside the list")]
-    [InlineData("new System.Uri(\"http://a\")", "System.Uri", "a type outside the list")]
-    [InlineData("new Order()", "Acme.Order", "an object of the application")]
+    [InlineData("new System.Uri(\"http://a\")", "System.Uri", "a type that a type context cannot describe: System.Uri has no CEL type; use a string or your own type")]
+    [InlineData("(System.Func<long>)(() => 1L)", "System.Func<long>", "a type that a type context cannot describe: delegates are not data")]
     [InlineData("(object)1", "object", "object")]
     [InlineData("new List<short>()", "System.Collections.Generic.List<short>", "a collection outside the list")]
     [InlineData("new List<System.DateTimeOffset>()", "System.Collections.Generic.List<System.DateTimeOffset>", "a collection outside the list")]
-    [InlineData("new List<Order>()", "System.Collections.Generic.List<Acme.Order>", "a collection outside the list")]
+    [InlineData("new List<System.Uri>()", "System.Collections.Generic.List<System.Uri>", "a collection outside the list")]
     [InlineData("new Dictionary<int, long>()", "System.Collections.Generic.Dictionary<int, long>", "a collection outside the list")]
     [InlineData("new HashSet<long>()", "System.Collections.Generic.HashSet<long>", "a collection outside the list")]
     [InlineData("(IList<long>)null!", "System.Collections.Generic.IList<long>", "a collection outside the list")]
@@ -96,6 +117,22 @@ public sealed class PropertyRuleTests
         Assert.Empty(outcome.HintNames);
     }
 
+    // A collection of the application that is none of the six forms is outside the list, as it was before the classes were read.
+    [Theory]
+    [InlineData("new HashSet<Order>()", "System.Collections.Generic.HashSet<Acme.Order>")]
+    [InlineData("(IList<Order>)null!", "System.Collections.Generic.IList<Acme.Order>")]
+    [InlineData("new Dictionary<int, Order>()", "System.Collections.Generic.Dictionary<int, Acme.Order>")]
+    [InlineData("new Order[0, 0]", "Acme.Order[,]")]
+    public static void CollectionOfClassesOutsideTheSixForms_IsACollectionOutsideTheList(string value, string shown)
+    {
+        Outcome outcome = Run(Body("CelExpression.Evaluate<long>(\"1\", new { p = " + value + " });\n"));
+
+        Diagnostic error = Assert.Single(outcome.Reported);
+        Assert.Equal("GPCEL011", error.Id);
+        Assert.Equal("Property 'p' of the anonymous data has type '" + shown + "', which the CEL simple entry cannot read: a collection outside the list; build an environment with a type source", error.Message());
+        Assert.Empty(outcome.HintNames);
+    }
+
     [Fact]
     public void Keywords_AreWrittenWithAtAndTheCelNameIsThePropertyName()
     {
@@ -105,7 +142,10 @@ public sealed class PropertyRuleTests
         string text = Assert.Single(outcome.Texts);
         Assert.Contains("new { @class = default(long), @int = default(string) }", text, StringComparison.Ordinal);
         Assert.Contains(".AddVariable<long>(\"class\").AddVariable<string>(\"int\")", text, StringComparison.Ordinal);
-        Assert.Contains(".Add(\"class\", data.@class).Add(\"int\", data.@int)", text, StringComparison.Ordinal);
+        Assert.Contains(
+            ".Add(\"class\", " + Cel + ".FromInt64(data.@class)).Add(\"int\", data.@int is null ? " + Cel + ".Null : " + Cel + ".FromString(data.@int))",
+            text,
+            StringComparison.Ordinal);
         Assert.Empty(outcome.CompilerErrors);
     }
 
@@ -152,7 +192,7 @@ public sealed class PropertyRuleTests
     [Fact]
     public void SeveralPropertiesOutsideTheList_AreSeveralErrors()
     {
-        Outcome outcome = Run(Body("CelExpression.Evaluate<long>(\"1\", new { a = 1L, order = new Order(), f = 1.5f });\n"));
+        Outcome outcome = Run(Body("CelExpression.Evaluate<long>(\"1\", new { a = 1L, u = new System.Uri(\"http://a\"), f = 1.5f });\n"));
 
         Assert.Equal(2, outcome.Reported.Length);
         Assert.All(outcome.Reported, static diagnostic => Assert.Equal("GPCEL011", diagnostic.Id));
@@ -164,7 +204,7 @@ public sealed class PropertyRuleTests
     public void SameBadAnonymousTypeAtTwoCalls_IsOneError()
     {
         Outcome outcome = Run(Body(
-            "var d = new { order = new Order() };\n"
+            "var d = new { f = 1.5f };\n"
             + "CelExpression.Evaluate<long>(\"1\", d);\n"
             + "CelExpression.Evaluate<long>(\"2\", d);\n"));
 

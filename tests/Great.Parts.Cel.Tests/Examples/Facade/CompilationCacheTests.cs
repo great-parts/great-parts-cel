@@ -22,7 +22,7 @@ public sealed class CompilationCacheTests
     private readonly CelBindings bindings = new CelBindings().Add("x", 41L);
 
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void SameTextAndOptions_GiveTheSameResult()
     {
         var cache = new CelCompilationCache(environment, 10, 1000);
@@ -33,7 +33,7 @@ public sealed class CompilationCacheTests
     }
 
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void FailedCompilation_IsKeptToo()
     {
         var cache = new CelCompilationCache(environment, 10, 1000);
@@ -62,7 +62,7 @@ public sealed class CompilationCacheTests
 
     // The capacity of the total length is 10: a text of 11 code units is compiled each time and not kept.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void TextLongerThanTheCapacity_IsCompiledAndNotKept()
     {
         var cache = new CelCompilationCache(environment, 10, 10);
@@ -109,7 +109,7 @@ public sealed class CompilationCacheTests
 
     // An exception of Compile<T> passes through and keeps nothing; the capacities are at least 1.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void ConditionsOfTheCall_AreChecked()
     {
         var cache = new CelCompilationCache(environment, 10, 1000);

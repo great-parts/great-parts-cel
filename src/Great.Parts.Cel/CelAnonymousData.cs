@@ -17,8 +17,9 @@ namespace Great.Parts.Cel;
 /// Native AOT.
 /// </para>
 /// <para>
-/// The registry maps a <see cref="Type"/> to its declarations and reader and is looked up by the run-time type of the data.
-/// It is filled when the modules of the application load and only grows: its size is the number of anonymous types in the
+/// The registry maps a <see cref="Type"/> to its declarations and reader and is looked up by the run-time type of the data,
+/// in constant time and without a lock: a registration replaces the dictionary that readers use by a copy that has one more
+/// entry. It is filled when the modules of the application load and only grows: its size is the number of anonymous types in the
 /// calls of the simple entry of the application, known at build time, not a quantity that depends on data at run time, so it
 /// has no limit. Registering a type that is already registered changes nothing. All members can be called from any number
 /// of threads at once.

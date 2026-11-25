@@ -154,7 +154,7 @@ public sealed class StandardLibraryV1Tests
         uint | double_to_uint64 | (double) -> uint | 1
         uint | int64_to_uint64 | (int) -> uint | 1
         uint | string_to_uint64 | (string) -> uint | 1 + ⌈Lₐ/10⌉
-        contains | contains_string | string.contains(string) -> bool | 1 + ⌈Lₐ/10⌉
+        contains | contains_string | string.contains(string) -> bool | 1 + ⌈Lₐ/10⌉ · q
         endsWith | ends_with_string | string.endsWith(string) -> bool | 1 + ⌈Lₐ/10⌉
         startsWith | starts_with_string | string.startsWith(string) -> bool | 1 + ⌈Lₐ/10⌉
         matches | matches | (string, string) -> bool | parse + build + match
@@ -298,6 +298,9 @@ public sealed class StandardLibraryV1Tests
             "1 + Σ eq(x, eᵢ)" when arguments[1].TryGetList(out CelList? elements) => 1 + (ulong)elements.Count,
             "1 + ⌈L/10⌉ of a string key" => 1 + Tenths(StringLength(arguments)),
             "1 + ⌈Lₐ/10⌉" => 1 + Tenths(argumentLength),
+
+            // A search for a substring: the strings of the call, a receiver and a pattern of 21 code units, so q = 1.
+            "1 + ⌈Lₐ/10⌉ · q" => 1 + (Tenths(argumentLength) * Math.Max(1UL, (Length(arguments[1]) + 63) / 64)),
             "1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, Lᵣ = Lₐ" => 1 + (2 * Tenths(argumentLength)),
             "1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉" => 1 + Tenths(argumentLength) + Tenths(Length(result)),
             "1 + ⌈Lᵣ/10⌉" => 1 + Tenths(Length(result)),

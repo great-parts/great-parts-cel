@@ -1,0 +1,18 @@
+<Project>
+
+  <Import Project="$(MSBuildThisFileDirectory)../Directory.Build.targets" Condition="Exists('$(MSBuildThisFileDirectory)../Directory.Build.targets')" />
+
+  <!--
+    Runtime async (.NET 11): the net11.0 build of every project of src/ is compiled with it, so the async methods are methods of the
+    runtime and not state machines of the compiler; Native AOT supports it. The net10.0 build cannot have it (.NET 10 has no runtime
+    async), and the source generator (netstandard2.0) is not touched. It is set here and not in the props file because the target
+    framework is known only after the project file is read.
+    The variant for WebAssembly (GpcBrowserBuild=true, src/Directory.Build.props) is built without it: the runtime for WebAssembly does not
+    run runtime-async methods.
+  -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0' and '$(GpcBrowserBuild)' != 'true'">
+    <Features Condition="'$(Features)' == ''">runtime-async=on</Features>
+    <Features Condition="'$(Features)' != '' and !$(Features.Contains('runtime-async'))">$(Features);runtime-async=on</Features>
+  </PropertyGroup>
+
+</Project>

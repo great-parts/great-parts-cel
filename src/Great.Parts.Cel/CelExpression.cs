@@ -24,9 +24,15 @@ namespace Great.Parts.Cel;
 /// <c>ReadOnlyMemory&lt;byte&gt;</c>, <see cref="DateTimeOffset"/>, a <see cref="DateTime"/> of the kind
 /// <see cref="DateTimeKind.Utc"/>, <see cref="TimeSpan"/>, <see cref="Guid"/>, <see cref="System.Text.Json.JsonElement"/>,
 /// <see cref="Values.CelValue"/>, <see cref="Nullable{T}"/> of them, and lists and dictionaries with <see cref="string"/>
-/// keys of these values. An object of the application, a <see cref="decimal"/> and a protobuf message need a type source or
-/// an extension set: in the simple entry such a value is the error <see cref="CelErrorCode.TypeNotDeclared"/> with the name
-/// of the .NET type; build a <see cref="CelEnvironment"/> for them. So is a list of objects of the application, such as a
+/// keys of these values. A class, a structure or an interface of the application is read as a property of an anonymous
+/// object, <c>new { order }</c>, and so are an array, a <c>List&lt;X&gt;</c>, an <c>IReadOnlyList&lt;X&gt;</c>, an
+/// <c>ImmutableArray&lt;X&gt;</c>, a <c>Dictionary&lt;string, X&gt;</c> and an <c>IReadOnlyDictionary&lt;string, X&gt;</c> of
+/// such a type <c>X</c>: the source generator of the package describes the type and the types its members reach when the
+/// application is built, with the rules of a type context, and the object is read by reference, where the expression reads it.
+/// An object of the application as the data itself, as a value of a dictionary or in a place of the type
+/// <see cref="object"/>, a <see cref="decimal"/> and a protobuf message need a type source or an extension set: in the simple
+/// entry such a value is the error <see cref="CelErrorCode.TypeNotDeclared"/> with the name of the .NET type; build a
+/// <see cref="CelEnvironment"/> for them. So is a list of objects of the application as a value of a dictionary, such as a
 /// <c>List&lt;Order&gt;</c>: a list of values of the type <see cref="object"/> is read only when its element type is
 /// exactly <see cref="object"/>.
 /// </para>
@@ -49,7 +55,16 @@ namespace Great.Parts.Cel;
 /// environment removes its programs. The cache creates no threads and no timers and has no public members; an application
 /// that needs control over caching uses <see cref="CelCompilationCache"/>. The page
 /// <see href="https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md">Limits</see> gives the numbers and
-/// how they were measured.
+/// how they were measured. A call finds the environment of an anonymous type and a program whose text is the same string
+/// instance as in an earlier call (a string literal at the call site is one instance) without a lock and without hashing the
+/// text; a text equal to a cached one in another string instance is found by its value, so the result of a call never depends on
+/// which way it was found.
+/// </para>
+/// <para>
+/// The registry of anonymous types and the cache hold the types that they have seen by strong references, so an assembly whose
+/// code calls the simple entry with an anonymous object is not unloaded from a collectible
+/// <see cref="System.Runtime.Loader.AssemblyLoadContext"/>, and neither is an assembly of a class that such an object has as a
+/// property. For plug-ins that are unloaded, build a <see cref="CelEnvironment"/> and use a <see cref="CelCompilationCache"/>.
 /// </para>
 /// </remarks>
 public static class CelExpression
@@ -142,8 +157,9 @@ public static class CelExpression
     /// in the same assembly. The name in the error is the one the compiler gave the anonymous type: its properties cannot
     /// be listed without reflection. The generator finds calls by the method, so <c>using static</c> and aliases are
     /// recognized, but not a call through a delegate to this method. A dictionary passed here is read as by the
-    /// overload with a dictionary. A class or a structure of the application is not read by the simple entry: build an
-    /// environment with a type source and <see cref="CelEnvironmentBuilder.UseInput{TInput}"/>.
+    /// overload with a dictionary. A class or a structure of the application is not read as the data itself: pass it as a
+    /// property of the anonymous object, <c>new { order }</c>, or build an environment with a type source and
+    /// <see cref="CelEnvironmentBuilder.UseInput{TInput}"/>.
     /// </para>
     /// </remarks>
     /// <typeparam name="T">The .NET type of the result, as for the overload with a dictionary.</typeparam>

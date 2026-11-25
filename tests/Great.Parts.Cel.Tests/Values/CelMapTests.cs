@@ -218,7 +218,7 @@ public sealed class CelMapTests
     [Fact]
     public void Create_WithNull_Throws()
     {
-        Assert.Equal("entries", Assert.Throws<ArgumentNullException>(() => CelMap.Create(null!)).ParamName);
+        Assert.Equal("entries", Assert.Throws<ArgumentNullException>(() => CelMap.Create((IEnumerable<KeyValuePair<CelValue, CelValue>>)null!)).ParamName);
     }
 
     [Fact]

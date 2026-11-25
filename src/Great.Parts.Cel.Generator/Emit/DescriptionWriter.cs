@@ -17,7 +17,9 @@ internal static class DescriptionWriter
     // names the member.
     private sealed record FieldCode(FieldModel Field, string Read, int ReadUses, string Presence, int PresenceUses);
 
-    internal static void Write(CodeWriter w, ObjectTypeModel type, ObjectIndex objects, string version)
+    // access is the accessibility of the class: private for the nested class of a type context, internal for a description that
+    // the files of the registrations of the call sites name.
+    internal static void Write(CodeWriter w, ObjectTypeModel type, ObjectIndex objects, string version, string access)
     {
         var converters = new List<HoistedConverter>();
         var codes = new List<FieldCode>();
@@ -33,7 +35,7 @@ internal static class DescriptionWriter
         }
 
         w.Line("[global::System.CodeDom.Compiler.GeneratedCode(\"Great.Parts.Cel.Generator\", " + Literals.Quote(version) + ")]");
-        w.Open("private sealed class " + type.ClassName + " : " + Values + "CelObjectType<" + type.ClrName + ">");
+        w.Open(access + " sealed class " + type.ClassName + " : " + Values + "CelObjectType<" + type.ClrName + ">");
         w.Line("internal static readonly " + type.ClassName + " Description = new();");
         foreach (HoistedConverter converter in converters)
         {

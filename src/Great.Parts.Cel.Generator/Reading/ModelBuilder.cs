@@ -9,16 +9,32 @@ namespace Great.Parts.Cel.Generator;
 // of the nested classes and fields of the created code, and the sorted collections.
 internal static class ModelBuilder
 {
-    private const string ClassPrefix = "Type_";
+    internal const string ClassPrefix = "Type_";
 
-    private const string EnumPrefix = "Enum_";
+    internal const string EnumPrefix = "Enum_";
 
     // A type that is described, with what the check of the names needs.
     private sealed record Named(string CelName, string Display, LocationInfo Place, ObjectEntry? Object, EnumEntry? Enum);
 
     internal static ContextModel Build(INamedTypeSymbol context, TypeRegistry registry, DiagnosticSink sink)
     {
-        List<Named> survivors = CheckNames(context.Name, registry, sink);
+        (List<ObjectTypeModel> objects, List<EnumModel> enums) = Close(context.Name, registry, sink);
+        return new ContextModel(
+            TypeNames.NamespaceName(context.ContainingNamespace),
+            ContextDeclaration.ContainingTypes(context),
+            context.Name,
+            context.Name,
+            TypeNames.FullName(context) + ".g.cs",
+            EquatableArray.From(objects),
+            EquatableArray.From(enums));
+    }
+
+    // The checks of the whole and the sorted models of the types a registry holds, with the names of the nested classes and fields of
+    // the created code. The generator of call sites uses it for the types that the properties of one anonymous object reach; its own
+    // name stands for the context in GPCEL004.
+    internal static (List<ObjectTypeModel> Objects, List<EnumModel> Enums) Close(string contextName, TypeRegistry registry, DiagnosticSink sink)
+    {
+        List<Named> survivors = CheckNames(contextName, registry, sink);
         var objects = new List<ObjectTypeModel>();
         var enums = new List<EnumModel>();
         var objectClasses = new HashSet<string>(StringComparer.Ordinal);
@@ -35,14 +51,7 @@ internal static class ModelBuilder
             }
         }
 
-        return new ContextModel(
-            TypeNames.NamespaceName(context.ContainingNamespace),
-            ContextDeclaration.ContainingTypes(context),
-            context.Name,
-            context.Name,
-            TypeNames.FullName(context) + ".g.cs",
-            EquatableArray.From(objects),
-            EquatableArray.From(enums));
+        return (objects, enums);
     }
 
     // Two types with one CEL name: the one with the greater display name is the second; it is reported at its place and left
@@ -84,7 +93,7 @@ internal static class ModelBuilder
     }
 
     // The CEL name with every dot written as _, behind a prefix; _2, _3 … are appended when two names would collide.
-    private static string UniqueName(string prefix, string celName, HashSet<string> used)
+    internal static string UniqueName(string prefix, string celName, HashSet<string> used)
     {
         string baseName = prefix + celName.Replace('.', '_');
         string name = baseName;

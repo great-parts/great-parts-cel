@@ -56,14 +56,21 @@ internal sealed class CallPlanNode : PlanNode
             return error;
         }
 
-        // The cost is charged after the checks, by Invocation.
         frame.Offset = Offset;
         ReadOnlySpan<CelValue> values = frame.Peek(Arguments.Length);
-        TypeFit fit = _checks ? Overload.Matches(values, _marks.AsSpan(), frame.Meter, frame.Types) : TypeFit.Yes;
-        CelValue result = fit.IsFit
-            ? Invocation.Call(frame, Overload, values, Offset, _charges, _prepared, _cache)
-            : EvaluationErrors.NotMatched(fit, Overload.Function, values, frame, Offset);
+        CelValue result = Complete(frame, values);
         frame.Pop(Arguments.Length);
         return result;
+    }
+
+    // The call on the values of its arguments, which have been evaluated without an error, with the offset of the node recorded in the
+    // frame: the checks, then the call, which charges its cost after them, by Invocation. The node of a fused comparison, which holds the
+    // values itself, calls it.
+    internal CelValue Complete(Frame frame, ReadOnlySpan<CelValue> values)
+    {
+        TypeFit fit = _checks ? Overload.Matches(values, _marks.AsSpan(), frame.Meter, frame.Types) : TypeFit.Yes;
+        return fit.IsFit
+            ? Invocation.Call(frame, Overload, values, Offset, _charges, _prepared, _cache)
+            : EvaluationErrors.NotMatched(fit, Overload.Function, values, frame, Offset);
     }
 }

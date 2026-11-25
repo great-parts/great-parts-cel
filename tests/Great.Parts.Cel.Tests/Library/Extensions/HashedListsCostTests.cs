@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Threading;
+using Great.Parts.Cel.Declarations;
 using Great.Parts.Cel.Diagnostics;
+using Great.Parts.Cel.Library.Extensions;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
 using Xunit;
@@ -29,9 +32,32 @@ public sealed class HashedListsCostTests
         sets.contains(['aa', 'b'], ['b']) | 15
         """;
 
+    // The values of the lists of the index tests repeat after this many; the lists keep this many values at most.
+    private const int Period = 10;
+
+    // What a call allocates besides the arrays of its index, which are pooled: the object of the index, with room; and the array of
+    // the result of distinct that drops repeats, ten values of 32 bytes with the header of the array, and the list that holds it.
+    private const long IndexBytes = 256;
+    private const long ResultBytes = 24 + (32 * Period) + 64;
+
     private static readonly BoxType Boxes = new();
 
     private static readonly Dictionary<string, CelValue> NoBindings = new();
+
+    // The lengths of the lists of the tests of the two ways to look a value up, and the groups of their values.
+    private static readonly int[] ModeLengths = [8, 16, 24, 32, 33, 48, 64, 65, 100];
+
+    private static readonly string[] Groups = ["hashed", "pairwise", "single", "mixed"];
+
+    private static readonly ValueIndexMode[] OtherModes = [ValueIndexMode.Buckets, ValueIndexMode.Automatic];
+
+    // The functions that look their values up in an index: each takes a list and looks all its values up in the list itself.
+    private static readonly (string Name, Func<CelList, CallSite, ValueIndexMode, CelValue> Run)[] Functions =
+    [
+        ("distinct", (list, site, mode) => HashedLists.Distinct(CelValue.FromList(list), list, in site, mode: mode)),
+        ("contains", (list, site, mode) => HashedLists.AllIn(list, list, in site, mode: mode)),
+        ("intersects", (list, site, mode) => HashedLists.Intersects(list, list, in site, mode: mode)),
+    ];
 
     private static readonly CelEnvironment ListEnvironment = new CelEnvironmentBuilder(CelStandardLibrary.V1)
         .AddExtension(CelExtensions.Lists(4))
@@ -45,6 +71,23 @@ public sealed class HashedListsCostTests
 
     public static TheoryData<string, string> CostRows => RowData();
 
+    public static TheoryData<int, string> ModeRows
+    {
+        get
+        {
+            TheoryData<int, string> data = [];
+            foreach (int length in ModeLengths)
+            {
+                foreach (string group in Groups)
+                {
+                    data.Add(length, group);
+                }
+            }
+
+            return data;
+        }
+    }
+
     [Theory]
     [Trait("Requirement", "R-3")]
     [MemberData(nameof(CostRows))]
@@ -56,9 +99,9 @@ public sealed class HashedListsCostTests
         Assert.Equal(CelErrorCode.CostLimitExceeded, Assert.Single(Evaluate(expression, NoBindings, cost - 1).Errors).Code);
     }
 
-    // The cost does not depend on the length at which the library changes from scanning the hashes to buckets, nor on the length
-    // above 32 at which a pass over the pairs would stop being a constant number of steps for a unit. The list holds the numbers
-    // 0 to 9 over and over: ten of them stay, the rest are repeats of one comparison each.
+    // The cost does not depend on the length at which the library changes from scanning the hashes to buckets, which is 32, nor on
+    // the length above 64 at which a search of the hashes would stop being a constant number of steps for a unit. The list holds the
+    // numbers 0 to 9 over and over: ten of them stay, the rest are repeats of one comparison each.
     [Theory]
     [Trait("Requirement", "R-3")]
     [Trait("Requirement", "R-9")]
@@ -67,6 +110,8 @@ public sealed class HashedListsCostTests
     [InlineData(25)]
     [InlineData(32)]
     [InlineData(33)]
+    [InlineData(64)]
+    [InlineData(65)]
     [InlineData(100)]
     public static void Cost_OfListsOfAnyLength_IsTheFormula(int length)
     {
@@ -81,6 +126,64 @@ public sealed class HashedListsCostTests
         Assert.Equal(CelValue.FromBoolean(false), Evaluate("sets.contains(x, p)", both, null).GetValueOrThrow());
         Assert.True(Evaluate("x.distinct()", both, null).GetValueOrThrow().TryGetList(out CelList? kept));
         Assert.Equal(10, kept.Count);
+    }
+
+    // The index that scans the hashes and the one that uses buckets give one result and one charge, for lists of 8 to 64 values and
+    // more: of the values that have a hash, of the numbers of 2^53 or more that are compared pair by pair, of NaNs that are kept and
+    // never compared, and of the three together.
+    [Theory]
+    [Trait("Requirement", "R-3")]
+    [Trait("Requirement", "R-9")]
+    [MemberData(nameof(ModeRows))]
+    public static void ScanAndBuckets_GiveOneResultAndOneCharge(int length, string group)
+    {
+        CelList list = CelList.Create(Values(group, length));
+
+        foreach ((string name, Func<CelList, CallSite, ValueIndexMode, CelValue> run) in Functions)
+        {
+            (string Result, ulong Units) scan = Observe(run, list, ValueIndexMode.Scan);
+            foreach (ValueIndexMode mode in OtherModes)
+            {
+                (string Result, ulong Units) other = Observe(run, list, mode);
+
+                Assert.True(
+                    scan == other,
+                    string.Create(CultureInfo.InvariantCulture, $"{name}, {length} {group} values, {mode}: {other}, the scan gives {scan}"));
+            }
+
+            Assert.True(scan.Units > 0, name);
+            if (name == "distinct" && group == "hashed")
+            {
+                CelValue[] kept = [.. Enumerable.Range(0, Math.Min(Period, length)).Select(static number => CelValue.FromInt64(number))];
+                Assert.Equal(Describe(CelValue.FromList(CelList.Create(kept))), scan.Result);
+            }
+        }
+    }
+
+    // A call rents the arrays of its index from the pool and gives them back, so after the first call what it allocates does not
+    // grow with the length of the list: the object of the index, and for distinct the array of the result. The bytes are those that
+    // GC.GetAllocatedBytesForCurrentThread counts around the call, the smallest of five, so that the few kilobytes that the JIT
+    // runtime allocates on the test thread while it moves methods between tiers are not counted.
+    [Theory]
+    [Trait("Requirement", "P-4")]
+    [InlineData(8, nameof(ValueIndexMode.Scan))]
+    [InlineData(32, nameof(ValueIndexMode.Scan))]
+    [InlineData(64, nameof(ValueIndexMode.Scan))]
+    [InlineData(64, nameof(ValueIndexMode.Buckets))]
+    [InlineData(1000, nameof(ValueIndexMode.Automatic))]
+    public static void Index_AllocatesNoArrayThatGrowsWithTheList(int length, string modeName)
+    {
+        ValueIndexMode mode = Enum.Parse<ValueIndexMode>(modeName);
+        CelList list = CelList.Create(Values("hashed", length));
+        var site = new CallSite("f", 0, new LineTable("x"));
+
+        long contains = Smallest(() => HashedLists.AllIn(list, list, in site, mode: mode));
+        long intersects = Smallest(() => HashedLists.Intersects(list, list, in site, mode: mode));
+        long distinct = Smallest(() => HashedLists.Distinct(CelValue.FromList(list), list, in site, mode: mode));
+
+        string message = string.Create(CultureInfo.InvariantCulture, $"{length} values, {mode}: contains {contains}, intersects {intersects}, distinct {distinct} bytes");
+        Assert.True(contains <= IndexBytes && intersects <= IndexBytes, message);
+        Assert.True(distinct <= IndexBytes + ResultBytes, message);
     }
 
     // Values that CEL equality calls equal are one element: numbers of three kinds and both zeros, maps written in two orders, and an
@@ -172,6 +275,64 @@ public sealed class HashedListsCostTests
         }
     }
 
+    // The values of a list of the given length in a group, repeating every ten values: numbers below 2^53, which have a hash; numbers
+    // of 2^53 or more, which are compared pair by pair; NaNs; or the three in turn.
+    private static CelValue[] Values(string group, int length)
+    {
+        var items = new CelValue[length];
+        for (int i = 0; i < items.Length; i++)
+        {
+            int kind = group switch
+            {
+                "hashed" => 0,
+                "pairwise" => 1,
+                "single" => 2,
+                _ => i % 3,
+            };
+            items[i] = kind switch
+            {
+                0 => CelValue.FromInt64(i % Period),
+                1 => CelValue.FromInt64((1L << 53) + (i % Period)),
+                _ => CelValue.FromDouble(double.NaN),
+            };
+        }
+
+        return items;
+    }
+
+    // The result of a call as text, and the units it charged to a meter of its own.
+    private static (string Result, ulong Units) Observe(Func<CelList, CallSite, ValueIndexMode, CelValue> run, CelList list, ValueIndexMode mode)
+    {
+        var meter = new CountingMeter();
+        CelValue result = run(list, new CallSite("f", 0, new LineTable("x"), meter), mode);
+        return (Describe(result), meter.Units);
+    }
+
+    private static string Describe(CelValue value)
+    {
+        if (!value.TryGetList(out CelList? list))
+        {
+            return value.ToString();
+        }
+
+        return string.Join(',', list.Select(static item => item.ToString()));
+    }
+
+    // The bytes that one call allocates after the first, the smallest of five.
+    private static long Smallest(Func<CelValue> call)
+    {
+        _ = call();
+        long smallest = long.MaxValue;
+        for (int i = 0; i < 5; i++)
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            _ = call();
+            smallest = Math.Min(smallest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        return smallest;
+    }
+
     private static CelValue Box(long id) => CelValue.FromObject(Boxes, new BoxInstance(id));
 
     private static CelValue List(params CelValue[] items) => CelValue.FromList(CelList.Create(items));
@@ -212,6 +373,18 @@ public sealed class HashedListsCostTests
         }
 
         return data;
+    }
+
+    // The cost that a comparison charges.
+    private sealed class CountingMeter : IEvaluationMeter
+    {
+        internal ulong Units { get; private set; }
+
+        public void Charge(ulong units) => Units += units;
+
+        public void Event()
+        {
+        }
     }
 
     private sealed class BoxInstance(long id)

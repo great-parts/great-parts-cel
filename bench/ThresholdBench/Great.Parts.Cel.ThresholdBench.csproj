@@ -1,14 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Micro benchmarks of the limits of the speed-ups of the library: the search of a substring (.NET against Knuth–Morris–Pratt around 64
-    code units), the build of the automaton of a pattern, and distinct and sets around the length 24 of a list. It references the
+    Micro benchmarks of the limits of the speed-ups of the library: the search for the literal prefix of a pattern (.NET against
+    Knuth–Morris–Pratt around 64 code units), the build of the automaton of a pattern, and the scan and the buckets of the index of
+    distinct and sets at lists of 8 to 64 values; and diagnostics: the time of the search of a substring of contains per unit of its
+    cost, the simple entry (the evaluation, the data of a call) and CelMap.Create. It references the
     library by project, not the package, and sees its internals (InternalsVisibleTo in src/Great.Parts.Cel). Not part of the solution,
     not run by ci.yml; bench.yml runs it with the rig (bench/run.mjs).
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <AssemblyName>Great.Parts.Cel.ThresholdBench</AssemblyName>
     <RootNamespace>ThresholdBench</RootNamespace>
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
@@ -19,6 +21,15 @@
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
     <ProjectReference Include="../../src/Great.Parts.Cel/Great.Parts.Cel.csproj" />
+    <!-- The source generator runs in the compiler of the rig as an analyzer (the anonymous object of the simple entry) and is not a reference of the assembly. -->
+    <ProjectReference Include="../../src/Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <!-- The classes of the order, shared with the rig. -->
+  <ItemGroup>
+    <Compile Include="../SpeedBench/Model.cs" Link="Model.cs" />
   </ItemGroup>
 
 </Project>

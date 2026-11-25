@@ -1,1 +1,2 @@
 #nullable enable
+static Great.Parts.Cel.Values.CelMap.Create(params System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<Great.Parts.Cel.Values.CelValue, Great.Parts.Cel.Values.CelValue>> entries) -> Great.Parts.Cel.Values.CelMap!

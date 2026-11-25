@@ -21,6 +21,7 @@ internal sealed class ValueReader
 
     private readonly string number;
     private readonly ObjectIndex objects;
+    private readonly bool callSite;
     private readonly List<HoistedConverter> converters = [];
     private int depth;
     private bool usesInstance;
@@ -31,7 +32,20 @@ internal sealed class ValueReader
         this.objects = objects;
     }
 
+    private ValueReader(ObjectIndex objects)
+    {
+        number = Literals.Int(0);
+        this.objects = objects;
+        callSite = true;
+    }
+
     internal List<HoistedConverter> Converters => converters;
+
+    // The reader of a property of an anonymous object that is a collection of classes or structures of the application. It writes the
+    // same rows as the reader of a member, with two differences: there is no instance of a description to hold the helpers, so a null
+    // that the type does not allow is read by the file of descriptions of the call sites, and an element that is an object is
+    // converted by the method of its type in that file, which pairs the description of the declared type with the instance.
+    internal static ValueReader ForCallSite(ObjectIndex objects) => new(objects);
 
     // The expression for a member of the shape, written with the text of the operand.
     internal string Read(Shape shape, Operand value) => Row(shape, value, false);
@@ -57,6 +71,11 @@ internal sealed class ValueReader
 
     private string Unexpected()
     {
+        if (callSite)
+        {
+            return CallSiteNames.TypesClass + ".Unexpected()";
+        }
+
         usesInstance = true;
         return "FieldError(" + number + ", " + UnexpectedNullCode + ", null)";
     }
@@ -116,6 +135,11 @@ internal sealed class ValueReader
 
     private string ObjectRow(ObjectShape shape, Operand v, bool element)
     {
+        if (callSite)
+        {
+            return CallSiteMethod(shape) is { } method ? method + "(" + v.Use() + ")" : NullValue;
+        }
+
         if (shape.Kind == ObjectKind.Struct)
         {
             return "FromInstance((object)" + v.Use() + ")";
@@ -124,6 +148,13 @@ internal sealed class ValueReader
         string read = element ? Placed(shape, v) : "FromInstance(" + v.Use() + ")";
         return Checked(v, shape.Nullability, read);
     }
+
+    // The static method of the file of descriptions that converts an element of this object type; null for a type that file does not
+    // describe (a message class has no such method).
+    private string? CallSiteMethod(ObjectShape shape) =>
+        shape.Kind != ObjectKind.Message && objects.Find(shape.CelName) is { } type
+            ? CallSiteNames.TypesClass + "." + CallSiteNames.Converter(type.ClassName, CallSiteNames.IsStrict(shape))
+            : null;
 
     // The place rule inside a collection: an element has the declared element type of the member. A sealed class (a message
     // included) is the declared type itself; a class that is not sealed is paired with the description of the declared type when
@@ -235,6 +266,12 @@ internal sealed class ValueReader
     // it (a helper of CelObjectType, or a converter of an inner collection that is a field) becomes a field of the description.
     private string Converter(Shape element)
     {
+        // An element that is an object is converted by the method of its type, with no lambda at the place of the call.
+        if (callSite && element is ObjectShape leaf && CallSiteMethod(leaf) is { } method)
+        {
+            return method;
+        }
+
         string parameter = "e" + Literals.Int(depth);
         bool outer = usesInstance;
         usesInstance = false;

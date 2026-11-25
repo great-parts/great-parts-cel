@@ -73,7 +73,7 @@ public sealed class EvaluationAllocationTests
     }
 
     [Theory]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     [MemberData(nameof(Names))]
     public static void WithinBudget(string scenario)
     {
@@ -139,6 +139,12 @@ public sealed class EvaluationAllocationTests
 
         // E9: the three strings of the concatenations, one for each `+`.
         Add(table, "E9", 10, Scenario.Of<string>("'Order ' + order.id + ': ' + order.status", _ => "Order ORD-0001: approved", _ => E9Budget));
+
+        // E10: a search for a substring in a field. A pattern that is a literal is searched by the values that the program made when it was
+        // compiled, and a pattern read from a field by the ordinal search: neither makes anything at a call, so the budget is 0 bytes; a
+        // number above 0 is a defect (values made at each call), and the code changes, not the budget.
+        Add(table, "E10, a literal", 10, Scenario.Of<bool>("order.customer.email.contains('@example')", _ => true, _ => 0));
+        Add(table, "E10, from the data", 10, Scenario.Of<bool>("order.customer.email.contains(order.currency)", _ => false, _ => 0));
 
         return table;
     }

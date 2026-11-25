@@ -34,6 +34,31 @@ public sealed class PackageClosureTests
         closure net10.0:
         closure net11.0:
         """;
+    private const string BrowserCelList = """
+        # Expected content of the Great.Parts.Cel package.
+        dependencies net10.0:
+        dependencies net11.0:
+
+        closure net10.0:
+        closure net11.0:
+
+        browser
+        file runtimes/browser-wasm/lib/net11.0/Great.Parts.Cel.dll
+        file runtimes/wasi-wasm/lib/net11.0/Great.Parts.Cel.dll
+        """;
+    private const string BrowserWithoutAssemblyList = """
+        # Expected content of the Great.Parts.Cel package.
+        dependencies net10.0:
+        dependencies net11.0:
+
+        closure net10.0:
+        closure net11.0:
+
+        browser
+        """;
+    private const string BrowserAssembly = "runtimes/browser-wasm/lib/net11.0/Great.Parts.Cel.dll";
+    private const string LibraryAssembly = "lib/net11.0/Great.Parts.Cel.dll";
+    private const string NoBrowserLineList = CelList + "\nfile " + BrowserAssembly;
     private const string InjectionList = """
         # Expected content of the Great.Parts.Cel.DependencyInjection package.
         dependencies net10.0: Great.Parts.Cel, Microsoft.Extensions.DependencyInjection.Abstractions, Microsoft.Extensions.Options
@@ -272,6 +297,106 @@ public sealed class PackageClosureTests
     }
 
     [Fact]
+    public void BrowserLine_RestoresThePackageOnceMoreInABrowserWasmApplicationAndTakesTheAssemblyOfRuntimes()
+    {
+        using TempDirectory root = Repository(Cel);
+        root.Write(CelPath, BrowserCelList + Newline);
+        List<ClosureRequest> requests = [];
+
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes(requests, request, BrowserAssembly));
+
+        FindingAssert.None(findings);
+        ClosureRequest[] browser = [.. requests.Where(request => request.RuntimeIdentifier is not null)];
+        ClosureRequest only = Assert.Single(browser);
+        Assert.Equal(Cel, only.Id);
+        Assert.Equal("net11.0", only.Target);
+        Assert.Equal("browser-wasm", only.RuntimeIdentifier);
+        Assert.False(only.Web);
+        Assert.Equal(3, requests.Count);
+    }
+
+    [Fact]
+    public void Eng212_RestoreThatTakesTheAssemblyOfLib_IsReportedAtTheClosureLineOfNet11()
+    {
+        using TempDirectory root = Repository(Cel);
+        root.Write(CelPath, BrowserCelList + Newline);
+
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes([], request, LibraryAssembly));
+
+        FindingAssert.Exactly(
+            findings,
+            FindingAssert.Error(
+                EngCodes.Eng212,
+                CelPath,
+                6,
+                1,
+                $"the restore of {Cel} in a net11.0 application with the runtime identifier browser-wasm takes '{LibraryAssembly}' of the package, not '{BrowserAssembly}'"));
+    }
+
+    [Fact]
+    public void Eng212_RestoreThatTakesNoAssemblyOfThePackage_IsReported()
+    {
+        using TempDirectory root = Repository(Cel);
+        root.Write(CelPath, BrowserCelList + Newline);
+
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes([], request, null));
+
+        FindingAssert.Exactly(
+            findings,
+            FindingAssert.Error(
+                EngCodes.Eng212,
+                CelPath,
+                6,
+                1,
+                $"the restore of {Cel} in a net11.0 application with the runtime identifier browser-wasm takes no assembly of the package, not '{BrowserAssembly}'"));
+    }
+
+    [Theory]
+    [InlineData(BrowserWithoutAssemblyList)]
+    [InlineData(NoBrowserLineList)]
+    public void BrowserWasmRestore_WithoutABrowserLineOrWithoutAnAssemblyOfRuntimes_IsNotMade(string list)
+    {
+        using TempDirectory root = Repository(Cel);
+        root.Write(CelPath, list + Newline);
+        List<ClosureRequest> requests = [];
+
+        List<Finding> findings = Check(root, request => RestoreWithRuntimes(requests, request, BrowserAssembly));
+
+        FindingAssert.None(findings);
+        Assert.All(requests, request => Assert.Null(request.RuntimeIdentifier));
+    }
+
+    [Fact]
+    public void RuntimeAssets_AreTheKeysOfTheRuntimeOfThePackageInTheTarget()
+    {
+        const string Json = """
+            {
+              "targets": {
+                "net11.0": { "A.B/1.0.0": { "type": "package", "runtime": { "lib/net11.0/A.B.dll": {} } } },
+                "net11.0/browser-wasm": {
+                  "C/2.0.0": { "type": "package", "runtime": { "lib/net11.0/C.dll": {} } },
+                  "A.B/1.0.0": { "type": "package", "runtime": { "runtimes/browser-wasm/lib/net11.0/A.B.dll": {}, "runtimes/browser-wasm/lib/net11.0/A.B.Extra.dll": {} } }
+                }
+              }
+            }
+            """;
+
+        Assert.Equal(["runtimes/browser-wasm/lib/net11.0/A.B.dll", "runtimes/browser-wasm/lib/net11.0/A.B.Extra.dll"], ClosureRestore.RuntimeAssets(Json, "net11.0/browser-wasm", "a.b"));
+        Assert.Equal(["lib/net11.0/A.B.dll"], ClosureRestore.RuntimeAssets(Json, "net11.0", "A.B"));
+        Assert.Empty(ClosureRestore.RuntimeAssets(Json, "net10.0/browser-wasm", "A.B"));
+        Assert.Empty(ClosureRestore.RuntimeAssets(Json, "net11.0/browser-wasm", "Other"));
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("{}")]
+    [InlineData("""{"targets":[]}""")]
+    public static void RuntimeAssets_OfTextThatIsNotAnAssetsFile_IsAnInputError(string assets)
+    {
+        Assert.Throws<CheckInputException>(() => ClosureRestore.RuntimeAssets(assets, "net11.0/browser-wasm", Cel));
+    }
+
+    [Fact]
     public void TheCommand_IsInTheRegistryOfTheApplication()
     {
         Assert.Contains(CommandRegistry.All, command => command is PackageClosureCommand && command.Name == "package-closure");
@@ -328,6 +453,22 @@ public sealed class PackageClosureTests
         Assert.True(Directory.Exists(request.Directory), "the directory of the application exists when the restore starts");
         Assert.Empty(Directory.EnumerateFileSystemEntries(request.Directory));
         return Assets(request);
+    }
+
+    // The restore of a package as the lists above expect it. In an application with a runtime identifier the runtime asset of the package
+    // in the target of that identifier is the given path, or none when it is null.
+    private static string RestoreWithRuntimes(List<ClosureRequest> requests, ClosureRequest request, string? asset)
+    {
+        requests.Add(request);
+        Assert.True(Directory.Exists(request.Directory), "the directory of the application exists when the restore starts");
+        if (request.RuntimeIdentifier is null)
+        {
+            return Assets(request);
+        }
+
+        string runtime = asset is null ? string.Empty : $", \"runtime\": {{ \"{asset}\": {{}} }}";
+        string package = $"{request.Id}/{request.Version}";
+        return $"{{ \"version\": 3, \"libraries\": {{ \"{package}\": {{ \"type\": \"package\" }} }}, \"targets\": {{ \"{request.Target}/{request.RuntimeIdentifier}\": {{ \"{package}\": {{ \"type\": \"package\"{runtime} }} }} }} }}";
     }
 
     // The text of a project.assets.json with the libraries '<id>/<version>' of type package; a name that ends with '|project' is a project.

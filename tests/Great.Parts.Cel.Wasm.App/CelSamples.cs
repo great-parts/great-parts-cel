@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Google.Protobuf.WellKnownTypes;
@@ -12,7 +13,8 @@ namespace Great.Parts.Cel.Wasm.App;
 /// The expressions of the application: the quick start of the README on <c>Great.Parts.Cel</c>, the example of
 /// <c>docs/protobuf.md</c> on <c>Great.Parts.Cel.Protobuf</c>, an asynchronous function with a partial evaluation, so that the
 /// trimmer analyzes the asynchronous driver and the residual expression as well, a small policy on
-/// <c>Great.Parts.Cel.Policy</c> and a small filter on <c>Great.Parts.Cel.Filtering</c>.
+/// <c>Great.Parts.Cel.Policy</c>, a small filter on <c>Great.Parts.Cel.Filtering</c>, and a call of the simple entry with a class
+/// and a list of classes of the application, whose descriptions the generator of call sites writes into this assembly.
 /// </summary>
 internal static class CelSamples
 {
@@ -158,4 +160,29 @@ internal static class CelSamples
         CelProgram<bool> program = compiler.Compile("title = \"Dune\" AND pages > 100").GetProgramOrThrow();
         return program.Evaluate(new CelBindings().Add("title", "Dune").Add("pages", 412L)).GetValueOrThrow();
     }
+
+    // The simple entry with a class and a list of classes in the properties of an anonymous object. The generator of call sites, which
+    // runs in the compiler of this project as an analyzer, writes the registration of the object and the descriptions of the two classes
+    // into this assembly, and the publish analyzes that code with the rest. The application is not run, so the call is only published.
+    internal static bool Classes()
+    {
+        Customer customer = new() { Email = "ann@example.com" };
+        List<OrderLine> lines = [new() { Sku = "a", Price = 2.5 }, new() { Sku = "b", Price = 4.0 }];
+        return CelExpression.Evaluate<bool>(
+            "customer.email.endsWith('@example.com') && lines.exists(l, l.price > 3.0)",
+            new { customer, lines });
+    }
+}
+
+// The classes of the application that the call of the simple entry reads: the descriptions of them are created, not written.
+internal sealed class Customer
+{
+    public string Email { get; init; } = string.Empty;
+}
+
+internal sealed class OrderLine
+{
+    public string Sku { get; init; } = string.Empty;
+
+    public double Price { get; init; }
 }

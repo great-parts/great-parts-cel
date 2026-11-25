@@ -18,7 +18,8 @@
     <ProjectReference Include="../Great.Parts.Cel.Generator/Great.Parts.Cel.Generator.csproj"
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="false"
-                      PrivateAssets="all" />
+                      PrivateAssets="all"
+                      GlobalPropertiesToRemove="GpcBrowserBuild" />
   </ItemGroup>
 
   <ItemGroup>
@@ -87,6 +88,31 @@
     </MSBuild>
     <ItemGroup>
       <None Include="@(_SourceGeneratorAssembly)" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <!--
+    The net11.0 build of this package has two assemblies. lib/net11.0/ has the one built with runtime async (src/Directory.Build.targets).
+    WebAssembly applications run on a runtime that does not run runtime-async methods, so the package also has the build of the same
+    project with the property GpcBrowserBuild=true (src/Directory.Build.props), which has none, in runtimes/browser-wasm/lib/net11.0/
+    and runtimes/wasi-wasm/lib/net11.0/: NuGet gives the file of runtimes/<identifier>/ to an application with that runtime
+    identifier and the file of lib/ to every other. The target runs in the inner build of net11.0 of the pack, builds the variant (also
+    when the pack skips the build: the variant is not part of the build of the solution) and adds its assembly. The public API,
+    the references and the analyzers are the same for both; the XML documentation is the same too and stays in lib/, which is the
+    reference of the compiler. The symbols of the variant are in the assembly (DebugType embedded).
+  -->
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackBrowserAssembly</TargetsForTfmSpecificContentInPackage>
+  </PropertyGroup>
+  <Target Name="PackBrowserAssembly" Condition="'$(TargetFramework)' == 'net11.0' and '$(GpcBrowserBuild)' != 'true'">
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Build" Properties="GpcBrowserBuild=true;TargetFramework=net11.0;NoBuild=false" />
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="GetTargetPath" Properties="GpcBrowserBuild=true;TargetFramework=net11.0;NoBuild=false">
+      <Output TaskParameter="TargetOutputs" ItemName="_BrowserAssembly" />
+    </MSBuild>
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="@(_BrowserAssembly)">
+        <PackagePath>runtimes/browser-wasm/lib/net11.0;runtimes/wasi-wasm/lib/net11.0</PackagePath>
+      </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>
 

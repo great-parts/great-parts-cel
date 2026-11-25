@@ -17,6 +17,9 @@ internal sealed class RecordPlanNode : PlanNode
         _node = node;
     }
 
+    // The node that is recorded.
+    internal PlanNode Node => _node;
+
     internal override CelValue Evaluate(Frame frame)
     {
         CelValue value = _node.Evaluate(frame);

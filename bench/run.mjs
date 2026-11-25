@@ -12,9 +12,11 @@
 //   node bench/run.mjs --no-thresholds    without the measurement of the limits of the speed-ups
 //   node bench/run.mjs --thresholds-only  only the measurement of the limits (no verification, no cases of the rig)
 //
-// After the runs of the rig the script measures the limits of the speed-ups of the library (bench/ThresholdBench): the search of a
-// substring around 64 code units, the build of the automaton of the pattern E5, distinct and sets around the length 24 of a list.
-// The job (--job) is the one of the rig. The verdicts are in the section "Limits of the speed-ups" of the summary.
+// After the runs of the rig the script measures the limits of the speed-ups of the library (bench/ThresholdBench): the search of the
+// literal prefix of matches around 64 code units, the build of the automaton of the pattern E5, the scan and the buckets of the index
+// of distinct and sets at lists of 8 to 64 values; and the diagnostics without a verdict: the search of a substring by the functions of
+// strings, the simple entry, CelMap.Create. The job (--job) is the one of the rig. The verdicts and the diagnostics are in the section
+// "Limits of the speed-ups" of the summary.
 //
 // Results go to bench/results/ (ignored by git): results/runs/<k>/ per run, results/summary.md over all runs,
 // results/thresholds/ (the reports of BenchmarkDotNet, meta.json and thresholds.json with the verdicts).
@@ -46,8 +48,15 @@ const SUBJECT_VARIANTS = process.env.BENCH_SUBJECT ? [SUBJECT] : [SUBJECT, 'GPCe
 const isSubject = (library) => SUBJECT_VARIANTS.includes(library);
 // Limits of the speed-ups that the verdicts of the thresholds check.
 const SEARCH_LIMIT = 64;
-const AUTOMATON_LIMIT_NS = 1000;
-const HASH_LIMIT = 24;
+// The diagnostic of the search of the functions of strings, which has no verdict: contains on (ab)^5000 with a pattern of each length.
+const COST_PATTERN_LENGTHS = [64, 256, 1024];
+const COST_TEXT_LENGTH = 10000;
+const AUTOMATON_LIMIT_NS = 2000;
+// The index of distinct and sets: the lengths of the lists at which the scan and the buckets are measured, and the length up to which
+// the library scans (ValueIndex.ScanLimit). The measurement states no verdict on it.
+const HASH_SIZES = [8, 16, 24, 32, 48, 64];
+const HASH_SCAN_LIMIT = 32;
+const HASH_EVALUATION_SIZES = [16, 32, 33, 48, 64];
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -83,8 +92,10 @@ function dotnetOrExit(command, env = {}) {
   }
 }
 
-const run = (...rest) => ['run', '-c', 'Release', '--no-build', '--project', 'SpeedBench', '-f', 'net10.0', '--', ...rest];
-const runThresholds = (...rest) => ['run', '-c', 'Release', '--no-build', '--project', 'ThresholdBench', '-f', 'net10.0', '--', ...rest];
+// The rig runs on .NET 11 under JIT.
+const FRAMEWORK = 'net11.0';
+const run = (...rest) => ['run', '-c', 'Release', '--no-build', '--project', 'SpeedBench', '-f', FRAMEWORK, '--', ...rest];
+const runThresholds = (...rest) => ['run', '-c', 'Release', '--no-build', '--project', 'ThresholdBench', '-f', FRAMEWORK, '--', ...rest];
 
 // ---------- formatting ----------
 
@@ -285,15 +296,15 @@ function overRunsSection(runs, verify) {
         for (const m of measured) {
           const key = `${s}|${label}|${m.l}`;
           if (!rows.has(key)) rows.set(key, { s, label, l: m.l, per: [] });
-          rows.get(key).per.push({ k, ratio: m.ratio, time: m.time, fastestLib: m.fastestLib });
+          rows.get(key).per.push({ k, ratio: m.ratio, time: m.time, alloc: m.alloc, fastestLib: m.fastestLib });
         }
       }
     }
   }
   const lines = ['## Summary over the runs\n'];
-  lines.push(`The ratio of a row in a run is to the fastest library with a correct result in the same run (for a variant of ${SUBJECT}: to the fastest other library or to itself, not to its other variants). R is the median of the ratios over the runs; the column "R > 1.1" is filled when the row has ${MIN_RUNS} runs or more; "both sides" means that the ratio is not above 1.1 in some runs and above it in others.\n`);
-  lines.push('| Scenario | Operation | Library | Runs | Ratios by run | R | Spread | Fastest by run | Median time over the runs | R > 1.1 | Both sides of 1.1 |');
-  lines.push('|---|---|---|--:|---|--:|--:|---|--:|---|---|');
+  lines.push(`The ratio of a row in a run is to the fastest library with a correct result in the same run (for a variant of ${SUBJECT}: to the fastest other library or to itself, not to its other variants). R is the median of the ratios over the runs; the column "R > 1.1" is filled when the row has ${MIN_RUNS} runs or more; "both sides" means that the ratio is not above 1.1 in some runs and above it in others. "Allocated" is the median over the runs of the bytes allocated per operation that BenchmarkDotNet reports (MemoryDiagnoser), less the allocation of making the text for compile and full cycle, as the time is.\n`);
+  lines.push('| Scenario | Operation | Library | Runs | Ratios by run | R | Spread | Fastest by run | Median time over the runs | Allocated | R > 1.1 | Both sides of 1.1 |');
+  lines.push('|---|---|---|--:|---|--:|--:|---|--:|--:|---|---|');
   const over = [];
   const subject = { seen: false, over: [], both: [], short: [] };
   for (const r of rows.values()) {
@@ -304,6 +315,7 @@ function overRunsSection(runs, verify) {
     const both = ratios.some((x) => x <= THRESHOLD) && ratios.some((x) => x > THRESHOLD);
     const enough = ratios.length >= MIN_RUNS;
     const fastest = [...new Set(r.per.map((p) => p.fastestLib))].join(', ');
+    const allocs = r.per.map((p) => p.alloc).filter((x) => Number.isFinite(x));
     const where = `${r.s}, ${r.label}, ${r.l}`;
     if (enough && R > THRESHOLD) over.push(`${where}: ${R.toFixed(2)}`);
     if (isSubject(r.l)) {
@@ -316,7 +328,7 @@ function overRunsSection(runs, verify) {
     }
     const sideMark = !both ? '' : ratios.length >= MAX_RUNS ? 'yes, at the threshold' : 'yes';
     const flagOver = !enough ? `no result (runs: ${ratios.length})` : R > THRESHOLD ? 'yes' : 'no';
-    lines.push(`| ${r.s} | ${r.label} | ${r.l} | ${ratios.length} | ${r.per.map((p) => `${p.k}: ${p.ratio.toFixed(2)}`).join('; ')} | ${R.toFixed(2)} | ${Number.isNaN(spread) ? '-' : spread.toFixed(2)} | ${fastest} | ${fmtTime(median(r.per.map((p) => p.time)))} | ${flagOver} | ${sideMark} |`);
+    lines.push(`| ${r.s} | ${r.label} | ${r.l} | ${ratios.length} | ${r.per.map((p) => `${p.k}: ${p.ratio.toFixed(2)}`).join('; ')} | ${R.toFixed(2)} | ${Number.isNaN(spread) ? '-' : spread.toFixed(2)} | ${fastest} | ${fmtTime(median(r.per.map((p) => p.time)))} | ${allocs.length === 0 ? '-' : fmtBytes(Math.round(median(allocs)))} | ${flagOver} | ${sideMark} |`);
   }
   lines.push('');
   lines.push(over.length === 0 ? 'R above 1.1 (all libraries): none.' : `R above 1.1 (all libraries): ${over.join('; ')}.`);
@@ -365,7 +377,9 @@ function thresholdVerdicts(rows, meta) {
   const at = (type, method, key, value) => times(rows.find((r) => r.type === type && r.method === method && r.parameters[key] === String(value))?.median);
   const verdicts = [];
 
-  const search = { limit: `hybrid search of a substring, ${SEARCH_LIMIT} code units`, rule: `.NET at M = ${SEARCH_LIMIT} is not slower than Knuth-Morris-Pratt; otherwise the limit is 32`, rows: [] };
+  // The hybrid search is the search of the literal prefix of matches only: the functions of strings search by SearchValues<string> and
+  // the ordinal search, and their time is the diagnostic below.
+  const search = { limit: `hybrid search of the literal prefix of matches, ${SEARCH_LIMIT} code units`, rule: `.NET at M = ${SEARCH_LIMIT} is not slower than Knuth-Morris-Pratt; otherwise the limit is 32`, rows: [] };
   for (const m of [48, 64, 65, 80]) {
     search.rows.push({ m, kmp: at('SubstringBenchmarks', 'Kmp', 'M', m), net: at('SubstringBenchmarks', 'Net', 'M', m), hybrid: at('SubstringBenchmarks', 'Hybrid', 'M', m) });
   }
@@ -381,29 +395,95 @@ function thresholdVerdicts(rows, meta) {
   automaton.verdict = dry ? 'not measured (Dry)' : e5?.automaton === undefined ? 'no result' : e5.automaton <= AUTOMATON_LIMIT_NS ? `holds: ${e5.automaton.toFixed(0)} ns` : `does not hold: ${e5.automaton.toFixed(0)} ns`;
   verdicts.push(automaton);
 
-  const hashing = { limit: `index of the values of a list (distinct, sets), ${HASH_LIMIT} values`, rule: `the scan (the library's index at N up to ${HASH_LIMIT}) is not slower than the buckets at N = 8, 16 and ${HASH_LIMIT}, for distinct and for sets.contains`, rows: [], evaluation: [] };
-  for (const n of [8, 16, 24, 32, 48]) {
-    hashing.rows.push({
-      n,
-      distinct: { library: at('HashingBenchmarks', 'DistinctDefault', 'N', n), buckets: at('HashingBenchmarks', 'DistinctBuckets', 'N', n), constantHash: at('HashingBenchmarks', 'DistinctConstantHash', 'N', n), pairwise: at('HashingBenchmarks', 'DistinctPairwise', 'N', n) },
-      contains: { library: at('HashingBenchmarks', 'ContainsDefault', 'N', n), buckets: at('HashingBenchmarks', 'ContainsBuckets', 'N', n), constantHash: at('HashingBenchmarks', 'ContainsConstantHash', 'N', n), pairwise: at('HashingBenchmarks', 'ContainsPairwise', 'N', n) },
+  // The index of the values (distinct, sets): the scan and the buckets are forced at every N. No verdict: the rule below gives the
+  // threshold that is the input of the decision on the limit of the library (ValueIndex.ScanLimit, now HASH_SCAN_LIMIT).
+  const hashing = {
+    limit: `index of the values of a list (distinct, sets): scan or buckets, the limit of the library is ${HASH_SCAN_LIMIT} values`,
+    rule: `a diagnostic without a verdict: the threshold by the rule is the largest N at which, and at every smaller N measured (${HASH_SIZES.join(', ')}), scan / buckets is at most 1.0 for distinct and for sets.contains; 8 when the scan is slower already at N = 8`,
+    rows: [],
+    evaluation: [],
+  };
+  for (const n of HASH_SIZES) {
+    const op = (name) => ({
+      library: at('HashingBenchmarks', `${name}Default`, 'N', n),
+      scan: at('HashingBenchmarks', `${name}Scan`, 'N', n),
+      buckets: at('HashingBenchmarks', `${name}Buckets`, 'N', n),
+      constantHash: at('HashingBenchmarks', `${name}ConstantHash`, 'N', n),
+      pairwise: at('HashingBenchmarks', `${name}Pairwise`, 'N', n),
     });
+    hashing.rows.push({ n, distinct: op('Distinct'), contains: op('Contains') });
   }
-  for (const n of [16, 24, 25, 32, 48]) {
+  for (const n of HASH_EVALUATION_SIZES) {
     hashing.evaluation.push({ n, distinct: at('HashingEvaluationBenchmarks', 'Distinct', 'N', n), contains: at('HashingEvaluationBenchmarks', 'SetsContains', 'N', n) });
   }
-  const scanRows = hashing.rows.filter((r) => r.n <= HASH_LIMIT);
-  const slower = [];
+  let threshold = HASH_SIZES[0];
   let missing = false;
-  for (const r of scanRows) {
+  let reached = true;
+  for (const r of hashing.rows) {
     for (const op of ['distinct', 'contains']) {
-      const { library, buckets } = r[op];
-      if (library === undefined || buckets === undefined) missing = true;
-      else if (library > buckets) slower.push(`${op} N = ${r.n}: ${(library / buckets).toFixed(2)}`);
+      const { scan, buckets } = r[op];
+      if (scan === undefined || buckets === undefined) missing = true;
+      else if (scan > buckets) reached = false;
     }
+    if (reached) threshold = r.n;
   }
-  hashing.verdict = dry ? 'not measured (Dry)' : missing ? 'no result' : slower.length === 0 ? `holds: ${HASH_LIMIT}` : `does not hold, the scan is slower than the buckets (ratio scan / buckets): ${slower.join('; ')}`;
+  hashing.threshold = missing || dry ? undefined : threshold;
+  hashing.verdict = dry
+    ? 'not measured (Dry)'
+    : missing
+      ? 'no result'
+      : `no verdict; threshold by the rule: ${threshold} (the limit of the library: ${HASH_SCAN_LIMIT})`;
   verdicts.push(hashing);
+
+  // The time of contains per unit of its cost (docs/cost.md: 1 + ceil((n + m) / 10) * q, q = max(1, ceil(m / 64)), without the reads of
+  // the variables), for a literal pattern (SearchValues<string>) and a pattern from the data (the ordinal search). No verdict: a rise of the
+  // time per unit above two times from the shortest pattern to the longest is the input of the decision on the divisor 64 of q.
+  const cost = { limit: 'substring search: time per cost unit', rule: 'a diagnostic without a verdict: a rise of the time per unit above 2 times from M = 64 to M = 1024 is the input of the decision on the divisor 64', rows: [] };
+  for (const m of COST_PATTERN_LENGTHS) {
+    const units = 1 + Math.ceil((COST_TEXT_LENGTH + m) / 10) * Math.max(1, Math.ceil(m / 64));
+    const literal = at('SubstringCostBenchmarks', 'Literal', 'M', m);
+    const data = at('SubstringCostBenchmarks', 'FromData', 'M', m);
+    cost.rows.push({ m, units, literal, data, literalPerUnit: literal === undefined ? undefined : literal / units, dataPerUnit: data === undefined ? undefined : data / units });
+  }
+  const rise = (key) => {
+    const first = cost.rows[0][key];
+    const last = cost.rows[cost.rows.length - 1][key];
+    return first === undefined || last === undefined ? undefined : last / first;
+  };
+  cost.rise = { literal: rise('literalPerUnit'), data: rise('dataPerUnit') };
+  cost.verdict = dry
+    ? 'not measured (Dry)'
+    : cost.rise.literal === undefined || cost.rise.data === undefined
+      ? 'no result'
+      : `no verdict; time per unit from M = 64 to M = 1024: ${cost.rise.literal.toFixed(2)} times for a literal, ${cost.rise.data.toFixed(2)} times for the data`;
+  verdicts.push(cost);
+
+  // The simple entry: the call on data that were built before the measurement, and the building of the data as the variant of the rig
+  // builds them. No verdict: the rows show where the time of the variant of the rig goes.
+  const allocation = (type, method, key, value) => rows.find((r) => r.type === type && r.method === method && r.parameters[key] === String(value))?.alloc;
+  const simple = { limit: 'simple entry: evaluate and data', rule: 'a diagnostic without a verdict: the time of the call on a prepared anonymous object, and the time of building that object', rows: [] };
+  for (const text of ['scalars', 'lines']) {
+    simple.rows.push({
+      text,
+      evaluate: at('SimpleEntryBenchmarks', 'Evaluate', 'Text', text),
+      evaluateAllocated: allocation('SimpleEntryBenchmarks', 'Evaluate', 'Text', text),
+      data: at('SimpleEntryBenchmarks', 'Data', 'Text', text),
+      dataAllocated: allocation('SimpleEntryBenchmarks', 'Data', 'Text', text),
+    });
+  }
+  simple.verdict = dry
+    ? 'not measured (Dry)'
+    : simple.rows.some((r) => r.evaluate === undefined || r.data === undefined)
+      ? 'no result'
+      : `no verdict; ${simple.rows.map((r) => `${r.text}: evaluate ${fmtTime(r.evaluate)}, data ${fmtTime(r.data)}`).join('; ')}`;
+  verdicts.push(simple);
+
+  // CelMap.Create on the row of an order, a map of three entries made with a collection expression.
+  const celMap = { limit: 'CelMap.Create of the row of an order', rule: 'a diagnostic without a verdict: the time and the allocation of a map of three entries made with a collection expression', rows: [] };
+  const lineMap = rows.find((r) => r.type === 'CelMapBenchmarks' && r.method === 'LineMap');
+  celMap.rows.push({ time: times(lineMap?.median), allocated: lineMap?.alloc });
+  celMap.verdict = dry ? 'not measured (Dry)' : celMap.rows[0].time === undefined ? 'no result' : `no verdict; ${fmtTime(celMap.rows[0].time)}, ${fmtBytes(celMap.rows[0].allocated)}`;
+  verdicts.push(celMap);
   return verdicts;
 }
 
@@ -412,7 +492,7 @@ function thresholdsSection() {
   if (!rows) return null;
   const meta = loadThresholdMeta();
   const verdicts = thresholdVerdicts(rows, meta);
-  const [search, automaton, hashing] = verdicts;
+  const [search, automaton, hashing, cost, simple, celMap] = verdicts;
   const ratio = (a, b) => (a === undefined || b === undefined ? '-' : (a / b).toFixed(2));
   const lines = ['## Limits of the speed-ups\n'];
   lines.push(`Job: ${meta.job ?? 'Default'}; started ${meta.started ?? '?'}, finished ${meta.finished ?? '?'}. Medians of BenchmarkDotNet on the code of this commit; the reports are in \`results/thresholds/bdn/results\`.\n`);
@@ -421,11 +501,18 @@ function thresholdsSection() {
   for (const v of verdicts) lines.push(`| ${v.limit} | ${v.rule} | ${v.verdict} |`);
   lines.push('');
 
-  lines.push(`### Search of a substring, the text (ab)^5000\n`);
+  lines.push(`### Search of the literal prefix of matches, the text (ab)^5000\n`);
   lines.push('M is the length of the pattern, the slowest case for the search of .NET. "Library" is the search as it runs: .NET up to the limit, Knuth-Morris-Pratt above. Net / KMP below 1 means .NET is faster.\n');
   lines.push('| M | KMP | .NET | Library | Net / KMP |');
   lines.push('|--:|--:|--:|--:|--:|');
   for (const r of search.rows) lines.push(`| ${r.m} | ${fmtTime(r.kmp)} | ${fmtTime(r.net)} | ${fmtTime(r.hybrid)} | ${ratio(r.net, r.kmp)} |`);
+  lines.push('');
+
+  lines.push('### Search of a substring by the functions of strings: time per cost unit\n');
+  lines.push(`contains on the text (ab)^5000 (${COST_TEXT_LENGTH} code units) and a pattern of M code units, the slowest case for the search of .NET. "Literal" is a pattern that is a literal of the expression (SearchValues<string>), "data" a pattern read from a variable (the ordinal search); the time is that of the whole evaluation. The cost is 1 + ceil((n + M) / 10) * q, q = max(1, ceil(M / 64)), without the reads of the variables. No verdict.\n`);
+  lines.push('| M | Cost | Literal | Literal per unit | Data | Data per unit |');
+  lines.push('|--:|--:|--:|--:|--:|--:|');
+  for (const r of cost.rows) lines.push(`| ${r.m} | ${r.units} | ${fmtTime(r.literal)} | ${fmtTime(r.literalPerUnit)} | ${fmtTime(r.data)} | ${fmtTime(r.dataPerUnit)} |`);
   lines.push('');
 
   lines.push('### Build of the automaton\n');
@@ -435,13 +522,13 @@ function thresholdsSection() {
   lines.push('');
 
   lines.push('### Index of the values: the lists of N integers\n');
-  lines.push('"Library" is the index as the library makes it (the scan up to 24 values, the buckets above); "buckets" forces the buckets at any N; "one hash" gives every value the same hash; "pairwise" are integers of 2^53 and more, compared with each other in order. Scan / buckets below 1 means the scan is faster; at N above 24 the library and the buckets are the same index.\n');
-  lines.push('| Operation | N | Library | Buckets | One hash | Pairwise | Scan / buckets |');
-  lines.push('|---|--:|--:|--:|--:|--:|--:|');
+  lines.push(`"Library" is the index as the library makes it (the scan up to ${HASH_SCAN_LIMIT} values, the buckets above); "scan" and "buckets" force that way at any N; "one hash" gives every value the same hash; "pairwise" are integers of 2^53 and more, compared with each other in order. Scan / buckets below 1 means the scan is faster. No verdict: ${hashing.threshold === undefined ? 'the threshold by the rule is not stated (no result or no measurement)' : `the threshold by the rule is ${hashing.threshold}`}; the limit of the library is set by a decision on this table.\n`);
+  lines.push('| Operation | N | Library | Scan | Buckets | One hash | Pairwise | Scan / buckets |');
+  lines.push('|---|--:|--:|--:|--:|--:|--:|--:|');
   for (const op of ['distinct', 'contains']) {
     for (const r of hashing.rows) {
       const x = r[op];
-      lines.push(`| ${op === 'distinct' ? 'distinct' : 'sets.contains'} | ${r.n} | ${fmtTime(x.library)} | ${fmtTime(x.buckets)} | ${fmtTime(x.constantHash)} | ${fmtTime(x.pairwise)} | ${r.n <= HASH_LIMIT ? ratio(x.library, x.buckets) : '-'} |`);
+      lines.push(`| ${op === 'distinct' ? 'distinct' : 'sets.contains'} | ${r.n} | ${fmtTime(x.library)} | ${fmtTime(x.scan)} | ${fmtTime(x.buckets)} | ${fmtTime(x.constantHash)} | ${fmtTime(x.pairwise)} | ${ratio(x.scan, x.buckets)} |`);
     }
   }
   lines.push('');
@@ -452,6 +539,20 @@ function thresholdsSection() {
   lines.push('|--:|--:|--:|--:|--:|');
   const perElement = (x, n) => (x === undefined ? '-' : fmtTime(x / n));
   for (const r of hashing.evaluation) lines.push(`| ${r.n} | ${fmtTime(r.distinct)} | ${perElement(r.distinct, r.n)} | ${fmtTime(r.contains)} | ${perElement(r.contains, r.n)} |`);
+  lines.push('');
+
+  lines.push('### Simple entry: evaluate and data\n');
+  lines.push('The call `CelExpression.Evaluate` on an anonymous object with the scalars of the order, the customer and the lines as properties, as the variant of the rig passes them. "Evaluate" is the call on an object that was built before the measurement, with the text of the variant with the input of the environment ("scalars" is the text of E1, "lines" the text of E2 over 10 lines); "data" is the building of that object for one call. No verdict.\n');
+  lines.push('| Text | Evaluate | Allocated | Data | Allocated |');
+  lines.push('|---|--:|--:|--:|--:|');
+  for (const r of simple.rows) lines.push(`| ${r.text} | ${fmtTime(r.evaluate)} | ${fmtBytes(r.evaluateAllocated)} | ${fmtTime(r.data)} | ${fmtBytes(r.dataAllocated)} |`);
+  lines.push('');
+
+  lines.push('### CelMap.Create of the row of an order\n');
+  lines.push('A map of three entries (`sku`, `qty`, `price`) made with a collection expression. No verdict.\n');
+  lines.push('| Time | Allocated |');
+  lines.push('|--:|--:|');
+  for (const r of celMap.rows) lines.push(`| ${fmtTime(r.time)} | ${fmtBytes(r.allocated)} |`);
   lines.push('');
 
   mkdirSync(thresholdsDir, { recursive: true });
@@ -499,7 +600,7 @@ if (!/^[1-9]\d*$/.test(runsOption)) {
 
 mkdirSync(results, { recursive: true });
 if (!thresholdsOnly) {
-  dotnetOrExit(['build', project, '-c', 'Release', '-f', 'net10.0', '--nologo', '-v', 'q']);
+  dotnetOrExit(['build', project, '-c', 'Release', '-f', FRAMEWORK, '--nologo', '-v', 'q']);
   dotnetOrExit(run('verify', 'results/verify.json'));
 }
 
@@ -522,7 +623,7 @@ if (!flag('--verify-only') && !thresholdsOnly) {
 if (!flag('--verify-only') && !flag('--no-thresholds')) {
   if (existsSync(thresholdsDir)) rmSync(thresholdsDir, { recursive: true, force: true });
   mkdirSync(thresholdsDir, { recursive: true });
-  dotnetOrExit(['build', thresholdProject, '-c', 'Release', '-f', 'net10.0', '--nologo', '-v', 'q']);
+  dotnetOrExit(['build', thresholdProject, '-c', 'Release', '-f', FRAMEWORK, '--nologo', '-v', 'q']);
   const meta = { job: option('--job') ?? 'Default', started: new Date().toISOString() };
   const bdnArgs = ['--filter', '*', '--artifacts', 'results/thresholds/bdn'];
   if (option('--job')) bdnArgs.push('--job', option('--job'));

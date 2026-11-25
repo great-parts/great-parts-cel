@@ -161,8 +161,10 @@ internal static class StandardLibraryV1
         table.Add(Global("uint", OverloadIds.Int64ToUInt64, [@int], @uint, Conversions.Int64ToUInt64, 1));
         table.Add(Global("uint", OverloadIds.StringToUInt64, [@string], @uint, Conversions.StringToUInt64, 1, Costs.Text));
 
-        // Functions of strings, called on the string; they pass over both strings.
-        table.Add(Member("contains", OverloadIds.ContainsString, [@string, @string], @bool, Strings.Contains, 1, Costs.Text));
+        // Functions of strings, called on the string; they pass over both strings. contains searches a substring: its cost multiplies the
+        // part of the strings by the factor of the length of the pattern, and a pattern that is a string literal is prepared when the
+        // expression is checked.
+        table.Add(Member("contains", OverloadIds.ContainsString, [@string, @string], @bool, Strings.Contains, 1, Costs.Search, SearchPattern.Constant));
         table.Add(Member("endsWith", OverloadIds.EndsWithString, [@string, @string], @bool, Strings.EndsWith, 1, Costs.Text));
         table.Add(Member("startsWith", OverloadIds.StartsWithString, [@string, @string], @bool, Strings.StartsWith, 1, Costs.Text));
 

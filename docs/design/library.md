@@ -12,7 +12,9 @@ The library has version 1: twelve type identifiers and 162 overloads — the 113
 | `src/Great.Parts.Cel/Library/Comparisons.cs` | `!`, equality and ordering over the value rules |
 | `src/Great.Parts.Cel/Library/Collections.cs` | index, `in`, `size`, concatenation of lists |
 | `src/Great.Parts.Cel/Library/Strings.cs` | functions of strings and bytes, concatenation |
-| `src/Great.Parts.Cel/Library/Text/SubstringSearch.cs` | the search for a substring, with its step counter; the layer `Library.Text` has no dependencies |
+| `src/Great.Parts.Cel/Library/Text/OrdinalSearch.cs` | the search for a substring of the functions of strings: the ordinal search and the search by `SearchValues<string>`; the layer `Library.Text` has no dependencies |
+| `src/Great.Parts.Cel/Library/Text/SubstringSearch.cs` | the linear search for the literal prefix of `matches`, with its step counter |
+| `src/Great.Parts.Cel/Library/SearchPattern.cs` | the constant argument of the overloads that search a substring: the preparer of a literal pattern |
 | `src/Great.Parts.Cel/Library/Conversions.cs` | `type`, `dyn` and the conversions |
 | `src/Great.Parts.Cel/Library/NumberText.cs` | numbers to text and text to numbers, without culture |
 | `src/Great.Parts.Cel/Library/Costs.cs` | the cost functions of the arguments |
@@ -61,7 +63,7 @@ The position of an error is the call; for `_[_]` it is the `[` of the index oper
 | `in_map` | lookup by `KeyHashRules` | — | as `index_map` |
 | `size_list`, `list_size`, `size_map`, `map_size`, `size_bytes`, `bytes_size` | count | — | 1 |
 | `size_string`, `string_size` | code points: a surrogate pair counts once, a lone surrogate once | — | 1 + ⌈Lₐ/10⌉ |
-| `contains_string` | `SubstringSearch` below | — | 1 + ⌈Lₐ/10⌉ |
+| `contains_string` | `OrdinalSearch` below | — | 1 + ⌈Lₐ/10⌉ · q, q = max(1, ⌈Lₚ/64⌉) |
 | `starts_with_string`, `ends_with_string` | ordinal comparison of UTF-16 code units, which is comparison of code points | — | 1 + ⌈Lₐ/10⌉ |
 | `type`, `to_dyn` | `ValueTypeRules.TypeOf`; identity | — | 1 |
 | `bool_to_bool`, `bytes_to_bytes`, `double_to_double`, `int64_to_int64`, `string_to_string`, `uint64_to_uint64` | identity, without a copy | — | 1 |
@@ -226,13 +228,22 @@ The 47 overloads of time have the identifiers of cel-go, letter for letter: 9 co
 
 ## Substring search
 
-`contains` uses `internal static int SubstringSearch.IndexOf(ReadOnlySpan<char> text, ReadOnlySpan<char> pattern, ref long steps)` of the layer `Great.Parts.Cel.Library.Text`, which the functions `indexOf`, `lastIndexOf`, `replace` and `split` of the extension set `strings` share; the .NET search methods are banned in the library, because their worst case is O(n · m) and the cost formula 1 + ⌈Lₐ/10⌉ assumes linear time.
+`contains` and the functions `indexOf`, `lastIndexOf`, `replace` and `split` of the extension set `strings` search a substring in two ways, and neither is linear in the worst case: the cost pays for the worst case instead ([cost](../cost.md#the-search-for-a-substring), the factor q of the length of the pattern). Both searches are in one private class of the layer `Great.Parts.Cel.Library.Text`, `OrdinalSearch`, which is the only place in the library to call the .NET search methods (the one suppression of RS0030); they are banned elsewhere.
 
-- The hybrid. A pattern of at most `SubstringSearch.HybridLimit` = 64 UTF-16 code units is searched by the vectorized ordinal search of .NET, through one private wrapper that is the only place in the library to call it (the one suppression of RS0030): its worst case is 64 · n comparisons, linear with a constant factor, and on the adversarial text `(ab)^n` it is faster than the linear search at that length. A longer pattern is searched as below. Each place of the text where an occurrence may start that the .NET search passes counts one step, so a call takes at most n steps. `IndexOfKmp` is the search below for a pattern of any length, which the property test of linearity runs on short patterns too, and the tests compare the answers of both on patterns of 63, 64 and 65 code units.
+- A pattern that is a string literal of the expression is prepared when the expression is checked: `SearchPattern` makes `SearchValues.Create([pattern], StringComparison.Ordinal)` once, through the constant argument of the overload ([declarations](declarations.md), "Constant arguments"), as the preparer of `matches` prepares its literal pattern, and the call site keeps it as `CallSite.Prepared`; the search is `MemoryExtensions.IndexOfAny(text[from..], values)`. The preparation is part of compiling and is not charged. An empty literal is not prepared, since an empty pattern is not searched. `lastIndexOf` with a literal uses the ordinal `LastIndexOf`: .NET has no search from the end by `SearchValues<string>`.
+- A pattern that comes from the data is searched by the ordinal search of .NET, `MemoryExtensions.IndexOf` and `LastIndexOf` with `StringComparison.Ordinal`, of any length. `SearchValues<string>` is not built for each call: building it allocates beyond the budget of a cost unit and costs more than the search of a short text.
+- A match counts only at a code point boundary: a match that would cut a surrogate pair, which only a pattern from the data with a lone surrogate at an end can make, is rejected, and the search goes on one unit further. The results of the functions are the same on both paths.
+- The worst case of both searches is a check of up to m code units at each of the n places of the text. The cost formula multiplies the term ⌈Lₐ/10⌉ by q = max(1, ⌈m/64⌉): a pattern of at most 64 code units costs what it cost before, a longer one pays for the same work per unit.
+
+The search for the literal prefix of `matches` is another search and stays linear: `internal static int SubstringSearch.IndexOf(ReadOnlySpan<char> text, ReadOnlySpan<char> pattern, ref long steps)` of the same layer. The functions of strings no longer use it; its bound keeps the time of `matches` from growing faster than linearly.
+
+- The hybrid. A pattern of at most `SubstringSearch.HybridLimit` = 64 UTF-16 code units is searched by the vectorized ordinal search of .NET, through `OrdinalSearch`: its worst case is 64 · n comparisons, linear with a constant factor, and on the adversarial text `(ab)^n` it is faster than the linear search at that length. A longer pattern is searched as below. Each place of the text where an occurrence may start that the .NET search passes counts one step, so a call takes at most n steps. `IndexOfKmp` is the search below for a pattern of any length, which the property test of linearity runs on short patterns too, and the tests compare the answers of both on patterns of 63, 64 and 65 code units.
 - The algorithm for a longer pattern is Knuth–Morris–Pratt over UTF-16 code units: the prefix function of the pattern, then one pass over the text. A step is one comparison of two code units. The prefix function takes at most 2m steps and the pass at most 2n, so a call takes at most 2(n + m), half the bound 4 · (n + m) that its property test checks. An empty pattern is found at 0 without steps; a pattern longer than the text is not found without steps.
 - In the state "nothing matched" the pass may jump to the next occurrence of the first code unit of the pattern with `MemoryExtensions.IndexOf(char)`, which is vectorized and linear; each code unit it passes counts one step, so the bound becomes 3n + 2m and stays under the limit.
 - The prefix function of a pattern up to 256 code units lives on the stack, a longer one in an array of m `int`s: 4m bytes, within B = 64 bytes for each of the m/10 units that the pattern alone adds to the cost.
 - The step counter is a parameter that the property test reads; the library passes a local and ignores it. It is a `long`: the bound 4 · (n + m) of long inputs does not fit an `int`.
+
+The functions of strings have no counter: the tests compare their answers on both paths with a reference search written over code points, and their cost with the formula ([tests](tests.md#substring-search-of-the-functions-of-strings)).
 
 ## `matches` and `matches_string`
 

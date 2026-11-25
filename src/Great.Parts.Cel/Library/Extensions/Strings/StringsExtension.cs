@@ -26,15 +26,15 @@ internal static class StringsExtension
         return
         [
             Member("charAt", "string_char_at_int", [@string, @int], @string, StringFunctions.CharAt),
-            Member("indexOf", "string_index_of_string", [@string, @string], @int, StringFunctions.IndexOfString),
-            Member("indexOf", "string_index_of_string_int", [@string, @string, @int], @int, StringFunctions.IndexOfStringInt),
-            Member("lastIndexOf", "string_last_index_of_string", [@string, @string], @int, StringFunctions.LastIndexOfString),
-            Member("lastIndexOf", "string_last_index_of_string_int", [@string, @string, @int], @int, StringFunctions.LastIndexOfStringInt),
+            Member("indexOf", "string_index_of_string", [@string, @string], @int, StringFunctions.IndexOfString, Costs.Search, SearchPattern.Constant),
+            Member("indexOf", "string_index_of_string_int", [@string, @string, @int], @int, StringFunctions.IndexOfStringInt, Costs.Search, SearchPattern.Constant),
+            Member("lastIndexOf", "string_last_index_of_string", [@string, @string], @int, StringFunctions.LastIndexOfString, Costs.Search),
+            Member("lastIndexOf", "string_last_index_of_string_int", [@string, @string, @int], @int, StringFunctions.LastIndexOfStringInt, Costs.Search),
             Member("lowerAscii", "string_lower_ascii", [@string], @string, StringFunctions.LowerAscii),
-            Member("replace", "string_replace_string_string", [@string, @string, @string], @string, StringFunctions.ReplaceAll),
-            Member("replace", "string_replace_string_string_int", [@string, @string, @string, @int], @string, StringFunctions.ReplaceLimited),
-            Member("split", "string_split_string", [@string, @string], strings, StringFunctions.SplitAll),
-            Member("split", "string_split_string_int", [@string, @string, @int], strings, StringFunctions.SplitLimited),
+            Member("replace", "string_replace_string_string", [@string, @string, @string], @string, StringFunctions.ReplaceAll, Costs.Search, SearchPattern.Constant),
+            Member("replace", "string_replace_string_string_int", [@string, @string, @string, @int], @string, StringFunctions.ReplaceLimited, Costs.Search, SearchPattern.Constant),
+            Member("split", "string_split_string", [@string, @string], strings, StringFunctions.SplitAll, Costs.Search, SearchPattern.Constant),
+            Member("split", "string_split_string_int", [@string, @string, @int], strings, StringFunctions.SplitLimited, Costs.Search, SearchPattern.Constant),
             Member("substring", "string_substring_int", [@string, @int], @string, StringFunctions.SubstringFrom),
             Member("substring", "string_substring_int_int", [@string, @int, @int], @string, StringFunctions.SubstringRange),
             Member("trim", "string_trim", [@string], @string, StringFunctions.Trim),
@@ -54,12 +54,23 @@ internal static class StringsExtension
         ];
     }
 
-    // An overload called on a string, the first parameter, that passes over its strings: 1 + ⌈Lₐ/10⌉ before the function runs.
+    // An overload called on a string, the first parameter, that passes over its strings: 1 + ⌈Lₐ/10⌉ before the function runs, or the
+    // cost function of the argument that the overload names, as the overloads that search a substring do, with the constant argument
+    // of its pattern when a literal pattern is prepared.
     private static OverloadBinding Member(
         string function,
         string overloadId,
         ImmutableArray<CelType> parameterTypes,
         CelType resultType,
-        OverloadImplementation implementation) =>
-        new(function, new CelOverloadDecl(overloadId, true, parameterTypes, resultType), implementation, 1, Costs.Text, Source);
+        OverloadImplementation implementation,
+        CelCostFunction? argumentCost = null,
+        ConstantArgument? constantArgument = null) =>
+        new(
+            function,
+            new CelOverloadDecl(overloadId, true, parameterTypes, resultType),
+            implementation,
+            1,
+            argumentCost ?? Costs.Text,
+            Source,
+            constantArgument: constantArgument);
 }

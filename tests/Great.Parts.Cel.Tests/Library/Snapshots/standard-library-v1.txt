@@ -137,7 +137,7 @@ uint | uint64_to_uint64 | global | (uint) -> uint | - | 1 1 1 1 1
 uint | double_to_uint64 | global | (double) -> uint | - | 1 1 1 1 1
 uint | int64_to_uint64 | global | (int) -> uint | - | 1 1 1 1 1
 uint | string_to_uint64 | global | (string) -> uint | - | 1 2 2 3 11
-contains | contains_string | receiver | (string, string) -> bool | - | 1 2 3 4 21
+contains | contains_string | receiver | (string, string) -> bool | - | 1 2 3 4 41
 endsWith | ends_with_string | receiver | (string, string) -> bool | - | 1 2 3 4 21
 startsWith | starts_with_string | receiver | (string, string) -> bool | - | 1 2 3 4 21
 matches | matches | global | (string, string) -> bool | - | 4 5 19 22 1059

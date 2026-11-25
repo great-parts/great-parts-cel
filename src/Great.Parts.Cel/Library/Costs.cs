@@ -13,6 +13,15 @@ internal static class Costs
     // ⌈Lₐ/10⌉: an operation that passes over its strings or bytes.
     internal static readonly CelCostFunction Text = static arguments => Tenths(TextLength(arguments));
 
+    // ⌈Lₐ/10⌉ · q with q = max(1, ⌈Lₚ/64⌉): a search for a substring, which compares up to Lₚ code units of the pattern at each place of
+    // the text in the worst case. Lₚ is the length of the second argument, the pattern; a pattern of at most 64 code units costs ⌈Lₐ/10⌉.
+    internal static readonly CelCostFunction Search = static arguments =>
+    {
+        ulong pattern = arguments.Length > 1 && arguments[1].TryGetString(out string? text) ? (ulong)text.Length : 0;
+        ulong factor = pattern <= 64 ? 1UL : (pattern + 63) / 64;
+        return Tenths(TextLength(arguments)) * factor;
+    };
+
     // ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ with Lᵣ = Lₐ: a concatenation of strings or bytes.
     internal static readonly CelCostFunction Concatenation = static arguments => 2 * Tenths(TextLength(arguments));
 

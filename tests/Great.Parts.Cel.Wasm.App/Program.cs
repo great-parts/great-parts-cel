@@ -17,6 +17,7 @@ internal static class Program
         Console.WriteLine($"explanation of the policy limits for 42: {CelSamples.Explanation()}");
         Console.WriteLine($"errors with segments: {CelSamples.Located()}");
         Console.WriteLine($"filter title = \"Dune\" AND pages > 100: {CelSamples.Filter()}");
+        Console.WriteLine($"simple entry with a class and a list of classes: {CelSamples.Classes()}");
         WebAssemblyHostBuilder builder = WebAssemblyHostBuilder.CreateDefault(args);
         await builder.Build().RunAsync().ConfigureAwait(false);
     }

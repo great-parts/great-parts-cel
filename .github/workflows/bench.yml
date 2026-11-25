@@ -1,9 +1,10 @@
 # The benchmark rig (docs/design/eng-bench.md): the speed comparison with other CEL libraries for .NET, on request. It runs on a
 # GitHub-hosted runner only, by hand: no trigger but the manual one, and no measurement on a developer machine. The runs of one
 # measurement go one after another in one job, so on one virtual machine. The rig measures Great.Parts.Cel built from the sources of
-# the commit. After the runs, in the same job, the script measures the limits of the speed-ups of the library (the search of a
-# substring around 64 code units, the build of the automaton of the pattern E5, distinct and sets around the length 24 of a list) and
-# writes the verdicts into the summary.
+# the commit, on .NET 11 under JIT. After the runs, in the same job, the script measures the limits of the speed-ups of the library (the
+# search of the literal prefix of matches around 64 code units, the build of the automaton of the pattern E5, the scan and the buckets
+# of the index of distinct and sets) and the diagnostics without a verdict (the search of a substring, the simple entry, CelMap.Create)
+# and writes them into the summary.
 # The result is the artifact bench-results (the summary, the verification, the table and the BenchmarkDotNet reports of every run, the
 # verdicts and the reports of the limits) and the step summary. The workflow has no secrets and reads the repository only. It sets no timeout-minutes: the protection
 # against a hung job is the default limit of GitHub Actions, 6 hours.
@@ -54,12 +55,11 @@ jobs:
         with:
           persist-credentials: false
 
-      # The SDK of global.json builds the rig; the SDK 10.0.x brings the runtime of net10.0, on which the rig runs under JIT.
+      # The SDK 11 of global.json builds the rig and brings the runtime of net11.0, on which the rig runs under JIT.
       - name: Set up .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           global-json-file: global.json
-          dotnet-version: 10.0.x
 
       - name: Restore (locked)
         run: dotnet restore bench/SpeedBench/SpeedBench.csproj --locked-mode

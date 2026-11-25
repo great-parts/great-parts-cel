@@ -14,12 +14,16 @@ public sealed class ModelPurityTests
 {
     private static readonly Assembly GeneratorAssembly = typeof(CelTypeContextGenerator).Assembly;
 
-    // The values that the steps pass on: the model of a context, the facts of the compilation, the diagnostics with their places, and
-    // the values of a call of the simple entry.
-    private static readonly string[] Roots = ["ContextModel", "CelTypeModel", "CompilationFacts", "DiagnosticModel", "LocationInfo", "Shape", "CallSite", "AnonymousShape", "PropertyModel", "ShapeAtPlace"];
+    // The values that the steps pass on: the model of a context, the facts of the compilation, the diagnostics with their places, the
+    // values of a call of the simple entry and what the descriptions of the classes in its properties are made of.
+    private static readonly string[] Roots =
+    [
+        "ContextModel", "CelTypeModel", "CompilationFacts", "DiagnosticModel", "LocationInfo", "Shape", "CallSite", "AnonymousShape", "PropertyModel", "ShapeAtPlace",
+        "ClassClosure", "ClosureAtPlace", "ClassDescriptionsModel", "ClassDescriptionsResult",
+    ];
 
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void Models_HoldNoSymbolNoSyntaxNodeNoCompilationAndNoLocation()
     {
         var seen = new HashSet<Type>();
@@ -35,7 +39,7 @@ public sealed class ModelPurityTests
 
     // The walk reaches the closed types of the model: the record types of the shapes are read from the subclasses of Shape too.
     [Fact]
-    [Trait("Requirement", "P-3")]
+    [Trait("Requirement", "P-4")]
     public void Shapes_AreRecordsOfTheModelWithTheirSubclassesWalked()
     {
         Type shape = Assert.Single(GeneratorAssembly.GetTypes(), type => type.Name == "Shape" && type.Namespace == "Great.Parts.Cel.Generator");

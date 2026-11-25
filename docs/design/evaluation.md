@@ -24,6 +24,7 @@
 | `FieldPlanNode` | `e.f` and `has(e.f)` whose operand has an object type, with the description and the field number of the reference map | 1 |
 | `SelectPlanNode` | any other selection `e.f` that names no declaration; `has(e.f)` | 1 + ⌈L/10⌉ on a map, L the length of `f`; on a JSON object the key lookup of the cost table; 1 otherwise |
 | `CallPlanNode`, `DispatchPlanNode` | a call with one candidate; with several, or none | the cost of the overload |
+| `FusedComparisonPlanNode` | the read of a field and its comparison with a literal, `v.f op c` ([Fused nodes](#fused-nodes)) | those of the field node and of the call, charged in the same order |
 | `AndPlanNode`, `OrPlanNode` | a chain of `_&&_` or of `_\|\|_` calls | 0 beyond the operands |
 | `ConditionalPlanNode` | `_?_:_` | 0 beyond the operands |
 | `NotStrictlyFalsePlanNode` | `@not_strictly_false` | 0 |
@@ -55,6 +56,20 @@ The planner gives each distinct variable of the expression a slot, and each comp
 3. The value of a field enters by the place rule of [objects](objects.md) when the field has an object type. For a type described at run time `GetField` gives `FieldNotSet` and `FieldTypeMismatch` itself ([objects](objects.md), "Types described at run time"). An error value without a position — from a field, a converter or an element of application data — gets the position of the selection.
 
 `SelectPlanNode` on an object value does steps 2 and 3 with the number it found. Neither node checks the value of a field at depth: the elements of a list field are checked where an operation reads them.
+
+## Fused nodes
+
+The planner fuses a read of a field and a comparison with a constant into one node, `FusedComparisonPlanNode`: `v.f op c`, where `v` is a variable, a field of the input of the environment or a variable of a macro, the read is a selection in a map with string keys, in a `dyn` value or JSON, or a member of a described object (`SelectPlanNode` or `FieldPlanNode`, not a presence test), `op` is `==`, `!=`, `<`, `<=`, `>`, `>=`, and `c` is a literal of `int`, `uint`, `double`, `string`, `bool` or `null` (`null` only with `==` and `!=`). No other form is fused: a literal on the left, a read of a read (`a.b.c`), an index, a second operand that is not a literal, a literal of bytes. The call must be one of the library: a call that has a candidate of the application is not fused, and neither is a call that was added by the expansion of a standard macro.
+
+The fused node gives the same value, the same error with the same code and the same place (the offset of the node that would have failed without the fusion), and charges the same units in the same order as the two nodes. A program compiled for partial evaluation is not fused. An internal option of the planner turns the fusion off; the property test of equivalence compiles each expression of its corpus both ways and compares the value, the error and its place, and the units charged, without a limit and under limits that include the exact sum and one unit less.
+
+The node holds the nodes it replaces and evaluates them in the order they were evaluated: the node of the field (with its operand) first, as a call evaluates its first argument; an error value of it is the result at once, and an unknown value is the result after the literal is evaluated, as a call returns it. Then it records its own offset, as the call does, and compares the value with the literal, in one of three ways:
+
+- the literal is `null` and the operator `==` or `!=`: the answer is whether the value is `null`, after the one unit that the equality of the value rules charges for any pair;
+- the value is of the kind of the literal and that kind is `int`, `uint`, `double` or `bool`: the answer is the comparison of the two, after the fixed unit of the overload of ordering or the one unit of the equality. The comparison is that of the number line of the value rules, so a NaN is unordered: every relation but `!=` is false;
+- otherwise the two values go to the call, kept on the stack of the method and not on that of the frame: a `CallPlanNode` checks them and calls its overload, a `DispatchPlanNode` calls the candidate that the planner found for values of the kind of the literal, when the value is of that kind, so that the search among the candidates and the checks of their types are not made again, and otherwise searches as it always does.
+
+The candidate of a dispatch is found when the node is planned, by the same `Matches` that the dispatch runs at each evaluation, on two values that are the literal: the first candidate that fits two values of one kind is the one that fits any two scalars of that kind, since `Matches` of a number, a string, a bool or `null` looks at the kind alone and charges nothing. A string is always left to the candidate, whose cost depends on the lengths.
 
 ## Comprehensions
 

@@ -6,10 +6,11 @@ using Xunit;
 
 namespace Great.Parts.Cel.Properties.Library;
 
-// The search for a substring takes linear time (docs/design/tests.md, "Properties of evaluation"): on each input it takes at
-// most 4 · (n + m) steps, n and m the lengths of the text and the pattern in UTF-16 code units, and finds the index that a
-// naive search finds. The inputs are the worst cases of a naive search and random strings over small alphabets. No time is
-// measured: the counter of the search counts its comparisons.
+// The search for the literal prefix of a regular expression takes linear time (docs/design/tests.md, "Properties of evaluation"): on
+// each input it takes at most 4 · (n + m) steps, n and m the lengths of the text and the pattern in UTF-16 code units, and finds the
+// index that a naive search finds. The functions of strings do not use this search and promise no linear time: the cost of a call
+// pays for their worst case (SubstringSearchPathsTests). The inputs are the worst cases of a naive search and random strings over
+// small alphabets. No time is measured: the counter of the search counts its comparisons.
 public sealed class SubstringSearchLinearityTests
 {
     private const string Property = "SubstringSearchLinearityTests.StepsBounded";

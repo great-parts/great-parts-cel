@@ -112,7 +112,7 @@ Order{id: 7, ?note: optional.none()}     // an Order whose field note is not set
 
 ## Set `strings`, version 5
 
-Functions of strings with indexes and lengths in code points: a valid surrogate pair is one code point, and so is a lone surrogate, which only a string of the application can hold, as `size` counts them. The functions that look for a substring take time linear in the lengths of the string and the substring, and no function depends on the culture of the process. The units of each overload are on the page [Cost](cost.md#set-strings). The function `format` of this set has its own section, [`format`](#format).
+Functions of strings with indexes and lengths in code points: a valid surrogate pair is one code point, and so is a lone surrogate, which only a string of the application can hold, as `size` counts them. The functions that look for a substring compare code units in order and their cost has the factor q of the length of the substring ([Cost](cost.md#the-search-for-a-substring)), and no function depends on the culture of the process. The units of each overload are on the page [Cost](cost.md#set-strings). The function `format` of this set has its own section, [`format`](#format).
 
 | Overload | Call | What it does |
 | :- | :- | :- |

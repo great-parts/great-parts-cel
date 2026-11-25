@@ -36,8 +36,4 @@ internal static class CodePoints
 
         return offset;
     }
-
-    // Whether a cut before the offset would split a pair: a low surrogate after a high one.
-    internal static bool SplitsPair(ReadOnlySpan<char> text, int offset) =>
-        offset > 0 && offset < text.Length && char.IsHighSurrogate(text[offset - 1]) && char.IsLowSurrogate(text[offset]);
 }

@@ -11,7 +11,7 @@ The table is a contract: the units of an operation are the same in every version
 - **Lengths.** The length of a string is counted in UTF-16 code units (`string.Length`) and the length of `bytes` in bytes. The number of code points is not used: it is known only after a pass over the string.
 - **Only evaluation is charged.** Parsing, type checking and planning are bound by the [limits](limits.md) and are not charged. A one-step call, `CelEnvironment.Evaluate<T>`, charges only the evaluation.
 - **No limit, no counting.** Without a cost limit nothing is counted: the formulas are not computed and the cost functions of the application are not called.
-- **Text and data decide, not caches.** A hit in the cache of compilations, the folding of constants and other optimizations of the planner do not change what is charged. A macro is expanded by the parser and the cost is of the expanded tree: the expressions that the author wrote are charged by their own rows, and what the expansion adds is part of the step, see [Macros](#macros).
+- **Text and data decide, not caches.** A hit in the cache of compilations or of patterns, the folding of constants, a time zone found beforehand, the automaton of a pattern, the fused nodes of the plan that read a field and compare it with a constant, the fast paths of the cache of the simple entry, the vector search of the index of values and the prepared search of a literal substring do not change what is charged: the same is charged, in the same order, as without them. A macro is expanded by the parser and the cost is of the expanded tree: the expressions that the author wrote are charged by their own rows, and what the expansion adds is part of the step, see [Macros](#macros).
 - **An invalid argument is not charged.** An argument that is invalid without any work on the data, such as the sign or the range of a number or an index outside a list, gives its error before the formula of the operation is charged; only the constant part, 1, is charged.
 - **No overflow.** A total that does not fit the counter is over every limit.
 - **The type of the counter** is `ulong`, both for `CelEvalOptions.CostLimit` and for the value of a `CelCostFunction`.
@@ -35,6 +35,7 @@ The cost depends on the expression and the data, not on the limit: the same eval
 | :- | :- |
 | ⌈x⌉ | x rounded up to an integer |
 | Lₐ | the sum of the lengths of the string and `bytes` arguments, the receiver included |
+| Lₚ, q | Lₚ is the length of the pattern of a search for a substring (the argument searched for by `contains`, `indexOf` and `lastIndexOf`, the old string of `replace`, the separator of `split`) in UTF-16 code units; q = max(1, ⌈Lₚ/64⌉) is the factor of the worst case of the search, see [the search for a substring](#the-search-for-a-substring); a pattern of at most 64 code units has q = 1 |
 | Lᵣ | the length of a string or `bytes` result; it is charged before the result is created, or part by part as the result is built, so that the charges add up to ⌈Lᵣ/10⌉ |
 | n | the number of elements of a list or of pairs of a map |
 | L | the length of a string key of a map, or of the text of a pattern of `matches` |
@@ -105,7 +106,8 @@ The identifiers are those of the page [Standard library](standard-library.md).
 | `in_list` | Equality | 1 + Σ eq(x, eᵢ) over the elements in order, up to the first equal one |
 | `size_bytes`, `bytes_size`, `size_list`, `list_size`, `size_map`, `map_size` | Constant | 1 |
 | `size_string`, `string_size` | Text | 1 + ⌈Lₐ/10⌉: the size counts code points, which takes a pass over the string |
-| `contains_string`, `ends_with_string`, `starts_with_string` | Text | 1 + ⌈Lₐ/10⌉ |
+| `contains_string` | Text | 1 + ⌈Lₐ/10⌉ · q, with Lₚ the length of the argument; for Lₚ ≤ 64 this is 1 + ⌈Lₐ/10⌉, see [the search for a substring](#the-search-for-a-substring) |
+| `ends_with_string`, `starts_with_string` | Text | 1 + ⌈Lₐ/10⌉ |
 | `matches`, `matches_string` | `matches` | the steps of the section [`matches`](#matches) |
 | `type`, `to_dyn` | Constant | 1 |
 | `bool_to_bool`, `bytes_to_bytes`, `double_to_double`, `int64_to_int64`, `string_to_string`, `uint64_to_uint64`, `timestamp_to_timestamp`, `duration_to_duration` | Constant | 1: the identity, the value is not copied |
@@ -117,7 +119,11 @@ The identifiers are those of the page [Standard library](standard-library.md).
 | the 14 receivers of time without a zone: `timestamp_to_year`, `timestamp_to_month`, `timestamp_to_day_of_year`, `timestamp_to_day_of_month`, `timestamp_to_day_of_month_1_based`, `timestamp_to_day_of_week`, `timestamp_to_hours`, `timestamp_to_minutes`, `timestamp_to_seconds`, `timestamp_to_milliseconds`, `duration_to_hours`, `duration_to_minutes`, `duration_to_seconds`, `duration_to_milliseconds` | Constant | 1 |
 | the 10 receivers of a timestamp with a zone: `timestamp_to_year_with_tz`, `timestamp_to_month_with_tz`, `timestamp_to_day_of_year_with_tz`, `timestamp_to_day_of_month_with_tz`, `timestamp_to_day_of_month_1_based_with_tz`, `timestamp_to_day_of_week_with_tz`, `timestamp_to_hours_with_tz`, `timestamp_to_minutes_with_tz`, `timestamp_to_seconds_tz`, `timestamp_to_milliseconds_with_tz` | Text | 1 + ⌈Lₐ/10⌉, Lₐ the length of the zone string |
 
-The search for a substring (`contains`) takes time linear in the lengths of the string and the substring in the worst case, so 1 + ⌈Lₐ/10⌉ holds for every input.
+### The search for a substring
+
+The search for a substring — `contains`, and in the set `strings` `indexOf`, `lastIndexOf`, `replace` and `split` — is not linear in the worst case: it compares up to Lₚ code units of the pattern at each place of the string, whether the pattern is a literal of the expression (searched by a prepared `SearchValues<string>`) or comes from the data (the ordinal search). The cost pays for that worst case instead of promising a linear search: the part ⌈Lₐ/10⌉ of the call is multiplied by q = max(1, ⌈Lₚ/64⌉). A pattern of at most 64 code units costs what it cost without q; a longer one costs q times as much for the same work on each unit. The cost does not depend on the path, a literal or the data, and the preparation of a literal, which is part of compiling the expression, is not charged. The search for the literal prefix of `matches` is a different search and stays linear.
+
+For example, `s.contains(t)` with a string of 100 code units and a pattern of 65 code units costs 1 + ⌈165/10⌉ · 2 = 35, and 37 with the reads of `s` and `t`; with a pattern of 64 code units it costs 1 + ⌈164/10⌉ = 18, and 20 with the reads.
 
 ### Time
 
@@ -181,9 +187,9 @@ A call passes over its strings: the part of the arguments is charged before the 
 | Overloads | Units |
 | :- | :- |
 | `string_char_at_int`, `string_substring_int`, `string_substring_int_int`, `string_trim`, `string_lower_ascii`, `string_upper_ascii`, `string_reverse`, `strings_quote` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉; an index error comes after 1 + ⌈Lₐ/10⌉, since it has no result |
-| `string_index_of_string`, `string_index_of_string_int`, `string_last_index_of_string`, `string_last_index_of_string_int` | 1 + ⌈Lₐ/10⌉ |
-| `string_replace_string_string`, `string_replace_string_string_int` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with Lₐ the lengths of the three strings; the result is charged as it grows |
-| `string_split_string`, `string_split_string_int` | 1 + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉ + k, with Lᵣ the sum of the lengths of the parts; each part is charged, 1 and its share of Lᵣ, before it is created |
+| `string_index_of_string`, `string_index_of_string_int`, `string_last_index_of_string`, `string_last_index_of_string_int` | 1 + ⌈Lₐ/10⌉ · q, with Lₚ the length of the string searched for ([the search for a substring](#the-search-for-a-substring)) |
+| `string_replace_string_string`, `string_replace_string_string_int` | 1 + ⌈Lₐ/10⌉ · q + ⌈Lᵣ/10⌉, with Lₐ the lengths of the three strings and Lₚ the length of the old string (an empty one has q = 1); the result is charged as it grows |
+| `string_split_string`, `string_split_string_int` | 1 + ⌈Lₐ/10⌉ · q + ⌈Lᵣ/10⌉ + k, with Lₚ the length of the separator (an empty one has q = 1) and Lᵣ the sum of the lengths of the parts; each part is charged, 1 and its share of Lᵣ, before it is created |
 | `list_join`, `list_join_string` | 1 + n + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with Lₐ the lengths of the elements and of the separator |
 | `string_format` | 1 + n + ⌈Lₐ/10⌉ + ⌈Lᵣ/10⌉, with n the size of the list and Lₐ the length of the format string alone; the result, with the text of the nested lists and maps in it, is charged as it is built, so the units of a map are those of the length of its text; an error ends the call after the units charged so far |
 
@@ -222,7 +228,7 @@ For example, `[3, 1, 2].sort()` costs the list literal 4 and the call 1 + 3 + 3 
 
 ### Hashing in `distinct` and `sets`
 
-`distinct` and the functions of the set `sets` look an element up by a hash that agrees with CEL equality, so a call does not compare every pair. The cost is the hashing of the values and, for each element that is equal to another, the one comparison that found it; the comparisons of values that only share a hash are not charged, since how many there are depends on the random seed of the hash and the cost depends only on the data. The cost does not depend on the threshold of the pairwise pass, the length of the list at which the library changes from scanning the hashes to buckets, and the result is the one that comparing the pairs in order gives: the elements for which no equal one was kept before stay, in order.
+`distinct` and the functions of the set `sets` look an element up by a hash that agrees with CEL equality, so a call does not compare every pair. The cost is the hashing of the values and, for each element that is equal to another, the one comparison that found it; the comparisons of values that only share a hash are not charged, since how many there are depends on the random seed of the hash and the cost depends only on the data. The cost does not depend on the way the library looks an element up, a vector search over the hashes of a short list or buckets for a longer one, nor on the length of the list at which it changes from one to the other, and the result is the one that comparing the pairs in order gives: the elements for which no equal one was kept before stay, in order. A search over the hashes of a short list compares at most 64 integers for an element, a constant number whatever the length of the values, so it serves lists of at most 64 values and never a longer one.
 
 Each element is in one of three groups, taken in this order, the first that fits:
 
@@ -471,7 +477,7 @@ Every row fits B. The largest rows are 64.0: the two error values of one unit, s
 | strings, format, %s of a long string | 19.8 |
 | strings, format, %s of a map | 21.7 |
 | strings, format, %x of a long string | 19.9 |
-| strings, indexOf, pattern over 256 | 9.2 |
+| strings, indexOf, pattern over 256 | 0.0 |
 | strings, join | 5.3 |
 | strings, lowerAscii | 12.0 |
 | strings, quote | 13.3 |
@@ -717,7 +723,7 @@ Every row fits B. The largest rows are 64.0: the two error values of one unit, s
 | bool_to_string | 0.0 |
 | bytes_to_string | 12.0 |
 | contains, a short pattern | 0.0 |
-| contains, pattern over 256 | 9.2 |
+| contains, pattern over 256 | 0.0 |
 | double_to_string | 16.0 |
 | endsWith | 0.0 |
 | equality, two bytes | 0.0 |

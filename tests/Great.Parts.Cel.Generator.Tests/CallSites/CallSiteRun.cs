@@ -24,9 +24,14 @@ internal static class CallSiteRun
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: track),
             parseOptions: new CSharpParseOptions(version));
 
-    internal static Outcome Run(string source, IEnumerable<string>? more = null, LanguageVersion version = LanguageVersion.CSharp12)
+    internal static Outcome Run(
+        string source,
+        IEnumerable<string>? more = null,
+        LanguageVersion version = LanguageVersion.CSharp12,
+        NullableContextOptions nullable = NullableContextOptions.Enable,
+        IEnumerable<MetadataReference>? references = null)
     {
-        CSharpCompilation compilation = GeneratorExample.Compile(source, version, more: more);
+        CSharpCompilation compilation = GeneratorExample.Compile(source, version, nullable, more, references);
         GeneratorDriver driver = Driver(version: version).RunGeneratorsAndUpdateCompilation(compilation, out Compilation output, out _);
         GeneratorDriverRunResult result = driver.GetRunResult();
         GeneratedSourceResult[] sources = [.. result.Results.SelectMany(run => run.GeneratedSources).OrderBy(source => source.HintName, StringComparer.Ordinal)];

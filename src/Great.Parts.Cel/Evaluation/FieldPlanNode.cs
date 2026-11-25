@@ -28,6 +28,10 @@ internal sealed class FieldPlanNode : PlanNode
         _byName = new SelectPlanNode(offset, null, owner.Fields[number].Name, isPresenceTest);
     }
 
+    internal PlanNode Operand => _operand;
+
+    internal bool IsPresenceTest => _isPresenceTest;
+
     internal override CelValue Evaluate(Frame frame)
     {
         if (!HasStack(frame, out CelValue error))

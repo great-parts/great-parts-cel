@@ -6,15 +6,15 @@
 # an int is that size, a double is 1, a net.IP and a net.CIDR have a fixed value.
 set strings 5
 overload charAt string_char_at_int receiver (string, int) -> string cost 1 2 2 3 11
-overload indexOf string_index_of_string receiver (string, string) -> int cost 1 2 3 4 21
-overload indexOf string_index_of_string_int receiver (string, string, int) -> int cost 1 2 3 4 21
-overload lastIndexOf string_last_index_of_string receiver (string, string) -> int cost 1 2 3 4 21
-overload lastIndexOf string_last_index_of_string_int receiver (string, string, int) -> int cost 1 2 3 4 21
+overload indexOf string_index_of_string receiver (string, string) -> int cost 1 2 3 4 41
+overload indexOf string_index_of_string_int receiver (string, string, int) -> int cost 1 2 3 4 41
+overload lastIndexOf string_last_index_of_string receiver (string, string) -> int cost 1 2 3 4 41
+overload lastIndexOf string_last_index_of_string_int receiver (string, string, int) -> int cost 1 2 3 4 41
 overload lowerAscii string_lower_ascii receiver (string) -> string cost 1 2 2 3 11
-overload replace string_replace_string_string receiver (string, string, string) -> string cost 1 2 4 5 31
-overload replace string_replace_string_string_int receiver (string, string, string, int) -> string cost 1 2 4 5 31
-overload split string_split_string receiver (string, string) -> list(string) cost 1 2 3 4 21
-overload split string_split_string_int receiver (string, string, int) -> list(string) cost 1 2 3 4 21
+overload replace string_replace_string_string receiver (string, string, string) -> string cost 1 2 4 5 61
+overload replace string_replace_string_string_int receiver (string, string, string, int) -> string cost 1 2 4 5 61
+overload split string_split_string receiver (string, string) -> list(string) cost 1 2 3 4 41
+overload split string_split_string_int receiver (string, string, int) -> list(string) cost 1 2 3 4 41
 overload substring string_substring_int receiver (string, int) -> string cost 1 2 2 3 11
 overload substring string_substring_int_int receiver (string, int, int) -> string cost 1 2 2 3 11
 overload trim string_trim receiver (string) -> string cost 1 2 2 3 11

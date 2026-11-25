@@ -3,15 +3,16 @@ using Microsoft.CodeAnalysis;
 
 namespace Great.Parts.Cel.Generator;
 
-// The types that the simple entry reads, as the rule of the static type of the data writes them (the page docs/type-mapping.md, "Data
-// of the simple entry"): the values of the list, the lists and dictionaries of the list of elements, and the reason for any other type.
-// The CEL type of a property is not decided here: the created file declares the variable with AddVariable<T>, and the library gives
-// the CEL type of T.
+// The types that the simple entry reads without a description of the application, as the rule of the static type of the data writes
+// them (the page docs/type-mapping.md, "Data of the simple entry"): the values of the list, the lists and dictionaries of the list of
+// elements, and the reason for any other type. The CEL type of such a property is not decided here: the created file declares the
+// variable with AddVariable<T>, and the library gives the CEL type of T. A class, a structure or an interface of the application, and
+// the six forms of a collection of them, are read by ClassProperties, which asks this class which types are those.
 internal static class PropertyRules
 {
     internal const string ReasonObject = "object";
 
-    internal const string ReasonApplicationObject = "an object of the application";
+    internal const string ReasonCannotDescribe = "a type that a type context cannot describe";
 
     internal const string ReasonNestedAnonymous = "a nested anonymous object";
 
@@ -51,8 +52,17 @@ internal static class PropertyRules
 
     private const string NamedDictionary = "System.Collections.Generic.Dictionary`2";
 
+    // The outcome of reading the type of a property against the list: read, refused for a reason that no description of the application
+    // changes, or outside the list with the reason to give when no description of the application takes it.
+    internal enum ListedRead : byte
+    {
+        Read,
+        Refused,
+        OutsideTheList,
+    }
+
     // Reads the type of a property: the type as C# writes it with global::, or the reason it is not read.
-    internal static bool TryRead(Compilation compilation, ITypeSymbol type, out string csharpType, out string reason)
+    internal static ListedRead TryRead(Compilation compilation, ITypeSymbol type, out string csharpType, out string reason)
     {
         csharpType = string.Empty;
         reason = string.Empty;
@@ -60,28 +70,149 @@ internal static class PropertyRules
         if (type.IsAnonymousType)
         {
             reason = ReasonNestedAnonymous;
-            return false;
+            return ListedRead.Refused;
         }
 
         if (TypeNames.ContainsTypeParameter(type))
         {
             reason = ReasonTypeParameter;
-            return false;
+            return ListedRead.Refused;
         }
 
         if (!IsAccessible(compilation, type))
         {
             reason = ReasonNotAccessible;
-            return false;
+            return ListedRead.Refused;
         }
 
+        csharpType = TypeNames.ClrName(type, annotated: false);
         if (IsValue(type) || IsCollection(type))
         {
-            csharpType = TypeNames.ClrName(type, annotated: false);
-            return true;
+            return ListedRead.Read;
         }
 
         reason = ReasonFor(type);
+        return ListedRead.OutsideTheList;
+    }
+
+    // The row of a property type that is bound with the factory of CelValue: bool, the integers up to 64 bits, double, string, Guid,
+    // CelList and CelMap, and the Nullable<> of the numbers and of bool. Every other row is bound by Add<T>.
+    internal static DirectKind DirectOf(ITypeSymbol type, out bool nullable)
+    {
+        ITypeSymbol value = type;
+        nullable = type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
+        if (nullable)
+        {
+            value = ((INamedTypeSymbol)type).TypeArguments[0];
+        }
+
+        DirectKind kind = KindOf(value);
+        if (nullable && kind is not (DirectKind.Bool or DirectKind.Int or DirectKind.UInt or DirectKind.Double))
+        {
+            nullable = false;
+            return DirectKind.None;
+        }
+
+        return kind;
+    }
+
+    private static DirectKind KindOf(ITypeSymbol type)
+    {
+        switch (type.SpecialType)
+        {
+            case SpecialType.System_Boolean:
+                return DirectKind.Bool;
+            case SpecialType.System_SByte:
+            case SpecialType.System_Int16:
+            case SpecialType.System_Int32:
+            case SpecialType.System_Int64:
+                return DirectKind.Int;
+            case SpecialType.System_Byte:
+            case SpecialType.System_UInt16:
+            case SpecialType.System_UInt32:
+            case SpecialType.System_UInt64:
+                return DirectKind.UInt;
+            case SpecialType.System_Double:
+                return DirectKind.Double;
+            case SpecialType.System_String:
+                return DirectKind.String;
+            default:
+                return IsNamed(type, Guid) ? DirectKind.Guid
+                    : IsNamed(type, CelList) ? DirectKind.CelList
+                    : IsNamed(type, CelMap) ? DirectKind.CelMap
+                    : DirectKind.None;
+        }
+    }
+
+    // A class, a structure or an interface of the application: a named type that is none of System, has no row and is no collection. The
+    // types of the library and of protobuf are counted too, so that the description of the context refuses them with its reason.
+    internal static bool IsApplicationObject(ITypeSymbol type) =>
+        type is INamedTypeSymbol { TypeKind: TypeKind.Class or TypeKind.Struct or TypeKind.Interface } named
+        && type.SpecialType == SpecialType.None
+        && !IsSystemType(named)
+        && !IsCollectionType(type);
+
+    // An array, or a type that is an enumerable and no string: what a property of that type is called a collection by.
+    internal static bool IsCollectionType(ITypeSymbol type) =>
+        type is IArrayTypeSymbol
+        || (type.SpecialType != SpecialType.System_String && type.AllInterfaces.Any(static contract => contract.SpecialType == SpecialType.System_Collections_IEnumerable));
+
+    // The element of X[], List<X>, IReadOnlyList<X> and ImmutableArray<X>, and the value of Dictionary<string, X> and
+    // IReadOnlyDictionary<string, X>: the six forms of a collection that the created code binds; null for any other type.
+    internal static ITypeSymbol? ElementOfCollectionForm(ITypeSymbol type)
+    {
+        if (type is IArrayTypeSymbol { IsSZArray: true } array)
+        {
+            return array.ElementType;
+        }
+
+        if (type is not INamedTypeSymbol { IsGenericType: true } named)
+        {
+            return null;
+        }
+
+        string name = TypeNames.FullName(named);
+        if (name == NamedList || name == WellKnown.ReadOnlyList || name == WellKnown.ImmutableArray)
+        {
+            return named.TypeArguments[0];
+        }
+
+        return (name == NamedDictionary || name == WellKnown.ReadOnlyDictionary) && named.TypeArguments[0].SpecialType == SpecialType.System_String
+            ? named.TypeArguments[1]
+            : null;
+    }
+
+    // Tells whether a type is an application object or a Nullable<> of one, or a collection or an array of such a type at any depth.
+    internal static bool MentionsApplicationObject(ITypeSymbol type)
+    {
+        if (type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T } nullable)
+        {
+            return MentionsApplicationObject(nullable.TypeArguments[0]);
+        }
+
+        if (IsApplicationObject(type))
+        {
+            return true;
+        }
+
+        if (type is IArrayTypeSymbol array)
+        {
+            return MentionsApplicationObject(array.ElementType);
+        }
+
+        if (type is not INamedTypeSymbol { IsGenericType: true } named)
+        {
+            return false;
+        }
+
+        foreach (ITypeSymbol argument in named.TypeArguments)
+        {
+            if (MentionsApplicationObject(argument))
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -240,7 +371,7 @@ internal static class PropertyRules
     private static bool IsNamed(ITypeSymbol type, string metadataName) =>
         type is INamedTypeSymbol named && TypeNames.FullName(named) == metadataName;
 
-    // The reason for a type that is not read: a collection, an object of the application, or another type that has no row.
+    // The reason for a type that is not read: object, a collection, or another type that has no row.
     private static string ReasonFor(ITypeSymbol type)
     {
         if (type.SpecialType == SpecialType.System_Object)
@@ -248,19 +379,7 @@ internal static class PropertyRules
             return ReasonObject;
         }
 
-        if (type is IArrayTypeSymbol || (type.SpecialType != SpecialType.System_String && type.AllInterfaces.Any(static contract => contract.SpecialType == SpecialType.System_Collections_IEnumerable)))
-        {
-            return ReasonCollection;
-        }
-
-        if (type is INamedTypeSymbol { TypeKind: TypeKind.Class or TypeKind.Struct or TypeKind.Interface } named
-            && type.SpecialType == SpecialType.None
-            && !IsSystemType(named))
-        {
-            return ReasonApplicationObject;
-        }
-
-        return ReasonOutsideList;
+        return IsCollectionType(type) ? ReasonCollection : ReasonOutsideList;
     }
 
     private static bool IsSystemType(INamedTypeSymbol type)

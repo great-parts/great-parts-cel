@@ -1,16 +1,34 @@
-using System.Collections.Generic;
+using System;
+using System.Buffers;
 using System.Numerics;
 
 namespace Great.Parts.Cel.Values;
+
+// How an index looks up the values of one hash. The result and the units charged do not depend on it; the tests and the benchmark ask
+// for each way, and a call of the library uses Automatic.
+internal enum ValueIndexMode : byte
+{
+    // An index of at most ValueIndex.ScanLimit values scans the hashes in order and a longer one uses buckets.
+    Automatic,
+
+    // The hashes are scanned in order, whatever the length.
+    Scan,
+
+    // The values are looked up in buckets, whatever the length.
+    Buckets,
+}
 
 // The values of a list kept in the order they came, looked up for the functions that need the first of each group of equal values or
 // the membership of a value. A value is measured when it comes (ValueHasher), which charges the units of hashing it, and is then of
 // one of three groups:
 //
 // - Hashed: looked up by its hash and, among the values of one hash, by CEL equality. The hash is of a value that CEL equality can
-//   call equal, so a value of another hash is not compared. A short index scans the hashes in order and a longer one uses buckets;
-//   the result and the charge are the same. The comparisons of values that only share a hash are not charged, for their number
-//   depends on the seed of the process and the cost only on the data; the one comparison of a pair that is equal is charged, once.
+//   call equal, so a value of another hash is not compared. The hashes of these values are kept in an array of their own, in the
+//   order the values came, next to the positions of the values. A short index scans that array with a vector search of the platform
+//   (MemoryExtensions.IndexOf over ReadOnlySpan<int>) and calls the equality for a position of the same hash only; a longer one uses
+//   buckets; the result and the charge are the same. The comparisons of values that only share a hash are not charged, for their
+//   number depends on the seed of the process and the cost only on the data; the one comparison of a pair that is equal is charged,
+//   once.
 // - Pairwise: a value with an object of the application or a message of protobuf inside, one that is an error, or one with a number
 //   of 2^53 or more in absolute value (an int, a uint or a double, an infinity included): it is compared with the values of its group
 //   in the order they came, as the pairs were, each charged before it is compared, and an error of the equality ends the lookup. The
@@ -18,43 +36,59 @@ namespace Great.Parts.Cel.Values;
 //   comparison of such two meets an object and a value that is not one, or a number of 2^53 or more and a number below it, and gives
 //   "not equal".
 // - Single: a value with a NaN inside, equal to nothing: kept, and never compared.
+//
+// The arrays are rented from the shared pool; Release gives them back, cleared where they hold values, and the caller calls it in a
+// finally block. The index is not used after that.
 internal sealed class ValueIndex
 {
-    // An index of at most this many values scans the hashes in order and a longer one uses buckets. It is below 32, the longest list for
-    // which a pass over the pairs does a constant number of steps per unit charged (docs/cost.md, "Hashing in distinct and sets"), and it
-    // changes nothing that a call returns or charges.
-    private const int ScanLimit = 24;
+    // An index of at most this many values scans the hashes in order and a longer one uses buckets. The limit is the length up to
+    // which the scan is not slower than the buckets; it is below 64, the longest list for which a search of the hashes does a
+    // constant number of steps per unit charged (docs/cost.md, "Hashing in distinct and sets"), and it changes nothing that a call
+    // returns or charges.
+    internal const int ScanLimit = 32;
 
     private readonly IEvaluationMeter? _meter;
     private readonly TypeIndex? _types;
     private readonly IApplicationBoundary? _boundary;
-    private readonly Slot[] _slots;
+    private readonly int _capacity;
+    private readonly bool _buckets;
+    private readonly int _mask;
+    private readonly CelValue[] _values;
+    private readonly int[] _hashes;
+    private readonly int[] _positions;
     private readonly int[]? _heads;
     private readonly int[]? _next;
-    private readonly int _mask;
+    private int[]? _pairwise;
     private ValueHasher _hasher;
-    private List<int>? _pairwise;
     private int _count;
+    private int _hashedCount;
+    private int _pairwiseCount;
 
-    // An index that holds up to capacity values, with the buckets when capacity is above the limit of the scan. With constantHash
-    // every hashed value has one hash, which only the tests ask for.
+    // An index that holds up to capacity values. With constantHash every hashed value has one hash, which only the tests ask for;
+    // with mode the tests and the benchmark choose the scan or the buckets for a capacity of any size.
     internal ValueIndex(
         int capacity,
         IEvaluationMeter? meter,
         TypeIndex? types,
         IApplicationBoundary? boundary,
-        bool constantHash = false)
+        bool constantHash = false,
+        ValueIndexMode mode = ValueIndexMode.Automatic)
     {
         _meter = meter;
         _types = types;
         _boundary = boundary;
+        _capacity = capacity;
         _hasher = new ValueHasher(meter, constantHash);
-        _slots = capacity == 0 ? [] : new Slot[capacity];
-        if (capacity > ScanLimit)
+        _values = Rent<CelValue>(capacity);
+        _hashes = Rent<int>(capacity);
+        _positions = Rent<int>(capacity);
+        _buckets = capacity > 0 && (mode == ValueIndexMode.Buckets || (mode == ValueIndexMode.Automatic && capacity > ScanLimit));
+        if (_buckets)
         {
             int size = (int)BitOperations.RoundUpToPowerOf2((uint)capacity);
-            _heads = new int[size];
-            _next = new int[capacity];
+            _heads = Rent<int>(size);
+            _heads.AsSpan(0, size).Clear();
+            _next = Rent<int>(capacity);
             _mask = size - 1;
         }
     }
@@ -62,16 +96,19 @@ internal sealed class ValueIndex
     // The number of values kept.
     internal int Count => _count;
 
-    // The values in the order they came.
-    internal CelValue[] ToArray()
-    {
-        var values = new CelValue[_count];
-        for (int i = 0; i < values.Length; i++)
-        {
-            values[i] = _slots[i].Value;
-        }
+    // The values in the order they came, in an array of their own.
+    internal CelValue[] ToArray() => _values.AsSpan(0, _count).ToArray();
 
-        return values;
+    // Gives the arrays back to the pool; the index is not used afterwards.
+    internal void Release()
+    {
+        _values.AsSpan(0, _count).Clear();
+        Return(_values);
+        Return(_hashes);
+        Return(_positions);
+        Return(_heads);
+        Return(_next);
+        Return(_pairwise);
     }
 
     // distinct: keeps the value when no equal value has come before it. Equal: one has, and the value is not kept. NotEqual: the value is
@@ -83,9 +120,9 @@ internal sealed class ValueIndex
         if (result == ValueEquality.NotEqual)
         {
             Store(value, group, hash);
-            if (_heads is not null && group == ValueGroup.Hashed)
+            if (_buckets && group == ValueGroup.Hashed)
             {
-                LinkLast(_count - 1);
+                LinkLast(_hashedCount - 1);
             }
         }
 
@@ -103,17 +140,14 @@ internal sealed class ValueIndex
     // Links the hashed values so that a lookup finds the first of the equal ones, as the pairs in order did.
     internal void Seal()
     {
-        if (_heads is null)
+        if (!_buckets)
         {
             return;
         }
 
-        for (int position = _count - 1; position >= 0; position--)
+        for (int entry = _hashedCount - 1; entry >= 0; entry--)
         {
-            if (_slots[position].Group == ValueGroup.Hashed)
-            {
-                Link(position);
-            }
+            Link(entry);
         }
     }
 
@@ -125,42 +159,61 @@ internal sealed class ValueIndex
         return Find(value, group, hash, out error);
     }
 
+    private static T[] Rent<T>(int length) => length == 0 ? [] : ArrayPool<T>.Shared.Rent(length);
+
+    private static void Return<T>(T[]? array)
+    {
+        if (array is { Length: > 0 })
+        {
+            ArrayPool<T>.Shared.Return(array);
+        }
+    }
+
     private void Store(CelValue value, ValueGroup group, int hash)
     {
         int position = _count++;
-        _slots[position] = new Slot(value, hash, group);
-        if (group == ValueGroup.Pairwise)
+        _values[position] = value;
+        switch (group)
         {
-            (_pairwise ??= []).Add(position);
+            case ValueGroup.Hashed:
+                _hashes[_hashedCount] = hash;
+                _positions[_hashedCount++] = position;
+                break;
+            case ValueGroup.Pairwise:
+                (_pairwise ??= Rent<int>(_capacity))[_pairwiseCount++] = position;
+                break;
+            default:
+                break;
         }
     }
 
-    // Links the value after the values of its bucket, which are the earlier ones: those of one bucket that are not equal to each other
-    // are few, the collisions of the hash.
-    private void LinkLast(int position)
+    // Links the hashed value, numbered in the order the hashed values came, after the values of its bucket, which are the earlier ones:
+    // those of one bucket that are not equal to each other are few, the collisions of the hash.
+    private void LinkLast(int entry)
     {
-        int bucket = _slots[position].Hash & _mask;
-        int entry = _heads![bucket];
-        if (entry == 0)
+        int bucket = _hashes[entry] & _mask;
+        _next![entry] = 0;
+        int last = _heads![bucket];
+        if (last == 0)
         {
-            _heads[bucket] = position + 1;
+            _heads[bucket] = entry + 1;
             return;
         }
 
-        while (_next![entry - 1] != 0)
+        while (_next[last - 1] != 0)
         {
-            entry = _next[entry - 1];
+            last = _next[last - 1];
         }
 
-        _next[entry - 1] = position + 1;
+        _next[last - 1] = entry + 1;
     }
 
     // Links the value before the values of its bucket: for the values taken in the reverse order.
-    private void Link(int position)
+    private void Link(int entry)
     {
-        int bucket = _slots[position].Hash & _mask;
-        _next![position] = _heads![bucket];
-        _heads[bucket] = position + 1;
+        int bucket = _hashes[entry] & _mask;
+        _next![entry] = _heads![bucket];
+        _heads[bucket] = entry + 1;
     }
 
     private ValueEquality Find(CelValue value, ValueGroup group, int hash, out CelValue error)
@@ -173,7 +226,7 @@ internal sealed class ValueIndex
             case ValueGroup.Pairwise:
                 return FindPairwise(value, out error);
             default:
-                return _heads is null ? ScanHashed(value, hash, out error) : FindInBucket(value, hash, out error);
+                return _buckets ? FindInBucket(value, hash, out error) : ScanHashed(value, hash, out error);
         }
     }
 
@@ -181,14 +234,9 @@ internal sealed class ValueIndex
     private ValueEquality FindPairwise(CelValue value, out CelValue error)
     {
         error = default;
-        if (_pairwise is null)
+        for (int i = 0; i < _pairwiseCount; i++)
         {
-            return ValueEquality.NotEqual;
-        }
-
-        foreach (int position in _pairwise)
-        {
-            ValueEquality result = EqualityRules.AreEqual(value, _slots[position].Value, _meter, out error, _types, _boundary);
+            ValueEquality result = EqualityRules.AreEqual(value, _values[_pairwise![i]], _meter, out error, _types, _boundary);
             if (result != ValueEquality.NotEqual)
             {
                 return result;
@@ -198,21 +246,29 @@ internal sealed class ValueIndex
         return ValueEquality.NotEqual;
     }
 
+    // The hashed values with the hash given, in the order they came, found by a vector search of the array of hashes, each compared
+    // by CEL equality up to the first equal one.
     private ValueEquality ScanHashed(CelValue value, int hash, out CelValue error)
     {
         error = default;
-        for (int position = 0; position < _count; position++)
+        ReadOnlySpan<int> hashes = _hashes.AsSpan(0, _hashedCount);
+        int from = 0;
+        while (from < hashes.Length)
         {
-            if (_slots[position].Group != ValueGroup.Hashed || _slots[position].Hash != hash)
+            int offset = hashes.Slice(from).IndexOf(hash);
+            if (offset < 0)
             {
-                continue;
+                break;
             }
 
-            ValueEquality result = Compare(value, position, out error);
+            int entry = from + offset;
+            ValueEquality result = Compare(value, _positions[entry], out error);
             if (result != ValueEquality.NotEqual)
             {
                 return result;
             }
+
+            from = entry + 1;
         }
 
         return ValueEquality.NotEqual;
@@ -221,15 +277,15 @@ internal sealed class ValueIndex
     private ValueEquality FindInBucket(CelValue value, int hash, out CelValue error)
     {
         error = default;
-        for (int entry = _heads![hash & _mask]; entry != 0; entry = _next![entry - 1])
+        for (int link = _heads![hash & _mask]; link != 0; link = _next![link - 1])
         {
-            int position = entry - 1;
-            if (_slots[position].Hash != hash)
+            int entry = link - 1;
+            if (_hashes[entry] != hash)
             {
                 continue;
             }
 
-            ValueEquality result = Compare(value, position, out error);
+            ValueEquality result = Compare(value, _positions[entry], out error);
             if (result != ValueEquality.NotEqual)
             {
                 return result;
@@ -243,7 +299,7 @@ internal sealed class ValueIndex
     // that found it, when they are equal.
     private ValueEquality Compare(CelValue value, int position, out CelValue error)
     {
-        CelValue other = _slots[position].Value;
+        CelValue other = _values[position];
         ValueEquality result = EqualityRules.AreEqual(value, other, null, out error, _types, _boundary);
         if (result == ValueEquality.Equal && _meter is not null)
         {
@@ -251,15 +307,5 @@ internal sealed class ValueIndex
         }
 
         return result;
-    }
-
-    // A value, its hash and its group.
-    private readonly struct Slot(CelValue value, int hash, ValueGroup group)
-    {
-        internal CelValue Value { get; } = value;
-
-        internal int Hash { get; } = hash;
-
-        internal ValueGroup Group { get; } = group;
     }
 }
