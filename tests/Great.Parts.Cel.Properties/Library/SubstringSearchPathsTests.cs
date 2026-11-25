@@ -76,6 +76,9 @@ public sealed class SubstringSearchPathsTests
     // The programs that read the pattern from a variable, which the cases share; a program with a literal pattern is made for its case.
     private static readonly ConcurrentDictionary<string, CelProgram<CelValue>> Programs = new(StringComparer.Ordinal);
 
+    // The limits of replace and split: all, 0, 1, 2 and more than the matches. They come before the forms, which read them.
+    private static readonly long[] LimitValues = [-1, 0, 1, 2, 1_000_000_000];
+
     // The tail of the call, the number of variables it reads, whether its pattern and result are a string and what its optional
     // number is: an offset or a limit.
     private static readonly Form[] Forms =
@@ -90,9 +93,6 @@ public sealed class SubstringSearchPathsTests
         new("split", string.Empty, 2, false, null, SplitReference),
         new("split", ", n", 3, false, static _ => LimitValues, SplitReference),
     ];
-
-    // The limits of replace and split: all, 0, 1, 2 and more than the matches.
-    private static readonly long[] LimitValues = [-1, 0, 1, 2, 1_000_000_000];
 
     private static readonly int[] PairCounts = [30, 31, 32, 63, 64, 511, 512, 513];
 

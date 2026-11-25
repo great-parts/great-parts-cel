@@ -354,7 +354,7 @@ public sealed class PackageClosureTests
     [Theory]
     [InlineData(BrowserWithoutAssemblyList)]
     [InlineData(NoBrowserLineList)]
-    public void BrowserWasmRestore_WithoutABrowserLineOrWithoutAnAssemblyOfRuntimes_IsNotMade(string list)
+    public static void BrowserWasmRestore_WithoutABrowserLineOrWithoutAnAssemblyOfRuntimes_IsNotMade(string list)
     {
         using TempDirectory root = Repository(Cel);
         root.Write(CelPath, list + Newline);

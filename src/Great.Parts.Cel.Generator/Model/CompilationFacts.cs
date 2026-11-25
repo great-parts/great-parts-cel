@@ -28,4 +28,13 @@ internal sealed record CompilationFacts(int Language)
     }
 
     internal static CompilationFacts From(SyntaxTree tree) => new(LanguageOf(tree));
+
+    // Whether the assembly of the library gives the compilation access to its internal members (InternalsVisibleTo). The members that
+    // a description overrides are protected internal: an override in an assembly that has the access is protected internal too, and in
+    // any other assembly it is protected.
+    internal static bool SeesLibraryInternals(Compilation compilation)
+    {
+        INamedTypeSymbol? type = compilation.GetTypeByMetadataName(WellKnown.CelObjectType);
+        return type is not null && type.ContainingAssembly.GivesAccessTo(compilation.Assembly);
+    }
 }

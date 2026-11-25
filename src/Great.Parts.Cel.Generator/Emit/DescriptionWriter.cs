@@ -17,9 +17,14 @@ internal static class DescriptionWriter
     // names the member.
     private sealed record FieldCode(FieldModel Field, string Read, int ReadUses, string Presence, int PresenceUses);
 
+    // The modifiers of an override of a member of CelObjectType, which is protected internal: the override of another assembly is
+    // protected, and the override of an assembly that the library gives the access to its internal members must say protected internal.
+    internal static string Override(bool internalAccess) => internalAccess ? "protected internal override " : "protected override ";
+
     // access is the accessibility of the class: private for the nested class of a type context, internal for a description that
-    // the files of the registrations of the call sites name.
-    internal static void Write(CodeWriter w, ObjectTypeModel type, ObjectIndex objects, string version, string access)
+    // the files of the registrations of the call sites name. internalAccess tells whether the assembly sees the internal members
+    // of the library.
+    internal static void Write(CodeWriter w, ObjectTypeModel type, ObjectIndex objects, string version, string access, bool internalAccess)
     {
         var converters = new List<HoistedConverter>();
         var codes = new List<FieldCode>();
@@ -46,22 +51,22 @@ internal static class DescriptionWriter
         w.EmptyLine();
         WriteConstructor(w, type, converters);
         w.EmptyLine();
-        WriteGetField(w, type, codes);
+        WriteGetField(w, type, codes, internalAccess);
         w.EmptyLine();
-        WriteHasField(w, type, codes);
+        WriteHasField(w, type, codes, internalAccess);
         if (type.Excluded.Length > 0)
         {
             w.EmptyLine();
-            WriteExcluded(w, type);
+            WriteExcluded(w, type, internalAccess);
         }
 
         if (type.Literal is { } literal)
         {
             w.EmptyLine();
-            LiteralWriter.Write(w, type, literal);
+            LiteralWriter.Write(w, type, literal, internalAccess);
         }
 
-        CostWriter.Write(w, type);
+        CostWriter.Write(w, type, internalAccess);
         w.Close();
     }
 
@@ -101,9 +106,9 @@ internal static class DescriptionWriter
         w.Close();
     }
 
-    private static void WriteGetField(CodeWriter w, ObjectTypeModel type, List<FieldCode> codes)
+    private static void WriteGetField(CodeWriter w, ObjectTypeModel type, List<FieldCode> codes, bool internalAccess)
     {
-        w.Open("protected override " + Values + "CelValue GetField(in " + type.ClrName + " instance, int number)");
+        w.Open(Override(internalAccess) + Values + "CelValue GetField(in " + type.ClrName + " instance, int number)");
         w.Open("switch (number)");
         foreach (FieldCode code in codes)
         {
@@ -115,7 +120,7 @@ internal static class DescriptionWriter
         w.Close();
     }
 
-    private static void WriteHasField(CodeWriter w, ObjectTypeModel type, List<FieldCode> codes)
+    private static void WriteHasField(CodeWriter w, ObjectTypeModel type, List<FieldCode> codes, bool internalAccess)
     {
         bool needsValue = false;
         foreach (FieldCode code in codes)
@@ -123,7 +128,7 @@ internal static class DescriptionWriter
             needsValue |= code.Presence != PresenceReader.Always;
         }
 
-        w.Open("protected override bool HasField(object instance, int number)");
+        w.Open(Override(internalAccess) + "bool HasField(object instance, int number)");
         if (needsValue)
         {
             w.Line("var value = (" + type.ClrName + ")instance;");
@@ -180,9 +185,9 @@ internal static class DescriptionWriter
         w.Close();
     }
 
-    private static void WriteExcluded(CodeWriter w, ObjectTypeModel type)
+    private static void WriteExcluded(CodeWriter w, ObjectTypeModel type, bool internalAccess)
     {
-        w.Open("protected override string? GetExcludedFieldReason(string fieldName)");
+        w.Open(Override(internalAccess) + "string? GetExcludedFieldReason(string fieldName)");
         w.Open("switch (fieldName)");
         foreach (ExcludedMemberModel member in type.Excluded.Items)
         {

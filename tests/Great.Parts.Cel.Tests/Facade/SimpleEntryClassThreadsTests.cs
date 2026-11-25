@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Great.Parts.Cel.Generator.Samples.Orders;
+using Great.Parts.Cel.Tests.Examples.Generated;
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Facade;

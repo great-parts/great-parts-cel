@@ -33,7 +33,7 @@ internal static class CostWriter
     private static long Units(int size) => 1 + (((long)size + BoxBytesPerUnit - 1) / BoxBytesPerUnit);
 
     // The method, and the helper of the sets when a member is a set; nothing when no member is charged.
-    internal static void Write(CodeWriter w, ObjectTypeModel type)
+    internal static void Write(CodeWriter w, ObjectTypeModel type, bool internalAccess)
     {
         var charged = new List<(FieldModel Field, Charge Charge)>();
         bool sets = false;
@@ -55,7 +55,7 @@ internal static class CostWriter
         }
 
         w.EmptyLine();
-        w.Open("protected override long FieldReadCost(in " + type.ClrName + " instance, int number)");
+        w.Open(DescriptionWriter.Override(internalAccess) + "long FieldReadCost(in " + type.ClrName + " instance, int number)");
         w.Open("switch (number)");
         foreach ((FieldModel field, Charge charge) in charged)
         {

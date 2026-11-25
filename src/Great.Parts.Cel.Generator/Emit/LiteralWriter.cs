@@ -16,13 +16,14 @@ internal static class LiteralWriter
     private const string Invariant = "global::System.Globalization.CultureInfo.InvariantCulture";
     private const string Generic = "global::System.Collections.Generic.";
 
-    internal static void Write(CodeWriter w, ObjectTypeModel type, LiteralModel literal)
+    internal static void Write(CodeWriter w, ObjectTypeModel type, LiteralModel literal, bool internalAccess)
     {
-        w.Line("protected override bool IsConstructible => true;");
-        WriteFlags(w, "CanSetField", literal, static field => !field.Settable, false);
-        WriteFlags(w, "IsRequiredField", literal, static field => field.Required, true);
+        string modifiers = DescriptionWriter.Override(internalAccess);
+        w.Line(modifiers + "bool IsConstructible => true;");
+        WriteFlags(w, modifiers, "CanSetField", literal, static field => !field.Settable, false);
+        WriteFlags(w, modifiers, "IsRequiredField", literal, static field => field.Required, true);
         w.EmptyLine();
-        WriteCreateInstance(w, type, literal);
+        WriteCreateInstance(w, modifiers, type, literal);
         w.EmptyLine();
         w.Open("private " + CelValue + " LiteralMismatch(int number, " + CelValue + " value, string expected)");
         w.Line("return FieldError(number, " + ErrorCode + "InvalidArgument, \"expected a value of the type '\" + expected + \"' but found a value of the kind \" + value.Kind);");
@@ -32,7 +33,7 @@ internal static class LiteralWriter
 
     // CanSetField returns true except for the numbers listed; IsRequiredField returns false except for them. Nothing is written when
     // the list is empty, since the default of the base class is the answer.
-    private static void WriteFlags(CodeWriter w, string name, LiteralModel literal, System.Func<LiteralFieldModel, bool> listed, bool answer)
+    private static void WriteFlags(CodeWriter w, string modifiers, string name, LiteralModel literal, System.Func<LiteralFieldModel, bool> listed, bool answer)
     {
         var labels = new List<string>();
         foreach (LiteralFieldModel field in literal.Fields.Items)
@@ -49,7 +50,7 @@ internal static class LiteralWriter
         }
 
         w.EmptyLine();
-        w.Open("protected override bool " + name + "(int number)");
+        w.Open(modifiers + "bool " + name + "(int number)");
         w.Open("switch (number)");
         w.Line(string.Join(" ", labels) + " return " + (answer ? "true" : "false") + ";");
         w.Line("default: return " + (answer ? "false" : "true") + ";");
@@ -60,9 +61,9 @@ internal static class LiteralWriter
     private static bool NeedsFlag(LiteralFieldModel field) =>
         field.Settable && (field.IsParameter ? field.DefaultText.Length > 0 : field.Setter != SetterKind.Initializer);
 
-    private static void WriteCreateInstance(CodeWriter w, ObjectTypeModel type, LiteralModel literal)
+    private static void WriteCreateInstance(CodeWriter w, string modifiers, ObjectTypeModel type, LiteralModel literal)
     {
-        w.Open("protected override " + CelValue + " CreateInstance(global::System.ReadOnlySpan<int> fieldNumbers, global::System.ReadOnlySpan<" + CelValue + "> fieldValues)");
+        w.Open(modifiers + CelValue + " CreateInstance(global::System.ReadOnlySpan<int> fieldNumbers, global::System.ReadOnlySpan<" + CelValue + "> fieldValues)");
         foreach (LiteralFieldModel field in literal.Fields.Items)
         {
             if (!field.Settable)

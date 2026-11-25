@@ -5,12 +5,12 @@ namespace Great.Parts.Cel.Generator;
 // nothing implements is removed by the compiler together with its call, so no file is written.
 internal static partial class ContextEmitter
 {
-    internal static string? Write(ContextModel model)
+    internal static string? Write(ContextModel model, bool internalAccess)
     {
         string? text = null;
-        Emit(model, ref text);
+        Emit(model, internalAccess, ref text);
         return text;
     }
 
-    static partial void Emit(ContextModel model, ref string? text);
+    static partial void Emit(ContextModel model, bool internalAccess, ref string? text);
 }

@@ -62,7 +62,15 @@ public sealed class CelAnonymousDataGenerator : IIncrementalGenerator
             .Select(static (result, _) => result.Diagnostics)
             .WithTrackingName("ClassDescriptionDiagnostics");
 
-        context.RegisterSourceOutput(shapes.Combine(model), static (production, pair) => Write(production, pair.Left, pair.Right));
+        // Whether the assembly sees the internal members of the library: the created overrides must match the access of the members
+        // they override. The value is a flag, so an edit of the sources leaves the step unchanged.
+        IncrementalValueProvider<bool> internalAccess = context.CompilationProvider
+            .Select(static (compilation, _) => CompilationFacts.SeesLibraryInternals(compilation))
+            .WithTrackingName("InternalAccess");
+
+        context.RegisterSourceOutput(
+            shapes.Combine(model).Combine(internalAccess),
+            static (production, pair) => Write(production, pair.Left.Left, pair.Left.Right, pair.Right));
         context.RegisterSourceOutput(
             diagnostics.Combine(context.CompilationProvider),
             static (production, pair) => DiagnosticReporter.Report(production, pair.Left, pair.Right));
@@ -126,7 +134,7 @@ public sealed class CelAnonymousDataGenerator : IIncrementalGenerator
 
     // A form that reaches classes needs the descriptions: when the whole has none (the limit of the closure is passed, which is an
     // error already) the form gets no file, as a form with an error gets none.
-    private static void Write(SourceProductionContext production, EquatableArray<AnonymousShape> shapes, ClassDescriptionsModel? descriptions)
+    private static void Write(SourceProductionContext production, EquatableArray<AnonymousShape> shapes, ClassDescriptionsModel? descriptions, bool internalAccess)
     {
         AnonymousShape[] items = shapes.Items;
         for (int index = 0; index < items.Length; index++)
@@ -143,7 +151,7 @@ public sealed class CelAnonymousDataGenerator : IIncrementalGenerator
 
         if (descriptions is not null)
         {
-            production.AddSource(CallSiteNames.HintName, SourceText.From(DescriptionEmitter.Write(descriptions, shapes), Encoding.UTF8));
+            production.AddSource(CallSiteNames.HintName, SourceText.From(DescriptionEmitter.Write(descriptions, shapes, internalAccess), Encoding.UTF8));
         }
     }
 }

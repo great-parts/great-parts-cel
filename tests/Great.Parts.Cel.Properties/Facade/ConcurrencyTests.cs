@@ -35,6 +35,10 @@ public sealed partial class ConcurrencyTests
     private const int CacheEntries = 16;
     private const ulong CostLimit = 20;
     private const int MatchesTextsEvery = 4;
+    private const int SimpleDictionaries = 80;
+    private const int SimpleShapes = SimpleDictionaries + 3;
+    private const int SimpleTextsPerShape = 16;
+    private const int SimpleCallsPerThread = 400;
 
     // The environment of the generator with two application functions: a typed delegate and a CelFunctionImplementation.
     private static readonly CelEnvironment Environment = TypedExpressions.Declare(new CelEnvironmentBuilder(CelStandardLibrary.V1))
@@ -98,58 +102,25 @@ public sealed partial class ConcurrencyTests
 
     private static string? SimpleEntryViolation(SimpleEntryCache cache, (int Environments, int Programs, int TextLength) capacity)
     {
-        const int Dictionaries = 80;
-        const int Shapes = Dictionaries + 3;
-        const int TextsPerShape = 16;
-        const int CallsPerThread = 400;
-
-        string[] names = new string[Shapes];
-        var dictionaries = new Dictionary<string, object?>[Dictionaries];
-        string[][] texts = new string[Shapes][];
-        for (int shape = 0; shape < Shapes; shape++)
+        string[] names = new string[SimpleShapes];
+        var dictionaries = new Dictionary<string, object?>[SimpleDictionaries];
+        string[][] texts = new string[SimpleShapes][];
+        for (int shape = 0; shape < SimpleShapes; shape++)
         {
-            names[shape] = shape < Dictionaries ? "s" + shape.ToString(CultureInfo.InvariantCulture) : "simple" + (char)('A' + shape - Dictionaries);
-            if (shape < Dictionaries)
+            names[shape] = shape < SimpleDictionaries ? "s" + shape.ToString(CultureInfo.InvariantCulture) : "simple" + (char)('A' + shape - SimpleDictionaries);
+            if (shape < SimpleDictionaries)
             {
                 dictionaries[shape] = new Dictionary<string, object?> { [names[shape]] = (long)shape };
             }
 
-            texts[shape] = new string[TextsPerShape];
-            for (int text = 0; text < TextsPerShape; text++)
+            texts[shape] = new string[SimpleTextsPerShape];
+            for (int text = 0; text < SimpleTextsPerShape; text++)
             {
                 texts[shape][text] = names[shape] + " * 10 + " + text.ToString(CultureInfo.InvariantCulture);
             }
         }
 
-        string? failure = ThreadRun.OnThreads(Threads, (thread, barrier) =>
-        {
-            var random = new PCG((uint)thread, Seed);
-            barrier.SignalAndWait();
-            for (int call = 0; call < CallsPerThread; call++)
-            {
-                int shape = (int)random.Next(Shapes);
-                int text = (int)random.Next(TextsPerShape);
-                string expression = random.Next(2) == 0 ? new string(texts[shape][text].AsSpan()) : texts[shape][text];
-                long value = shape;
-                object data = shape < Dictionaries
-                    ? dictionaries[shape]
-                    : shape == Dictionaries ? (object)new { simpleA = value } : shape == Dictionaries + 1 ? new { simpleB = value } : new { simpleC = value };
-                try
-                {
-                    long actual = SimpleEntryCall.Evaluate<long>(cache, expression, data, CelExpression.DefaultCostLimit, CancellationToken.None);
-                    if (actual != (value * 10) + text)
-                    {
-                        return $"thread {thread}: '{expression}' gave {actual}, sequential {(value * 10) + text}";
-                    }
-                }
-                catch (Exception exception) when (exception is not OutOfMemoryException)
-                {
-                    return $"thread {thread}: '{expression}': {exception.GetType()}: {exception.Message}";
-                }
-            }
-
-            return null;
-        });
+        string? failure = ThreadRun.OnThreads(Threads, (thread, barrier) => SimpleEntryCalls(cache, texts, dictionaries, thread, barrier));
         if (failure is not null)
         {
             return failure;
@@ -163,6 +134,38 @@ public sealed partial class ConcurrencyTests
 
         int evicted = cache.EvictedReachable();
         return evicted == 0 ? null : $"{evicted} evicted entries are still reachable by a fast path";
+    }
+
+    // The calls of one thread: a random text of a random shape, given as the one instance of its place or as a copy, each compared
+    // with the result of a sequential call; the first difference or failure, with its thread.
+    private static string? SimpleEntryCalls(SimpleEntryCache cache, string[][] texts, Dictionary<string, object?>[] dictionaries, int thread, Barrier barrier)
+    {
+        var random = new PCG((uint)thread, Seed);
+        barrier.SignalAndWait();
+        for (int call = 0; call < SimpleCallsPerThread; call++)
+        {
+            int shape = (int)random.Next(SimpleShapes);
+            int text = (int)random.Next(SimpleTextsPerShape);
+            string expression = random.Next(2) == 0 ? new string(texts[shape][text].AsSpan()) : texts[shape][text];
+            long value = shape;
+            object data = shape < SimpleDictionaries
+                ? dictionaries[shape]
+                : shape == SimpleDictionaries ? (object)new { simpleA = value } : shape == SimpleDictionaries + 1 ? new { simpleB = value } : new { simpleC = value };
+            try
+            {
+                long actual = SimpleEntryCall.Evaluate<long>(cache, expression, data, CelExpression.DefaultCostLimit, CancellationToken.None);
+                if (actual != (value * 10) + text)
+                {
+                    return $"thread {thread}: '{expression}' gave {actual}, sequential {(value * 10) + text}";
+                }
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                return $"thread {thread}: '{expression}': {exception.GetType()}: {exception.Message}";
+            }
+        }
+
+        return null;
     }
 
     private static string[] BuildMatchPatterns()

@@ -67,7 +67,8 @@ internal static class GeneratorExample
         LanguageVersion version = LanguageVersion.CSharp12,
         NullableContextOptions nullable = NullableContextOptions.Enable,
         IEnumerable<string>? more = null,
-        IEnumerable<MetadataReference>? references = null)
+        IEnumerable<MetadataReference>? references = null,
+        string assemblyName = "Application")
     {
         var options = new CSharpParseOptions(version);
         var trees = new List<SyntaxTree> { CSharpSyntaxTree.ParseText(source, options, path: "Source.cs") };
@@ -78,7 +79,7 @@ internal static class GeneratorExample
         }
 
         return CSharpCompilation.Create(
-            "Application",
+            assemblyName,
             trees,
             [.. References, .. references ?? []],
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: nullable, allowUnsafe: true));

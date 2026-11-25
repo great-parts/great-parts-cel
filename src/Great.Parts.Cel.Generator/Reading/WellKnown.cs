@@ -14,6 +14,8 @@ internal static class WellKnown
 
     internal const string CelTypeContext = "Great.Parts.Cel.Values.CelTypeContext";
 
+    internal const string CelObjectType = "Great.Parts.Cel.Values.CelObjectType";
+
     internal const string CelLibraryAssembly = "Great.Parts.Cel";
 
     internal const string CelProtobufAssembly = "Great.Parts.Cel.Protobuf";
