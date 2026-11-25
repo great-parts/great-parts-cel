@@ -106,6 +106,26 @@ section {
     }
   }
   test {
+    name: "constant_pattern_error_duration_subject"
+    description: "matches(duration, string) stage-mismatch"
+    expr: "matches(dyn(duration('1s')), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload"
+      }
+    }
+  }
+  test {
+    name: "constant_pattern_error_timestamp_subject"
+    description: "matches(timestamp, string) stage-mismatch"
+    expr: "matches(dyn(timestamp(0)), '(')"
+    eval_error: {
+      errors: {
+        message: "no such overload"
+      }
+    }
+  }
+  test {
     name: "constant_pattern_error_error_subject"
     description: "matches(error, string) stage-mismatch"
     expr: "matches({'a': dyn(1)}['k'], '(')"

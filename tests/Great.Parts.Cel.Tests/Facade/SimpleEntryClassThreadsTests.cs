@@ -39,7 +39,7 @@ public sealed class SimpleEntryClassThreadsTests
                     1 => CelExpression.Evaluate<long>(Copy("lines.map(l, l.qty).size() * 10 + lines[1].qty", call), new { lines }, cancellationToken: CancellationToken.None) == 23L,
                     2 => CelExpression.Evaluate<bool>("byName['ann'].email == 'ann@example.com'", new { byName }, cancellationToken: CancellationToken.None),
                     3 => CelExpression.Evaluate<long>(Copy("point.x * point.y", call), new { point }, cancellationToken: CancellationToken.None) == 20L,
-                    4 => CelExpression.Evaluate<long>("list.size() + extra", new { list = new List<OrderLine>(lines), extra = (long)thread }, cancellationToken: CancellationToken.None) == 2L + thread,
+                    4 => CelExpression.Evaluate<long>("items.size() + extra", new { items = new List<OrderLine>(lines), extra = (long)thread }, cancellationToken: CancellationToken.None) == 2L + thread,
                     _ => Evict(thread, call),
                 };
                 if (!ok)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Values;
 using Xunit;
 
@@ -80,14 +81,24 @@ public sealed class GeneratedDirectTranslationTests
     }
 
     [Fact]
-    public void Strings_AreTheValueOfAdd_AndNullIsTheNullValue()
+    public void Strings_AreTheValueOfAdd()
     {
-        foreach (string? value in new[] { null, string.Empty, "x", "caf" + (char)0xE9 })
+        foreach (string value in new[] { string.Empty, "x", "caf" + (char)0xE9 })
         {
             Assert.Equal(ViaAdd(value), CelExpression.Evaluate<CelValue>("p", new { p = value }, cancellationToken: TestContext.Current.CancellationToken));
         }
+    }
 
-        Assert.Equal(CelValue.Null, CelExpression.Evaluate<CelValue>("p", new { p = (string?)null }, cancellationToken: TestContext.Current.CancellationToken));
+    // A null reference is bound as the value null, which does not fit the declared type string: the read of the variable is a mismatch
+    // of the binding, the same one on both paths.
+    [Fact]
+    public void NullString_IsTheMismatchOfAdd()
+    {
+        string? value = null;
+
+        AssertSameMismatch(
+            () => ViaAdd(value),
+            () => CelExpression.Evaluate<CelValue>("p", new { p = value }, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -100,15 +111,25 @@ public sealed class GeneratedDirectTranslationTests
     }
 
     [Fact]
-    public void ListsAndMaps_AreTheValueOfAdd_AndNullIsTheNullValue()
+    public void ListsAndMaps_AreTheValueOfAdd()
     {
         CelList list = CelList.Create(CelValue.FromInt64(1), CelValue.FromString("a"));
         CelMap map = CelMap.Create(new List<KeyValuePair<CelValue, CelValue>>());
 
         Assert.Equal(ViaAdd(list), CelExpression.Evaluate<CelValue>("p", new { p = list }, cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal(ViaAdd(map), CelExpression.Evaluate<CelValue>("p", new { p = map }, cancellationToken: TestContext.Current.CancellationToken));
-        Assert.Equal(ViaAdd((CelList)null!), CelExpression.Evaluate<CelValue>("p", new { p = (CelList)null! }, cancellationToken: TestContext.Current.CancellationToken));
-        Assert.Equal(ViaAdd((CelMap)null!), CelExpression.Evaluate<CelValue>("p", new { p = (CelMap)null! }, cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    // The value null does not fit list(dyn) and map(dyn, dyn): the read of the variable is the same mismatch of the binding on both paths.
+    [Fact]
+    public void NullListAndMap_AreTheMismatchOfAdd()
+    {
+        AssertSameMismatch(
+            () => ViaAdd((CelList)null!),
+            () => CelExpression.Evaluate<CelValue>("p", new { p = (CelList)null! }, cancellationToken: TestContext.Current.CancellationToken));
+        AssertSameMismatch(
+            () => ViaAdd((CelMap)null!),
+            () => CelExpression.Evaluate<CelValue>("p", new { p = (CelMap)null! }, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -138,6 +159,17 @@ public sealed class GeneratedDirectTranslationTests
         {
             Assert.Equal(ViaAdd(value), CelExpression.Evaluate<CelValue>("p", new { p = value }, cancellationToken: TestContext.Current.CancellationToken));
         }
+    }
+
+    // Both paths fail with BindingTypeMismatch and the same text.
+    private static void AssertSameMismatch(Func<CelValue> viaAdd, Func<CelValue> viaDirect)
+    {
+        CelException expected = Assert.Throws<CelException>(() => { _ = viaAdd(); });
+        CelException actual = Assert.Throws<CelException>(() => { _ = viaDirect(); });
+
+        Assert.Equal(CelErrorCode.BindingTypeMismatch, Assert.Single(expected.Errors).Code);
+        Assert.Equal(CelErrorCode.BindingTypeMismatch, Assert.Single(actual.Errors).Code);
+        Assert.Equal(expected.Message, actual.Message);
     }
 
     // The value of an environment of one variable that Add<T> binds: the other path of the same row.

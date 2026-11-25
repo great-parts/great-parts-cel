@@ -49,13 +49,14 @@ internal sealed class VariablePlanNode : PlanNode
         {
             // A .NET collection that nothing describes, and a decimal that the environment has no set for, are TypeNotAccessible at the
             // identifier, before the check against the declared type; a value that its conversion could not represent, such as an
-            // enumeration on ulong above the range of int, is ConversionRange without a place: the read gives it the place of the
+            // enumeration on ulong above the range of int, is ConversionRange without a place, and a collection of the application
+            // that is null or a default ImmutableArray<T> is UnexpectedNull without a place: the read gives either the place of the
             // identifier.
             if (ObjectRules.TryRejectValue(value, _declaredType, Types, out CelValue rejected))
             {
                 value = EvaluationErrors.Placed(rejected, frame.Lines, Offset);
             }
-            else if (value.TryGetError(out CelError? unplaced) && unplaced.Code == CelErrorCode.ConversionRange)
+            else if (value.TryGetError(out CelError? unplaced) && unplaced.Code is CelErrorCode.ConversionRange or CelErrorCode.UnexpectedNull)
             {
                 value = EvaluationErrors.AtRead(unplaced, frame.Lines, Offset);
             }

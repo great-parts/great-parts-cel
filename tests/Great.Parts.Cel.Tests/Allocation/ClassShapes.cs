@@ -105,10 +105,13 @@ internal static class ClassShapes
         return builder.Build().GetEnvironmentOrThrow();
     }
 
-    // A sum of the integers and of the identifiers of the classes of the shape, starting at a different term for each program.
+    // A sum of the integers and of the identifiers of the classes of the shape, starting at a different term for each program. The shape
+    // has 12 terms, so the programs from the 13th on step over the terms by two or more: otherwise they would repeat the texts of the
+    // first ones, and the cache would keep one program for both.
     private static string Text(int shape, int program)
     {
         int terms = Integers + Classes;
+        int stride = 1 + (program / terms);
         var text = new StringBuilder();
         for (int term = 0; text.Length < 80; term++)
         {
@@ -117,7 +120,7 @@ internal static class ClassShapes
                 text.Append(" + ");
             }
 
-            int index = (program + term) % terms;
+            int index = (program + (term * stride)) % terms;
             text.Append(index < Integers ? IntegerName(shape, index) : ClassName(shape, index - Integers) + ".id");
         }
 

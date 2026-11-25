@@ -64,7 +64,7 @@ public sealed class SkipListTests
         "string_to_ip(string) stage-mismatch",
     ];
 
-    // The 176 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time (the hours, minutes and seconds of a duration through a float included), matches, the subtraction of the smallest duration,
+    // The 178 differences of the registry — map literals, a bytes value in a map, orderings of NaN with another kind, time (the hours, minutes and seconds of a duration through a float included), matches, the subtraction of the smallest duration,
     // durations beyond 64 bits of nanoseconds (a sum, a difference, the difference of two timestamps, a duration string and the sum of its terms),
     // messages of protobuf, a macro over an empty string or empty bytes, and the extension sets (the offset of indexOf and lastIndexOf, the constant of ip and cidr, the order of sort and sortBy, %s of bytes,
     // json.encode of a duration, of a timestamp, of U+007F in a string, a list and a map and of a map with a key that is not a string, the negation of a duration, has() and or of optional,
@@ -83,8 +83,8 @@ public sealed class SkipListTests
 
         Assert.Empty(registry.Findings);
         Assert.Empty(list.Findings);
-        Assert.Equal(176, ofFullEvaluation.Length);
-        Assert.Equal(173, list.Entries.Count);
+        Assert.Equal(178, ofFullEvaluation.Length);
+        Assert.Equal(175, list.Entries.Count);
         Assert.Equal(
             ofFullEvaluation.Except(SignaturesWithoutEntry).Order(StringComparer.Ordinal),
             EntrySignatures(text).Order(StringComparer.Ordinal));

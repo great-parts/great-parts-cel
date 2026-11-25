@@ -65,13 +65,13 @@ public sealed class ClassPropertyTests
         var data = new
         {
             array,
-            list = new List<OrderLine>(array),
+            items = new List<OrderLine>(array),
             readOnly = (IReadOnlyList<OrderLine>)array,
             immutable = ImmutableArray.Create(array),
         };
 
         Assert.True(CelExpression.Evaluate<bool>(
-            "array.size() == 2 && list[1].sku == 'b' && readOnly.exists(l, l.qty == 2)"
+            "array.size() == 2 && items[1].sku == 'b' && readOnly.exists(l, l.qty == 2)"
             + " && immutable.map(l, l.price) == [1.0, 2.0]",
             data,
             cancellationToken: TestContext.Current.CancellationToken));

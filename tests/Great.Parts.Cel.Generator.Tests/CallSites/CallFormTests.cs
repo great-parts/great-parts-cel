@@ -99,6 +99,9 @@ public sealed class CallFormTests
         Outcome named = Run(Body("CelExpression.Evaluate<long>(\"1\", new Order());\n"));
 
         Assert.EndsWith(": pass the anonymous object at the call or pass a dictionary", Assert.Single(wrapper.Reported).Message(), StringComparison.Ordinal);
-        Assert.EndsWith(": build an environment with a type source and UseInput<T>", Assert.Single(named.Reported).Message(), StringComparison.Ordinal);
+        Assert.EndsWith(
+            ": pass it as a property of an anonymous object, such as new { order }, or build an environment with a type source and UseInput<T>",
+            Assert.Single(named.Reported).Message(),
+            StringComparison.Ordinal);
     }
 }

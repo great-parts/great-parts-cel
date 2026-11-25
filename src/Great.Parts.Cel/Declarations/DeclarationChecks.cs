@@ -377,7 +377,9 @@ internal sealed class DeclarationChecks
         {
             if (unmapped.Function is null)
             {
-                if (ConversionRules.IsApplicationObject(unmapped.ClrType) && types.TryGetByClrType(unmapped.ClrType, out CelObjectType? described))
+                // The Nullable<> of a structure of the application has the object type of the structure: the value null fits it.
+                Type clrType = Nullable.GetUnderlyingType(unmapped.ClrType) ?? unmapped.ClrType;
+                if (ConversionRules.IsApplicationObject(clrType) && types.TryGetByClrType(clrType, out CelObjectType? described))
                 {
                     (variables ??= []).Add(new CelVariableDecl(unmapped.Name, described.Type));
                     continue;
