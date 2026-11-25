@@ -104,7 +104,7 @@ public abstract partial class CelMap : IReadOnlyCollection<KeyValuePair<CelValue
     }
 
     // The checks and the table of both overloads of Create; the array is the copy of the entries that the map takes over.
-    private static CelMap CreateFromCopy(KeyValuePair<CelValue, CelValue>[] entries)
+    private static EntryTableMap CreateFromCopy(KeyValuePair<CelValue, CelValue>[] entries)
     {
         foreach (KeyValuePair<CelValue, CelValue> entry in entries)
         {
