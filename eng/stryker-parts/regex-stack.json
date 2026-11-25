@@ -16,16 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "Values/A*.cs",
-      "Values/Ca*.cs",
-      "Values/D*.cs",
-      "Values/E*.cs",
-      "Values/F*.cs",
-      "Values/I*.cs",
-      "Values/J*.cs",
-      "Values/K*.cs",
-      "Values/L*.cs",
-      "Values/M*.cs"
+      "Library/Regex/PatternParser.Stack.cs"
     ],
     "thresholds": {
       "high": 80,

@@ -16,7 +16,11 @@
       "target": "main"
     },
     "mutate": [
-      "Evaluation/**/*.cs"
+      "Syntax/CelExprFactory.cs",
+      "Syntax/SyntaxTreeComparer.cs",
+      "Syntax/TokenKind.cs",
+      "Syntax/Token.cs",
+      "Syntax/SyntaxOptions.cs"
     ],
     "thresholds": {
       "high": 80,

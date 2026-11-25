@@ -16,13 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "Syntax/Parser.cs",
-      "Syntax/Token.cs",
-      "Syntax/TokenKind.cs",
-      "Syntax/CelParseResult.cs",
-      "Syntax/TreeInput.cs",
-      "Syntax/SyntaxOptions.cs",
-      "Syntax/CelParsedExpr.cs"
+      "Syntax/Parser.cs"
     ],
     "thresholds": {
       "high": 80,

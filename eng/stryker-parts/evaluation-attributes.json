@@ -1,0 +1,43 @@
+{
+  "stryker-config": {
+    "project": "src/Great.Parts.Cel/Great.Parts.Cel.csproj",
+    "test-projects": [
+      "../../tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj",
+      "../../tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj",
+      "../../tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj"
+    ],
+    "target-framework": "net11.0",
+    "test-runner": "mtp",
+    "coverage-analysis": "perTest",
+    "reporters": ["json", "progress"],
+    "mutation-level": "Standard",
+    "since": {
+      "enabled": true,
+      "target": "main"
+    },
+    "mutate": [
+      "Evaluation/AttributePlanNode.cs",
+      "Evaluation/AttributeQualifier.cs",
+      "Evaluation/AttributeShape.cs",
+      "Evaluation/AttributeSource.cs",
+      "Evaluation/AttributeStep.cs",
+      "Evaluation/ConditionalAttributePlanNode.cs",
+      "Evaluation/ConditionalPlanNode.cs",
+      "Evaluation/FieldPlanNode.cs",
+      "Evaluation/InputFieldPlanNode.cs",
+      "Evaluation/InputFrame.cs",
+      "Evaluation/SelectPlanNode.cs",
+      "Evaluation/OptionalSelectPlanNode.cs",
+      "Evaluation/NamePlanNode.cs",
+      "Evaluation/VariablePlanNode.cs",
+      "Evaluation/LocalPlanNode.cs",
+      "Evaluation/SlotPlanNode.cs",
+      "Evaluation/KeyPlanNode.cs"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 80,
+      "break": 80
+    }
+  }
+}

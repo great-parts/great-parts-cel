@@ -16,10 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "Library/Extensions/Strings/**/*.cs",
-      "Library/Time/**/*.cs",
-      "Library/Decimals/**/*.cs",
-      "Library/Unicode/**/*.cs"
+      "Checking/Checker.cs"
     ],
     "thresholds": {
       "high": 80,

@@ -16,9 +16,13 @@
       "target": "main"
     },
     "mutate": [
-      "Checking/**/*.cs",
-      "!Checking/Protobuf/**/*.cs",
-      "Configuration/**/*.cs"
+      "Library/Extensions/Network/AddressParser.cs",
+      "Library/Extensions/Network/AddressText.cs",
+      "Library/Extensions/Network/AddressBits.cs",
+      "Library/Extensions/Network/NetworkAddress.cs",
+      "Library/Extensions/Network/NetworkPrefix.cs",
+      "Library/Extensions/Network/NetworkTypes.cs",
+      "Library/Extensions/Network/ParseFailure.cs"
     ],
     "thresholds": {
       "high": 80,

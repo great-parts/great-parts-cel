@@ -16,10 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "Library/Regex/PatternParser.Classes.cs",
-      "Library/Regex/PatternParser.Stack.cs",
-      "Library/Regex/PatternParser.Escapes.cs",
-      "Library/Regex/CodePointClasses.cs"
+      "Library/Regex/PatternParser.Classes.cs"
     ],
     "thresholds": {
       "high": 80,

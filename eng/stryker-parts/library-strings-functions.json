@@ -16,14 +16,11 @@
       "target": "main"
     },
     "mutate": [
-      "Values/O*.cs",
-      "Values/T*.cs",
-      "Values/U*.cs",
-      "Values/V*.cs",
-      "Values/W*.cs",
-      "Values/Z*.cs",
-      "Values/P*.cs",
-      "Values/S*.cs"
+      "Library/Extensions/Strings/StringFunctions.cs",
+      "Library/Extensions/Strings/StringFunctions.Format.cs",
+      "Library/Extensions/Strings/StringFunctions.Search.cs",
+      "Library/Extensions/Strings/StringsExtension.cs",
+      "Library/Extensions/Strings/CodePoints.cs"
     ],
     "thresholds": {
       "high": 80,

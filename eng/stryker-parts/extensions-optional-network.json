@@ -16,7 +16,11 @@
       "target": "main"
     },
     "mutate": [
-      "Values/Co*.cs"
+      "Library/Extensions/OptionalExtension.cs",
+      "Library/Extensions/OptionalFunctions.cs",
+      "Library/Extensions/OptionalOperators.cs",
+      "Library/Extensions/Network/NetworkExtension.cs",
+      "Library/Extensions/Network/NetworkFunctions.cs"
     ],
     "thresholds": {
       "high": 80,

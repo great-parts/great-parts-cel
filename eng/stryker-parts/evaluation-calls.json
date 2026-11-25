@@ -16,9 +16,19 @@
       "target": "main"
     },
     "mutate": [
-      "Library/Extensions/*.cs",
-      "Library/Extensions/Formats/**/*.cs",
-      "Library/Extensions/Network/**/*.cs"
+      "Evaluation/AsyncCallPlanNode.cs",
+      "Evaluation/AsyncCallTable.cs",
+      "Evaluation/CallPlanNode.cs",
+      "Evaluation/DispatchPlanNode.cs",
+      "Evaluation/Invocation.cs",
+      "Evaluation/ComprehensionPlanNode.cs",
+      "Evaluation/LogicalPlanNode.cs",
+      "Evaluation/AndPlanNode.cs",
+      "Evaluation/OrPlanNode.cs",
+      "Evaluation/NotStrictlyFalsePlanNode.cs",
+      "Evaluation/ConstantPlanNode.cs",
+      "Evaluation/BlockPlanNode.cs",
+      "Evaluation/BlockSlots.cs"
     ],
     "thresholds": {
       "high": 80,

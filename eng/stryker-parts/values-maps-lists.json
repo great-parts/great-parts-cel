@@ -1,0 +1,35 @@
+{
+  "stryker-config": {
+    "project": "src/Great.Parts.Cel/Great.Parts.Cel.csproj",
+    "test-projects": [
+      "../../tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj",
+      "../../tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj",
+      "../../tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj"
+    ],
+    "target-framework": "net11.0",
+    "test-runner": "mtp",
+    "coverage-analysis": "perTest",
+    "reporters": ["json", "progress"],
+    "mutation-level": "Standard",
+    "since": {
+      "enabled": true,
+      "target": "main"
+    },
+    "mutate": [
+      "Values/ApplicationList.cs",
+      "Values/ApplicationMap.cs",
+      "Values/CalendarTextRules.cs",
+      "Values/DeclarationNames.cs",
+      "Values/EntryTableMap.cs",
+      "Values/FieldList.cs",
+      "Values/MapBuilder.cs",
+      "Values/AbstractValue.cs",
+      "Values/LiteralCostRule.cs"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 80,
+      "break": 80
+    }
+  }
+}
