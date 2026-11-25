@@ -183,7 +183,7 @@ internal sealed class AttributePlanNode : PlanNode
         for (int i = 0; i < length; i++)
         {
             if (pattern.Qualifiers[i] is { } qualifier
-                && (access[i].IsUnknown || !(CelValue.CelEquals(qualifier, access[i]).TryGetBoolean(out bool equal) && equal)))
+                && !(CelValue.CelEquals(qualifier, access[i]).TryGetBoolean(out bool equal) && equal))
             {
                 return false;
             }

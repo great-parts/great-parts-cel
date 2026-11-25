@@ -146,7 +146,8 @@ internal sealed class DivergenceSearch
             generated,
             candidate => Classify(channel, candidate),
             (macro, instance) => AcceptsBodyInstance(channel, macro, instance),
-            candidate => LibraryValue(channel, candidate));
+            candidate => LibraryValue(channel, candidate),
+            candidate => StepKindOf(channel, candidate));
         (SideOutcome variantOutcome, SideOutcome referenceOutcome, DivergenceKind? kind) = Outcomes(channel, minimized);
         if (kind is not { } divergenceKind)
         {
@@ -199,6 +200,26 @@ internal sealed class DivergenceSearch
     // The value of a case on the library, which gives the elements of a macro range that is not a literal; the range agrees on
     // both sides, since the descent has compared it as a child before. In partial evaluation it is the value on the unknown data.
     private static Value? LibraryValue(Channel channel, GeneratedCase generated) => channel.Values.Evaluate(generated.Text, generated.Bindings).Result;
+
+    // What an instance of the transform of map or transformList gives, for the step of the fold: a value, unknown parts or an error
+    // of evaluation that the two sides give alike, else other (Minimizer.FoldStep). Unknown parts come only in partial evaluation, so
+    // the ordinary check builds no step.
+    private static StepKind StepKindOf(Channel channel, GeneratedCase generated)
+    {
+        (SideOutcome variantOutcome, _, DivergenceKind? kind) = Outcomes(channel, generated);
+        if (kind is not null)
+        {
+            return StepKind.Other;
+        }
+
+        return variantOutcome.Class switch
+        {
+            OutcomeClass.Value => StepKind.Value,
+            OutcomeClass.Unknown => StepKind.Unknown,
+            OutcomeClass.EvaluationError => StepKind.Error,
+            _ => StepKind.Other,
+        };
+    }
 
     private static string? SignatureOf(Channel channel, GeneratedCase generated)
     {

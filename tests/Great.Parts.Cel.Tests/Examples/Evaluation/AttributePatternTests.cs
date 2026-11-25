@@ -130,7 +130,7 @@ public sealed class AttributePatternTests
     // names the whole variable here, the chain is not evaluated and the unknown key is the result.
     [Fact]
     [Trait("Requirement", "F-22")]
-    public void ErrorOfTheChainBeforeAnUnknownKey_IsTheResult()
+    public void UnknownKey_IsTheResult_UnlessNoPatternMatchesAndTheChainFailsBeforeIt()
     {
         CelPartialEvalResult<CelValue> failed = Evaluate("request.nothing[request.auth.user]", [P("request", "auth", "user")], Data);
         CelPartialEvalResult<CelValue> unknown = Evaluate("request.auth[request.auth.user]", [P("request", "auth", "user")], Data);

@@ -22,6 +22,22 @@ internal enum NodeVerdict
     Diverges,
 }
 
+/// <summary>What an instance of the transform of <c>map</c> or <c>transformList</c> gives on both sides, for <see cref="Minimizer.FoldStep"/>.</summary>
+internal enum StepKind
+{
+    /// <summary>Both sides give the same value.</summary>
+    Value,
+
+    /// <summary>Both sides give the same unknown parts of the data.</summary>
+    Unknown,
+
+    /// <summary>Both sides give an error of evaluation.</summary>
+    Error,
+
+    /// <summary>The sides diverge, a side does not compile the instance, or the outcomes agree in another way.</summary>
+    Other,
+}
+
 /// <summary>
 /// Shrinks a divergent case (docs/design/eng-difftest.md, "Outcomes and signatures", "Minimization") by a deterministic
 /// descent: while a child of the root still diverges with the same bindings, the first such child in the order of
@@ -35,7 +51,9 @@ internal enum NodeVerdict
 /// body of the macro that makes the case smaller and is accepted becomes the case (<see cref="BodyInstances"/>): the body
 /// itself when it does not read the iteration variable; else the body with the element in place of the variable for each
 /// element of the range (both variables of a macro of two variables), or with a zero literal when the range is empty; then each
-/// closed node of the body. A case is
+/// closed node of the body. When no instance of a body is accepted and the root is <c>map</c> or <c>transformList</c>, the one
+/// instance of the step of its fold is tried: the sum of two lists of one instance of the transform each, the first that is
+/// unknown and the next that is an error (<see cref="FoldStep"/>). A case is
 /// smaller than another when it has fewer macro nodes, or as many and a shorter text. Each node below the root is classified
 /// at most once by the descent from a root. The result depends on the case and the outcomes of the sides alone, not on time or
 /// on random choices, so the same case gives the same minimized case and the same signature. A failed side ends the
@@ -43,6 +61,9 @@ internal enum NodeVerdict
 /// </summary>
 internal static class Minimizer
 {
+    // The macro of the set of two variables whose fold appends one list element at each step, like map.
+    private const string TransformList = "transformList";
+
     /// <summary>Minimizes a divergent case.</summary>
     /// <param name="divergent">The divergent case.</param>
     /// <param name="classify">
@@ -59,17 +80,23 @@ internal static class Minimizer
     /// macro that is not a literal, whose elements are those of its value (<see cref="BodyInstances"/>).
     /// <see langword="null"/> means that such a range has no body instances.
     /// </param>
+    /// <param name="stepKind">
+    /// What an instance of the transform of <c>map</c> or <c>transformList</c> gives on both sides, for the step of the fold
+    /// (<see cref="FoldStep"/>); called for the instances of the transform and only when no body instance is accepted.
+    /// <see langword="null"/> means that a macro has no instance of the step of its fold.
+    /// </param>
     /// <returns>The divergent case whose root has no divergent node under it and no accepted body instance.</returns>
-    /// <exception cref="IOException">An <see cref="IOException"/> of <paramref name="classify"/>, <paramref name="accepts"/> or <paramref name="rangeValue"/>, after which it is not called again.</exception>
-    /// <exception cref="SideFailureException">A <see cref="SideFailureException"/> of <paramref name="classify"/>, <paramref name="accepts"/> or <paramref name="rangeValue"/>, after which it is not called again.</exception>
+    /// <exception cref="IOException">An <see cref="IOException"/> of <paramref name="classify"/>, <paramref name="accepts"/>, <paramref name="rangeValue"/> or <paramref name="stepKind"/>, after which it is not called again.</exception>
+    /// <exception cref="SideFailureException">A <see cref="SideFailureException"/> of <paramref name="classify"/>, <paramref name="accepts"/>, <paramref name="rangeValue"/> or <paramref name="stepKind"/>, after which it is not called again.</exception>
     internal static GeneratedCase Minimize(
         GeneratedCase divergent,
         Func<GeneratedCase, NodeVerdict> classify,
         Func<GeneratedCase, GeneratedCase, bool>? accepts = null,
-        Func<GeneratedCase, Value?>? rangeValue = null)
+        Func<GeneratedCase, Value?>? rangeValue = null,
+        Func<GeneratedCase, StepKind>? stepKind = null)
     {
         GeneratedCase current = divergent;
-        while (Next(current, classify, accepts, rangeValue) is { } next)
+        while (Next(current, classify, accepts, rangeValue, stepKind) is { } next)
         {
             current = next;
         }
@@ -183,6 +210,174 @@ internal static class Minimizer
         }
     }
 
+    /// <summary>
+    /// The instance of the step of the fold of <c>map</c> or <c>transformList</c> in which cel-go and the library part:
+    /// <c>[a] + [b]</c> with <c>a</c> the first instance of the transform that is unknown on both sides and <c>b</c> the next that
+    /// is an error on both. The fold adds <c>[transform]</c> to the accumulator at each element, and cel-go returns the unknown
+    /// first operand of a binary function after it has evaluated the second and dropped its error, so an unknown element followed by
+    /// an error element gives the unknown, where the library gives the error. The instances of the bodies agree one by one and the
+    /// divergence is in their sum alone, so without this instance the case stays the macro. The instances of the transform are the
+    /// element of the range in place of the variable, as in <see cref="BodyInstances"/>, but only for a list: a literal of at
+    /// least two elements without optional elements, whose nodes are in parentheses, or in <c>dyn()</c> when the range is, and once
+    /// more in <c>dyn()</c> when its elements are literals of two types; or any other range whose value is a list of at least two
+    /// elements, read as <c>range[i]</c>. A map has no order that cel-go keeps, so it gives none. The elements are taken in
+    /// order; one that a predicate of the macro leaves out is skipped, and a predicate that is not a value of <c>bool</c> on the
+    /// library (an error, unknown parts, a compile error) gives no instance, since the step of that element is no plain append.
+    /// No instance either when an instance of the transform is of another kind than a value, unknown parts or an error on both sides
+    /// (it diverges, or a side does not compile it), when an error comes before the first unknown element (both sides give that
+    /// error), or when there is no unknown element or no error element after it: a divergence of such an instance is the one of
+    /// that case and is not hidden by the sum.
+    /// </summary>
+    /// <param name="node">The node.</param>
+    /// <param name="rangeValue">
+    /// The value of a node on the library, <see langword="null"/> when it gives none: of the range, when it is no literal, and of
+    /// each predicate.
+    /// </param>
+    /// <param name="kindOf">What an instance of the transform gives on both sides.</param>
+    /// <returns>The instance; <see langword="null"/> for a node that is no <c>map</c> or <c>transformList</c>, and when there is none.</returns>
+    internal static Expr? FoldStep(Expr node, Func<Expr, Value?> rangeValue, Func<Expr, StepKind> kindOf)
+    {
+        if (node is not Comprehension { Macro: ProfileTables.MapMacro or TransformList, Arguments.Count: > 0 } macro)
+        {
+            return null;
+        }
+
+        foreach (IReadOnlyList<IReadOnlyDictionary<string, Expr>> form in ElementForms(macro, rangeValue))
+        {
+            if (FoldStepOver(macro, form, rangeValue, kindOf) is { } step)
+            {
+                return step;
+            }
+        }
+
+        return null;
+    }
+
+    // The sum of the first unknown instance of the transform and the next error one over the elements of a form; null when there is
+    // none or an instance rules the sum out (FoldStep).
+    private static Expr? FoldStepOver(
+        Comprehension macro,
+        IReadOnlyList<IReadOnlyDictionary<string, Expr>> form,
+        Func<Expr, Value?> rangeValue,
+        Func<Expr, StepKind> kindOf)
+    {
+        Expr transform = macro.Arguments[^1];
+        List<(StepKind Kind, Expr Body)> steps = [];
+        foreach (IReadOnlyDictionary<string, Expr> replacements in form)
+        {
+            if (Selects(macro, replacements, rangeValue) is not { } selected)
+            {
+                return null;
+            }
+
+            if (!selected)
+            {
+                continue;
+            }
+
+            Expr body = Replace(transform, replacements);
+            StepKind kind = kindOf(body);
+            if (kind == StepKind.Other)
+            {
+                return null;
+            }
+
+            steps.Add((kind, body));
+        }
+
+        // The first error must come after the first unknown element: an error before it is the result of both sides.
+        int unknown = steps.FindIndex(step => step.Kind == StepKind.Unknown);
+        int error = steps.FindIndex(step => step.Kind == StepKind.Error);
+        return unknown >= 0 && error > unknown
+            ? new Call(ProfileTables.Add, [new ListLiteral([steps[unknown].Body], TrailingComma: false), new ListLiteral([steps[error].Body], TrailingComma: false)])
+            : null;
+    }
+
+    // Whether the predicates of the macro, in order, select the element that the replacements stand for: all of them give true on the
+    // library; null when one gives no value of bool.
+    private static bool? Selects(Comprehension macro, IReadOnlyDictionary<string, Expr> replacements, Func<Expr, Value?> rangeValue)
+    {
+        bool selected = true;
+        foreach (Expr predicate in macro.Arguments.Take(macro.Arguments.Count - 1))
+        {
+            if (rangeValue(Replace(predicate, replacements)) is not { KindCase: Value.KindOneofCase.BoolValue } outcome)
+            {
+                return null;
+            }
+
+            selected &= outcome.BoolValue;
+        }
+
+        return selected;
+    }
+
+    // The forms of the elements of the range of a macro, each with the replacements of the variables for every element in order,
+    // asked for when the form before it gave no sum; the range of fewer than two elements, a map and a list with optional elements
+    // give none (FoldStep).
+    private static IEnumerable<IReadOnlyList<IReadOnlyDictionary<string, Expr>>> ElementForms(Comprehension macro, Func<Expr, Value?> rangeValue)
+    {
+        bool inDyn = macro.Range is Call { Function: ProfileTables.Dyn, Args: [_] };
+        Expr literal = macro.Range is Call { Function: ProfileTables.Dyn, Args: [{ } argument] } ? argument : macro.Range;
+        return literal switch
+        {
+            MapLiteral => [],
+            ListLiteral list => LiteralForms(macro, list, inDyn),
+            _ => ValueForms(macro, rangeValue),
+        };
+    }
+
+    // The forms of a list literal: its elements in dyn() when the range is, else in parentheses, and once more in dyn() when they are
+    // literals of two types. An optional element may leave no element in the list, and the descent does not know which, so a list
+    // with one gives none, as a list of fewer than two elements does.
+    private static IEnumerable<IReadOnlyList<IReadOnlyDictionary<string, Expr>>> LiteralForms(Comprehension macro, ListLiteral list, bool inDyn)
+    {
+        if (list.Elements.Count < 2 || list.OptionalPositions.Count > 0)
+        {
+            yield break;
+        }
+
+        if (inDyn)
+        {
+            yield return LiteralForm(macro, list.Elements, WrapInDyn, WrapInDyn);
+            yield break;
+        }
+
+        yield return LiteralForm(macro, list.Elements, WrapInParentheses, WrapInParentheses);
+        if (HoldsLiteralsOfTwoTypes(list.Elements))
+        {
+            yield return LiteralForm(macro, list.Elements, WrapInParentheses, WrapInDyn);
+        }
+    }
+
+    // The form of a range that is no literal: its value on the library is a list of at least two elements.
+    private static IEnumerable<IReadOnlyList<IReadOnlyDictionary<string, Expr>>> ValueForms(Comprehension macro, Func<Expr, Value?> rangeValue)
+    {
+        if (rangeValue(macro.Range) is { KindCase: Value.KindOneofCase.ListValue } value && value.ListValue.Values.Count >= 2)
+        {
+            yield return IndexedForm(macro, value.ListValue.Values.Count);
+        }
+    }
+
+    // The replacements for the elements of a list literal: the position and the element, each as the given functions wrap it.
+    private static IReadOnlyList<IReadOnlyDictionary<string, Expr>> LiteralForm(
+        Comprehension macro, IReadOnlyList<Expr> elements, Func<Expr, Expr> wrapPosition, Func<Expr, Expr> wrapElement) =>
+        [.. elements.Select((element, index) => Binding(macro, wrapPosition(Position(index)), wrapElement(element)))];
+
+    // The replacements for the elements of a range that is no literal: the position and range[position].
+    private static IReadOnlyList<IReadOnlyDictionary<string, Expr>> IndexedForm(Comprehension macro, int count) =>
+        [.. Enumerable.Range(0, count).Select(index => Binding(macro, Position(index), new Call(ProfileTables.Index, [macro.Range, Position(index)])))];
+
+    // The variables of a macro and the nodes that stand for them: the element for the variable of a macro of one variable, the
+    // position and the element for the two variables of a macro of two.
+    private static Dictionary<string, Expr> Binding(Comprehension macro, Expr position, Expr element) =>
+        macro.SecondVariable is { } second
+            ? new Dictionary<string, Expr> { [macro.Variable] = position, [second] = element }
+            : new Dictionary<string, Expr> { [macro.Variable] = element };
+
+    private static Expr WrapInDyn(Expr node) => new Call(ProfileTables.Dyn, [node]);
+
+    private static Expr WrapInParentheses(Expr node) => node with { Parenthesized = true };
+
     /// <summary>The number of macro nodes of an expression, the first measure of how small a case is.</summary>
     /// <param name="node">The expression.</param>
     internal static int MacroNodes(Expr node) => node switch
@@ -194,14 +389,16 @@ internal static class Minimizer
     /// <summary>
     /// The next case of the descent from a root: the first node that diverges below it, found by the search under the children
     /// on which both sides give an error (<see cref="FirstDivergent"/>), without any condition; else the first accepted instance
-    /// of a body of the macro at the root, which is asked for only if nothing was found; <see langword="null"/> when there is
-    /// none.
+    /// of a body of the macro at the root, which is asked for only if nothing was found; else the instance of the step of the fold
+    /// of <c>map</c> or <c>transformList</c> (<see cref="FoldStep"/>), which is asked for only if no instance of a body was
+    /// accepted; <see langword="null"/> when there is none.
     /// </summary>
     private static GeneratedCase? Next(
         GeneratedCase current,
         Func<GeneratedCase, NodeVerdict> classify,
         Func<GeneratedCase, GeneratedCase, bool>? accepts,
-        Func<GeneratedCase, Value?>? rangeValue)
+        Func<GeneratedCase, Value?>? rangeValue,
+        Func<GeneratedCase, StepKind>? stepKind)
     {
         if (FirstDivergent(current, classify) is { } found)
         {
@@ -222,7 +419,7 @@ internal static class Minimizer
         {
             if (IsSmaller(instance, macros, length) && classify(instance) == NodeVerdict.Diverges)
             {
-                GeneratedCase reduced = Minimize(instance, classify, accepts, rangeValue);
+                GeneratedCase reduced = Minimize(instance, classify, accepts, rangeValue, stepKind);
                 if (accepts(current, reduced))
                 {
                     return reduced;
@@ -230,7 +427,39 @@ internal static class Minimizer
             }
         }
 
-        return null;
+        return FoldStepCase(current, classify, accepts, rangeValue, stepKind, macros, length);
+    }
+
+    // The instance of the step of the fold, when it makes the case smaller, diverges and is accepted as an instance of a body is.
+    private static GeneratedCase? FoldStepCase(
+        GeneratedCase current,
+        Func<GeneratedCase, NodeVerdict> classify,
+        Func<GeneratedCase, GeneratedCase, bool> accepts,
+        Func<GeneratedCase, Value?>? rangeValue,
+        Func<GeneratedCase, StepKind>? stepKind,
+        int macros,
+        int length)
+    {
+        if (stepKind is null)
+        {
+            return null;
+        }
+
+        Func<GeneratedCase, StepKind> kindOfCase = stepKind;
+        Value? ValueOfRange(Expr range) => rangeValue?.Invoke(current with { Expression = range });
+        if (FoldStep(current.Expression, ValueOfRange, body => kindOfCase(current with { Expression = body })) is not { } step)
+        {
+            return null;
+        }
+
+        GeneratedCase instance = current with { Expression = step };
+        if (!IsSmaller(instance, macros, length) || classify(instance) != NodeVerdict.Diverges)
+        {
+            return null;
+        }
+
+        GeneratedCase reduced = Minimize(instance, classify, accepts, rangeValue, stepKind);
+        return accepts(current, reduced) ? reduced : null;
     }
 
     // The first node below a node that diverges: the first child that does, else the first node that does found by the same

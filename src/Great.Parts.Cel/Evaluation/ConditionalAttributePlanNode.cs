@@ -100,9 +100,9 @@ internal sealed class ConditionalAttributePlanNode : PlanNode
     }
 
     // Evaluates the conditions and the keys along the branches that the conditions choose, from left to right, and adds the access to
-    // the arrays. False, with the error, when a key is an error; an unknown key goes into the access and is kept in Access.Unknown. When the access has no variable to match, the
-    // variable of the access is left null: the chosen branch is no attribute of a variable with a pattern, or a condition is not a
-    // bool.
+    // the arrays. False, with the error, when a key is an error; an unknown key goes into the access and is kept in Access.Unknown.
+    // When the access has no variable to match, the variable of the access is left null: the chosen branch is no attribute of a
+    // variable with a pattern, or a condition is not a bool.
     private static bool TryCollect(Frame frame, PartialState state, AttributeSource source, Access access, out CelValue error)
     {
         error = default;
