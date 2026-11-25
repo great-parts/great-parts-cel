@@ -1,6 +1,7 @@
 {
     "codeMetrics": {
-        "CA1502": 15
+        "CA1502": 15,
+        "CA1506(Type)": 120
     },
     "duplicates": 1870,
     "suppressions": {

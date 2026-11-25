@@ -165,26 +165,22 @@ internal static partial class ConversionRules
     // The rows of the lists and maps of a leaf row, and the rows of CelOptional<…> of T, of its list, of its maps and of CelOptional<T>
     // itself. The optional of an optional of a collection is no row: the tables nest one level. It is a method of its own, called only
     // by the types of the leaf rows, and no member of ClrRow<T>: a member there would exist for every row, the collection rows too, and Native AOT
-    // would compile the rows of the rows of a collection without end. A class of its own keeps the collection row types out of the
-    // coupling of ConversionRules.
-    private static class LeafCollections
+    // would compile the rows of the rows of a collection without end.
+    private static void AddLeafCollections<T>(ClrRow<T> row, Dictionary<Type, ClrRow> rows, KeyRows keys)
     {
-        internal static void Add<T>(ClrRow<T> row, Dictionary<Type, ClrRow> rows, KeyRows keys)
-        {
-            var list = new ListRow<T>(row);
-            var optional = new OptionalRow<T>(row);
-            rows.Add(typeof(IReadOnlyList<T>), list);
-            rows.Add(typeof(CelOptional<T>), optional);
-            rows.Add(typeof(CelOptional<CelOptional<T>>), new OptionalRow<CelOptional<T>>(optional));
-            rows.Add(typeof(CelOptional<IReadOnlyList<T>>), new OptionalRow<IReadOnlyList<T>>(list));
-            keys.AddMaps(rows, row);
-        }
+        var list = new ListRow<T>(row);
+        var optional = new OptionalRow<T>(row);
+        rows.Add(typeof(IReadOnlyList<T>), list);
+        rows.Add(typeof(CelOptional<T>), optional);
+        rows.Add(typeof(CelOptional<CelOptional<T>>), new OptionalRow<CelOptional<T>>(optional));
+        rows.Add(typeof(CelOptional<IReadOnlyList<T>>), new OptionalRow<IReadOnlyList<T>>(list));
+        keys.AddMaps(rows, row);
     }
 
     // A row of a type that is not a collection of the tables: the element, key and value types of the collection rows.
     private abstract class LeafRow<T>(CelType expectedType, bool takesNull) : ClrRow<T>(expectedType, takesNull)
     {
-        internal sealed override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => LeafCollections.Add(this, rows, keys);
+        internal sealed override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(this, rows, keys);
     }
 
     // The row of a type of one CEL kind: it holds the values of that kind, and it can fail only when it narrows. It has no rows of
@@ -199,7 +195,7 @@ internal static partial class ConversionRules
     // bool, the integers, double, string and bytes; int and uint narrow with a range check.
     private sealed class PrimitiveRow<T>(CelType expectedType, bool narrowing, bool takesNull) : KindRow<T>(expectedType, narrowing, takesNull)
     {
-        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => LeafCollections.Add(this, rows, keys);
+        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(this, rows, keys);
 
         internal override bool TryConvert(CelValue value, CelType type, IEvaluationMeter? meter, [MaybeNull] out T result) =>
             TryToPrimitive(value, meter, out result);
@@ -226,7 +222,7 @@ internal static partial class ConversionRules
     // rows of a date and a time of day.
     private sealed class LeafReadRow<T>(CelType expectedType, bool narrowing, TryRead<T> read) : ReadRow<T>(expectedType, narrowing, read)
     {
-        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => LeafCollections.Add(this, rows, keys);
+        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(this, rows, keys);
     }
 
     // Nullable<X> of a value type: null, or the value by the row of X. The expected type is the wrapper of that of X, except for the types
@@ -259,7 +255,7 @@ internal static partial class ConversionRules
     private sealed class LeafNullableRow<T>(ClrRow<T> valueRow, bool wrapped = true) : NullableRow<T>(valueRow, wrapped)
         where T : struct
     {
-        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => LeafCollections.Add(this, rows, keys);
+        internal override void AddCollections(Dictionary<Type, ClrRow> rows, KeyRows keys) => AddLeafCollections(this, rows, keys);
     }
 
     // CelValue: any value as it is.
