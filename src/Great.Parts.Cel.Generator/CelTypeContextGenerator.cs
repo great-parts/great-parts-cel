@@ -34,13 +34,7 @@ public sealed class CelTypeContextGenerator : IIncrementalGenerator
             .Select(static (result, _) => result.Diagnostics)
             .WithTrackingName("Diagnostics");
 
-        // Whether the assembly sees the internal members of the library: the created overrides must match the access of the members
-        // they override. The value is a flag, so an edit of the sources leaves the step unchanged.
-        IncrementalValueProvider<bool> internalAccess = context.CompilationProvider
-            .Select(static (compilation, _) => CompilationFacts.SeesLibraryInternals(compilation))
-            .WithTrackingName("InternalAccess");
-
-        context.RegisterSourceOutput(models.Combine(internalAccess), static (production, pair) => Write(production, pair.Left, pair.Right));
+        context.RegisterSourceOutput(models.Combine(CompilationFacts.InternalAccess(context)), static (production, pair) => Write(production, pair.Left, pair.Right));
         context.RegisterSourceOutput(
             diagnostics.Combine(context.CompilationProvider),
             static (production, pair) => DiagnosticReporter.Report(production, pair.Left, pair.Right));

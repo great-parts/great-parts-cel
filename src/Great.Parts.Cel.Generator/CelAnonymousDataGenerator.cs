@@ -62,14 +62,8 @@ public sealed class CelAnonymousDataGenerator : IIncrementalGenerator
             .Select(static (result, _) => result.Diagnostics)
             .WithTrackingName("ClassDescriptionDiagnostics");
 
-        // Whether the assembly sees the internal members of the library: the created overrides must match the access of the members
-        // they override. The value is a flag, so an edit of the sources leaves the step unchanged.
-        IncrementalValueProvider<bool> internalAccess = context.CompilationProvider
-            .Select(static (compilation, _) => CompilationFacts.SeesLibraryInternals(compilation))
-            .WithTrackingName("InternalAccess");
-
         context.RegisterSourceOutput(
-            shapes.Combine(model).Combine(internalAccess),
+            shapes.Combine(model).Combine(CompilationFacts.InternalAccess(context)),
             static (production, pair) => Write(production, pair.Left.Left, pair.Left.Right, pair.Right));
         context.RegisterSourceOutput(
             diagnostics.Combine(context.CompilationProvider),

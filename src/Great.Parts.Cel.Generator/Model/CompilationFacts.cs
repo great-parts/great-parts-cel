@@ -37,4 +37,11 @@ internal sealed record CompilationFacts(int Language)
         INamedTypeSymbol? type = compilation.GetTypeByMetadataName(WellKnown.CelObjectType);
         return type is not null && type.ContainingAssembly.GivesAccessTo(compilation.Assembly);
     }
+
+    // The step of a generator that tells whether the assembly sees the internal members of the library: the created overrides must
+    // match the access of the members they override. The value is a flag, so an edit of the sources leaves the step unchanged.
+    internal static IncrementalValueProvider<bool> InternalAccess(IncrementalGeneratorInitializationContext context) =>
+        context.CompilationProvider
+            .Select(static (compilation, _) => SeesLibraryInternals(compilation))
+            .WithTrackingName("InternalAccess");
 }
