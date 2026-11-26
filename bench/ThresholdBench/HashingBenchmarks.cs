@@ -5,9 +5,9 @@ using Great.Parts.Cel.Values;
 namespace ThresholdBench;
 
 /// <summary>
-/// The limit of the index of the values of a list: an index of at most 32 values (<c>ValueIndex.ScanLimit</c>) scans the hashes in
+/// The limit of the index of the values of a list: an index of at most 64 values (<c>ValueIndex.ScanLimit</c>) scans the hashes in
 /// order, a longer one uses buckets, and both are the hashed path of <c>distinct</c> and <c>sets</c>. The class measures the index
-/// directly on a list of N integers, on both sides of the limit, in five ways:
+/// directly on a list of N integers, up to the limit, in five ways:
 /// <list type="bullet">
 /// <item>the index as the library makes it for N values (the scan up to the limit, the buckets above);</item>
 /// <item>the scan for any N (<c>ValueIndexMode.Scan</c>);</item>

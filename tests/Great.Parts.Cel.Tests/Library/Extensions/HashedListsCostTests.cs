@@ -35,9 +35,10 @@ public sealed class HashedListsCostTests
     // The values of the lists of the index tests repeat after this many; the lists keep this many values at most.
     private const int Period = 10;
 
-    // What a call allocates besides the arrays of its index, which are pooled: the object of the index, with room; and the array of
-    // the result of distinct that drops repeats, ten values of 32 bytes with the header of the array, and the list that holds it.
-    private const long IndexBytes = 256;
+    // What a call allocates besides the arrays of its index, which are pooled: the object of the index, 136 bytes in CI under JIT and
+    // Native AOT on both targets, rounded up to 32; and the array of the result of distinct that drops repeats, ten values of 32 bytes
+    // with the header of the array, and the list that holds it.
+    private const long IndexBytes = 160;
     private const long ResultBytes = 24 + (32 * Period) + 64;
 
     private static readonly BoxType Boxes = new();
@@ -99,7 +100,7 @@ public sealed class HashedListsCostTests
         Assert.Equal(CelErrorCode.CostLimitExceeded, Assert.Single(Evaluate(expression, NoBindings, cost - 1).Errors).Code);
     }
 
-    // The cost does not depend on the length at which the library changes from scanning the hashes to buckets, which is 32, nor on
+    // The cost does not depend on the length at which the library changes from scanning the hashes to buckets, which is 64, nor on
     // the length above 64 at which a search of the hashes would stop being a constant number of steps for a unit. The list holds the
     // numbers 0 to 9 over and over: ten of them stay, the rest are repeats of one comparison each.
     [Theory]

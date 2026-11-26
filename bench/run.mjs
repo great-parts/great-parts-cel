@@ -55,7 +55,7 @@ const AUTOMATON_LIMIT_NS = 2000;
 // The index of distinct and sets: the lengths of the lists at which the scan and the buckets are measured, and the length up to which
 // the library scans (ValueIndex.ScanLimit). The measurement states no verdict on it.
 const HASH_SIZES = [8, 16, 24, 32, 48, 64];
-const HASH_SCAN_LIMIT = 32;
+const HASH_SCAN_LIMIT = 64;
 const HASH_EVALUATION_SIZES = [16, 32, 33, 48, 64];
 
 const args = process.argv.slice(2);

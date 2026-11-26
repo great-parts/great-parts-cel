@@ -42,10 +42,10 @@ internal enum ValueIndexMode : byte
 internal sealed class ValueIndex
 {
     // An index of at most this many values scans the hashes in order and a longer one uses buckets. The limit is the length up to
-    // which the scan is not slower than the buckets; it is below 64, the longest list for which a search of the hashes does a
-    // constant number of steps per unit charged (docs/cost.md, "Hashing in distinct and sets"), and it changes nothing that a call
-    // returns or charges.
-    internal const int ScanLimit = 32;
+    // which the scan is not slower than the buckets, measured by the benchmark rig at 8 to 64 values; it is at most 64, the longest
+    // list for which a search of the hashes does a constant number of steps per unit charged (docs/cost.md, "Hashing in distinct and
+    // sets"), and it changes nothing that a call returns or charges.
+    internal const int ScanLimit = 64;
 
     private readonly IEvaluationMeter? _meter;
     private readonly TypeIndex? _types;
