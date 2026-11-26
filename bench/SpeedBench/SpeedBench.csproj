@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <!--
-    The verification under Native AOT: run.mjs --runtime aot publishes this project with BenchAot=true and runs the native executable
+    The verification under Native AOT: run.mjs with the runtime aot publishes this project with BenchAot=true and runs the native executable
     to verify every library in a Native AOT process (docs/design/eng-bench.md, "Native AOT"). The property is set on the command line of
     that publish only, so the restore of the workflow (locked mode) and every other build of the rig are unchanged. The measurement
     under Native AOT is made by the processes that BenchmarkDotNet publishes itself, from the project without this property; the
