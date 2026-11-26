@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Builds the report of a run of bench.yml for the branch `reports` (docs/design/eng-release.md, "Reports of the runs").
 //
-//   node .github/scripts/bench-report.mjs --results bench/results --output <directory> [--runs <n>] [--job <job>] [--cases <ids>]
+//   node .github/scripts/bench-report.mjs --results bench/results --output <directory> [--runs <n>] [--job <job>] [--runtime jit|aot] [--cases <ids>]
+//
+// The runtime (jit, the default, or aot: Native AOT) is in the title of report.md and in the inputs of report.json.
 //
 // The directory gets <stamp>/ with report.json (the date and the time of the report in UTC, the commit, the run, the inputs, the
 // runs), report.md (the summary of the rig, with the column Allocated of the table over the runs), verify.json, thresholds.json (the
@@ -21,9 +23,16 @@ const option = (name) => {
 const resultsPath = option('--results');
 const outputPath = option('--output');
 if (!resultsPath || !outputPath) {
-  console.error('Usage: bench-report.mjs --results <directory> --output <directory> [--runs <n>] [--job <job>] [--cases <ids>]');
+  console.error('Usage: bench-report.mjs --results <directory> --output <directory> [--runs <n>] [--job <job>] [--runtime jit|aot] [--cases <ids>]');
   process.exit(2);
 }
+
+const runtime = option('--runtime') ?? 'jit';
+if (runtime !== 'jit' && runtime !== 'aot') {
+  console.error(`--runtime is jit or aot, got '${runtime}'`);
+  process.exit(2);
+}
+const runtimeTitle = runtime === 'aot' ? 'Native AOT on .NET 11' : 'JIT on .NET 11';
 
 const summaryPath = join(resultsPath, 'summary.md');
 const verifyPath = join(resultsPath, 'verify.json');
@@ -61,7 +70,7 @@ const report = {
   kind: 'bench',
   generatedAtUtc: generatedAt,
   greatPartsCelCommit: commit,
-  inputs: { runs: option('--runs') ? Number(option('--runs')) : null, job: option('--job') ?? null, cases: option('--cases') || null },
+  inputs: { runs: option('--runs') ? Number(option('--runs')) : null, job: option('--job') ?? null, runtime, cases: option('--cases') || null },
   runs,
   thresholds: thresholds ? { job: thresholds.job, verdicts: thresholds.verdicts.map((v) => ({ limit: v.limit, verdict: v.verdict })) } : null,
   files: {
@@ -74,7 +83,7 @@ const report = {
 };
 
 const header = [
-  '# Benchmark rig',
+  `# Benchmark rig: ${runtimeTitle}`,
   '',
   `- Date and time of the report (UTC): ${generatedAt.replace('T', ' ').replace('Z', '')}`,
   commit ? `- Commit of ${repository}: [\`${commit}\`](${server}/${repository}/commit/${commit})` : '- Commit of the repository: not a GitHub Actions run',

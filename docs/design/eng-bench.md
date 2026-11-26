@@ -8,14 +8,14 @@ The rig is not part of the library, of its packages or of `Great.Parts.Cel.slnx`
 
 | Path | Contents |
 | :- | :- |
-| `bench/SpeedBench/SpeedBench.csproj` | the console application, `net11.0`: BenchmarkDotNet, the compared libraries, Great.Parts.Cel from the sources of the commit (a project reference, with the source generator as an analyzer), Grpc.Tools (build only) |
+| `bench/SpeedBench/SpeedBench.csproj` | the console application, `net11.0`: BenchmarkDotNet, the compared libraries, Great.Parts.Cel from the sources of the commit (a project reference, with the source generator as an analyzer), Grpc.Tools (build only); with `-p:BenchAot=true` (the verification under Native AOT, [Native AOT](#native-aot)) it is published with `PublishAot` |
 | `bench/ThresholdBench/` | the console application of the limits and diagnostics, `net11.0`: the benchmarks of [Limits and diagnostics](#limits-and-diagnostics); it sees the internals of the library |
 | `bench/SpeedBench/Scenarios.cs` | the texts of the expressions E1 to E9, the twelve cases, the data, the expected value of each case |
 | `bench/SpeedBench/Model.cs` | the classes of the data: `Order`, `Line`, `Customer` |
 | `bench/SpeedBench/Adapters/` | `ILibraryAdapter` with the three operations, the list of the libraries, one adapter for each library; `ProtoData.cs` turns the order into protobuf messages for the libraries that read protobuf |
 | `bench/SpeedBench/Proto/order.proto` | the same data as protobuf messages |
 | `bench/SpeedBench/ExpressionText.cs` | a new text of the expression for every call |
-| `bench/SpeedBench/Verification.cs` | the check of every library on every case before the measurement |
+| `bench/SpeedBench/Verification.cs` | the check of every library on every case before the measurement; its rows are written and read by the source generator of System.Text.Json, so it runs under Native AOT |
 | `bench/SpeedBench/Benchmarks.cs` | `OperationBench` (the three operations) and `TextBench` (the creation of a text) |
 | `bench/SpeedBench/Canon.cs` | the canonical text of a result, for the comparison with the expected value |
 | `bench/run.mjs` | the runner: build, verification, several measurement runs, the tables and the summary; Node.js without npm dependencies |
@@ -47,11 +47,31 @@ Before the measurement every library runs every case in three ways: the original
 
 ## Measurement and tables
 
-BenchmarkDotNet runs with the default job, `MemoryDiagnoser`, the median column and the JSON report; every case runs in a process of its own. The runtime is .NET 11 under JIT: the projects of the rig target `net11.0`, and the SDK and the runtime are those of `global.json` on the runner. The release 0.15.8 of BenchmarkDotNet cannot name .NET 11, so the rig (both projects) takes the preview 0.16.0-preview.2, which knows it (`CoreRuntime.Core11_0`, the moniker `net11.0`); the preview is used by the rig only, never by the packages of the library.
+BenchmarkDotNet runs with the default job, `MemoryDiagnoser`, the median column and the JSON report; every case runs in a process of its own. The runtime is .NET 11 under JIT, or under Native AOT with `--runtime aot` ([Native AOT](#native-aot)): the projects of the rig target `net11.0`, and the SDK and the runtime are those of `global.json` on the runner. The summary names the runtime in the section "Conditions", the table of each run in its line, and the report in its title. The release 0.15.8 of BenchmarkDotNet cannot name .NET 11, so the rig (both projects) takes the preview 0.16.0-preview.2, which knows it (`CoreRuntime.Core11_0`, the moniker `net11.0`); the preview is used by the rig only, never by the packages of the library.
 
 A run is one measurement of all the rows. `run.mjs --runs N` makes N runs one after another. In every run, for each scenario and operation, the ratio of a library is its decisive time divided by the decisive time of the fastest library with a correct result in the same run. For every row "scenario, operation, library" the summary shows the ratios of the runs, R (their median), the spread (the largest ratio divided by the smallest) and the fastest library of each run. The target is R not above 1.1 in every row of Great.Parts.Cel; a row with R above 1.1 is listed in the closing block. A row has a result when it has at least three runs; a row whose ratios lie on both sides of 1.1 is marked, and at five runs it is marked as at the threshold.
 
 The files of a run are in `bench/results/` (not in git): `verify.json`, `runs/<k>/` with the report of BenchmarkDotNet, `run.json` and the table of the run, and `summary.md` over all the runs. `node bench/run.mjs --summary-only` builds the summaries again from the saved runs.
+
+## Native AOT
+
+`node bench/run.mjs --runtime aot` (the workflow input `runtime=aot`) measures the same twelve cases and three operations under Native AOT on .NET 11; `--runtime jit` is the default and the measurement described above. `meta.json` in `bench/results/` keeps the runtime (and the runtime identifier) of the results, so `--summary-only` builds the summary of the runtime that was measured.
+
+**The steps of a run under Native AOT**
+
+1. `dotnet build` of `SpeedBench` as under JIT: the host of BenchmarkDotNet is a JIT process.
+2. `dotnet publish` of `SpeedBench` with `-p:BenchAot=true -p:BenchRuntimeIdentifier=<the runtime identifier of the machine>` into `bench/results/aot/`. `BenchAot` sets `PublishAot`, the runtime identifier of the project and the constant `BENCH_AOT` in `SpeedBench.csproj`; both properties are given on the command line of this publish only, so the locked restore of the workflow and every other build of the rig are those of the JIT measurement. The runtime identifier is a property of the project and not the option `-r`: a global one would reach the restore of the library projects, which restore in locked mode on GitHub and whose lock files have no target for it. The executable has no mode `bench`: BenchmarkDotNet is not compiled into it.
+3. The verification under Native AOT. The executable lists the libraries (`libraries`) and verifies each in a process of its own (`verify <file> <library>`), with the three variants and the expected values of [Verification](#verification). A library that cannot be created in the Native AOT process (its type initializer throws), whose evaluation throws, or whose result differs from the expected value is excluded from that case, with the result as the reason. A process that ends abnormally (a crash, a non-zero exit code) excludes its library from every case: `run.mjs` asks the executable to write the rows of an excluded library (`exclude <file> <library> <reason>`) with the exit code or the signal as the reason. The rows of all libraries are written to `bench/results/verify.json`, by case and then by library, as under JIT. The libraries are created on first use (`Libraries`), so a failing library does not fail the others.
+4. BenchmarkDotNet runs from the JIT build with `--runtimes nativeaot11.0` and `--buildTimeout 3600`: for the benchmark processes it generates a project that references `SpeedBench`, publishes it with the `ILCompiler` of the SDK (the package is restored from nuget.org during the run) and runs the native executable of each case. The default build timeout of BenchmarkDotNet for Native AOT is 5 minutes; the limit of the run is that of the job on GitHub. The environment variable `BENCH_VERIFIED` names `bench/results/verify.json`: the host and the benchmark processes take the pairs `library:case` from it and not from a verification of their own (`Verification.MeasuredTargets`), because BenchmarkDotNet lists the parameter values again in the benchmark process and takes them by index, so both lists must be the same.
+5. `run.mjs` reads the reports and writes the summary as under JIT.
+
+**What is not measured under Native AOT.** The limits of the speed-ups of [Limits and diagnostics](#limits-and-diagnostics) (`ThresholdBench`): their rules are stated for JIT (the search of the literal prefix, the 2 µs of the automaton of E5 on the standard runner under JIT), and a verdict under another runtime would not answer the question they ask. `run.mjs --runtime aot` does not build or run `ThresholdBench` and the section "Limits of the speed-ups" is absent; `--thresholds-only` with `--runtime aot` is refused.
+
+**Excluded libraries.** The rig keeps no list of libraries that are excluded under Native AOT: the verification decides in every run, and the summary names each excluded library with the result that excluded it, in the section "Verification" (the full text of every result is in `verify.json`). A library that does not compile for Native AOT at all, so that the publish of step 2 fails, fails the run before the measurement: the publish log names the cause, and the library is then left out of the rig for the Native AOT measurement by a change of the rig, not by a silent skip.
+
+**Inputs and the report.** `bench.yml` has the input `runtime` (`jit`, the default, or `aot`) and passes it to `run.mjs` (`--runtime aot`) and to `.github/scripts/bench-report.mjs` (`--runtime`). The title of `report.md` and the field `inputs.runtime` of `report.json` name the runtime; the step summary of the job has the title "Benchmark rig: JIT on .NET 11" or "Native AOT on .NET 11". A report of a measurement under Native AOT is committed to the directory `bench-aot/` of the branch `reports`, one under JIT to `bench/`, so the `latest.json` of one runtime does not replace the other's.
+
+**Packages and the lock file.** The measurement under Native AOT adds no package to `bench/Directory.Packages.props`: the `ILCompiler` and the runtime pack are the ones the SDK adds for `PublishAot`, and the packages of the rig are the pinned ones. The lock file `bench/SpeedBench/packages.lock.json` is that of the JIT build and stays valid for the locked restore of the workflow; the restore of the publish and of the generated projects is not locked, so it may rewrite the lock file in the workspace of the run, and nothing in the run reads it afterwards.
 
 ## Limits and diagnostics
 
@@ -76,6 +96,7 @@ gh workflow run bench.yml --ref main -f runs=3
 | :- | :- |
 | `runs` | the number of runs, one after another in one job, on one virtual machine; at least 3 for a result, 3 by default |
 | `job` | `Default`: the measurement. `Dry`: one call per case, a check of the rig and the workflow without a measurement |
+| `runtime` | `jit`: the measurement under JIT on .NET 11, the default. `aot`: under Native AOT on .NET 11 ([Native AOT](#native-aot)); the limits of the speed-ups are not measured under `aot` |
 | `cases` | the ids of the cases separated by commas, for example `E1,E5`; without it every case |
 
 The job restores in locked mode, then `run.mjs` builds, verifies and measures. The runner is `ubuntu-latest`, the SDK and the runtime (.NET 11) are those of `global.json`. The job `bench` has no secret and no write permission, and no time limit of its own: the limit of a job on GitHub, 6 hours, applies. The full measurement has 147 cases per run; the estimate of the time is about an hour per run on a laptop, so three runs fit in the limit with a margin. The result is the artifact `bench-results` (the summary, the verification, the table and the reports of every run) and the step summary of the job.

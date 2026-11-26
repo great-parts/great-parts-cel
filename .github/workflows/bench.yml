@@ -1,10 +1,13 @@
 # The benchmark rig (docs/design/eng-bench.md): the speed comparison with other CEL libraries for .NET, on request. It runs on a
 # GitHub-hosted runner only, by hand: no trigger but the manual one, and no measurement on a developer machine. The runs of one
 # measurement go one after another in one job, so on one virtual machine. The rig measures Great.Parts.Cel built from the sources of
-# the commit, on .NET 11 under JIT. After the runs, in the same job, the script measures the limits of the speed-ups of the library (the
+# the commit, on .NET 11 under JIT (the input runtime=jit, the default) or under Native AOT (runtime=aot: the rig is published with
+# PublishAot, every library is verified in a native process, and BenchmarkDotNet measures the verified pairs with its toolchain
+# nativeaot11.0; a library that does not work under Native AOT is excluded with the reason, as one whose result is wrong). After the
+# runs under JIT, in the same job, the script measures the limits of the speed-ups of the library (the
 # search of the literal prefix of matches around 64 code units, the build of the automaton of the pattern E5, the scan and the buckets
 # of the index of distinct and sets) and the diagnostics without a verdict (the search of a substring, the simple entry, CelMap.Create)
-# and writes them into the summary.
+# and writes them into the summary; under Native AOT it does not: the rules of the limits are stated for JIT.
 # The result is the artifact bench-results (the summary, the verification, the table and the BenchmarkDotNet reports of every run, the
 # verdicts and the reports of the limits) and the step summary. The workflow has no secrets and reads the repository only. It sets no timeout-minutes: the protection
 # against a hung job is the default limit of GitHub Actions, 6 hours.
@@ -12,7 +15,8 @@
 # the date and the time in UTC, the commit of this repository, the run) and keeps it as the artifact bench-report; the job `publish`,
 # the only one with `permissions: contents: write`, commits it to the branch `reports` (publish-report.yml, docs/design/eng-release.md,
 # "Reports of the runs"). It runs for a measurement (job Default) of at least 3 runs on the main branch; a Dry run is a check of the
-# rig, not a result.
+# rig, not a result. A report under Native AOT goes to the directory bench-aot of the branch, a report under JIT to bench, so the
+# latest.json of one runtime does not replace that of the other.
 name: bench
 
 on:
@@ -29,12 +33,19 @@ on:
           - Default
           - Dry
         default: Default
+      runtime:
+        description: "jit: the measurement under JIT on .NET 11. aot: under Native AOT on .NET 11 (the limits of the speed-ups are not measured under aot)."
+        type: choice
+        options:
+          - jit
+          - aot
+        default: jit
       cases:
         description: "The cases to run, ids separated by commas, for example E1,E5 or E2/10. Without it: every case."
         type: string
         required: false
       thresholds:
-        description: "Measure the limits of the speed-ups of the library after the runs of the rig, in the same job (the job above applies to them too)."
+        description: "Measure the limits of the speed-ups of the library after the runs of the rig, in the same job (the job above applies to them too). Under runtime=aot they are not measured."
         type: boolean
         default: true
 
@@ -55,7 +66,9 @@ jobs:
         with:
           persist-credentials: false
 
-      # The SDK 11 of global.json builds the rig and brings the runtime of net11.0, on which the rig runs under JIT.
+      # The SDK 11 of global.json builds the rig and brings the runtime of net11.0, on which the rig runs under JIT; under
+      # runtime=aot its ILCompiler (restored by the publish from nuget.org, with clang and the libraries of the runner image) compiles
+      # the rig ahead of time.
       - name: Set up .NET
         uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
@@ -65,12 +78,15 @@ jobs:
         run: dotnet restore bench/SpeedBench/SpeedBench.csproj --locked-mode
 
       # run.mjs builds the rig, verifies every library on every case, then measures, then measures the limits of the speed-ups (it builds
-      # bench/ThresholdBench, which restores its packages itself); the summary is written even after a failed run.
+      # bench/ThresholdBench, which restores its packages itself); the summary is written even after a failed run. Under runtime=aot
+      # it publishes the rig with PublishAot (a restore of its own, not in the locked mode: the lock file is that of the JIT build) and
+      # verifies the libraries in native processes, and it does not measure the limits.
       - name: Measurement (bench/run.mjs)
         env:
           # The values reach the script only through the environment, never through the text of the script.
           RUNS: ${{ inputs.runs }}
           BENCH_JOB: ${{ inputs.job }}
+          BENCH_RUNTIME: ${{ inputs.runtime }}
           BENCH_CASES_INPUT: ${{ inputs.cases }}
           BENCH_THRESHOLDS: ${{ inputs.thresholds }}
         run: |
@@ -83,9 +99,16 @@ jobs:
             echo "The job is Default or Dry."
             exit 2
           fi
+          if ! [[ "$BENCH_RUNTIME" =~ ^(jit|aot)$ ]]; then
+            echo "The runtime is jit or aot."
+            exit 2
+          fi
           arguments=(--runs "$RUNS")
           if [ "$BENCH_JOB" != "Default" ]; then
             arguments+=(--job "$BENCH_JOB")
+          fi
+          if [ "$BENCH_RUNTIME" = "aot" ]; then
+            arguments+=(--runtime aot)
           fi
           if [ -n "$BENCH_CASES_INPUT" ]; then
             if ! [[ "$BENCH_CASES_INPUT" =~ ^E[1-9](/(10|100))?(,E[1-9](/(10|100))?)*$ ]]; then
@@ -104,13 +127,22 @@ jobs:
         env:
           RUNS: ${{ inputs.runs }}
           BENCH_JOB: ${{ inputs.job }}
+          BENCH_RUNTIME: ${{ inputs.runtime }}
           BENCH_CASES_INPUT: ${{ inputs.cases }}
-        run: node .github/scripts/bench-report.mjs --results bench/results --output report --runs "$RUNS" --job "$BENCH_JOB" --cases "$BENCH_CASES_INPUT"
+        run: node .github/scripts/bench-report.mjs --results bench/results --output report --runs "$RUNS" --job "$BENCH_JOB" --runtime "$BENCH_RUNTIME" --cases "$BENCH_CASES_INPUT"
 
       - name: Summary
         if: ${{ always() }}
+        env:
+          BENCH_RUNTIME: ${{ inputs.runtime }}
         run: |
           if [ -f bench/results/summary.md ]; then
+            if [ "$BENCH_RUNTIME" = "aot" ]; then
+              echo "# Benchmark rig: Native AOT on .NET 11" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "# Benchmark rig: JIT on .NET 11" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo >> "$GITHUB_STEP_SUMMARY"
             # The step summary of GitHub is limited to 1 MiB.
             head -c 900000 bench/results/summary.md >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -124,6 +156,7 @@ jobs:
           name: bench-results
           path: |
             bench/results/summary.md
+            bench/results/meta.json
             bench/results/verify.json
             bench/results/runs/*/run.json
             bench/results/runs/*/summary.md
@@ -153,4 +186,4 @@ jobs:
     uses: ./.github/workflows/publish-report.yml
     with:
       artifact: bench-report
-      directory: bench
+      directory: ${{ inputs.runtime == 'aot' && 'bench-aot' || 'bench' }}

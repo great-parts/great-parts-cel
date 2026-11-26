@@ -2,7 +2,7 @@
 
 The rig compares the speed of Great.Parts.Cel with other CEL libraries for .NET: compilation, evaluation and the full cycle on twelve scenarios (E1 to E9, three of them on 10 and 100 elements). Great.Parts.Cel is built from the sources of the commit that the rig runs on, in three variants of passing the data (below). The same run measures the limits of the speed-ups of the library (`ThresholdBench`, below). The rig, its logs and the results of its runs are published; the other libraries are named here by the names of their packages. The rig states numbers, versions and conditions of the measurement and nothing else about the libraries.
 
-The projects of the rig target `net11.0`: the measurement runs on .NET 11 under JIT. It runs on a GitHub-hosted runner, by the workflow `.github/workflows/bench.yml` (manual start). The rig is not part of the packages of Great.Parts.Cel and is not built by `ci.yml`. The description of the rig, of the operations and of the run is in [docs/design/eng-bench.md](../docs/design/eng-bench.md).
+The projects of the rig target `net11.0`: the measurement runs on .NET 11 under JIT, or under Native AOT when the workflow is started with `runtime=aot` ([Native AOT](#native-aot) below); every summary and report names its runtime. It runs on a GitHub-hosted runner, by the workflow `.github/workflows/bench.yml` (manual start). The rig is not part of the packages of Great.Parts.Cel and is not built by `ci.yml`. The description of the rig, of the operations and of the run is in [docs/design/eng-bench.md](../docs/design/eng-bench.md).
 
 ## Packages
 
@@ -36,6 +36,16 @@ A library whose result in a case differs from the expected value, or is an error
 
 The ratio of a variant of Great.Parts.Cel is to the fastest other library or to itself, not to its own other variants.
 
+## Native AOT
+
+`node bench/run.mjs --runtime aot` (the workflow input `runtime=aot`) measures the same cases under Native AOT on .NET 11. `--runtime jit` is the default and the measurement of the sections above.
+
+1. `SpeedBench` is published with `-p:BenchAot=true` (`PublishAot`) for the runtime identifier of the machine, and the native executable verifies every library in a process of its own, with the same three variants and the same expected values as under JIT. A library whose result is wrong or an error in its Native AOT process (an exception, or a process that ends abnormally) is excluded from the cases with that result as the reason, exactly as a library with a wrong result is under JIT; the run does not fail. The verification table of the summary lists the exclusions and the first reason of each library.
+2. BenchmarkDotNet measures the verified pairs with the toolchain `nativeaot11.0`: for the benchmark processes it publishes the rig by itself (the `ILCompiler` of the .NET SDK, restored from nuget.org), so the numbers are those of ahead-of-time compiled code. Its host and its benchmark processes read the verification of step 1 (the environment variable `BENCH_VERIFIED`), so they list the same pairs.
+3. The limits of the speed-ups (`ThresholdBench`) are not measured under Native AOT: their rules (64 code units, 2 microseconds for E5) are stated for JIT. The input `thresholds` has no effect under `runtime=aot`.
+
+The libraries compared are the same, and so are their versions and the way each one receives the data (the table above). Which libraries are excluded under Native AOT is decided by the verification of the run, not by a list in the rig: the summary names each excluded library and the result that excluded it, and says nothing else about it.
+
 ## Limits of the speed-ups
 
 `ThresholdBench/` measures, on the code of the commit (it sees the internals of the library, `InternalsVisibleTo`), two limits and five diagnostics; `run.mjs` runs it after the runs of the rig, with the same BenchmarkDotNet job, and writes the section "Limits of the speed-ups" with a verdict for each limit and the rows of each diagnostic. The summary of the rig has the column Allocated (the median over the runs of the allocated bytes per operation, less the allocation of making the text).
@@ -59,4 +69,4 @@ The diagnostics have no verdict:
 gh workflow run bench.yml --ref main -f runs=3
 ```
 
-The input `thresholds` (default true) turns the measurement of the limits on or off. The inputs, the check of a first run and the files of a result are in [docs/design/eng-bench.md](../docs/design/eng-bench.md). The measurement is not run on a developer machine. A dry check (`--job Dry`: one call per case, no measurement) can run `run.mjs` with the SDK of a container: the environment variable `BENCH_DOTNET` replaces `dotnet`, for example `BENCH_DOTNET="docker exec -w /repo/bench <container> dotnet"`.
+The input `thresholds` (default true) turns the measurement of the limits on or off; the input `runtime` (`jit`, the default, or `aot`) chooses the runtime of the measurement, `gh workflow run bench.yml --ref main -f runs=3 -f runtime=aot`. The inputs, the check of a first run and the files of a result are in [docs/design/eng-bench.md](../docs/design/eng-bench.md). The measurement is not run on a developer machine. A dry check (`--job Dry`: one call per case, no measurement) can run `run.mjs` with the SDK of a container: the environment variable `BENCH_DOTNET` replaces `dotnet`, for example `BENCH_DOTNET="docker exec -w /repo/bench <container> dotnet"`.

@@ -1,14 +1,22 @@
+#if !BENCH_AOT
 using BenchmarkDotNet.Running;
+#endif
 using SpeedBench;
+using SpeedBench.Adapters;
 
 // Modes (run.mjs starts them):
-//   verify <out.json>   - verify every library on every case against the expected value
-//   bench [BDN args]    - BenchmarkDotNet over the verified pairs (BENCH_CASES selects cases)
+//   verify <out.json> [library]       - verify every library (or one) on every case against the expected value
+//   libraries                         - the names of the libraries, one per line
+//   exclude <out.json> <library> <reason> - the rows of a library that could not be run, every case excluded with the reason
+//   bench [BDN args]                  - BenchmarkDotNet over the verified pairs (BENCH_CASES selects cases); not in the Native AOT build
+//
+// The Native AOT build (SpeedBench published with BenchAot=true, the constant BENCH_AOT) has no mode bench: BenchmarkDotNet is not
+// compiled into it, and the measurement under Native AOT is made by the processes that BenchmarkDotNet publishes itself.
 switch (args.FirstOrDefault())
 {
     case "verify":
     {
-        var rows = Verification.RunAll();
+        var rows = args.Length > 2 ? Verification.RunLibrary(args[2]) : Verification.RunAll();
         foreach (var r in rows)
         {
             var wrong = r.Variants.FirstOrDefault(v => !v.Correct);
@@ -21,6 +29,15 @@ switch (args.FirstOrDefault())
         return 0;
     }
 
+    case "libraries":
+        foreach (var name in Libraries.Names) Console.WriteLine(name);
+        return 0;
+
+    case "exclude" when args.Length == 4:
+        Verification.WriteJson(args[1], Verification.ExcludeLibrary(args[2], args[3]));
+        return 0;
+
+#if !BENCH_AOT
     case "bench":
     {
         // A failed benchmark does not change the exit code of BenchmarkDotNet; the bench does.
@@ -31,8 +48,9 @@ switch (args.FirstOrDefault())
         foreach (var f in failed) Console.Error.WriteLine("failed: " + f);
         return summaries.Count == 0 || failed.Count > 0 ? 1 : 0;
     }
+#endif
 
     default:
-        Console.Error.WriteLine("usage: SpeedBench verify <out.json> | bench [BenchmarkDotNet args]");
+        Console.Error.WriteLine("usage: SpeedBench verify <out.json> [library] | libraries | exclude <out.json> <library> <reason> | bench [BenchmarkDotNet args]");
         return 2;
 }

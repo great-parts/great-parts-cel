@@ -38,19 +38,40 @@ public interface ILibraryAdapter
     string Canonical(object? result);
 }
 
+/// <summary>
+/// The libraries of the comparison. An adapter is created on first use, not with the list: the environment of a library is built by
+/// the type initializer of its adapter, and a library that cannot do it (under Native AOT, for example) must fail alone, in the
+/// verification of that library, and not take the list of the other libraries with it.
+/// </summary>
 public static class Libraries
 {
-    public static readonly IReadOnlyList<ILibraryAdapter> All =
+    private static readonly (string Name, Lazy<ILibraryAdapter> Adapter)[] Entries =
     [
-        new CellyAdapter(),
-        new DotnetCelAdapter(),
-        new CelNetAdapter(),
-        new TelusCelAdapter(),
-        new GreatPartsCelAdapter(),
-        new GreatPartsCelInputAdapter(),
-        new GreatPartsCelSimpleAdapter(),
+        Entry("Celly", () => new CellyAdapter()),
+        Entry("DotnetCel", () => new DotnetCelAdapter()),
+        Entry("Cel.NET", () => new CelNetAdapter()),
+        Entry("TelusCel", () => new TelusCelAdapter()),
+        Entry("GreatPartsCel", () => new GreatPartsCelAdapter()),
+        Entry("GPCel-Input", () => new GreatPartsCelInputAdapter()),
+        Entry("GPCel-Simple", () => new GreatPartsCelSimpleAdapter()),
     ];
 
-    public static ILibraryAdapter Get(string name) =>
-        All.FirstOrDefault(l => l.Name == name) ?? throw new ArgumentException("unknown library " + name);
+    /// <summary>The names of the libraries in the order of the tables.</summary>
+    public static IReadOnlyList<string> Names => [.. Entries.Select(e => e.Name)];
+
+    public static ILibraryAdapter Get(string name)
+    {
+        foreach (var (entryName, adapter) in Entries)
+        {
+            if (entryName == name)
+            {
+                var created = adapter.Value;
+                return created.Name == name ? created : throw new InvalidOperationException("the adapter " + created.Name + " is listed as " + name);
+            }
+        }
+
+        throw new ArgumentException("unknown library " + name);
+    }
+
+    private static (string, Lazy<ILibraryAdapter>) Entry(string name, Func<ILibraryAdapter> create) => (name, new Lazy<ILibraryAdapter>(create));
 }

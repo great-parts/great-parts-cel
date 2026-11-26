@@ -7,6 +7,21 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
 
+  <!--
+    The verification under Native AOT: run.mjs --runtime aot publishes this project with BenchAot=true and runs the native executable
+    to verify every library in a Native AOT process (docs/design/eng-bench.md, "Native AOT"). The property is set on the command line of
+    that publish only, so the restore of the workflow (locked mode) and every other build of the rig are unchanged. The measurement
+    under Native AOT is made by the processes that BenchmarkDotNet publishes itself, from the project without this property; the
+    executable of the publish has no mode "bench" (the constant BENCH_AOT), so BenchmarkDotNet is not compiled into it.
+    The runtime identifier (BenchRuntimeIdentifier, for example linux-x64) is a property of this project, not the option -r of the
+    command: a global runtime identifier would reach the restore of the library projects, whose lock files have no target for it.
+  -->
+  <PropertyGroup Condition="'$(BenchAot)' == 'true'">
+    <PublishAot>true</PublishAot>
+    <RuntimeIdentifier>$(BenchRuntimeIdentifier)</RuntimeIdentifier>
+    <DefineConstants>$(DefineConstants);BENCH_AOT</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" />
     <PackageReference Include="Celly" />

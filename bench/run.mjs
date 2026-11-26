@@ -11,6 +11,13 @@
 //   node bench/run.mjs --summary-only     rebuild the summaries from saved runs
 //   node bench/run.mjs --no-thresholds    without the measurement of the limits of the speed-ups
 //   node bench/run.mjs --thresholds-only  only the measurement of the limits (no verification, no cases of the rig)
+//   node bench/run.mjs --runtime aot      the measurement under Native AOT on .NET 11 (jit, the default, is the measurement under JIT)
+//
+// Native AOT (--runtime aot, docs/design/eng-bench.md, "Native AOT"): the rig publishes SpeedBench with PublishAot and verifies every
+// library in a native process of its own, so a library that does not work under Native AOT is excluded with the reason (as one whose
+// result is wrong) and does not fail the run; BenchmarkDotNet then measures the verified pairs with the toolchain nativeaot11.0, the
+// host and the benchmark processes reading the same verification (BENCH_VERIFIED). The limits of the speed-ups are not measured under
+// Native AOT: their rules are stated for JIT.
 //
 // After the runs of the rig the script measures the limits of the speed-ups of the library (bench/ThresholdBench): the search of the
 // literal prefix of matches around 64 code units, the build of the automaton of the pattern E5, the scan and the buckets of the index
@@ -65,6 +72,18 @@ const option = (name) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 
+// The runtime of the measurement, jit (the default) or aot (Native AOT), both on .NET 11. A saved run keeps its runtime in
+// results/meta.json, so --summary-only builds the summary of the runtime that was measured.
+const runtimeOption = option('--runtime') ?? 'jit';
+if (runtimeOption !== 'jit' && runtimeOption !== 'aot') {
+  console.error(`--runtime is jit or aot, got '${runtimeOption}'`);
+  process.exit(2);
+}
+const aot = runtimeOption === 'aot';
+const runtimeLabel = (r) => (r === 'aot' ? 'Native AOT' : 'JIT');
+// BENCH_VERIFIED: the file of the verification that the host of BenchmarkDotNet and its benchmark processes read under Native AOT.
+const verifiedVariable = 'BENCH_VERIFIED';
+
 // ---------- the .NET SDK ----------
 
 // The words that start dotnet: BENCH_DOTNET replaces "dotnet" for a check inside a container that has the SDK, for example
@@ -92,10 +111,87 @@ function dotnetOrExit(command, env = {}) {
   }
 }
 
-// The rig runs on .NET 11 under JIT.
+// The rig runs on .NET 11, under JIT or (--runtime aot) under Native AOT.
 const FRAMEWORK = 'net11.0';
 const run = (...rest) => ['run', '-c', 'Release', '--no-build', '--project', 'SpeedBench', '-f', FRAMEWORK, '--', ...rest];
 const runThresholds = (...rest) => ['run', '-c', 'Release', '--no-build', '--project', 'ThresholdBench', '-f', FRAMEWORK, '--', ...rest];
+
+// ---------- Native AOT ----------
+
+// The runtime moniker of BenchmarkDotNet and the runtime identifier of this machine, for which BenchmarkDotNet publishes.
+const AOT_MONIKER = `nativeaot${FRAMEWORK.slice('net'.length)}`;
+// BenchmarkDotNet stops a build after 5 minutes by default; the compilation of the rig by ILCompiler may take longer. The limit is
+// the one of the job on GitHub, not this one.
+const AOT_BUILD_TIMEOUT_SECONDS = 3600;
+const aotDir = join(results, 'aot');
+const aotExecutable = join(aotDir, process.platform === 'win32' ? 'SpeedBench.exe' : 'SpeedBench');
+
+function runtimeIdentifier() {
+  const os = { linux: 'linux', darwin: 'osx', win32: 'win' }[process.platform];
+  const arch = { x64: 'x64', arm64: 'arm64' }[process.arch];
+  if (!os || !arch) {
+    console.error(`no runtime identifier for ${process.platform} ${process.arch}`);
+    process.exit(2);
+  }
+  return `${os}-${arch}`;
+}
+
+// Runs the native executable of the rig in the directory of the rig.
+function runNative(commandArgs, options) {
+  console.log(`> ${aotExecutable} ${commandArgs.join(' ')}`);
+  const r = spawnSync(aotExecutable, commandArgs, { cwd: here, ...options });
+  if (r.error) {
+    console.error(`cannot start ${aotExecutable}: ${r.error.message}`);
+    process.exit(1);
+  }
+  return r;
+}
+
+// The verification under Native AOT: SpeedBench is published with BenchAot=true (PublishAot, no mode bench), and every library is
+// verified by a process of its own, so a library that fails or crashes under Native AOT is excluded with the reason and the others
+// are verified all the same. The rows go to results/verify.json in the order of the verification under JIT (by case, then by library).
+// BenchmarkDotNet then reads this file (BENCH_VERIFIED), in its host and in its benchmark processes, so they list the same pairs.
+function verifyAot() {
+  if (dotnetWords.join(' ') !== 'dotnet') {
+    console.error('--runtime aot publishes and runs a native executable on this machine: BENCH_DOTNET is not for it');
+    process.exit(2);
+  }
+  rmSync(aotDir, { recursive: true, force: true });
+  // The runtime identifier is a property of the project (BenchRuntimeIdentifier), not the option -r: a global one would reach the
+  // restore of the library projects, which restore in locked mode on GitHub (the Directory.Build.props of the repository), and
+  // their lock files have no target for it.
+  dotnetOrExit(['publish', project, '-c', 'Release', '-f', FRAMEWORK, '-p:BenchAot=true', `-p:BenchRuntimeIdentifier=${runtimeIdentifier()}`, '-o', aotDir, '--nologo', '-v', 'q']);
+
+  const listed = runNative(['libraries'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+  const names = (listed.stdout ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (listed.status !== 0 || names.length === 0) {
+    console.error(`the native executable did not list the libraries (exit code ${listed.status})`);
+    process.exit(1);
+  }
+
+  const byLibrary = [];
+  for (const [i, name] of names.entries()) {
+    const file = join(aotDir, `verify-${i}.json`);
+    rmSync(file, { force: true });
+    const r = runNative(['verify', file, name], { stdio: 'inherit' });
+    if (r.status !== 0 || !existsSync(file)) {
+      const ended = r.signal ? `with the signal ${r.signal}` : `with the exit code ${r.status}`;
+      const reason = `ERROR(process: the process of ${name} under Native AOT ended ${ended})`;
+      console.error(`${name}: ${reason}; the library is excluded from every case`);
+      rmSync(file, { force: true });
+      const x = runNative(['exclude', file, name, reason], { stdio: 'inherit' });
+      if (x.status !== 0 || !existsSync(file)) {
+        console.error(`the native executable could not write the exclusion of ${name} (exit code ${x.status})`);
+        process.exit(1);
+      }
+    }
+    byLibrary.push(JSON.parse(readFileSync(file, 'utf8')));
+  }
+
+  const scenarios = [...new Set(byLibrary.flatMap((rows) => rows.map((r) => r.Scenario)))];
+  const merged = scenarios.flatMap((s) => byLibrary.map((rows) => rows.find((r) => r.Scenario === s)).filter(Boolean));
+  writeFileSync(verifyJson, `${JSON.stringify(merged, null, 2)}\n`);
+}
 
 // ---------- formatting ----------
 
@@ -133,6 +229,13 @@ const OPERATIONS = [
 
 function loadVerify() {
   return existsSync(verifyJson) ? JSON.parse(readFileSync(verifyJson, 'utf8')) : null;
+}
+
+// What the results were measured with: the runtime and, under Native AOT, the runtime identifier of the machine.
+const metaJson = join(results, 'meta.json');
+
+function loadMeta() {
+  return existsSync(metaJson) ? JSON.parse(readFileSync(metaJson, 'utf8')) : { runtime: 'jit' };
 }
 
 function runNumbers() {
@@ -219,6 +322,13 @@ function conditionsSection() {
     lines.push(`- Run: ${e.GITHUB_SERVER_URL}/${e.GITHUB_REPOSITORY}/actions/runs/${e.GITHUB_RUN_ID}`);
   }
   lines.push(`- Runner: ${e.RUNNER_OS ?? '?'} ${e.RUNNER_ARCH ?? '?'}, image ${e.ImageOS ?? '?'} ${e.ImageVersion ?? '?'}`);
+  const meta = loadMeta();
+  if (meta.runtime === 'aot') {
+    lines.push(`- Runtime: Native AOT on .NET 11 (BenchmarkDotNet toolchain ${AOT_MONIKER}, runtime identifier ${meta.runtimeIdentifier ?? '?'}); the code of every library and of the rig is compiled ahead of time by the ILCompiler of the .NET SDK`);
+    lines.push('- Limits of the speed-ups: not measured under Native AOT (their rules are stated for JIT)');
+  } else {
+    lines.push('- Runtime: JIT on .NET 11 (the default job of BenchmarkDotNet)');
+  }
   lines.push(`- Great.Parts.Cel: built from the sources of this commit`);
   lines.push(`- Packages: ${packageVersions().join('; ')}\n`);
   return lines.join('\n');
@@ -245,9 +355,21 @@ function verifySection(verify) {
   }
   const excluded = verify.filter((r) => !r.Correct);
   lines.push('');
-  lines.push(excluded.length === 0
-    ? 'No library is excluded: every library gave the expected value in every scenario.'
-    : `Excluded from the measurement (wrong result): ${excluded.map((r) => `${r.Library} - ${r.Scenario}`).join('; ')}.`);
+  if (loadMeta().runtime === 'aot') {
+    lines.push('The verification ran under Native AOT: the rig was published with PublishAot and every library ran in a native process of its own. A library whose result is wrong or an error in a Native AOT process is excluded, like a library whose result is wrong under JIT.\n');
+    lines.push(excluded.length === 0
+      ? 'No library is excluded: every library gave the expected value in every scenario under Native AOT.'
+      : `Excluded from the measurement under Native AOT (wrong result or error): ${excluded.map((r) => `${r.Library} - ${r.Scenario}`).join('; ')}.`);
+    for (const library of [...new Set(excluded.map((r) => r.Library))]) {
+      const rows = excluded.filter((r) => r.Library === library);
+      const reason = rows[0].Variants.find((v) => !v.Correct)?.Result ?? '?';
+      lines.push(`\n- ${library}, ${rows.length} of ${scenarios.length} scenarios, the first: ${rows[0].Scenario}, ${esc(cut(reason, 400))}`);
+    }
+  } else {
+    lines.push(excluded.length === 0
+      ? 'No library is excluded: every library gave the expected value in every scenario.'
+      : `Excluded from the measurement (wrong result): ${excluded.map((r) => `${r.Library} - ${r.Scenario}`).join('; ')}.`);
+  }
   lines.push('');
   return lines.join('\n');
 }
@@ -257,12 +379,16 @@ function environmentSection(host) {
   const lines = ['## Measurement environment\n'];
   lines.push(`- BenchmarkDotNet ${h.BenchmarkDotNetVersion ?? '?'}; OS: ${h.OsVersion ?? '?'}; processor: ${h.ProcessorName ?? '?'}`);
   lines.push(`- Cores: ${h.PhysicalCoreCount ?? '?'} physical, ${h.LogicalCoreCount ?? '?'} logical; architecture: ${h.Architecture ?? '?'}`);
-  lines.push(`- Runtime: ${h.RuntimeVersion ?? '?'}; SDK: ${h.DotNetCliVersion ?? '?'}; configuration: ${h.Configuration ?? '?'}\n`);
+  if (loadMeta().runtime === 'aot') {
+    lines.push(`- Runtime of the measurement: Native AOT on .NET 11; runtime of the host of BenchmarkDotNet (not measured): ${h.RuntimeVersion ?? '?'}; SDK: ${h.DotNetCliVersion ?? '?'}; configuration: ${h.Configuration ?? '?'}\n`);
+  } else {
+    lines.push(`- Runtime: ${h.RuntimeVersion ?? '?'}; SDK: ${h.DotNetCliVersion ?? '?'}; configuration: ${h.Configuration ?? '?'}\n`);
+  }
   return lines.join('\n');
 }
 
 const runLine = (m) =>
-  `- Run ${m.run}: ${m.started ?? '?'} - ${m.finished ?? '?'}; job: ${m.job ?? 'Default'}; cases: ${m.cases ?? 'all'}; filter: ${m.filter ?? '*'}`;
+  `- Run ${m.run}: ${m.started ?? '?'} - ${m.finished ?? '?'}; job: ${m.job ?? 'Default'}; runtime: ${runtimeLabel(m.runtime)}; cases: ${m.cases ?? 'all'}; filter: ${m.filter ?? '*'}`;
 
 // Table of one run (the per-run summary, results/runs/<k>/summary.md).
 function runSection(k, bdn, verify) {
@@ -598,29 +724,45 @@ if (!/^[1-9]\d*$/.test(runsOption)) {
   process.exit(2);
 }
 
+if (aot && thresholdsOnly) {
+  console.error('--thresholds-only is not for --runtime aot: the limits of the speed-ups are measured under JIT');
+  process.exit(2);
+}
+
 mkdirSync(results, { recursive: true });
 if (!thresholdsOnly) {
+  writeFileSync(metaJson, `${JSON.stringify({ runtime: runtimeOption, runtimeIdentifier: aot ? runtimeIdentifier() : null }, null, 2)}\n`);
   dotnetOrExit(['build', project, '-c', 'Release', '-f', FRAMEWORK, '--nologo', '-v', 'q']);
-  dotnetOrExit(run('verify', 'results/verify.json'));
+  if (aot) verifyAot();
+  else dotnetOrExit(run('verify', 'results/verify.json'));
 }
 
 let failure = 0;
 if (!flag('--verify-only') && !thresholdsOnly) {
   if (existsSync(runsDir)) rmSync(runsDir, { recursive: true, force: true });
+  // Under Native AOT BenchmarkDotNet publishes the benchmark processes with the toolchain nativeaot11.0, the host and those processes
+  // read the verification of the Native AOT process (BENCH_VERIFIED), and the build of a process may take longer than the 5 minutes
+  // that BenchmarkDotNet allows by default.
+  const bdnEnv = {};
+  if (option('--cases')) bdnEnv.BENCH_CASES = option('--cases');
+  if (aot) bdnEnv[verifiedVariable] = verifyJson;
   for (let k = 1; k <= Number(runsOption) && failure === 0; k++) {
     const dir = join(runsDir, String(k));
     mkdirSync(dir, { recursive: true });
-    const meta = { run: k, job: option('--job') ?? 'Default', cases: option('--cases') ?? null, filter: option('--filter') ?? '*', started: new Date().toISOString() };
+    const meta = { run: k, job: option('--job') ?? 'Default', runtime: runtimeOption, cases: option('--cases') ?? null, filter: option('--filter') ?? '*', started: new Date().toISOString() };
     const bdnArgs = ['bench', '--filter', meta.filter, '--artifacts', `results/runs/${k}/bdn`];
     if (option('--job')) bdnArgs.push('--job', option('--job'));
-    failure = dotnet(run(...bdnArgs), option('--cases') ? { BENCH_CASES: option('--cases') } : {});
+    if (aot) bdnArgs.push('--runtimes', AOT_MONIKER, '--buildTimeout', String(AOT_BUILD_TIMEOUT_SECONDS));
+    failure = dotnet(run(...bdnArgs), bdnEnv);
     meta.finished = new Date().toISOString();
     writeFileSync(join(dir, 'run.json'), `${JSON.stringify(meta, null, 2)}\n`);
   }
 }
 
 // The limits of the speed-ups: after the runs of the rig, in the same job, on the same machine. A failed run of the rig does not skip them.
-if (!flag('--verify-only') && !flag('--no-thresholds')) {
+// Not under Native AOT: their rules are stated for JIT, and the results of an earlier measurement are not kept next to a Native AOT one.
+if (aot && existsSync(thresholdsDir)) rmSync(thresholdsDir, { recursive: true, force: true });
+if (!aot && !flag('--verify-only') && !flag('--no-thresholds')) {
   if (existsSync(thresholdsDir)) rmSync(thresholdsDir, { recursive: true, force: true });
   mkdirSync(thresholdsDir, { recursive: true });
   dotnetOrExit(['build', thresholdProject, '-c', 'Release', '-f', FRAMEWORK, '--nologo', '-v', 'q']);
