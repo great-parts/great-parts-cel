@@ -1,0 +1,257 @@
+{
+  "job": "Default",
+  "verdicts": [
+    {
+      "limit": "hybrid search of the literal prefix of matches, 64 code units",
+      "rule": ".NET at M = 64 is not slower than Knuth-Morris-Pratt; otherwise the limit is 32",
+      "rows": [
+        {
+          "m": 48,
+          "kmp": 9552.636947631836,
+          "net": 7022.410850524902,
+          "hybrid": 7087.954872131348
+        },
+        {
+          "m": 64,
+          "kmp": 9148.884910583496,
+          "net": 6671.673374176025,
+          "hybrid": 6906.161346435547
+        },
+        {
+          "m": 65,
+          "kmp": 9523.321434020996,
+          "net": 416.46344208717346,
+          "hybrid": 9097.050750732422
+        },
+        {
+          "m": 80,
+          "kmp": 9414.229553222656,
+          "net": 8164.042785644531,
+          "hybrid": 9182.249305725098
+        }
+      ],
+      "verdict": "holds: 64"
+    },
+    {
+      "limit": "build of the automaton of the pattern E5",
+      "rule": "the median of the build is at most 2000 ns",
+      "rows": [
+        {
+          "name": "E5",
+          "program": 580.1654024124146,
+          "automaton": 1005.4435558319092
+        },
+        {
+          "name": "UUID",
+          "program": 1125.281826019287,
+          "automaton": 2594.310386657715
+        }
+      ],
+      "verdict": "holds: 1005 ns"
+    },
+    {
+      "limit": "index of the values of a list (distinct, sets): scan or buckets, the limit of the library is 64 values",
+      "rule": "a diagnostic without a verdict: the threshold by the rule is the largest N at which, and at every smaller N measured (8, 16, 24, 32, 48, 64), scan / buckets is at most 1.0 for distinct and for sets.contains; 8 when the scan is slower already at N = 8",
+      "rows": [
+        {
+          "n": 8,
+          "distinct": {
+            "library": 196.06494188308716,
+            "scan": 191.95007956027985,
+            "buckets": 278.13135862350464,
+            "constantHash": 329.09250593185425,
+            "pairwise": 319.06244707107544
+          },
+          "contains": {
+            "library": 289.84447741508484,
+            "scan": 288.34688353538513,
+            "buckets": 393.41157960891724,
+            "constantHash": 408.8573851585388,
+            "pairwise": 426.91117000579834
+          }
+        },
+        {
+          "n": 16,
+          "distinct": {
+            "library": 290.86731600761414,
+            "scan": 289.8134090900421,
+            "buckets": 429.0301048755646,
+            "constantHash": 786.7484726905823,
+            "pairwise": 872.0616827011108
+          },
+          "contains": {
+            "library": 543.1734056472778,
+            "scan": 550.0723257064819,
+            "buckets": 636.5597925186157,
+            "constantHash": 1043.328815460205,
+            "pairwise": 793.1925172805786
+          }
+        },
+        {
+          "n": 24,
+          "distinct": {
+            "library": 413.96487069129944,
+            "scan": 420.5441474914551,
+            "buckets": 585.8712005615234,
+            "constantHash": 1946.7008018493652,
+            "pairwise": 1298.4865188598633
+          },
+          "contains": {
+            "library": 801.4396471977234,
+            "scan": 844.0611457824707,
+            "buckets": 855.6444020271301,
+            "constantHash": 2093.3865242004395,
+            "pairwise": 1610.975172996521
+          }
+        },
+        {
+          "n": 32,
+          "distinct": {
+            "library": 543.0194954872131,
+            "scan": 533.4490203857422,
+            "buckets": 709.5460567474365,
+            "constantHash": 2957.260078430176,
+            "pairwise": 1743.7283687591553
+          },
+          "contains": {
+            "library": 1030.3202571868896,
+            "scan": 1047.360158920288,
+            "buckets": 1078.1511220932007,
+            "constantHash": 3792.76847076416,
+            "pairwise": 2071.3216400146484
+          }
+        },
+        {
+          "n": 48,
+          "distinct": {
+            "library": 932.7147188186646,
+            "scan": 756.4638547897339,
+            "buckets": 964.0409851074219,
+            "constantHash": 6259.691314697266,
+            "pairwise": 3510.4017696380615
+          },
+          "contains": {
+            "library": 1475.7529945373535,
+            "scan": 1583.25191116333,
+            "buckets": 1468.3728799819946,
+            "constantHash": 7458.558532714844,
+            "pairwise": 4586.210437774658
+          }
+        },
+        {
+          "n": 64,
+          "distinct": {
+            "library": 1006.8181791305542,
+            "scan": 1005.202353477478,
+            "buckets": 1243.6981105804443,
+            "constantHash": 12003.463859558105,
+            "pairwise": 5835.599349975586
+          },
+          "contains": {
+            "library": 1866.0863628387451,
+            "scan": 1921.9679908752441,
+            "buckets": 1978.425916671753,
+            "constantHash": 13059.596145629883,
+            "pairwise": 6484.727592468262
+          }
+        }
+      ],
+      "evaluation": [
+        {
+          "n": 16,
+          "distinct": 461.2613492012024,
+          "contains": 822.6083989143372
+        },
+        {
+          "n": 32,
+          "distinct": 797.7077870368958,
+          "contains": 1459.4208087921143
+        },
+        {
+          "n": 33,
+          "distinct": 795.9216604232788,
+          "contains": 1589.8479671478271
+        },
+        {
+          "n": 48,
+          "distinct": 1105.881160736084,
+          "contains": 2221.5454597473145
+        },
+        {
+          "n": 64,
+          "distinct": 1757.3379344940186,
+          "contains": 2913.9104766845703
+        }
+      ],
+      "threshold": 32,
+      "verdict": "no verdict; threshold by the rule: 32 (the limit of the library: 64)"
+    },
+    {
+      "limit": "substring search: time per cost unit",
+      "rule": "a diagnostic without a verdict: a rise of the time per unit above 2 times from M = 64 to M = 1024 is the input of the decision on the divisor 64",
+      "rows": [
+        {
+          "m": 64,
+          "units": 1008,
+          "literal": 371.79074335098267,
+          "data": 6499.880187988281,
+          "literalPerUnit": 0.3688400231656574,
+          "dataPerUnit": 6.448293837289961
+        },
+        {
+          "m": 256,
+          "units": 4105,
+          "literal": 418.7571678161621,
+          "data": 19307.11962890625,
+          "literalPerUnit": 0.1020114903328044,
+          "dataPerUnit": 4.7033178145934835
+        },
+        {
+          "m": 1024,
+          "units": 17649,
+          "literal": 403.80639934539795,
+          "data": 65569.62670898438,
+          "literalPerUnit": 0.022879845846529433,
+          "dataPerUnit": 3.715203507789924
+        }
+      ],
+      "rise": {
+        "literal": 0.062031895698730584,
+        "data": 0.5761529485993958
+      },
+      "verdict": "no verdict; time per unit from M = 64 to M = 1024: 0.06 times for a literal, 0.58 times for the data"
+    },
+    {
+      "limit": "simple entry: evaluate and data",
+      "rule": "a diagnostic without a verdict: the time of the call on a prepared anonymous object, and the time of building that object",
+      "rows": [
+        {
+          "text": "scalars",
+          "evaluate": 235.74709737300873,
+          "evaluateAllocated": 48,
+          "data": 10.609943687915802,
+          "dataAllocated": 112
+        },
+        {
+          "text": "lines",
+          "evaluate": 1220.4934062957764,
+          "evaluateAllocated": 48,
+          "data": 10.936004310846329,
+          "dataAllocated": 112
+        }
+      ],
+      "verdict": "no verdict; scalars: evaluate 235.7 ns, data 10.6 ns; lines: evaluate 1.22 us, data 10.9 ns"
+    },
+    {
+      "limit": "CelMap.Create of the row of an order",
+      "rule": "a diagnostic without a verdict: the time and the allocation of a map of three entries made with a collection expression",
+      "rows": [
+        {
+          "time": 33.13457444310188,
+          "allocated": 248
+        }
+      ],
+      "verdict": "no verdict; 33.1 ns, 248 B"
+    }
+  ]
+}

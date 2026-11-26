@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "kind": "bench",
-  "generatedAtUtc": "2026-11-25T19:39:19Z",
-  "greatPartsCelCommit": "3292809e6c361befcf8367805f0f60d67f52517d",
+  "generatedAtUtc": "2026-11-26T14:07:54Z",
+  "greatPartsCelCommit": "494b71f8cee1f54e080f1179f695ce502daad419",
   "inputs": {
     "runs": 3,
     "job": "Default",
@@ -14,24 +14,24 @@
       "job": "Default",
       "cases": null,
       "filter": "*",
-      "started": "2026-11-25T15:01:42.681Z",
-      "finished": "2026-11-25T16:23:02.896Z"
+      "started": "2026-11-26T08:13:25.977Z",
+      "finished": "2026-11-26T10:03:01.122Z"
     },
     {
       "run": 2,
       "job": "Default",
       "cases": null,
       "filter": "*",
-      "started": "2026-11-25T16:23:02.897Z",
-      "finished": "2026-11-25T17:44:13.322Z"
+      "started": "2026-11-26T10:03:01.123Z",
+      "finished": "2026-11-26T11:49:16.351Z"
     },
     {
       "run": 3,
       "job": "Default",
       "cases": null,
       "filter": "*",
-      "started": "2026-11-25T17:44:13.322Z",
-      "finished": "2026-11-25T19:04:46.022Z"
+      "started": "2026-11-26T11:49:16.351Z",
+      "finished": "2026-11-26T13:35:09.382Z"
     }
   ],
   "thresholds": {
@@ -43,23 +43,23 @@
       },
       {
         "limit": "build of the automaton of the pattern E5",
-        "verdict": "holds: 1385 ns"
+        "verdict": "holds: 1005 ns"
       },
       {
-        "limit": "index of the values of a list (distinct, sets): scan or buckets, the limit of the library is 32 values",
-        "verdict": "no verdict; threshold by the rule: 64 (the limit of the library: 32)"
+        "limit": "index of the values of a list (distinct, sets): scan or buckets, the limit of the library is 64 values",
+        "verdict": "no verdict; threshold by the rule: 32 (the limit of the library: 64)"
       },
       {
         "limit": "substring search: time per cost unit",
-        "verdict": "no verdict; time per unit from M = 64 to M = 1024: 0.05 times for a literal, 0.49 times for the data"
+        "verdict": "no verdict; time per unit from M = 64 to M = 1024: 0.06 times for a literal, 0.58 times for the data"
       },
       {
         "limit": "simple entry: evaluate and data",
-        "verdict": "no verdict; scalars: evaluate 363.7 ns, data 22.4 ns; lines: evaluate 2.06 us, data 22.5 ns"
+        "verdict": "no verdict; scalars: evaluate 235.7 ns, data 10.6 ns; lines: evaluate 1.22 us, data 10.9 ns"
       },
       {
         "limit": "CelMap.Create of the row of an order",
-        "verdict": "no verdict; 65.4 ns, 248 B"
+        "verdict": "no verdict; 33.1 ns, 248 B"
       }
     ]
   },
@@ -70,9 +70,9 @@
     "runs": "runs/<k>/run.json and runs/<k>/summary.md"
   },
   "run": {
-    "id": 45640347087,
+    "id": 45781257503,
     "attempt": 1,
     "event": "workflow_dispatch",
-    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/45640347087"
+    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/45781257503"
   }
 }
