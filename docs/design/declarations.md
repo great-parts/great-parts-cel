@@ -7,6 +7,7 @@
 | `src/Great.Parts.Cel/Declarations/CelVariableDecl.cs`, `CelFunctionDecl.cs`, `CelOverloadDecl.cs` | the public declarations |
 | `src/Great.Parts.Cel/Declarations/CelFunctionImplementation.cs`, `CelCostFunction.cs` | the public delegates |
 | `src/Great.Parts.Cel/Declarations/OverloadBinding.cs`, `OverloadImplementation.cs`, `CallSite.cs` | an overload with its implementation and cost, as the index and evaluation use it |
+| `src/Great.Parts.Cel/Declarations/OverloadIds.cs` | the overload identifiers of the standard library, letter for letter as in cel-go |
 | `src/Great.Parts.Cel/CelEnvironmentBuilder.cs`, `CelBuildResult.cs`, `CelStandardLibrary.cs` | the builder, its result, the versions of the standard library (facade) |
 
 ## Declarations

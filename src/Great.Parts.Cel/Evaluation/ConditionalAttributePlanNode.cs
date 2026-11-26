@@ -58,14 +58,14 @@ internal sealed class ConditionalAttributePlanNode : PlanNode
         }
         else
         {
-            UnknownEntry? entry = access.Variable is { } variable
-                ? AttributePlanNode.Match(state.Patterns, variable, access.Ids.AsSpan(0, access.IdCount), access.Qualifiers.AsSpan(0, access.Count))
-                : null;
+            string? variable = access.Variable;
+            ReadOnlySpan<CelValue> qualifiers = access.Qualifiers.AsSpan(0, access.Count);
+            UnknownPattern? pattern = variable is null ? null : AttributePlanNode.Find(state.Patterns, variable, qualifiers);
             if (access.Unknown.IsUnknown)
             {
-                result = AttributePlanNode.OfUnknownKey(frame, _chain, access.Unknown, entry is not null);
+                result = AttributePlanNode.OfUnknownKey(frame, _chain, access.Unknown, pattern is not null);
             }
-            else if (entry is { } matched)
+            else if (pattern is not null && variable is not null)
             {
                 frame.Offset = Offset;
                 if (frame.Metered)
@@ -73,7 +73,7 @@ internal sealed class ConditionalAttributePlanNode : PlanNode
                     frame.Charge(1);
                 }
 
-                result = CelValue.FromUnknown(UnknownSet.Of(matched));
+                result = CelValue.FromUnknown(UnknownSet.Of(AttributePlanNode.EntryOf(pattern, variable, access.Ids.AsSpan(0, access.IdCount), qualifiers)));
             }
             else
             {

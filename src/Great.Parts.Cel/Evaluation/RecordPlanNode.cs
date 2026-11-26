@@ -17,7 +17,8 @@ internal sealed class RecordPlanNode : PlanNode
         _node = node;
     }
 
-    // The node that is recorded.
+    // The node that is recorded. Only the tests read it: they check the kind of the node in a plan for partial evaluation, such as that
+    // a comparison there is not fused. Nothing else reaches the node of a plan from outside, so the tests cannot tell it by evaluating.
     internal PlanNode Node => _node;
 
     internal override CelValue Evaluate(Frame frame)

@@ -21,9 +21,6 @@ namespace Great.Parts.Cel.Evaluation;
 // - otherwise it hands the two values to the call node, which checks and calls as it always does.
 internal sealed class FusedComparisonPlanNode : PlanNode
 {
-    private const string EqualsId = "equals";
-    private const string NotEqualsId = "not_equals";
-
     private readonly PlanNode _field;
     private readonly PlanNode _literalNode;
     private readonly CelValue _literal;
@@ -267,7 +264,7 @@ internal sealed class FusedComparisonPlanNode : PlanNode
     }
 
     private static bool IsEquality(OverloadBinding overload) =>
-        overload.Declaration.OverloadId is EqualsId or NotEqualsId;
+        overload.Declaration.OverloadId is OverloadIds.EqualsId or OverloadIds.NotEquals;
 
     private static bool HasApplicationCandidate(DispatchPlanNode dispatch)
     {

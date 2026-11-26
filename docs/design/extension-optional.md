@@ -17,7 +17,7 @@ The files fall into three groups; a file of one group is edited by another only 
 | `src/Great.Parts.Cel/Library/Extensions/OptionalExtension.cs` | the definition: the 18 bindings, the declaration of the type, the flag of the syntax |
 | `src/Great.Parts.Cel/Library/Extensions/OptionalFunctions.cs` | the implementations of the 9 overloads that are plain functions: `optional_of`, `optional_ofNonZeroValue`, `optional_none`, `optional_value`, `optional_hasValue`, `list_first`, `list_last`, `optional_unwrap`, `optional_unwrapOpt`; the 3 special forms and the 6 indexes are not in this file |
 | `src/Great.Parts.Cel/Library/Extensions/ExtensionCatalog.cs` | the row `optional`; `SetOfAbstractType` answers `optional_type` |
-| `src/Great.Parts.Cel/Library/OverloadIds.cs`, `Costs.cs` | the identifiers and the cost functions of the 18 overloads |
+| `src/Great.Parts.Cel/Declarations/OverloadIds.cs`, `src/Great.Parts.Cel/Library/Costs.cs` | the identifiers and the cost functions of the 18 overloads |
 | `src/Great.Parts.Cel/Syntax/ExtensionMacros.cs` | `optMap`, `optFlatMap` |
 | `src/Great.Parts.Cel/Evaluation/OptionalOrPlanNode.cs` and the case of `or` and `orValue` in `Planner.VisitCall` | the two lazy forms |
 | `src/Great.Parts.Cel/Configuration/EnvironmentReader*.cs`, `TypeRecordResolver.cs` | the record `optional_type<E>` and the name `optional` ([configuration](configuration.md#the-set-optional-in-a-description)) |

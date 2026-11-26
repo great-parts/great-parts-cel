@@ -7,7 +7,7 @@ The library has version 1: twelve type identifiers and 162 overloads — the 113
 | File | Content |
 | :- | :- |
 | `src/Great.Parts.Cel/Library/StandardLibraryV1.cs` | the table of version 1 |
-| `src/Great.Parts.Cel/Library/OverloadIds.cs` | the overload identifiers as constants |
+| `src/Great.Parts.Cel/Declarations/OverloadIds.cs` | the overload identifiers as constants |
 | `src/Great.Parts.Cel/Library/Arithmetic.cs` | arithmetic of `int`, `uint` and `double` |
 | `src/Great.Parts.Cel/Library/Comparisons.cs` | `!`, equality and ordering over the value rules |
 | `src/Great.Parts.Cel/Library/Collections.cs` | index, `in`, `size`, concatenation of lists |
@@ -18,7 +18,7 @@ The library has version 1: twelve type identifiers and 162 overloads — the 113
 | `src/Great.Parts.Cel/Library/Conversions.cs` | `type`, `dyn` and the conversions |
 | `src/Great.Parts.Cel/Library/NumberText.cs` | numbers to text and text to numbers, without culture |
 | `src/Great.Parts.Cel/Library/Costs.cs` | the cost functions of the arguments |
-| `src/Great.Parts.Cel/Library/Time/TimeOverloadIds.cs` | the 47 overload identifiers of time as constants: `Library.Time` cannot refer to `OverloadIds` |
+| `src/Great.Parts.Cel/Library/Time/TimeOverloadIds.cs` | the 47 overload identifiers of time as constants |
 | `src/Great.Parts.Cel/Library/Time/TimeOverloads.cs` | the 47 bindings, which `StandardLibraryV1` adds to the functions of cel-go in its order |
 | `src/Great.Parts.Cel/Library/Time/TimeConversions.cs`, `TimeReceivers.cs` | the nine conversions; the 24 receivers |
 | `src/Great.Parts.Cel/Library/Time/TimeArithmetic.cs` | `+` and `-` of time; the eight relations use the ordering of `Comparisons.cs` |

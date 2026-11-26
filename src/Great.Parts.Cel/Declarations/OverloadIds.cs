@@ -1,4 +1,4 @@
-namespace Great.Parts.Cel.Library;
+namespace Great.Parts.Cel.Declarations;
 
 // The overload identifiers of the standard library, letter for letter as in cel-go, so that the overload
 // lists of the library and of the reference implementation compare without exceptions. An identifier of

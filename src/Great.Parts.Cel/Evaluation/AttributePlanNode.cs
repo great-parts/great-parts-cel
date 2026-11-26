@@ -77,13 +77,13 @@ internal sealed class AttributePlanNode : PlanNode
     // OfUnknownKey), or the value of the wrapped chain.
     private CelValue Resolve(Frame frame, PartialState state, CelValue[] access, CelValue unknownKey)
     {
-        UnknownEntry? entry = Match(state.Patterns, _variable, _ids.AsSpan(), access);
+        UnknownPattern? pattern = Find(state.Patterns, _variable, access);
         if (unknownKey.IsUnknown)
         {
-            return OfUnknownKey(frame, _chain, unknownKey, entry is not null);
+            return OfUnknownKey(frame, _chain, unknownKey, pattern is not null);
         }
 
-        if (entry is null)
+        if (pattern is null)
         {
             return _chain.Evaluate(frame);
         }
@@ -94,7 +94,7 @@ internal sealed class AttributePlanNode : PlanNode
             frame.Charge(1);
         }
 
-        return CelValue.FromUnknown(UnknownSet.Of(entry));
+        return CelValue.FromUnknown(UnknownSet.Of(EntryOf(pattern, _variable, _ids.AsSpan(), access)));
     }
 
     // The result of a chain that has a key that is an unknown value. An unknown key matches no qualifier of a pattern that names one
@@ -114,41 +114,43 @@ internal sealed class AttributePlanNode : PlanNode
         return value.Kind == CelValueKind.Error && !value.IsUnknown ? value : unknownKey;
     }
 
-    // The entry of the first pattern that matches the access of the variable, or null. ids has the id of the syntax node at each length
-    // of the access: the variable first, then after each qualifier.
-    internal static UnknownEntry? Match(UnknownPattern[] patterns, string variable, ReadOnlySpan<int> ids, ReadOnlySpan<CelValue> access)
+    // The first pattern that matches the access of the variable, or null. It builds nothing: where only the fact of a match is needed,
+    // the trail of the entry is not made.
+    internal static UnknownPattern? Find(UnknownPattern[] patterns, string variable, ReadOnlySpan<CelValue> access)
     {
         foreach (UnknownPattern pattern in patterns)
         {
-            if (!string.Equals(pattern.Variable, variable, StringComparison.Ordinal))
+            if (string.Equals(pattern.Variable, variable, StringComparison.Ordinal)
+                && Agrees(pattern, access, Math.Min(pattern.Qualifiers.Length, access.Length)))
             {
-                continue;
+                return pattern;
             }
-
-            int length = Math.Min(pattern.Qualifiers.Length, access.Length);
-            if (!Agrees(pattern, access, length))
-            {
-                continue;
-            }
-
-            // The trail has the qualifier of the pattern where it names one, and that of the access where the pattern matches any. It
-            // stops before a key that no string, int, uint or bool names, which is the whole of the data under the qualifiers before it.
-            ImmutableArray<CelValue?>.Builder trail = ImmutableArray.CreateBuilder<CelValue?>(length);
-            for (int i = 0; i < length; i++)
-            {
-                CelValue qualifier = pattern.Qualifiers[i] ?? TrailQualifier(access[i]);
-                if (!IsNamed(qualifier))
-                {
-                    break;
-                }
-
-                trail.Add(qualifier);
-            }
-
-            return new UnknownEntry(ids[length], variable, trail.ToImmutable());
         }
 
         return null;
+    }
+
+    // The entry of a pattern that Find returned for the access of the variable. ids has the id of the syntax node at each length of the
+    // access: the variable first, then after each qualifier.
+    internal static UnknownEntry EntryOf(UnknownPattern pattern, string variable, ReadOnlySpan<int> ids, ReadOnlySpan<CelValue> access)
+    {
+        int length = Math.Min(pattern.Qualifiers.Length, access.Length);
+
+        // The trail has the qualifier of the pattern where it names one, and that of the access where the pattern matches any. It
+        // stops before a key that no string, int, uint or bool names, which is the whole of the data under the qualifiers before it.
+        ImmutableArray<CelValue?>.Builder trail = ImmutableArray.CreateBuilder<CelValue?>(length);
+        for (int i = 0; i < length; i++)
+        {
+            CelValue qualifier = pattern.Qualifiers[i] ?? TrailQualifier(access[i]);
+            if (!IsNamed(qualifier))
+            {
+                break;
+            }
+
+            trail.Add(qualifier);
+        }
+
+        return new UnknownEntry(ids[length], variable, trail.ToImmutable());
     }
 
     // Whether a qualifier of a trail is one that the public pattern can hold: a string, an int, a uint or a bool.
