@@ -775,7 +775,15 @@ internal sealed partial class ExprBuilder
 
         string macro = pcg.Pick<string>([ProfileTables.All, ProfileTables.Exists, ProfileTables.ExistsOne]);
         macros++;
-        (Built range, StaticType? variableType) = Range(depth + 1, limit - 2);
+
+        // The step of exists_one is pred ? accu + 1 : accu: in partial evaluation, a predicate that is unknown or an error for some
+        // elements gives a result that depends on the last such element, that is, on the order of the range. cel-go iterates a map in no
+        // fixed order, so exists_one takes a range of a fixed order, as map and filter do (the case 6056751 of seed 2026112602:
+        // b2 <= dyn(x2).exists_one(v, (mx[v]) in v) did not diverge again on the oracle). The step of all and exists is && or ||, whose
+        // absorption of unknown and error does not depend on the order, so they keep any range.
+        (Built range, StaticType? variableType) = macro == ProfileTables.ExistsOne
+            ? TransformRange(depth + 1, limit - 2)
+            : Range(depth + 1, limit - 2);
         string variable = FreshName(ProfileTables.IterationVariables);
         scope.Add((variable, variableType));
         Built predicate = Predicate(variable, variableType, depth + 1, limit - 1 - range.Nodes);
@@ -840,7 +848,8 @@ internal sealed partial class ExprBuilder
         return new Built(new Comprehension(macro, range.Expr, variable, arguments), nodes, StaticType.ListOf(element));
     }
 
-    // The range of map and filter, whose result lists the elements in the order of the range: a list literal, a list literal
+    // The range of map, filter and exists_one, whose result depends on the order of the range (map and filter list the elements in
+    // it, exists_one in partial evaluation is decided by the last element with an unknown or erroneous predicate): a list literal, a list literal
     // in dyn(), a typed list variable, or a map literal of at most one entry. cel-go iterates a map in no fixed order, so a map of more entries, and a
     // dyn variable, which may be bound to one, would give results that differ from run to run. The range is built a level deeper
     // and a node smaller, as an operand is, so that dyn() always fits around it (the caller checks the room). A range whose

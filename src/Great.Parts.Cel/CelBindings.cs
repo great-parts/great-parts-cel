@@ -44,6 +44,11 @@ public sealed class CelBindings : IEnumerable<KeyValuePair<string, CelValue>>
     // does not, for a replaced value or a removal.
     private int _version;
 
+    // The names that Add<T> inserts while it is set: the simple entry sets the names that the program reads for the time of the
+    // binding of an anonymous object, then sets null. A name outside it goes through every check of Add<T> and is then not inserted.
+    // Null for any bindings of the application: Add<T> inserts every name.
+    private string[]? _nameFilter;
+
     /// <summary>
     /// Creates empty bindings.
     /// </summary>
@@ -61,6 +66,25 @@ public sealed class CelBindings : IEnumerable<KeyValuePair<string, CelValue>>
     {
         _values[name] = value;
         _version++;
+    }
+
+    // Limits Add<T> to the names of the array, or lifts the limit with null. The array is read, not copied, and must not change meanwhile.
+    internal void SetNameFilter(string[]? names) => _nameFilter = names;
+
+    // Whether the filter, which is set, lets the name in: a scan, the reference comparison of string.Equals first, which tells the
+    // literal that the declaration and the binding of a generated registration both hold; the other names differ in length or in a
+    // character.
+    private static bool Passes(string[] names, string name)
+    {
+        for (int i = 0; i < names.Length; i++)
+        {
+            if (string.Equals(names[i], name, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // The bindings of a call that passes none: no value is ever added to them, so one instance serves every such call.
@@ -125,6 +149,11 @@ public sealed class CelBindings : IEnumerable<KeyValuePair<string, CelValue>>
         if (ConversionRules.IsRefusedByBindings(converted))
         {
             throw new ArgumentException(ConversionRules.BindingsRefusalMessage(converted), nameof(value));
+        }
+
+        if (_nameFilter is { } filter && !Passes(filter, name))
+        {
+            return this;
         }
 
         if (!_values.TryAdd(name, converted))

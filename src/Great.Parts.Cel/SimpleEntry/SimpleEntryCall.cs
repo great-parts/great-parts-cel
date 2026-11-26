@@ -182,7 +182,10 @@ internal static class SimpleEntryCall
     }
 
     // An anonymous object of a registered type: the environment of the type by the reference of its entry of the registry, the program by
-    // the table of the recent programs of the environment, the bindings by the delegate of the registration.
+    // the table of the recent programs of the environment, the bindings by the delegate of the registration. The bindings take only the
+    // names that the plan of the program can read (Plan.ReadNames) and only while the delegate runs: the value of every property is still
+    // converted and checked, so that an error of a value that the program does not read is still thrown, but the name that no node reads
+    // is not inserted into the dictionary.
     private static T EvaluateAnonymous<T>(
         SimpleEntryCache cache,
         string expression,
@@ -196,7 +199,9 @@ internal static class SimpleEntryCall
         CelBindings bindings = TakeBindings();
         try
         {
+            bindings.SetNameFilter(program.Plan.ReadNames);
             entry.Bind(data, bindings);
+            bindings.SetNameFilter(null);
             return Run(program, bindings, costLimit, cancellationToken);
         }
         finally
@@ -224,8 +229,10 @@ internal static class SimpleEntryCall
         return bindings;
     }
 
+    // The filter of the names goes with the values, whether the call ended or threw: the instance in the field has none.
     private static void ReleaseBindings(CelBindings bindings)
     {
+        bindings.SetNameFilter(null);
         bindings.Clear();
         t_bindings = bindings;
     }

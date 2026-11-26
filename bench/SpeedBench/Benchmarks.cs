@@ -17,9 +17,11 @@ public sealed class BenchConfig : ManualConfig
         AddColumn(StatisticColumn.Median);
         AddExporter(JsonExporter.Full);
         // A library without a compilation of its own has no row of the operation Compile.
+        // The value of the parameter Target is the string of ParamsSource; BenchmarkDotNet types it as a nullable object.
         AddFilter(new SimpleFilter(benchmark =>
             benchmark.Descriptor.WorkloadMethod.Name != nameof(OperationBench.Compile)
-            || Verification.ParseTarget(benchmark.Parameters.Items.First(p => p.Name == nameof(OperationBench.Target)).Value.ToString()!).Library.HasCompile));
+            || (benchmark.Parameters.Items.First(p => p.Name == nameof(OperationBench.Target)).Value is string target
+                && Verification.ParseTarget(target).Library.HasCompile)));
     }
 }
 

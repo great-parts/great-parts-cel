@@ -16,7 +16,8 @@
       "target": "main"
     },
     "mutate": [
-      "Declarations/**/*.cs"
+      "Values/ConversionRules.Result.cs",
+      "Values/ConversionRules.Decimal.cs"
     ],
     "thresholds": {
       "high": 80,

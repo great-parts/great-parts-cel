@@ -447,6 +447,25 @@ public sealed class GeneratorTests
         Assert.Contains(AllNodes(ConversionCases), node => node is Comprehension { Range: MapLiteral { Entries.Count: > 1 } } macro && macro.Macro is not (ProfileTables.MapMacro or ProfileTables.Filter));
     }
 
+    // The step of exists_one is pred ? accu + 1 : accu, so in partial evaluation its result depends on the last element whose
+    // predicate is unknown or an error, that is, on the order of the range, and cel-go iterates a map in no fixed order (the case
+    // 6056751 of seed 2026112602: b2 <= dyn(x2).exists_one(v, (mx[v]) in v) did not diverge again on the oracle). The range of
+    // exists_one is of a fixed order like that of map and filter: never a map of more than one entry, a map variable or a dyn
+    // node over a variable. all and exists keep their ranges: their step is && or ||, which absorbs unknown and error in any order.
+    [Fact]
+    public void RangeOfExistsOne_HasAFixedOrder()
+    {
+        List<Comprehension> existsOne = [.. AllNodes(ConversionCases).OfType<Comprehension>().Where(macro => macro is { Macro: ProfileTables.ExistsOne, SecondVariable: null })];
+
+        Assert.NotEmpty(existsOne);
+        Assert.All(existsOne, macro => Assert.True(
+            macro.Range is ListLiteral or MapLiteral { Entries.Count: <= 1 } or Ident { Name: "li" or "ls" or "lx" }
+                or Call { Function: ProfileTables.Dyn, Args: [ListLiteral or MapLiteral { Entries.Count: <= 1 }] },
+            ExprPrinter.Print(macro)));
+        Assert.Contains(existsOne, macro => macro.Range is ListLiteral);
+        Assert.Contains(existsOne, macro => macro.Range is Call { Function: ProfileTables.Dyn });
+    }
+
     // A list of types is the range of a macro only inside dyn(): the iteration variable is then dyn, never of the static type type.
     [Fact]
     public void RangeOfTypes_StandsInDynAndNoIterationVariableHasTheTypeType()

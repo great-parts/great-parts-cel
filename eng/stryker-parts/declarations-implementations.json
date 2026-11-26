@@ -16,10 +16,18 @@
       "target": "main"
     },
     "mutate": [
-      "Values/ConversionRules.Result.cs",
-      "Values/ConversionRules.Views.cs",
-      "Values/ConversionRules.Decimal.cs",
-      "Values/ConversionRules.Time.cs"
+      "Declarations/TypedImplementation.cs",
+      "Declarations/ImplementationEntry.cs",
+      "Declarations/OverloadBinding.cs",
+      "Declarations/CelFunctionImplementation.cs",
+      "Declarations/CelAsyncFunctionImplementation.cs",
+      "Declarations/AsyncOverloadImplementation.cs",
+      "Declarations/OverloadImplementation.cs",
+      "Declarations/CelCostFunction.cs",
+      "Declarations/CallValidator.cs",
+      "Declarations/ConstantArgument.cs",
+      "Declarations/ConstantPreparation.cs",
+      "Declarations/ConstantPreparer.cs"
     ],
     "thresholds": {
       "high": 80,

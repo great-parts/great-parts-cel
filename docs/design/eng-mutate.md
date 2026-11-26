@@ -85,7 +85,7 @@ The set has no `since`, so it runs from a linked worktree too ([Linked worktrees
 | `eng/docker/` | the image: the SDK and the runtime |
 | `.config/dotnet-tools.json` | the version of Stryker.NET |
 | `global.json` | the SDK and the mode of the test platform |
-| `Directory.Build.props` | the settings of the compiler that Stryker.NET takes into the compilation of the mutants: `Nullable`, `WarningsAsErrors`, `WarningsNotAsErrors`, `NoWarn`; a change can turn mutants into `CompileError` without failing the build |
+| `Directory.Build.props` | the settings of the compiler that Stryker.NET takes into the compilation of the mutants: `Nullable`, `WarningsAsErrors`, `WarningsNotAsErrors`, `NoWarn`; a change can turn mutants into `CompileError` without failing the build. Stryker.NET 5.1.0 does not read `TreatWarningsAsErrors`, so compiler warnings stay warnings in the compilation of the mutants and a `CompileError` is a C# compilation error |
 
 Not triggers: `src/`, `tests/`; in `eng/tests/` — `Difftest/`, `Analyzers/`, `EngRun/`, `Findings/`, `CodeRegistryTests.cs`; `eng/difftest/`, `eng/oracle/`, `eng/analyzers/`, `eng/ratchet.json`, `eng/layers.txt`, `eng/BannedSymbols.txt`, `eng/min-sdk/`, `eng/packages/`; in the root — `stryker-config.json`, `Directory.Packages.props`, `NuGet.config`, `.editorconfig`; the documents. Such a change breaks the set only through the build or a failing test, and the jobs of the build and of the tests of `ci.yml` show that. A change of package versions in `Directory.Packages.props` reaches the set through the lock file of `eng/tests` or `eng/checks`, which is a trigger. Stryker.NET 5.0.0 compiles the mutants without the analyzer configuration: the severities of `.editorconfig` do not reach that compilation, which runs no analyzer.
 
@@ -125,7 +125,8 @@ The configuration of a part is `eng/stryker-parts/<part>.json`: the settings of 
 | `values-cel` | `Values/Cel*.cs` |
 | `values-conversion-collections` | `Values/ConversionRules.Collections.cs`, `Values/ConversionRules.Calendar.cs`, `Values/CopiedList.cs` |
 | `values-conversion-core` | `Values/ConversionRules.cs`, `Values/ConversionRules.Rows.cs`, `Values/ConversionRules.Wide.cs` |
-| `values-conversion-views` | `Values/ConversionRules.Result.cs`, `Values/ConversionRules.Views.cs`, `Values/ConversionRules.Decimal.cs`, `Values/ConversionRules.Time.cs` |
+| `values-conversion-result` | `Values/ConversionRules.Result.cs`, `Values/ConversionRules.Decimal.cs` |
+| `values-conversion-time-views` | `Values/ConversionRules.Views.cs`, `Values/ConversionRules.Time.cs` |
 | `values-decimals` | `Values/DecimalNumberRules.cs`, `Values/DecimalParts.cs`, `Values/DecimalPlatform.Decimal128.cs`, `Values/DecimalPlatform.SystemDecimal.cs`, `Values/DecimalRoundingRules.cs` |
 | `values-text-rules` | `Values/DecimalTextRules.cs` |
 | `values-text-double` | `Values/DoubleTextRules.cs`, `Values/CalendarRules.cs`, `Values/IEvaluationMeter.cs`, `Values/IOptionalSource.cs`, `Values/IApplicationBoundary.cs` |
@@ -155,7 +156,8 @@ The configuration of a part is `eng/stryker-parts/<part>.json`: the settings of 
 | `library-strings-functions` | `Library/Extensions/Strings/StringFunctions.cs` |
 | `library-strings-search` | `Library/Extensions/Strings/StringFunctions.Search.cs` |
 | `library-strings-extension` | `Library/Extensions/Strings/StringFunctions.Format.cs`, `Library/Extensions/Strings/StringsExtension.cs`, `Library/Extensions/Strings/CodePoints.cs` |
-| `library-calendar` | `Library/Time/CalendarCosts.cs`, `Library/Time/CalendarExtension.cs`, `Library/Time/CalendarFunctions.cs`, `Library/Time/CalendarOverloadIds.cs`, `Library/Time/TimeCosts.cs`, `Library/Time/TimeOverloadIds.cs`, `Library/Time/TimeArithmetic.cs` |
+| `library-calendar-functions` | `Library/Time/CalendarFunctions.cs`, `Library/Time/CalendarCosts.cs`, `Library/Time/CalendarOverloadIds.cs` |
+| `library-calendar-extension` | `Library/Time/CalendarExtension.cs`, `Library/Time/TimeArithmetic.cs`, `Library/Time/TimeCosts.cs`, `Library/Time/TimeOverloadIds.cs` |
 | `library-time-text` | `Library/Time/TimeConversions.cs`, `Library/Time/TimeOverloads.cs`, `Library/Time/TimeReceivers.cs`, `Library/Extensions/Strings/ContainerText.cs`, `Library/Extensions/Strings/ResultBuilder.cs`, `Library/Extensions/Strings/FloatText.cs` |
 | `library-decimals-unicode` | `Library/Decimals/*.cs`, `Library/Unicode/*.cs` (the generated tables of `Library/Unicode/` have no mutants) |
 | `library-core` | `Library/*.cs` without `Conversions.cs`, `NumberText.cs` and `StandardLibraryV1.cs`, and `Library/Text/**/*.cs` |
@@ -173,7 +175,11 @@ The configuration of a part is `eng/stryker-parts/<part>.json`: the settings of 
 | `evaluation-collections` | `Evaluation/AppendPlanNode.cs`, `Evaluation/ListBuilder.cs`, `Evaluation/ListPlanNode.cs`, `Evaluation/MapInsertPlanNode.cs`, `Evaluation/MapPlanNode.cs`, `Evaluation/MessagePlanNode.cs`, `Evaluation/OptionalListPlanNode.cs`, `Evaluation/OptionalMapPlanNode.cs`, `Evaluation/OptionalOrPlanNode.cs`, `Evaluation/RecordPlanNode.cs`, `Evaluation/ValueRecord.cs`, `Evaluation/UnknownPattern.cs`, `Evaluation/PartialState.cs` |
 | `evaluation-calls` | `Evaluation/AsyncCallPlanNode.cs`, `Evaluation/AsyncCallTable.cs`, `Evaluation/CallPlanNode.cs`, `Evaluation/DispatchPlanNode.cs`, `Evaluation/FusedComparisonPlanNode.cs`, `Evaluation/Invocation.cs`, `Evaluation/ComprehensionPlanNode.cs`, `Evaluation/LogicalPlanNode.cs`, `Evaluation/AndPlanNode.cs`, `Evaluation/OrPlanNode.cs`, `Evaluation/NotStrictlyFalsePlanNode.cs`, `Evaluation/ConstantPlanNode.cs`, `Evaluation/BlockPlanNode.cs`, `Evaluation/BlockSlots.cs` |
 | `evaluation-frame` | `Evaluation/CostLimitException.cs`, `Evaluation/EvaluationErrors.cs`, `Evaluation/Frame.cs`, `Evaluation/FrameSpares.cs`, `Evaluation/Plan.cs`, `Evaluation/PlanNode.cs` |
-| `declarations` | `Declarations/**/*.cs` |
+| `declarations-checks` | `Declarations/DeclarationChecks.cs` |
+| `declarations-implementations` | `Declarations/TypedImplementation.cs`, `ImplementationEntry.cs`, `OverloadBinding.cs`, `CelFunctionImplementation.cs`, `CelAsyncFunctionImplementation.cs`, `AsyncOverloadImplementation.cs`, `OverloadImplementation.cs`, `CelCostFunction.cs`, `CallValidator.cs`, `ConstantArgument.cs`, `ConstantPreparation.cs`, `ConstantPreparer.cs` |
+| `declarations-overloads` | `Declarations/CallSite.cs`, `OverloadIds.cs`, `CelOverloadDecl.cs`, `CelFunctionDecl.cs`, `CelVariableDecl.cs`, `CelFunctionOptions.cs`, `FunctionDescriptions.cs` |
+| `declarations-extensions` | `Declarations/ExtensionChecks.cs`, `ExtensionDefinition.cs`, `CelExtension.cs`, `ApplicationExtension.cs`, `LibraryDeclarations.cs`, `AbbreviationChecks.cs`, `MacroForm.cs`, `TypeSource.cs` |
+| `declarations-sets` | `Declarations/DelegateDeclaration.cs`, `BuildErrors.cs`, `DeclarationSet.cs`, `DeclarationText.cs`, `SourcedDeclaration.cs`, `UnmappedDeclaration.cs`, `AbstractTypeDeclaration.cs` |
 | `root-diagnostics` | `*.cs` (the files of the project directory), `Diagnostics/**/*.cs`, `SimpleEntry/**/*.cs` |
 | `checking-checker` | `Checking/Checker.cs` |
 | `checking-support` | the other files of `Checking/` except `Checking/Protobuf/` (`Checking/CelCheckedExpr.cs`, `CelReference.cs`, `CheckedExpression.cs`, `CheckErrors.cs`, `CheckResult.cs`, `DeclarationIndex.cs`, `EnvironmentDescription.cs`, `Reference.cs`, `ReferencedNames.cs`), `Configuration/CelEnvironmentJson.cs`, `Configuration/JsonPositions.cs` |
@@ -198,6 +204,22 @@ The run of 2026-11-25 on `main` (the 40 parts above) stopped three parts at the 
 | `extensions-network-types` | 54 | 69 |
 
 `values-text-rules` and `extensions-network-address` are one file each and are not cut further, for the reason given above. The library is 57 parts. After the run of these eight parts the times of a mutant are known, and a part that is still stopped is cut by them.
+
+The run 45794043873 (19 parts of the new and the changed ones) stopped `declarations` at the limit of 6 h (1,300 mutants to check; the log has no count of the mutants that ended, and a cancelled job has no report), and two parts ended late: `library-calendar` in 5 h 22 min (318 mutants, 3.8 h of them after the preparation of 1.6 h, 43 s a mutant) and `values-conversion-views` in 5 h 12 min (318 mutants, 40.7 s a mutant). All three are cut by the rule above, at 45 s a mutant and the preparation of 1.6 h, so that no part has more than about 250 mutants. The mutants of `declarations` are counted by the lines of code of its files (2,019 lines, 0.64 mutants a line, which is the density of the two parts that ended: 0.65 and 0.62), those of the two others by their reports. The three became nine parts:
+
+| Part | Mutants to check, about | Time at 45 s a mutant, with the preparation of 1.6 h |
+| :- | -: | -: |
+| `declarations-checks` | 426 | 6.9 h |
+| `declarations-implementations` | 223 | 4.4 h |
+| `declarations-overloads` | 238 | 4.6 h |
+| `declarations-extensions` | 213 | 4.3 h |
+| `declarations-sets` | 201 | 4.2 h |
+| `library-calendar-functions` | 160 | 3.6 h |
+| `library-calendar-extension` | 158 | 3.5 h |
+| `values-conversion-result` | 176 | 3.8 h |
+| `values-conversion-time-views` | 142 | 3.4 h |
+
+`declarations-checks` is one file, `Declarations/DeclarationChecks.cs` (661 lines of code), and is not cut further, for the reason given above. At 45 s it would not end; at the time of a mutant that `declarations` had in the run of 2026-11-24 (14 s) it takes 3.3 h, and the run 45794043873 gives only that the time of a mutant was at least 15 s there, so the part is run first and cut by its time if it is stopped (the file could be split in the source into two files, which the parts then divide). The library is 63 parts.
 
 - Two tests of `eng/tests` keep the cut of the parts: every `.cs` file of the project is in exactly one part, so a new directory or file that no part names fails `eng/test`, and a part file differs from `stryker-config.json` only in `mutate`, so a change of a common setting is made in every file, as for the control set ([Control set](#control-set)).
 - `since` and `mutate` work together in the tool: a part mutates the changed files that its patterns name. Stryker.NET marks the other files' mutants `Removed by mutate filter`; `eng/checks mutation` knows the patterns, so a changed file outside them is no `ENG504` in this part, and one inside them that the report lacks is ([mutation](#mutation)).

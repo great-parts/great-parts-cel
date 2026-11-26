@@ -22,7 +22,7 @@ internal enum NodeVerdict
     Diverges,
 }
 
-/// <summary>What an instance of the transform of <c>map</c> or <c>transformList</c> gives on both sides, for <see cref="Minimizer.FoldStep"/>.</summary>
+/// <summary>What an instance of the transform of <c>map</c>, <c>transformList</c>, <c>transformMapEntry</c> or the key of <c>sortBy</c> gives on both sides, for <see cref="Minimizer.FoldStep"/>.</summary>
 internal enum StepKind
 {
     /// <summary>Both sides give the same value.</summary>
@@ -51,7 +51,8 @@ internal enum StepKind
 /// body of the macro that makes the case smaller and is accepted becomes the case (<see cref="BodyInstances"/>): the body
 /// itself when it does not read the iteration variable; else the body with the element in place of the variable for each
 /// element of the range (both variables of a macro of two variables), or with a zero literal when the range is empty; then each
-/// closed node of the body. When no instance of a body is accepted and the root is <c>map</c> or <c>transformList</c>, the one
+/// closed node of the body. When no instance of a body is accepted and the root is <c>map</c>, <c>transformList</c>,
+/// <c>transformMapEntry</c> or <c>sortBy</c>, the one
 /// instance of the step of its fold is tried: the sum of two lists of one instance of the transform each, the first that is
 /// unknown and the next that is an error (<see cref="FoldStep"/>). A case is
 /// smaller than another when it has fewer macro nodes, or as many and a shorter text. Each node below the root is classified
@@ -63,6 +64,10 @@ internal static class Minimizer
 {
     // The macro of the set of two variables whose fold appends one list element at each step, like map.
     private const string TransformList = "transformList";
+
+    // The macro of the set of two variables whose fold adds the map of one entry to the accumulator at each step, by a function of
+    // two arguments in cel-go (@mapInsert), like the sum of map. transformMap is not one: its step takes three arguments.
+    private const string TransformMapEntry = "transformMapEntry";
 
     /// <summary>Minimizes a divergent case.</summary>
     /// <param name="divergent">The divergent case.</param>
@@ -81,8 +86,8 @@ internal static class Minimizer
     /// <see langword="null"/> means that such a range has no body instances.
     /// </param>
     /// <param name="stepKind">
-    /// What an instance of the transform of <c>map</c> or <c>transformList</c> gives on both sides, for the step of the fold
-    /// (<see cref="FoldStep"/>); called for the instances of the transform and only when no body instance is accepted.
+    /// What an instance of the transform of <c>map</c>, <c>transformList</c> or <c>transformMapEntry</c>, or of the key of
+    /// <c>sortBy</c>, gives on both sides, for the step of the fold (<see cref="FoldStep"/>); called for the instances of the transform and only when no body instance is accepted.
     /// <see langword="null"/> means that a macro has no instance of the step of its fold.
     /// </param>
     /// <returns>The divergent case whose root has no divergent node under it and no accepted body instance.</returns>
@@ -211,11 +216,15 @@ internal static class Minimizer
     }
 
     /// <summary>
-    /// The instance of the step of the fold of <c>map</c> or <c>transformList</c> in which cel-go and the library part:
-    /// <c>[a] + [b]</c> with <c>a</c> the first instance of the transform that is unknown on both sides and <c>b</c> the next that
+    /// The instance of the step of the fold of <c>map</c>, <c>transformList</c>, <c>transformMapEntry</c> or <c>sortBy</c> in which
+    /// cel-go and the library part:
+    /// <c>[a] + [b]</c> with <c>a</c> the first instance of the transform (for <c>sortBy</c>, of the key) that is unknown on both
+    /// sides and <c>b</c> the next that
     /// is an error on both. The fold adds <c>[transform]</c> to the accumulator at each element, and cel-go returns the unknown
     /// first operand of a binary function after it has evaluated the second and dropped its error, so an unknown element followed by
-    /// an error element gives the unknown, where the library gives the error. The instances of the bodies agree one by one and the
+    /// an error element gives the unknown, where the library gives the error. The step of <c>transformMapEntry</c> in cel-go is
+    /// <c>@mapInsert</c> with two arguments, and <c>sortBy</c> keeps its keys by <c>map</c>, so both go through the same binary
+    /// function; <c>transformMap</c> is not among them, its step has three arguments, for which cel-go gives the error first. The instances of the bodies agree one by one and the
     /// divergence is in their sum alone, so without this instance the case stays the macro. The instances of the transform are the
     /// element of the range in place of the variable, as in <see cref="BodyInstances"/>, but only for a list: a literal of at
     /// least two elements without optional elements, whose nodes are in parentheses, or in <c>dyn()</c> when the range is, and once
@@ -234,10 +243,10 @@ internal static class Minimizer
     /// each predicate.
     /// </param>
     /// <param name="kindOf">What an instance of the transform gives on both sides.</param>
-    /// <returns>The instance; <see langword="null"/> for a node that is no <c>map</c> or <c>transformList</c>, and when there is none.</returns>
+    /// <returns>The instance; <see langword="null"/> for a node that is none of the four macros, and when there is none.</returns>
     internal static Expr? FoldStep(Expr node, Func<Expr, Value?> rangeValue, Func<Expr, StepKind> kindOf)
     {
-        if (node is not Comprehension { Macro: ProfileTables.MapMacro or TransformList, Arguments.Count: > 0 } macro)
+        if (node is not Comprehension { Macro: ProfileTables.MapMacro or TransformList or TransformMapEntry or ProfileTables.SortByMacro, Arguments.Count: > 0 } macro)
         {
             return null;
         }
@@ -390,7 +399,7 @@ internal static class Minimizer
     /// The next case of the descent from a root: the first node that diverges below it, found by the search under the children
     /// on which both sides give an error (<see cref="FirstDivergent"/>), without any condition; else the first accepted instance
     /// of a body of the macro at the root, which is asked for only if nothing was found; else the instance of the step of the fold
-    /// of <c>map</c> or <c>transformList</c> (<see cref="FoldStep"/>), which is asked for only if no instance of a body was
+    /// of <c>map</c>, <c>transformList</c>, <c>transformMapEntry</c> or <c>sortBy</c> (<see cref="FoldStep"/>), which is asked for only if no instance of a body was
     /// accepted; <see langword="null"/> when there is none.
     /// </summary>
     private static GeneratedCase? Next(

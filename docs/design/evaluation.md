@@ -5,7 +5,7 @@
 | File | Content |
 | :- | :- |
 | `src/Great.Parts.Cel/Evaluation/Planner.cs` | plans a checked expression, or a parsed one without type checking |
-| `src/Great.Parts.Cel/Evaluation/Plan.cs` | the root node, the slots, the line table; `Evaluate(bindings, costLimit, cancellationToken)` |
+| `src/Great.Parts.Cel/Evaluation/Plan.cs` | the root node, the slots, the line table, the names that evaluation can look up in the bindings (`ReadNames`); `Evaluate(bindings, costLimit, cancellationToken)` |
 | `src/Great.Parts.Cel/Evaluation/PlanNode.cs` and one file per node class | the nodes |
 | `src/Great.Parts.Cel/Evaluation/Frame.cs` | the state of one evaluation |
 | `src/Great.Parts.Cel/Evaluation/CostLimitException.cs` | the internal signal of an exceeded cost limit |

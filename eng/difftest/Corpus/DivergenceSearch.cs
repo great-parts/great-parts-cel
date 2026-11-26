@@ -341,7 +341,7 @@ internal sealed class DivergenceSearch
     // both sides, since the descent has compared it as a child before. In partial evaluation it is the value on the unknown data.
     private static Value? LibraryValue(Channel channel, GeneratedCase generated) => channel.Values.Evaluate(generated.Text, generated.Bindings).Result;
 
-    // What an instance of the transform of map or transformList gives, for the step of the fold: a value, unknown parts or an error
+    // What an instance of the transform of map, transformList or transformMapEntry, or of the key of sortBy, gives, for the step of the fold: a value, unknown parts or an error
     // of evaluation that the two sides give alike, else other (Minimizer.FoldStep). Unknown parts come only in partial evaluation, so
     // the ordinary check builds no step.
     private static StepKind StepKindOf(Channel channel, GeneratedCase generated)

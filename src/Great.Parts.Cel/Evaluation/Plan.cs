@@ -24,8 +24,10 @@ internal sealed class Plan
         CelParsedExpr? tree = null,
         int keyCount = 0,
         int firstAsyncOffset = -1,
-        string? firstAsyncFunction = null)
+        string? firstAsyncFunction = null,
+        string[]? readNames = null)
     {
+        ReadNames = readNames;
         FirstAsyncOffset = firstAsyncOffset;
         FirstAsyncFunction = firstAsyncFunction;
         Tree = tree;
@@ -46,6 +48,12 @@ internal sealed class Plan
     // The parsed expression of a plan made for partial evaluation, which the residual expression is made from; null for any other
     // plan.
     internal CelParsedExpr? Tree { get; }
+
+    // The names that evaluation can look up in the bindings, Frame.TryRead and Frame.TryLookup being the only readers: the names of the
+    // variable nodes and every candidate of the name nodes. A name that is not in it is never read, so the simple entry does not bind it.
+    // The array is not changed once the plan is made. Null when the set is not known or too large for a search by scanning: the
+    // bindings take every name then.
+    internal string[]? ReadNames { get; }
 
     // The number of keys of chains of attributes that a partial plan evaluates before the chain: one slot of the partial state each.
     internal int KeyCount { get; }

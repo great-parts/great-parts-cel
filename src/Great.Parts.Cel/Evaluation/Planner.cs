@@ -56,6 +56,10 @@ internal sealed class Planner
     private const string StringToTimestampId = "string_to_timestamp";
     private const string StringToDurationId = "string_to_duration";
 
+    // The most names that Plan.ReadNames holds: the bindings of the simple entry find a name in it by scanning, which must stay cheaper
+    // than the insertion into the dictionary that it saves.
+    private const int MaxReadNames = 8;
+
     private readonly CelParsedExpr _parsed;
 
     // The checked expression; null when planning without type checking.
@@ -70,6 +74,10 @@ internal sealed class Planner
     private readonly CelTimeZoneDatabase? _timeZones;
 
     private readonly Dictionary<string, int> _variables = new(StringComparer.Ordinal);
+
+    // The candidate names of the name nodes (planning without type checking), which the evaluation looks up in the bindings as well as
+    // the variables. Created at the first name node.
+    private HashSet<string>? _searched;
 
     // The variables of the enclosing comprehensions with their local slots, the innermost last.
     private readonly List<(string Name, int Slot)> _locals = [];
@@ -168,7 +176,39 @@ internal sealed class Planner
             _partial is null ? null : _parsed,
             _partial?.KeyCount ?? 0,
             _asyncOffset,
-            _asyncFunction);
+            _asyncFunction,
+            ReadNames());
+    }
+
+    // The names that the evaluation of the plan can look up in the bindings: the variables of the variable nodes and the candidates of
+    // the name nodes. Null when a plan for partial evaluation, which has attribute nodes of its own, or more names than MaxReadNames.
+    private string[]? ReadNames()
+    {
+        int count = _variables.Count + (_searched?.Count ?? 0);
+        if (_partial is not null || count > MaxReadNames)
+        {
+            return null;
+        }
+
+        if (count == 0)
+        {
+            return [];
+        }
+
+        var names = new List<string>(count);
+        names.AddRange(_variables.Keys);
+        if (_searched is not null)
+        {
+            foreach (string name in _searched)
+            {
+                if (!names.Contains(name))
+                {
+                    names.Add(name);
+                }
+            }
+        }
+
+        return [.. names];
     }
 
     // Whether an identifier names a slot of a block being planned, which is not a variable.
@@ -444,6 +484,7 @@ internal sealed class Planner
                     ? variable.Type
                     : null;
                 candidates.Add(new NamePlanNode.Candidate(name, selections, typeValue, objectType));
+                _ = (_searched ??= new HashSet<string>(StringComparer.Ordinal)).Add(name);
             }
         }
 

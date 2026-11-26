@@ -9,12 +9,13 @@ using Xunit;
 
 namespace Great.Parts.Cel.Eng.Tests.Difftest;
 
-// The instance of the step of the fold of map and transformList (docs/design/eng-difftest.md, "Minimization"): the sum of two lists
-// of one instance of the transform each, the first that is unknown on both sides and the next that is an error, in which cel-go and
-// the library part. The element of an instance is named by its first letter: u unknown, e error, v value, o another kind.
+// The instance of the step of the fold of map, transformList, transformMapEntry and sortBy (docs/design/eng-difftest.md,
+// "Minimization"): the sum of two lists of one instance of the transform (of the key for sortBy) each, the first that is unknown on
+// both sides and the next that is an error, in which cel-go and the library part. The element of an instance is named by its first letter: u unknown, e error, v value, o another kind.
 public sealed class FoldStepTests
 {
     private const string TransformList = "transformList";
+    private const string TransformMapEntry = "transformMapEntry";
 
     // ---- The instance ----
 
@@ -153,13 +154,140 @@ public sealed class FoldStepTests
     [InlineData("exists")]
     [InlineData("exists_one")]
     [InlineData("transformMap")]
-    [InlineData("transformMapEntry")]
+    [InlineData("optMap")]
     public static void FoldStep_OfAnotherMacro_IsNone(string name)
     {
         Expr macro = new Comprehension(name, Literal("u1 e1"), "v", [new Ident("v")]);
 
         Assert.Null(Step(macro, _ => null, KindByName));
         Assert.Null(Step(new Ident("u1"), _ => null, KindByName));
+    }
+
+    // transformMap is no macro of the step: its fold calls @mapInsert with three arguments, for which cel-go gives the error before
+    // the unknown, so the unknown and the error elements agree with the library and the instance would not diverge. The shape is
+    // the same as that of transformMapEntry that has the instance, with both variables and an unknown element before an error one.
+    [Fact]
+    public static void FoldStep_OfTransformMap_IsNone_WhereTransformMapEntryHasTheInstance()
+    {
+        Expr transformMap = new Comprehension("transformMap", Literal("u1 e1"), "i", [new Ident("v")]) { SecondVariable = "v" };
+        Expr transformMapEntry = new Comprehension(TransformMapEntry, Literal("u1 e1"), "i", [new Ident("v")]) { SecondVariable = "v" };
+
+        Assert.Null(Step(transformMap, _ => null, KindByName));
+        Assert.Equal("[(u1)] + [(e1)]", Step(transformMapEntry, _ => null, KindByName));
+    }
+
+    // The case 1611731 of seed 20261126: lx.transformMapEntry(i, e, {…: e ? ms.f : x2}) over a list literal; the unknown x2 for one
+    // element is followed by an error for the next. The elements stand in place of the second variable, the positions in place of the first.
+    [Fact]
+    public static void FoldStep_OfTransformMapEntry_PutsTheElementInPlaceOfTheSecondVariable()
+    {
+        Expr entry = new MapLiteral([new MapEntry(new Ident("i"), new Ident("e"))], TrailingComma: false);
+        Expr macro = new Comprehension(TransformMapEntry, Literal("u1 e1 e2"), "i", [entry]) { SecondVariable = "e" };
+
+        Assert.Equal("[{(0): (u1)}] + [{(1): (e1)}]", Step(macro, _ => null, node => KindByName(((MapLiteral)node).Entries[0].Value)));
+    }
+
+    // The same over a range that is no literal, whose elements are read as range[i] by their positions.
+    [Fact]
+    public static void FoldStep_OfTransformMapEntryOverAListValue_IndexesTheList()
+    {
+        Expr entry = new MapLiteral([new MapEntry(new Ident("i"), new Ident("e"))], TrailingComma: false);
+        Expr macro = new Comprehension(TransformMapEntry, new Ident("lx"), "i", [entry]) { SecondVariable = "e" };
+        Value list = SignatureTests.ListOf(SignatureTests.Int(1), SignatureTests.Int(2), SignatureTests.Int(3));
+
+        Assert.Equal(
+            "[{0: lx[0]}] + [{1: lx[1]}]",
+            Step(
+                macro,
+                _ => list,
+                node => ExprPrinter.Print(node) switch
+                {
+                    "{0: lx[0]}" => StepKind.Unknown,
+                    "{1: lx[1]}" => StepKind.Error,
+                    _ => StepKind.Value,
+                }));
+    }
+
+    // The filter of transformMapEntry (the form of three arguments) selects the elements as the predicate of map does.
+    [Theory]
+    [InlineData("true true", "[(u1)] + [(e1)]")]
+    [InlineData("true false", null)]
+    [InlineData("none true", null)]
+    public static void FoldStep_OfTransformMapEntryWithAFilter_TakesTheSelectedElementsOnly(string answers, string? expected)
+    {
+        ArgumentNullException.ThrowIfNull(answers);
+        string[] flags = answers.Split(' ');
+        Expr filter = new Call(ProfileTables.Greater, [new Ident("v"), new IntLiteral(0, IntegerForm.DecimalDigits)]);
+        Expr macro = new Comprehension(TransformMapEntry, Literal("u1 e1"), "i", [filter, new Ident("v")]) { SecondVariable = "v" };
+
+        Assert.Equal(
+            expected,
+            Step(
+                macro,
+                node => ExprPrinter.Print(node) switch
+                {
+                    "(u1) > 0" => Flag(flags[0]),
+                    "(e1) > 0" => Flag(flags[1]),
+                    _ => null,
+                },
+                KindByName));
+    }
+
+    // transformMapEntry over a map has no order that cel-go keeps, so it gives no instance, as map does.
+    [Fact]
+    public static void FoldStep_OfTransformMapEntryOverAMap_IsNone()
+    {
+        Expr range = new MapLiteral(
+            [
+                new MapEntry(new IntLiteral(1, IntegerForm.DecimalDigits), new Ident("u1")),
+                new MapEntry(new IntLiteral(2, IntegerForm.DecimalDigits), new Ident("e1")),
+            ],
+            TrailingComma: false);
+        Expr macro = new Comprehension(TransformMapEntry, range, "k", [new Ident("v")]) { SecondVariable = "v" };
+        Value map = SignatureTests.Map((SignatureTests.Int(1), SignatureTests.Int(2)), (SignatureTests.Int(2), SignatureTests.Int(3)));
+        Expr variable = new Comprehension(TransformMapEntry, new Ident("mx"), "k", [new Ident("v")]) { SecondVariable = "v" };
+
+        Assert.Null(Step(macro, _ => null, KindByName));
+        Assert.Null(Step(variable, _ => map, KindByName));
+    }
+
+    // The case 1517069 of seed 2026112602: [a == b, true].sortBy(v, x2 && (v || test.r.contains(s1))) with s1 unknown: the key of the
+    // first element is unknown, that of the second an error. The keys are made by map inside sortBy, so the step is that of map.
+    [Fact]
+    public static void FoldStep_OfSortBy_IsTheFirstUnknownKeyAndTheNextErrorKey()
+    {
+        Expr macro = new Comprehension(ProfileTables.SortByMacro, Literal("u1 e1 v1"), "v", [new Call(ProfileTables.LogicalAnd, [new Ident("x2"), new Ident("v")])]);
+
+        Assert.Equal(
+            "[x2 && (u1)] + [x2 && (e1)]",
+            Step(macro, _ => null, node => KindByName(((Call)node).Args[1])));
+    }
+
+    [Fact]
+    public static void FoldStep_OfSortByOverAListValue_IndexesTheList()
+    {
+        Expr macro = new Comprehension(ProfileTables.SortByMacro, new Ident("lx"), "v", [new Call(ProfileTables.Negate, [new Ident("v")])]);
+        Value list = SignatureTests.ListOf(SignatureTests.Int(1), SignatureTests.Int(2));
+
+        Assert.Equal(
+            "[-lx[0]] + [-lx[1]]",
+            Step(
+                macro,
+                _ => list,
+                node => ExprPrinter.Print(node) switch
+                {
+                    "-lx[0]" => StepKind.Unknown,
+                    "-lx[1]" => StepKind.Error,
+                    _ => StepKind.Value,
+                }));
+    }
+
+    [Fact]
+    public static void FoldStep_OfSortByWhoseErrorKeyComesFirst_IsNone()
+    {
+        Expr macro = new Comprehension(ProfileTables.SortByMacro, Literal("e1 u1"), "v", [new Ident("v")]);
+
+        Assert.Null(Step(macro, _ => null, KindByName));
     }
 
     // The predicate of map selects the elements: an element that it leaves out adds nothing to the fold, and a predicate that gives no

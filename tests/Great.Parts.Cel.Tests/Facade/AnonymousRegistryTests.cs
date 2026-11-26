@@ -101,4 +101,53 @@ public sealed class AnonymousRegistryTests
         Assert.False(AnonymousRegistry.TryGet(typeof(Tuple<int, int, int>), out AnonymousRegistry.Entry? entry));
         Assert.Null(entry);
     }
+
+    // The entry of the type that was read last is kept in a field that is read before the dictionary: reads of two types, one after the
+    // other, must still give each type its own entry, and an unregistered type must still be a miss while the field holds another one.
+    [Fact]
+    public void ReadsOfTwoTypesInTurn_GiveTheEntryOfEachType()
+    {
+        RegisterOne<Tuple<float>>();
+        RegisterOne<Tuple<ushort>>();
+
+        for (int round = 0; round < 3; round++)
+        {
+            Assert.True(AnonymousRegistry.TryGet(typeof(Tuple<float>), out AnonymousRegistry.Entry? first));
+            Assert.Same(typeof(Tuple<float>), first.DataType);
+
+            Assert.True(AnonymousRegistry.TryGet(typeof(Tuple<ushort>), out AnonymousRegistry.Entry? second));
+            Assert.Same(typeof(Tuple<ushort>), second.DataType);
+            Assert.NotSame(first, second);
+
+            Assert.False(AnonymousRegistry.TryGet(typeof(Tuple<int, int, int>), out AnonymousRegistry.Entry? missing));
+            Assert.Null(missing);
+        }
+    }
+
+    // The binding of an entry reads the data as the type of its registration and hands the bindings to the delegate of the registration.
+    [Fact]
+    public void BindingOfAnEntry_CallsTheDelegateOfItsRegistrationWithTheData()
+    {
+        AnonymousRegistry.Entry entry = SimpleEntryFixtures.Register(
+            new Tuple<decimal>(0m),
+            static _ => { },
+            static (data, bindings) => bindings.Add("registryBound", (double)data.Item1));
+        var bindings = new CelBindings();
+
+        entry.Bind(new Tuple<decimal>(2.5m), bindings);
+
+        Assert.Equal((object)2.5, bindings["registryBound"]);
+    }
+
+    // The simple entry takes the entry of each call from the registry by the type of the data: two anonymous types that alternate in one
+    // thread, which the field of the last entry follows, each find their own environment and bindings.
+    [Fact]
+    public void CallsWithTwoAnonymousTypesInTurn_EvaluateEachOnItsOwnData()
+    {
+        for (long round = 0; round < 4; round++)
+        {
+            Assert.Equal(round + 1, CelExpression.Evaluate<long>("turnFirst + 1", new { turnFirst = round }, cancellationToken: TestContext.Current.CancellationToken));
+            Assert.Equal(round * 2, CelExpression.Evaluate<long>("turnSecond * 2", new { turnSecond = round }, cancellationToken: TestContext.Current.CancellationToken));
+        }
+    }
 }

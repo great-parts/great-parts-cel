@@ -16,13 +16,8 @@
       "target": "main"
     },
     "mutate": [
-      "Library/Time/CalendarCosts.cs",
-      "Library/Time/CalendarExtension.cs",
-      "Library/Time/CalendarFunctions.cs",
-      "Library/Time/CalendarOverloadIds.cs",
-      "Library/Time/TimeCosts.cs",
-      "Library/Time/TimeOverloadIds.cs",
-      "Library/Time/TimeArithmetic.cs"
+      "Values/ConversionRules.Views.cs",
+      "Values/ConversionRules.Time.cs"
     ],
     "thresholds": {
       "high": 80,
