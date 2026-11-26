@@ -25,7 +25,7 @@ public sealed class GeneratedClassElementTests
 
         Assert.True(CelExpression.Evaluate<bool>("size(strict) == 3", data, cancellationToken: TestContext.Current.CancellationToken));
         Assert.True(CelExpression.Evaluate<bool>("strict.exists(c, c.email == 'a')", data, cancellationToken: TestContext.Current.CancellationToken));
-        AssertUnexpectedNullAtTheIndex(Text, data);
+        AssertUnexpectedNullAtTheIndex(Text, () => CelExpression.Evaluate<string>(Text, data, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class GeneratedClassElementTests
         var data = new { byName = new Dictionary<string, Customer> { ["a"] = new() { Email = "a" }, ["b"] = null! } };
 
         Assert.True(CelExpression.Evaluate<bool>("size(byName) == 2 && byName['a'].email == 'a'", data, cancellationToken: TestContext.Current.CancellationToken));
-        AssertUnexpectedNullAtTheIndex(Text, data);
+        AssertUnexpectedNullAtTheIndex(Text, () => CelExpression.Evaluate<string>(Text, data, cancellationToken: TestContext.Current.CancellationToken));
     }
 
     // The check of the binding does not descend into the list, so it costs 0 and not 100: a limit below the number of elements is
@@ -77,10 +77,11 @@ public sealed class GeneratedClassElementTests
         Assert.Null(Element(points, "points", 0).PairedType);
     }
 
-    // The text reads a null element through an index: the evaluation fails with UnexpectedNull at that index.
-    private static void AssertUnexpectedNullAtTheIndex(string text, object data)
+    // The text reads a null element through an index: the evaluation fails with UnexpectedNull at that index. The call is made by
+    // the caller, where the data has its anonymous type, which the simple entry needs.
+    private static void AssertUnexpectedNullAtTheIndex(string text, Func<string> evaluate)
     {
-        CelException exception = Assert.Throws<CelException>(() => CelExpression.Evaluate<string>(text, data, cancellationToken: TestContext.Current.CancellationToken));
+        CelException exception = Assert.Throws<CelException>(() => evaluate());
         CelError error = Assert.Single(exception.Errors);
         Assert.Equal((CelErrorCode.UnexpectedNull, text.IndexOf('[', StringComparison.Ordinal)), (error.Code, error.Location.Offset));
     }
