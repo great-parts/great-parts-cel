@@ -83,12 +83,31 @@ public sealed class AttributePatternTests
     [Theory]
     [Trait("Requirement", "F-22")]
     [InlineData("l[1]", "l[1]")]
-    [InlineData("d[1u]", "d[1]")]
+    [InlineData("d[1u]", "d[1u]")]
     [InlineData("l[x]", "l[1]")]
     public static void IndexThatEqualsTheQualifier_IsUnknown(string expression, string trail)
     {
         CelPartialEvalResult<CelValue> result = Evaluate(expression, [P(expression[..1], 1L)], Data);
 
+        Assert.Equal(trail, Trails(result));
+    }
+
+    // The run of difftest 6ecd979, case 41430: mx[dyn(u1)] under the pattern mx[1]. The trail names the element by the key of the
+    // access, as cel-go writes it, and not by the qualifier of the pattern, which an int, a uint and a double key of one value
+    // equal: an int pattern with a uint key gives the uint, a uint pattern with an int key gives the int, and a double key that is a
+    // whole number gives the int of its value.
+    [Theory]
+    [Trait("Requirement", "F-22")]
+    [InlineData("d[dyn(1u)]", 1L, "d[1u]")]
+    [InlineData("d[dyn(1)]", 1UL, "d[1]")]
+    [InlineData("d[1]", 1UL, "d[1]")]
+    [InlineData("d[dyn(1.0)]", 1L, "d[1]")]
+    [InlineData("d[dyn(1.0)]", 1UL, "d[1]")]
+    public static void IndexThatEqualsTheQualifierOfAnotherKind_IsInTheTrailByTheKindOfTheIndex(string expression, object qualifier, string trail)
+    {
+        CelPartialEvalResult<CelValue> result = Evaluate(expression, [P("d", qualifier)], Data);
+
+        Assert.True(result.IsUnknown);
         Assert.Equal(trail, Trails(result));
     }
 

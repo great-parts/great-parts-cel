@@ -136,12 +136,14 @@ internal sealed class AttributePlanNode : PlanNode
     {
         int length = Math.Min(pattern.Qualifiers.Length, access.Length);
 
-        // The trail has the qualifier of the pattern where it names one, and that of the access where the pattern matches any. It
-        // stops before a key that no string, int, uint or bool names, which is the whole of the data under the qualifiers before it.
+        // The trail has the qualifier of the access, as cel-go writes it, whether the pattern names the qualifier or matches any: an
+        // int, a uint and a double key of one value are equal and name one element, and the trail keeps the kind of the key that the
+        // access has, so an int pattern with a uint key gives the uint. It stops before a key that no string, int, uint or bool names,
+        // which is the whole of the data under the qualifiers before it.
         ImmutableArray<CelValue?>.Builder trail = ImmutableArray.CreateBuilder<CelValue?>(length);
         for (int i = 0; i < length; i++)
         {
-            CelValue qualifier = pattern.Qualifiers[i] ?? TrailQualifier(access[i]);
+            CelValue qualifier = TrailQualifier(access[i]);
             if (!IsNamed(qualifier))
             {
                 break;
@@ -159,7 +161,7 @@ internal sealed class AttributePlanNode : PlanNode
 
     // A trail names a qualifier by a string, an int, a uint or a bool. A double key that is a whole number names the same element
     // as the int or the uint of its value (the keys are equal by CEL equality), and cel-go writes it so; another double stays as it is,
-    // and so does a key of any other kind that a pattern with a qualifier that matches any lets through.
+    // and so does a key of any other kind.
     private static CelValue TrailQualifier(CelValue qualifier)
     {
         if (qualifier.TryGetDouble(out double number) && Math.Floor(number) == number)
