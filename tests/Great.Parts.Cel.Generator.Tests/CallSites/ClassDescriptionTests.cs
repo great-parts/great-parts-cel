@@ -192,17 +192,21 @@ public sealed class ClassDescriptionTests
         Assert.Empty(outcome.CompilerErrors);
         string descriptions = outcome.Texts[1];
         Assert.Equal(3, Count(descriptions, " Placed("));
-        Assert.Contains("Placed(global::Acme.Line e) => FromInstance(e);", descriptions, StringComparison.Ordinal);
-        Assert.Contains("Placed(global::Acme.Point e) => FromInstance((object)e);", descriptions, StringComparison.Ordinal);
-        Assert.Contains(
+        string[] expected =
+        [
+            "Placed(global::Acme.Line e) => FromInstance(e);",
+            "Placed(global::Acme.Point e) => FromInstance((object)e);",
             "e.GetType() == typeof(global::Acme.Plain) ? FromInstance(e) : global::Great.Parts.Cel.Values.CelValue.FromObject(Description, e);",
-            descriptions,
-            StringComparison.Ordinal);
-        Assert.Contains("e is null ? Unexpected() : Type_Acme_Line.Placed(e);", descriptions, StringComparison.Ordinal);
-        Assert.Contains("Convert_Acme_Point(global::Acme.Point e) => Type_Acme_Point.Placed(e);", descriptions, StringComparison.Ordinal);
-        Assert.Contains("e is null ? Unexpected() : Type_Acme_Plain.Placed(e);", descriptions, StringComparison.Ordinal);
-        Assert.Contains("e is null ? Unexpected() : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_Base.Description, e);", descriptions, StringComparison.Ordinal);
-        Assert.Contains("e is null ? Unexpected() : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_IShape.Description, e);", descriptions, StringComparison.Ordinal);
+            "e is null ? Unexpected() : Type_Acme_Line.Placed(e);",
+            "Convert_Acme_Point(global::Acme.Point e) => Type_Acme_Point.Placed(e);",
+            "e is null ? Unexpected() : Type_Acme_Plain.Placed(e);",
+            "e is null ? Unexpected() : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_Base.Description, e);",
+            "e is null ? Unexpected() : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_IShape.Description, e);",
+        ];
+        foreach (string text in expected)
+        {
+            Assert.Contains(text, descriptions, StringComparison.Ordinal);
+        }
     }
 
     // A project without the nullable context reads every position as one that takes null.

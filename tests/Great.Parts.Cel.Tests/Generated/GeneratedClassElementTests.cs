@@ -25,10 +25,7 @@ public sealed class GeneratedClassElementTests
 
         Assert.True(CelExpression.Evaluate<bool>("size(strict) == 3", data, cancellationToken: TestContext.Current.CancellationToken));
         Assert.True(CelExpression.Evaluate<bool>("strict.exists(c, c.email == 'a')", data, cancellationToken: TestContext.Current.CancellationToken));
-
-        CelException exception = Assert.Throws<CelException>(() => CelExpression.Evaluate<string>(Text, data, cancellationToken: TestContext.Current.CancellationToken));
-        CelError error = Assert.Single(exception.Errors);
-        Assert.Equal((CelErrorCode.UnexpectedNull, Text.IndexOf('[', StringComparison.Ordinal)), (error.Code, error.Location.Offset));
+        AssertUnexpectedNullAtTheIndex(Text, data);
     }
 
     [Fact]
@@ -38,10 +35,7 @@ public sealed class GeneratedClassElementTests
         var data = new { byName = new Dictionary<string, Customer> { ["a"] = new() { Email = "a" }, ["b"] = null! } };
 
         Assert.True(CelExpression.Evaluate<bool>("size(byName) == 2 && byName['a'].email == 'a'", data, cancellationToken: TestContext.Current.CancellationToken));
-
-        CelException exception = Assert.Throws<CelException>(() => CelExpression.Evaluate<string>(Text, data, cancellationToken: TestContext.Current.CancellationToken));
-        CelError error = Assert.Single(exception.Errors);
-        Assert.Equal((CelErrorCode.UnexpectedNull, Text.IndexOf('[', StringComparison.Ordinal)), (error.Code, error.Location.Offset));
+        AssertUnexpectedNullAtTheIndex(Text, data);
     }
 
     // The check of the binding does not descend into the list, so it costs 0 and not 100: a limit below the number of elements is
@@ -81,6 +75,14 @@ public sealed class GeneratedClassElementTests
         Assert.Equal(typeof(Contact).FullName, Element(contacts, "contacts", 0).PairedType?.Name);
         Assert.Null(Element(contacts, "contacts", 1).PairedType);
         Assert.Null(Element(points, "points", 0).PairedType);
+    }
+
+    // The text reads a null element through an index: the evaluation fails with UnexpectedNull at that index.
+    private static void AssertUnexpectedNullAtTheIndex(string text, object data)
+    {
+        CelException exception = Assert.Throws<CelException>(() => CelExpression.Evaluate<string>(text, data, cancellationToken: TestContext.Current.CancellationToken));
+        CelError error = Assert.Single(exception.Errors);
+        Assert.Equal((CelErrorCode.UnexpectedNull, text.IndexOf('[', StringComparison.Ordinal)), (error.Code, error.Location.Offset));
     }
 
     // An element of the list that the registration of the anonymous type binds to a variable, as the expression reads it.
