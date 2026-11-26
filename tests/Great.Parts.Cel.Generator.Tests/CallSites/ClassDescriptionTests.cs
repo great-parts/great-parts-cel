@@ -60,6 +60,8 @@ public sealed class ClassDescriptionTests
             {
                 internal static readonly Type_Acme_Line Description = new();
 
+                internal static global::Great.Parts.Cel.Values.CelValue Placed(global::Acme.Line e) => FromInstance(e);
+
                 private Type_Acme_Line()
                     : base(
                         "Acme.Line",
@@ -89,7 +91,7 @@ public sealed class ClassDescriptionTests
             }
 
             internal static global::Great.Parts.Cel.Values.CelValue ConvertNotNull_Acme_Line(global::Acme.Line e) =>
-                e is null ? Unexpected() : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_Line.Description, e);
+                e is null ? Unexpected() : Type_Acme_Line.Placed(e);
 
             internal static global::Great.Parts.Cel.Values.CelValue Unexpected() => NullOwner.Instance.Error();
 
@@ -171,6 +173,36 @@ public sealed class ClassDescriptionTests
         Assert.Equal(1, Count(descriptions, "ConvertNotNull_Acme_Line(global::Acme.Line e) =>"));
         Assert.Equal(1, Count(descriptions, "Convert_Acme_Line(global::Acme.Line? e) =>"));
         Assert.Equal(1, Count(descriptions, "Convert_Acme_Point(global::Acme.Point e) =>"));
+    }
+
+    // The converter of an element follows the place rule of a member of a context: a sealed class and a structure are bare through the
+    // method Placed of their description, a class that is not sealed is bare when the instance is of exactly that class and paired
+    // otherwise, and an abstract class and an interface are always paired and have no such method.
+    [Fact]
+    public void ConvertersOfTheElements_FollowThePlaceRule()
+    {
+        const string Types = "public interface IShape { double Area { get; } }\n"
+            + "public abstract class Base { public string Name { get; set; } = \"\"; }\n"
+            + "public class Plain { public long V { get; set; } }\n";
+        Outcome outcome = Run(Source(
+            Line + Point + Types,
+            "CelExpression.Evaluate<bool>(\"true\", new { lines = new List<Line>(), points = new List<Point>(), plains = new List<Plain>(), bases = new Base[0], shapes = new List<IShape>() });\n"));
+
+        Assert.Empty(outcome.Reported);
+        Assert.Empty(outcome.CompilerErrors);
+        string descriptions = outcome.Texts[1];
+        Assert.Equal(3, Count(descriptions, " Placed("));
+        Assert.Contains("Placed(global::Acme.Line e) => FromInstance(e);", descriptions, StringComparison.Ordinal);
+        Assert.Contains("Placed(global::Acme.Point e) => FromInstance((object)e);", descriptions, StringComparison.Ordinal);
+        Assert.Contains(
+            "e.GetType() == typeof(global::Acme.Plain) ? FromInstance(e) : global::Great.Parts.Cel.Values.CelValue.FromObject(Description, e);",
+            descriptions,
+            StringComparison.Ordinal);
+        Assert.Contains("e is null ? Unexpected() : Type_Acme_Line.Placed(e);", descriptions, StringComparison.Ordinal);
+        Assert.Contains("Convert_Acme_Point(global::Acme.Point e) => Type_Acme_Point.Placed(e);", descriptions, StringComparison.Ordinal);
+        Assert.Contains("e is null ? Unexpected() : Type_Acme_Plain.Placed(e);", descriptions, StringComparison.Ordinal);
+        Assert.Contains("e is null ? Unexpected() : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_Base.Description, e);", descriptions, StringComparison.Ordinal);
+        Assert.Contains("e is null ? Unexpected() : global::Great.Parts.Cel.Values.CelValue.FromObject(Type_Acme_IShape.Description, e);", descriptions, StringComparison.Ordinal);
     }
 
     // A project without the nullable context reads every position as one that takes null.

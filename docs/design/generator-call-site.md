@@ -85,15 +85,20 @@ file static class CelAnonymousData_1
 
 A collection of classes or structures (a list, an array, `ImmutableArray<X>`, a dictionary with `string` keys) is not bound by `Add<T>`: its closed list of collections cannot name a dictionary of classes or a list of structures, and a closed generic type cannot be built at run time under Native AOT. The created code declares the variable with the `CelType` of the shape and binds it with a lazy view closed over the type of the element, with the code of the type context for a member that is a collection (`Emit/ValueReader.cs`, which has a mode for a call site). The view of an `ImmutableArray<X>` goes through `ImmutableCollectionsMarshal.AsArray`, so nothing is copied; a `default` array and a `null` collection are `UnexpectedNull`.
 
-The converter of an element is one static method of the file of descriptions for each type, not a lambda at each call: `Convert_Acme_Line` for a place that its annotation allows to be `null` (or that has no annotation, in a project without the nullable context), where `null` is the null value, and `ConvertNotNull_Acme_Line` for a place that does not, where `null` is an error value `UnexpectedNull`. A structure has the first only. Both pair the description of the **declared** type with the instance (`CelValue.FromObject(description, instance)`), so an instance of a derived class is read by the members of the declared type and a member that only the derived class has is `NoSuchField` at checking; a nested collection is a lambda over the method of its element. The error value comes from a description of no type that the file holds (`NullOwner`): only a description can make the error value of a null member, and none of the application is the owner of a property of an anonymous object.
+The converter of an element is one static method of the file of descriptions for each type, not a lambda at each call: `Convert_Acme_Line` for a place that its annotation allows to be `null` (or that has no annotation, in a project without the nullable context), where `null` is the null value, and `ConvertNotNull_Acme_Line` for a place that does not, where `null` is an error value `UnexpectedNull`. A structure has the first only. Both follow the place rule of a member of a context ([generator-output](generator-output.md), "Place rule inside collections"): a structure, an instance of a sealed class and an instance of exactly the declared class are the bare instance, read by the static method `Placed` of the description of the type, since the protected `FromInstance` is accessible only from a description; an instance of a derived class is paired with the description of the **declared** type (`CelValue.FromObject(description, instance)`), so it is read by the members of the declared type and a member that only the derived class has is `NoSuchField` at checking; an element of an abstract class or of an interface is always paired, and its description has no `Placed`. A bare instance is described by the type index of the hidden environment by its exact .NET type, which is the declared type, so the result, `type()`, equality and the texts of errors are those of the pair. A nested collection is a lambda over the method of its element. The error value comes from a description of no type that the file holds (`NullOwner`): only a description can make the error value of a null member, and none of the application is the owner of a property of an anonymous object.
 
 The file of descriptions:
 
 ```text
 internal static class CelCallSiteTypes
 {
-    internal sealed class Type_Acme_Line : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Line> { ... }   // as in a type context
-    internal static CelValue ConvertNotNull_Acme_Line(Line e) => e is null ? Unexpected() : CelValue.FromObject(Type_Acme_Line.Description, e);
+    internal sealed class Type_Acme_Line : global::Great.Parts.Cel.Values.CelObjectType<global::Acme.Line>   // as in a type context, and:
+    {
+        internal static CelValue Placed(Line e) => FromInstance(e);   // a sealed class; a class that is not sealed:
+                                                                     // e.GetType() == typeof(Line) ? FromInstance(e) : CelValue.FromObject(Description, e)
+        ...
+    }
+    internal static CelValue ConvertNotNull_Acme_Line(Line e) => e is null ? Unexpected() : Type_Acme_Line.Placed(e);
     internal static CelValue Unexpected() => NullOwner.Instance.Error();
     private sealed class NullOwner : CelObjectType<object> { ... }
 }

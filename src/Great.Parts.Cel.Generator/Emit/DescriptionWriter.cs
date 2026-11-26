@@ -23,8 +23,9 @@ internal static class DescriptionWriter
 
     // access is the accessibility of the class: private for the nested class of a type context, internal for a description that
     // the files of the registrations of the call sites name. internalAccess tells whether the assembly sees the internal members
-    // of the library.
-    internal static void Write(CodeWriter w, ObjectTypeModel type, ObjectIndex objects, string version, string access, bool internalAccess)
+    // of the library. placed adds the static method Placed, which converts an instance in a place of this type by the place rule
+    // of a context: the file of descriptions of the call sites converts the elements of collections with it.
+    internal static void Write(CodeWriter w, ObjectTypeModel type, ObjectIndex objects, string version, string access, bool internalAccess, bool placed = false)
     {
         var converters = new List<HoistedConverter>();
         var codes = new List<FieldCode>();
@@ -48,6 +49,12 @@ internal static class DescriptionWriter
             w.Line("private readonly " + converter.DelegateType + " " + converter.Name + ";");
         }
 
+        if (placed)
+        {
+            w.EmptyLine();
+            WritePlaced(w, type);
+        }
+
         w.EmptyLine();
         WriteConstructor(w, type, converters);
         w.EmptyLine();
@@ -68,6 +75,32 @@ internal static class DescriptionWriter
 
         CostWriter.Write(w, type, internalAccess);
         w.Close();
+    }
+
+    // The place rule of a context for an instance that is not null, in a static method of the description, where the protected
+    // FromInstance is accessible: a structure is the bare boxed instance, an instance of a sealed class and an instance of exactly
+    // the declared type of a class that is not sealed are the bare instance, and an instance of a derived class is paired with this
+    // description, so that it is read by the members of the declared type. Written only for a structure and for a class that is not
+    // abstract: an instance of an abstract class or of an interface is never of the declared type and is always paired.
+    private static void WritePlaced(CodeWriter w, ObjectTypeModel type)
+    {
+        string head = "internal static " + Values + "CelValue Placed(" + type.ClrName + " e) =>";
+        if (type.Kind == ObjectKind.Struct)
+        {
+            w.Line(head + " FromInstance((object)e);");
+            return;
+        }
+
+        if (type.IsSealed)
+        {
+            w.Line(head + " FromInstance(e);");
+            return;
+        }
+
+        w.Line(head);
+        w.Indent();
+        w.Line("e.GetType() == typeof(" + type.ClrName + ") ? FromInstance(e) : " + Values + "CelValue.FromObject(Description, e);");
+        w.Outdent();
     }
 
     private static void WriteConstructor(CodeWriter w, ObjectTypeModel type, List<HoistedConverter> converters)

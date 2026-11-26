@@ -29,13 +29,6 @@ internal static class DescriptionEmitter
             ContextWriter.WriteEnum(w, enumeration, "internal");
         }
 
-        var objects = new ObjectIndex(model.Objects);
-        foreach (ObjectTypeModel type in model.Objects.Items)
-        {
-            Separate(w, ref started);
-            DescriptionWriter.Write(w, type, objects, ContextWriter.Version, "internal", internalAccess);
-        }
-
         var strict = new HashSet<string>(StringComparer.Ordinal);
         var lenient = new HashSet<string>(StringComparer.Ordinal);
         bool collections = false;
@@ -49,6 +42,14 @@ internal static class DescriptionEmitter
                     Leaves(property.Collection, strict, lenient);
                 }
             }
+        }
+
+        var objects = new ObjectIndex(model.Objects);
+        foreach (ObjectTypeModel type in model.Objects.Items)
+        {
+            Separate(w, ref started);
+            bool converted = strict.Contains(type.CelName) || lenient.Contains(type.CelName);
+            DescriptionWriter.Write(w, type, objects, ContextWriter.Version, "internal", internalAccess, converted && HasBareInstance(type));
         }
 
         foreach (ObjectTypeModel type in model.Objects.Items)
@@ -106,21 +107,31 @@ internal static class DescriptionEmitter
         }
     }
 
-    // The method of one type: it pairs the description of the declared type with the instance, so that an instance of a derived class is
-    // read by the members of the declared type. A null is the null value, or an error value for a place that does not take null.
+    // Whether an instance in a place of the type can be of exactly the declared type, so that the place rule keeps it bare: a structure
+    // and a class that is not abstract. The description of such a type has the method Placed (DescriptionWriter).
+    private static bool HasBareInstance(ObjectTypeModel type) =>
+        type.Kind == ObjectKind.Struct || (type.Kind == ObjectKind.Class && !type.IsAbstract);
+
+    // The method of one type: an instance by the place rule of a context, so that an instance of a derived class is read by the members
+    // of the declared type. A structure, an instance of a sealed class and an instance of exactly the declared type are bare, through the
+    // method Placed of the description, where the protected FromInstance is accessible; an instance of a derived class, of an abstract
+    // class or of an interface is paired with the description of the declared type. A null is the null value, or an error value for a
+    // place that does not take null.
     private static void WriteConverter(CodeWriter w, ObjectTypeModel type, bool strict)
     {
         string name = CallSiteNames.Converter(type.ClassName, strict);
-        string paired = CelValue + ".FromObject(" + type.ClassName + ".Description, e)";
+        string read = HasBareInstance(type)
+            ? type.ClassName + ".Placed(e)"
+            : CelValue + ".FromObject(" + type.ClassName + ".Description, e)";
         if (type.Kind == ObjectKind.Struct)
         {
-            w.Line("internal static " + CelValue + " " + name + "(" + type.ClrName + " e) => " + paired + ";");
+            w.Line("internal static " + CelValue + " " + name + "(" + type.ClrName + " e) => " + read + ";");
             return;
         }
 
         w.Line("internal static " + CelValue + " " + name + "(" + type.ClrName + (strict ? string.Empty : "?") + " e) =>");
         w.Indent();
-        w.Line("e is null ? " + (strict ? "Unexpected()" : CelValue + ".Null") + " : " + paired + ";");
+        w.Line("e is null ? " + (strict ? "Unexpected()" : CelValue + ".Null") + " : " + read + ";");
         w.Outdent();
     }
 

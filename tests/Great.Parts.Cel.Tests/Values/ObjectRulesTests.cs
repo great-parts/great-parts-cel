@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Great.Parts.Cel.Diagnostics;
 using Great.Parts.Cel.Types;
 using Great.Parts.Cel.Values;
@@ -17,6 +18,8 @@ public sealed class ObjectRulesTests
     private static readonly CelObjectType Deals = DealType();
 
     private static readonly TypeIndex Types = Index(Orders, Deals);
+
+    private static readonly CelError Failure = new(CelErrorCode.InvalidArgument, CelErrorStage.Evaluate, "failure", default, null, null);
 
     [Fact]
     public void BareInstance_IsDescribedByItsExactTypeThenItsBaseClass()
@@ -93,6 +96,35 @@ public sealed class ObjectRulesTests
             "list(Great.Parts.Cel.Tests.Values.ObjectTypeTests+Deal)",
             ValueTypeRules.MismatchType(bare, listOfDeals, false, Types));
         Assert.True(ValueTypeRules.Fits(paired, listOfDeals, null, false, Types).IsFit);
+    }
+
+    // The walk of a list, or of the values of a map, whose declared type is an object type: null and a value that the index
+    // describes by the description of the type fit, an error value is the outcome in the order of the walk, a value of another
+    // description or kind does not fit, the walk charges n units before it starts, and without an index only null fits.
+    [Fact]
+    public void ItemsOfAnObjectType_FitNullAndTheDescriptionOfTheIndexOnly()
+    {
+        CelType listOfOrders = CelType.ListOf(Orders.Type);
+        CelType mapOfOrders = CelType.MapOf(CelType.String, Orders.Type);
+        CelValue bare = OrderType.Bare(new SpecialOrder());
+        CelValue paired = CelValue.FromObject(Orders, new Order());
+        CelValue deal = CelValue.FromObject(Deals, new Deal());
+        CelValue failure = CelValue.FromError(Failure);
+        var meter = new RecordingMeter();
+
+        Assert.True(ValueTypeRules.Fits(ViewOf(bare, paired, CelValue.Null), listOfOrders, meter, false, Types).IsFit);
+        Assert.Equal([3UL], meter.Charges);
+        Assert.Same(Failure, ValueTypeRules.Fits(ViewOf(paired, failure, deal), listOfOrders, null, false, Types).ElementError);
+        TypeFit dealFirst = ValueTypeRules.Fits(ViewOf(deal, failure), listOfOrders, null, false, Types);
+        Assert.False(dealFirst.IsFit);
+        Assert.Null(dealFirst.ElementError);
+        Assert.False(ValueTypeRules.Fits(ViewOf(CelValue.FromInt64(1)), listOfOrders, null, false, Types).IsFit);
+        Assert.False(ValueTypeRules.Fits(ViewOf(paired), listOfOrders, null, false, null).IsFit);
+        Assert.True(ValueTypeRules.Fits(ViewOf(CelValue.Null), listOfOrders, null, false, null).IsFit);
+
+        Assert.True(ValueTypeRules.Fits(MapViewOf(("a", bare), ("b", CelValue.Null)), mapOfOrders, null, false, Types).IsFit);
+        Assert.Same(Failure, ValueTypeRules.Fits(MapViewOf(("a", paired), ("b", failure)), mapOfOrders, null, false, Types).ElementError);
+        Assert.False(ValueTypeRules.Fits(MapViewOf(("a", deal)), mapOfOrders, null, false, Types).IsFit);
     }
 
     [Fact]
@@ -209,5 +241,20 @@ public sealed class ObjectRulesTests
             ValueEquality.Error,
             ObjectRules.AreEqual(CelValue.FromObject(broken, new Deal()), CelValue.FromObject(broken, new Deal()), null, null, out CelValue error));
         AssertError(CelErrorCode.FieldTypeMismatch, "field 'amount' of type 'acme.Broken' has a value of type 'string', expected 'int'", error);
+    }
+
+    // A list of the application whose elements are the values themselves.
+    private static CelValue ViewOf(params CelValue[] items) => CelValue.FromList(CelList.CreateView<CelValue>(items, static item => item));
+
+    // A map of the application whose values are the values themselves, in the order of the entries.
+    private static CelValue MapViewOf(params (string Key, CelValue Value)[] entries)
+    {
+        var source = new Dictionary<string, CelValue>();
+        foreach ((string key, CelValue value) in entries)
+        {
+            source.Add(key, value);
+        }
+
+        return CelValue.FromMap(CelMap.CreateView(source, static item => item, keepSourceOrder: true));
     }
 }

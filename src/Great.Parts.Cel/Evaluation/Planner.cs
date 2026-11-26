@@ -360,7 +360,14 @@ internal sealed class Planner
                 return new InputFieldPlanNode(offset, input, field.Number, field.Name, _added ? 0UL : 1UL);
             }
 
-            return new VariablePlanNode(offset, VariableSlot(variable.Name), variable.Name, variable.Type, _declarations.Types, _added ? 0UL : 1UL);
+            return new VariablePlanNode(
+                offset,
+                VariableSlot(variable.Name),
+                variable.Name,
+                variable.Type,
+                _declarations.Types,
+                _declarations.GeneratedBindings,
+                _added ? 0UL : 1UL);
         }
 
         if (reference.Constant is { } constant)

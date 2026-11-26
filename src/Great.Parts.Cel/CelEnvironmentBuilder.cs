@@ -845,9 +845,16 @@ public sealed partial class CelEnvironmentBuilder
             patternCache,
             inputType,
             declarations.CrossTypeNumericComparisons,
-            abbreviations);
+            abbreviations,
+            GeneratedBindings);
         return new(new CelEnvironment(_standardLibrary, declarations, index, SyntaxOf(extensions, declarations), patternCache));
     }
+
+    // Whether the bindings of the environment to be built are written by created code from the same static types as its declarations,
+    // which only the hidden environment of a registered anonymous type is: the first read of a variable then checks the value at the
+    // top level only and does not descend into a collection (docs/cost.md, "Values checked against their declared type"). Not part of
+    // the declarations: ToBuilder does not keep it.
+    internal bool GeneratedBindings { get; set; }
 
     // The syntax of the sets, with the option of the decimal literals when the builder enabled it; the checks have passed, so the set
     // that the option needs is there. An environment without the option keeps the options of the sets themselves.

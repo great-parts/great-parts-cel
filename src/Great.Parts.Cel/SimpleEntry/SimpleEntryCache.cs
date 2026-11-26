@@ -125,7 +125,8 @@ internal sealed class SimpleEntryCache
 
     // The environment of a registered anonymous type. The fast path is the reference that the entry of the registry keeps: it counts
     // when the environment belongs to this cache and is not evicted, and level 1 is not searched. Otherwise the environment is found
-    // in level 1 or built and added, and the reference is set to it.
+    // in level 1 or built and added, and the reference is set to it. The declarations and the bindings of a registered type are written
+    // by the created code from the same static types of its properties, so the environment checks a variable at the top level only.
     internal EnvironmentEntry GetEnvironment(AnonymousRegistry.Entry registered)
     {
         EnvironmentEntry? environment = registered.Environment;
@@ -137,7 +138,7 @@ internal sealed class SimpleEntryCache
 
         if (!TryGetEnvironment(registered.Key, out environment))
         {
-            var builder = new CelEnvironmentBuilder();
+            var builder = new CelEnvironmentBuilder { GeneratedBindings = true };
             registered.Declare(builder);
             environment = AddEnvironment(registered.Key, builder.Build().GetEnvironmentOrThrow());
         }

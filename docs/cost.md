@@ -419,7 +419,7 @@ A value is checked against a declared type, at any depth, where it enters or lea
 | each argument of an application function, and its result | the same |
 | an argument of an overload of the library whose static type does not cover the parameter, such as `list(dyn)` against `list(int)`, or a wrapper | the same |
 
-The top level and the parameters `dyn` and type parameters cost 0. A value whose CEL type is already assignable to the checked one without `dyn` is not checked and costs 0: the .NET adapter `IReadOnlyList<long>` for `list(int)` is that case, and a copy or a `CelList` is not.
+The top level and the parameters `dyn` and type parameters cost 0. A value whose CEL type is already assignable to the checked one without `dyn` is not checked and costs 0: the .NET adapter `IReadOnlyList<long>` for `list(int)` is that case, and a copy or a `CelList` is not. A variable of the simple entry with an anonymous object costs 0 too: the generated code writes its declaration and its binding from the same static type of the property, so the check is the top level only, and a `list(C)` of n classes costs 0 and not n; an element that does not fit, such as a `null` where the type does not allow one, is the error of the expression that reads it ([type mapping](type-mapping.md#data-of-the-simple-entry)).
 
 Examples:
 

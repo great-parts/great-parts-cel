@@ -13,9 +13,9 @@ namespace Great.Parts.Cel.Tests.Allocation;
 // made before the measurement, since an anonymous object is an object of the heap. The bytes are those that
 // GC.GetAllocatedBytesForCurrentThread counts around one call, the smallest of five calls after three, so that the few kilobytes that the
 // runtime allocates on the test thread while it moves methods between tiers are not counted: a call allocates its bytes every time, the
-// runtime only in some. A list or a dictionary in a property is a lazy view that a call makes, a list of classes makes a view and a
-// pair of the description and the instance for each element read, and a structure is boxed; their bytes are written to the output of the
-// test and have no threshold.
+// runtime only in some. A list or a dictionary in a property is a lazy view that a call makes; a list of classes makes a view, and a
+// pair of the description and the instance only for an element read that is of a class derived from the declared one (an element of a
+// sealed class is bare); a structure is boxed. Their bytes are written to the output of the test and have no threshold.
 [Trait("Requirement", "U-7")]
 [Trait("Requirement", "P-4")]
 public sealed class SimpleEntryAllocationTests
@@ -126,18 +126,22 @@ public sealed class SimpleEntryAllocationTests
         Record("dictionary of double", Smallest(() => CelExpression.Evaluate<double>("prices.a + prices.b", dictionary, cancellationToken: CancellationToken.None)));
     }
 
-    // A list of classes and a structure of the application: the view of the list and a pair for each element read, and the boxing of the
-    // structure. The bytes are recorded without a threshold.
+    // A list of a sealed class and a structure of the application: the view of the list, whose elements are read bare, and the boxing of
+    // the structure; a list of a class that is not sealed, with one element of a derived class, which is paired. The bytes are recorded
+    // without a threshold.
     [Fact]
     public void ListOfClassesAndStructure_RecordTheirAllocation()
     {
         var lines = new { lines = new List<OrderLine> { new() { Sku = "a", Qty = 1, Price = 2.0 }, new() { Sku = "b", Qty = 2, Price = 3.0 } } };
         var point = new { point = new CallPoint { X = 1, Y = 2 } };
+        var contacts = new { contacts = new List<Contact> { new VipContact { Name = "Vip", Level = 3 }, new() { Name = "Plain" } } };
 
         Assert.True(CelExpression.Evaluate<bool>("lines.all(l, l.qty > 0)", lines, cancellationToken: TestContext.Current.CancellationToken));
         Assert.Equal(3L, CelExpression.Evaluate<long>("point.x + point.y", point, cancellationToken: TestContext.Current.CancellationToken));
+        Assert.True(CelExpression.Evaluate<bool>("contacts.all(c, c.name != '')", contacts, cancellationToken: TestContext.Current.CancellationToken));
 
         Record("list of classes", Smallest(() => CelExpression.Evaluate<bool>("lines.all(l, l.qty > 0)", lines, cancellationToken: CancellationToken.None)));
         Record("structure", Smallest(() => CelExpression.Evaluate<long>("point.x + point.y", point, cancellationToken: CancellationToken.None)));
+        Record("list of a class with a derived element", Smallest(() => CelExpression.Evaluate<bool>("contacts.all(c, c.name != '')", contacts, cancellationToken: CancellationToken.None)));
     }
 }

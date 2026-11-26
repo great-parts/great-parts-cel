@@ -33,10 +33,19 @@ public static class CelAnonymousData
     /// generated code from a module initializer.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The registration is keyed by <c>typeof(TData)</c>. A second registration of the same type keeps the first one. The
     /// delegates are called only when the simple entry evaluates data of this type: <paramref name="declare"/> once per hidden
     /// environment, <paramref name="bind"/> once per call; an exception they throw is not caught and reaches the caller of the
     /// simple entry unchanged.
+    /// </para>
+    /// <para>
+    /// The values that <paramref name="bind"/> binds must fit the types that <paramref name="declare"/> declares, as the
+    /// generated code writes both from the static types of the properties. The library checks a value against the declared type
+    /// of its variable at the top level only, when the expression first reads the variable: it does not check the elements of a
+    /// list or the keys and values of a map, and an element that is an error value, such as a <see langword="null"/> where the
+    /// type does not allow one, is the error of the expression that reads that element.
+    /// </para>
     /// </remarks>
     /// <typeparam name="TData">The anonymous type.</typeparam>
     /// <param name="example">

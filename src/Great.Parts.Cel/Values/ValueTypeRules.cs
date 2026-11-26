@@ -280,6 +280,7 @@ internal static partial class ValueTypeRules
 
         int count = list.Count;
         meter?.Charge((ulong)count);
+        CelObjectType? declared = DeclaredObject(element, types);
         for (int index = 0; index < count; index++)
         {
             CelValue item = list[index];
@@ -288,7 +289,7 @@ internal static partial class ValueTypeRules
                 continue;
             }
 
-            TypeFit fit = FitsItem(item, element, meter, types);
+            TypeFit fit = FitsItem(item, element, declared, meter, types);
             if (!fit.IsFit)
             {
                 return fit;
@@ -316,6 +317,7 @@ internal static partial class ValueTypeRules
             map.ChargeEnumeration(meter);
         }
 
+        CelObjectType? declared = DeclaredObject(value, types);
         foreach (KeyValuePair<CelValue, CelValue> entry in map)
         {
             if (keys)
@@ -329,7 +331,7 @@ internal static partial class ValueTypeRules
 
             if (values && !(nullElements && entry.Value.Kind == CelValueKind.Null))
             {
-                TypeFit valueFit = FitsItem(entry.Value, value, meter, types);
+                TypeFit valueFit = FitsItem(entry.Value, value, declared, meter, types);
                 if (!valueFit.IsFit)
                 {
                     return valueFit;
@@ -344,6 +346,32 @@ internal static partial class ValueTypeRules
     // outcome, anything else is checked as a value.
     private static TypeFit FitsItem(CelValue item, CelType type, IEvaluationMeter? meter, TypeIndex? types) =>
         item.TryGetError(out CelError? error) ? TypeFit.OfElementError(error) : Fits(item, type, meter, false, types);
+
+    // The same with the description of an object type that the walk has looked up once for all its items (DeclaredObject); null
+    // checks the item as a value.
+    private static TypeFit FitsItem(CelValue item, CelType type, CelObjectType? declared, IEvaluationMeter? meter, TypeIndex? types) =>
+        declared is null ? FitsItem(item, type, meter, types) : FitsObject(item, declared, types);
+
+    // The description that the type index has for the object type of the elements or the values of a collection, looked up once
+    // for the walk instead of once for each item; null when the type is not an object type or the index does not have it, and the
+    // walk then checks each item as a value.
+    private static CelObjectType? DeclaredObject(CelType type, TypeIndex? types) =>
+        type.Kind == CelTypeKind.Object && types is not null && types.TryGetObjectType(type.Name, out CelObjectType? declared) ? declared : null;
+
+    // An item against an object type whose description the walk has looked up: what FitsItem gives for it without the lookup, an
+    // error value the outcome, null and a value that the index describes by that description fitting, anything else not.
+    private static TypeFit FitsObject(CelValue item, CelObjectType declared, TypeIndex? types)
+    {
+        if (item.TryGetError(out CelError? error))
+        {
+            return TypeFit.OfElementError(error);
+        }
+
+        return item.Kind == CelValueKind.Null
+            || (item.Kind == CelValueKind.Object && ReferenceEquals(ObjectRules.Describe(item, types), declared))
+            ? TypeFit.Yes
+            : TypeFit.No;
+    }
 
     // Whether the type of an abstract value has the name and the parameters of the declared abstract type.
     private static bool AbstractFits(CelValue value, CelType declared)

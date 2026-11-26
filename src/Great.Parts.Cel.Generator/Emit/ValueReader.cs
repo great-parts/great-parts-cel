@@ -44,7 +44,8 @@ internal sealed class ValueReader
     // The reader of a property of an anonymous object that is a collection of classes or structures of the application. It writes the
     // same rows as the reader of a member, with two differences: there is no instance of a description to hold the helpers, so a null
     // that the type does not allow is read by the file of descriptions of the call sites, and an element that is an object is
-    // converted by the method of its type in that file, which pairs the description of the declared type with the instance.
+    // converted by the method of its type in that file, by the place rule of a member (Placed): bare, or paired with the description
+    // of the declared type.
     internal static ValueReader ForCallSite(ObjectIndex objects) => new(objects);
 
     // The expression for a member of the shape, written with the text of the operand.

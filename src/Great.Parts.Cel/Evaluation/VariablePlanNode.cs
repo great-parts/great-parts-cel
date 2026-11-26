@@ -10,6 +10,9 @@ namespace Great.Parts.Cel.Evaluation;
 // Unbound, both at the identifier; an error value that an element of the value is, is the value of the read. A variable of an object type applies the place rule: a bare instance that belongs
 // to the type is kept, paired with its description when the type index describes the instance otherwise. The slot
 // keeps the value or the mismatch, so later reads check nothing.
+// In an environment whose bindings created code writes from the same static types as the declarations (the hidden environment of a
+// registered anonymous type), the check is the top level only: it does not descend into a collection and charges nothing, and an
+// error value or a null that an element is, is met when the expression reads that element.
 // A bound ConversionRange gets the place of the identifier first. Without type checking nothing is declared and nothing
 // is checked. A read costs 1.
 internal sealed class VariablePlanNode : PlanNode
@@ -19,11 +22,15 @@ internal sealed class VariablePlanNode : PlanNode
     // The declared type; null without type checking.
     private readonly CelType? _declaredType;
 
-    internal VariablePlanNode(int offset, int slot, string name, CelType? declaredType, TypeIndex types, ulong cost = 1)
+    // Whether the first read checks the top level of the value only.
+    private readonly bool _topLevelOnly;
+
+    internal VariablePlanNode(int offset, int slot, string name, CelType? declaredType, TypeIndex types, bool topLevelOnly = false, ulong cost = 1)
         : base(offset, cost)
     {
         _slot = slot;
         _declaredType = declaredType;
+        _topLevelOnly = topLevelOnly;
         Name = name;
         Types = types;
     }
@@ -66,18 +73,9 @@ internal sealed class VariablePlanNode : PlanNode
                     ? placed
                     : EvaluationErrors.BindingTypeMismatch(this, value, frame.Lines, Offset);
             }
-            else if (_declaredType is not null)
+            else if (_declaredType is { } declared)
             {
-                // An error value that an element of the value is, is the value read: the identifier gives it its place.
-                TypeFit fit = ValueTypeRules.Fits(value, _declaredType, frame.Meter, false, Types);
-                if (fit.ElementError is { } elementError)
-                {
-                    value = EvaluationErrors.Placed(CelValue.FromError(elementError), frame.Lines, Offset);
-                }
-                else if (!fit.IsFit)
-                {
-                    value = EvaluationErrors.BindingTypeMismatch(this, value, frame.Lines, Offset);
-                }
+                value = Checked(value, declared, frame);
             }
 
             frame.Keep(_slot, value);
@@ -90,5 +88,23 @@ internal sealed class VariablePlanNode : PlanNode
         }
 
         return value;
+    }
+
+    // The value against a declared type that is not an object type: at any depth, charging the descent, or at the top level only.
+    private CelValue Checked(CelValue value, CelType declared, Frame frame)
+    {
+        if (_topLevelOnly)
+        {
+            return ValueTypeRules.FitsTopLevel(value, declared, Types) ? value : EvaluationErrors.BindingTypeMismatch(this, value, frame.Lines, Offset);
+        }
+
+        // An error value that an element of the value is, is the value read: the identifier gives it its place.
+        TypeFit fit = ValueTypeRules.Fits(value, declared, frame.Meter, false, Types);
+        if (fit.ElementError is { } elementError)
+        {
+            return EvaluationErrors.Placed(CelValue.FromError(elementError), frame.Lines, Offset);
+        }
+
+        return fit.IsFit ? value : EvaluationErrors.BindingTypeMismatch(this, value, frame.Lines, Offset);
     }
 }

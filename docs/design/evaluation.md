@@ -19,7 +19,7 @@
 | Node | Planned from | Cost |
 | :- | :- | :- |
 | `ConstantPlanNode` | a literal; a type identifier, an object type of the application included, whose type value the planner takes from the declaration index; an enumeration constant; a call of `timestamp` or `duration` on a string literal ([Time](#time)) | literal 0; type identifier and constant 1, as a name read; a folded time constant ([Time](#time)) the units of the call it replaces |
-| `VariablePlanNode` | an identifier or a selection that names a declared variable | 1; at the first read also the check of the binding ([values](values.md), "Fits a type") |
+| `VariablePlanNode` | an identifier or a selection that names a declared variable | 1; at the first read also the check of the binding ([values](values.md), "Fits a type"); in an environment with the mark `GeneratedBindings` of the index of declarations (the hidden environment of a registered anonymous type, [simple-entry](simple-entry.md)) the check is the top level only and costs 0 |
 | `LocalPlanNode` | an iteration variable or the accumulator of a comprehension | 1; see comprehensions for the reads that cost 0 |
 | `FieldPlanNode` | `e.f` and `has(e.f)` whose operand has an object type, with the description and the field number of the reference map | 1 |
 | `SelectPlanNode` | any other selection `e.f` that names no declaration; `has(e.f)` | 1 + ⌈L/10⌉ on a map, L the length of `f`; on a JSON object the key lookup of the cost table; 1 otherwise |

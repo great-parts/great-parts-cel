@@ -56,8 +56,10 @@ internal sealed class DeclarationIndex
         object? patternCache,
         CelObjectType? inputType,
         bool crossTypeNumericComparisons,
-        FrozenDictionary<string, string> abbreviations)
+        FrozenDictionary<string, string> abbreviations,
+        bool generatedBindings)
     {
+        GeneratedBindings = generatedBindings;
         _abbreviations = abbreviations;
         _abbreviationsBySpan = abbreviations.GetAlternateLookup<ReadOnlySpan<char>>();
         AllOverloads = allOverloads;
@@ -99,6 +101,10 @@ internal sealed class DeclarationIndex
     // evaluation; null without an input.
     internal CelObjectType? InputType { get; }
 
+    // Whether the bindings are written by created code from the same static types as the declarations of the variables: the hidden
+    // environment of a registered anonymous type. The first read of a variable then checks its value at the top level only.
+    internal bool GeneratedBindings { get; }
+
     // The description of the field of the input that a variable of this name is, or false: the planner reads such a variable from
     // the input of the frame, not from the bindings.
     internal bool TryGetInputField(string name, [NotNullWhen(true)] out CelObjectField? field)
@@ -129,7 +135,8 @@ internal sealed class DeclarationIndex
         object? patternCache = null,
         CelObjectType? inputType = null,
         bool crossTypeNumericComparisons = false,
-        FrozenDictionary<string, string>? abbreviations = null)
+        FrozenDictionary<string, string>? abbreviations = null,
+        bool generatedBindings = false)
     {
         types ??= TypeIndex.Empty;
         if (types.ObjectTypes.Count != 0)
@@ -170,7 +177,8 @@ internal sealed class DeclarationIndex
             patternCache,
             inputType,
             crossTypeNumericComparisons,
-            abbreviations ?? AbbreviationChecks.None);
+            abbreviations ?? AbbreviationChecks.None,
+            generatedBindings);
     }
 
     // Whether the environment has abbreviations, so that a lookup of a name has to look for one.
