@@ -18,12 +18,16 @@ internal sealed record ExchangeParty(ICaseSide Text, ICheckedSide Checked);
 /// <param name="VariantPhrase">Who gives the outcome of the exchange, with the verb, for the message of a finding.</param>
 /// <param name="Reference">The side that evaluates the text.</param>
 /// <param name="Variant">The exchange: the same side evaluates the bytes that the other side wrote.</param>
+/// <param name="VariantSide">The side that an unstable case names when the exchange varies: the side that writes the bytes.</param>
+/// <param name="ReferenceSide">The side that an unstable case names when the evaluation of the text varies.</param>
 internal sealed record ExchangeChannel(
     string Prefix,
     string ReferencePhrase,
     string VariantPhrase,
     ICaseSide Reference,
-    ExchangedSide Variant)
+    ExchangedSide Variant,
+    UnstableSide VariantSide,
+    UnstableSide ReferenceSide)
 {
     /// <summary>
     /// The two comparisons of a run: the result of cel-go from our bytes against the result of cel-go from the text, and our result
@@ -38,12 +42,16 @@ internal sealed record ExchangeChannel(
             "cel-go from the text returns",
             "cel-go from our bytes returns",
             oracle.Text,
-            new ExchangedSide(library.Checked, oracle.Checked, oracle.Text)),
+            new ExchangedSide(library.Checked, oracle.Checked, oracle.Text),
+            UnstableSide.Library,
+            UnstableSide.Oracle),
         new ExchangeChannel(
             "checked-from-cel-go: ",
             "the library from the text returns",
             "the library from the bytes of cel-go returns",
             library.Text,
-            new ExchangedSide(oracle.Checked, library.Checked, library.Text)),
+            new ExchangedSide(oracle.Checked, library.Checked, library.Text),
+            UnstableSide.Oracle,
+            UnstableSide.Library),
     ];
 }

@@ -84,10 +84,10 @@ internal sealed record RunSetup(
 
 /// <summary>
 /// The differential run against cel-go (docs/design/eng-difftest.md, "A run"). Exit code: 0 without new signatures, 1 with a
-/// finding with <c>error</c>, 2 for an invalid invocation, a refused manifest, a failed oracle, its steps included, or a
-/// minimized case that agrees when it is run again. With <c>--numbers-only</c> a message of exit code 2 quotes no case and no
-/// line or answer of the oracle, except that of an oracle that closed the connection in a session: it names its lines and the
-/// request, which is the case or a variant of it that the minimizer asked.
+/// finding with <c>error</c> or a case whose minimized case agrees when it is run again (the run goes on after such a case),
+/// 2 for an invalid invocation, a refused manifest, or a failed oracle, its steps included. With <c>--numbers-only</c> a message of
+/// exit code 2 quotes no case and no line or answer of the oracle, except that of an oracle that closed the connection in a
+/// session: it names its lines and the request, which is the case or a variant of it that the minimizer asked.
 /// </summary>
 internal static class Program
 {
@@ -145,7 +145,7 @@ internal static class Program
         }
         catch (SideFailureException exception)
         {
-            // A line or an answer of the oracle that does not read, or a minimized case that does not diverge again; the public
+            // A line or an answer of the oracle that does not read, or a time zone that a side does not answer for; the public
             // log of the nightly run shows no case and no line of the oracle.
             return Failed(setup.Error, options!.NumbersOnly ? exception.Message : exception.QuotedMessage);
         }
@@ -187,7 +187,7 @@ internal static class Program
         if (OracleGoVersion.Check(root, oracle.Handshake.Go) is { } otherGo)
         {
             Print(setup.Output, options, otherGo.ToString());
-            setup.Output.WriteLine(JournalLine(options, commit, oracle.Handshake, cases: 0, [], knownFound: 0));
+            setup.Output.WriteLine(JournalLine(options, commit, oracle.Handshake, cases: 0, [], knownFound: 0, unstableCases: []));
             return 1;
         }
 
@@ -227,8 +227,15 @@ internal static class Program
             PrintFinding(setup.Output, options, finding.ToString());
         }
 
-        setup.Output.WriteLine(JournalLine(options, commit, oracle.Handshake, cases, search.NewSignatures, search.KnownSignaturesFound.Count));
-        return findings.Any(finding => finding.Severity == FindingSeverity.Error) ? 1 : 0;
+        // A case whose minimized case agrees when it is run again is a finding too, with no code: the run went on, and the exit code
+        // is 1 so that the nightly run is red and the number of the case, which --case reproduces, is read.
+        foreach (UnstableCase unstable in search.UnstableCases)
+        {
+            PrintFinding(setup.Output, options, unstable.Message);
+        }
+
+        setup.Output.WriteLine(JournalLine(options, commit, oracle.Handshake, cases, search.NewSignatures, search.KnownSignaturesFound.Count, search.UnstableCases));
+        return search.UnstableCases.Count > 0 || findings.Any(finding => finding.Severity == FindingSeverity.Error) ? 1 : 0;
     }
 
     // The two comparisons of the exchange of a checked expression (docs/design/ast-protobuf.md, "Exchange with cel-go"); a library side
@@ -261,6 +268,9 @@ internal static class Program
     /// <summary>
     /// The journal line, the last line of a run: only numbers, so the public log of the nightly workflow shows no case.
     /// <c>difftest seed=20261104 commit=9f8e7d6c oracle=0.33.4 cases=412345 signatures new=1 (S1=1, S2=0) known=0 new-cases=1207</c>.
+    /// The cases whose minimized case agrees when it is run again follow, only when there are any, each as its number and the side
+    /// that varied when the case was run again, <c>library</c>, <c>oracle</c>, <c>both</c> or <c>none</c>:
+    /// <c>… new-cases=1207 unstable-cases=653185:oracle</c>.
     /// </summary>
     /// <param name="options">The options of the run.</param>
     /// <param name="commit">The start of <c>HEAD</c>.</param>
@@ -268,19 +278,24 @@ internal static class Program
     /// <param name="cases">The number of cases the run checked.</param>
     /// <param name="newSignatures">The first case of each new signature.</param>
     /// <param name="knownFound">The number of known signatures the run found.</param>
+    /// <param name="unstableCases">The cases whose minimized case agrees when it is run again.</param>
     internal static string JournalLine(
         RunOptions options,
         string commit,
         OracleHandshake handshake,
         ulong cases,
         IReadOnlyList<NewSignature> newSignatures,
-        int knownFound)
+        int knownFound,
+        IReadOnlyList<UnstableCase> unstableCases)
     {
         int s1 = newSignatures.Count(found => found.Divergence.Severity == DivergenceSeverity.S1);
         string numbers = string.Join(',', newSignatures.Select(found => found.Number.ToString(CultureInfo.InvariantCulture)));
+        string unstable = unstableCases.Count == 0
+            ? string.Empty
+            : " unstable-cases=" + string.Join(',', unstableCases.Select(found => found.Number.ToString(CultureInfo.InvariantCulture) + ":" + found.SideName));
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"difftest seed={options.Seed} commit={commit} oracle={handshake.Version} cases={cases} signatures new={newSignatures.Count} (S1={s1}, S2={newSignatures.Count - s1}) known={knownFound} new-cases={numbers}");
+            $"difftest seed={options.Seed} commit={commit} oracle={handshake.Version} cases={cases} signatures new={newSignatures.Count} (S1={s1}, S2={newSignatures.Count - s1}) known={knownFound} new-cases={numbers}{unstable}");
     }
 
     // A line other than the journal line: --numbers-only prints only the journal line.

@@ -517,20 +517,45 @@ public sealed class OracleConnectionTests
     }
 
     [Fact]
-    public void MinimizedCaseThatAgreesAgain_IsExitCode2NamingTheSeedAndTheCaseAndQuotingItOnlyWithoutNumbersOnly()
+    public void MinimizedCaseThatAgreesAgain_IsExitCode1AfterTheRunWentOnNamingTheCaseAndTheVariedSideInTheJournalLineAndQuotingItOnlyWithFindings()
     {
         string text = CaseGenerator.Case(7, 3).Text;
+        string journal = $"difftest seed=7 commit={Commit} oracle=0.33.4 cases=1 signatures new=0 (S1=0, S2=0) known=0 new-cases= unstable-cases=3:library";
+        string finding = $"case 3 of seed 7: the minimized case '{text}' does not diverge again: a side is not deterministic; varied: library";
 
         (int exitCode, string output, string error) = RunWithFlakyLibrary("--numbers-only");
 
-        Assert.Equal(2, exitCode);
-        Assert.Empty(output);
-        Assert.Equal("eng/difftest: case 3 of seed 7: the minimized case does not diverge again: a side is not deterministic\n", error);
+        Assert.Equal(1, exitCode);
+        Assert.Empty(error);
+        Assert.Equal(journal + "\n", output);
 
-        (exitCode, _, error) = RunWithFlakyLibrary();
+        (exitCode, output, error) = RunWithFlakyLibrary("--numbers-only", "--findings");
 
-        Assert.Equal(2, exitCode);
-        Assert.Equal($"eng/difftest: case 3 of seed 7: the minimized case '{text}' does not diverge again: a side is not deterministic\n", error);
+        Assert.Equal(1, exitCode);
+        Assert.Empty(error);
+        Assert.Equal(finding + "\n" + journal + "\n", output);
+
+        (exitCode, output, error) = RunWithFlakyLibrary();
+
+        Assert.Equal(1, exitCode);
+        Assert.Empty(error);
+        Assert.Equal(finding + "\n" + journal + "\n", output);
+    }
+
+    // The oracle that gives another outcome on its first evaluation only, against a library that does not vary, is named in the
+    // journal line and in the message, and the library is not.
+    [Fact]
+    public void MinimizedCaseThatAgreesAgain_NamesTheOracleWhenOnlyTheOracleVariesInTheRepeatedRuns()
+    {
+        string text = CaseGenerator.Case(7, 3).Text;
+        string journal = $"difftest seed=7 commit={Commit} oracle=0.33.4 cases=1 signatures new=0 (S1=0, S2=0) known=0 new-cases= unstable-cases=3:oracle";
+        string finding = $"case 3 of seed 7: the minimized case '{text}' does not diverge again: a side is not deterministic; varied: oracle";
+
+        (int exitCode, string output, string error) = RunWithFlakyOracle("--numbers-only", "--findings");
+
+        Assert.Equal(1, exitCode);
+        Assert.Empty(error);
+        Assert.Equal(finding + "\n" + journal + "\n", output);
     }
 
     // A run of the same seed and --case asks the oracle the same requests and gives the same minimized case and signature.
@@ -726,6 +751,21 @@ public sealed class OracleConnectionTests
         fake.Join();
         return result;
     }
+
+    // Case 3 of seed 7 with a library that gives int 41 every time and a fake oracle that answers int 42 to its first request and int 41
+    // to every later one, so the case diverges when it is first run and the minimized case agrees when it is run again.
+    private static (int ExitCode, string Output, string Error) RunWithFlakyOracle(params string[] args)
+    {
+        int requests = 0;
+        using FakeOracle fake = new([Handshake], answer: _ => IntAnswer(requests++ == 0 ? 42 : 41));
+        using TempDirectory root = Repository();
+        (int ExitCode, string Output, string Error) result = Run(root, fake.Port, Limit, new AgreeingLibrary(), ["--case", "3", .. args]);
+        fake.Join();
+        return result;
+    }
+
+    // The answer of the fake oracle with an int value; "ID" stands for the id of the request.
+    private static string IntAnswer(long value) => $$$"""{"id":ID,"outcome":"value","value":{"int64Value":"{{{value.ToString(CultureInfo.InvariantCulture)}}}"}}""";
 
     // A socket bound to a loopback port without listening: a connection to the port is refused, and no other test can take the
     // port while the socket is open.

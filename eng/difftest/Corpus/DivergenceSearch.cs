@@ -19,6 +19,55 @@ namespace Great.Parts.Cel.Eng.Difftest.Corpus;
 /// <param name="Partial">Whether the divergence is one of partial evaluation: its case is no case of the regression corpus and is not written to <c>pending.textproto</c>.</param>
 internal sealed record NewSignature(Divergence Divergence, ulong Seed, ulong Number, string CaseText, bool Partial = false);
 
+/// <summary>The side of a comparison that gave another outcome when a case was run again.</summary>
+internal enum UnstableSide
+{
+    /// <summary>No side did: the variation did not come back in the repeated runs.</summary>
+    None,
+
+    /// <summary>Only the library did.</summary>
+    Library,
+
+    /// <summary>Only the oracle did.</summary>
+    Oracle,
+
+    /// <summary>Both did.</summary>
+    Both,
+}
+
+/// <summary>
+/// A case that diverged when it was first run and whose minimized case agrees when it is run again: a side gave another outcome for
+/// the same text and bindings, so it is not deterministic. The run goes on with the next case and ends with exit code 1.
+/// </summary>
+/// <param name="Seed">The seed of the run.</param>
+/// <param name="Number">The number of the generated case in the run.</param>
+/// <param name="Comparison">Which comparison found it: empty for the sides on the text, else <c>partial evaluation</c> or the prefix of an exchange without its colon.</param>
+/// <param name="MinimizedText">The text of the minimized case, which agrees when it is run again.</param>
+/// <param name="Side">The side that gave another outcome when the original and the minimized text were each run again.</param>
+internal sealed record UnstableCase(ulong Seed, ulong Number, string Comparison, string MinimizedText, UnstableSide Side)
+{
+    /// <summary>The name of the side in the journal line and in the message: <c>library</c>, <c>oracle</c>, <c>both</c> or <c>none</c>.</summary>
+    internal string SideName => Side switch
+    {
+        UnstableSide.Library => "library",
+        UnstableSide.Oracle => "oracle",
+        UnstableSide.Both => "both",
+        _ => "none",
+    };
+
+    /// <summary>The message about the case, in one line, with the minimized case quoted; a finding of a run that shows the cases.</summary>
+    internal string Message
+    {
+        get
+        {
+            string where = Comparison.Length == 0 ? string.Empty : " (" + Comparison + ")";
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"case {Number} of seed {Seed}{where}: the minimized case '{MinimizedText}' does not diverge again: a side is not deterministic; varied: {SideName}");
+        }
+    }
+}
+
 /// <summary>
 /// Steps 4 and 5 of a run for one case (docs/design/eng-difftest.md, "A run", "Known signatures and the corpus"): evaluates
 /// the case on both sides; a divergence is minimized and gets a signature; the first case of each new signature is written
@@ -32,6 +81,9 @@ internal sealed class DivergenceSearch
     /// <summary>The section of <c>pending.textproto</c>: the cases are named <c>pending/new/&lt;seed&gt;-&lt;n&gt;</c>.</summary>
     internal const string SectionName = "new";
 
+    /// <summary>How many times each side evaluates the original and the minimized text of an unstable case again to tell which side varies.</summary>
+    internal const int RepeatsOfUnstableCase = 32;
+
     private readonly ICaseSide library;
     private readonly ICaseSide oracle;
     private readonly ICaseRecorder recorder;
@@ -39,6 +91,7 @@ internal sealed class DivergenceSearch
     private readonly Channel texts;
     private readonly List<Channel> exchanges = [];
     private readonly List<NewSignature> newSignatures = [];
+    private readonly List<UnstableCase> unstableCases = [];
     private readonly HashSet<string> newSeen = new(StringComparer.Ordinal);
     private readonly HashSet<string> knownSeen = new(StringComparer.Ordinal);
 
@@ -53,7 +106,8 @@ internal sealed class DivergenceSearch
         this.oracle = oracle;
         this.recorder = recorder;
         this.known = known;
-        texts = new Channel(string.Empty, library, oracle, null, "cel-go returns", "we return", library, recorder, Partial: false);
+        texts = new Channel(
+            string.Empty, library, oracle, null, "cel-go returns", "we return", library, recorder, Partial: false, UnstableSide.Library, UnstableSide.Oracle);
     }
 
     /// <summary>
@@ -63,11 +117,24 @@ internal sealed class DivergenceSearch
     internal void AddExchanges(IEnumerable<ExchangeChannel> channels)
     {
         exchanges.AddRange(channels.Select(channel => new Channel(
-            channel.Prefix, channel.Variant, channel.Reference, channel.Variant, channel.ReferencePhrase, channel.VariantPhrase, library, recorder, Partial: false)));
+            channel.Prefix,
+            channel.Variant,
+            channel.Reference,
+            channel.Variant,
+            channel.ReferencePhrase,
+            channel.VariantPhrase,
+            library,
+            recorder,
+            Partial: false,
+            channel.VariantSide,
+            channel.ReferenceSide)));
     }
 
     /// <summary>The first case of each new signature, in the order the run found them.</summary>
     internal IReadOnlyList<NewSignature> NewSignatures => newSignatures;
+
+    /// <summary>The cases whose minimized case agrees when it is run again, in the order the run found them.</summary>
+    internal IReadOnlyList<UnstableCase> UnstableCases => unstableCases;
 
     /// <summary>The known signatures that the run found.</summary>
     internal IReadOnlyCollection<string> KnownSignaturesFound => knownSeen;
@@ -81,9 +148,8 @@ internal sealed class DivergenceSearch
     /// <param name="generated">The case.</param>
     /// <returns>
     /// The divergence of the minimized case; when the sides agree, the first divergence of the exchanges; <see langword="null"/>
-    /// when nothing diverges.
+    /// when nothing diverges, or when the minimized case agrees when it is run again (<see cref="UnstableCases"/>).
     /// </returns>
-    /// <exception cref="SideFailureException">The minimized case agrees when it is run again: a side is not deterministic.</exception>
     internal Divergence? Check(ulong seed, ulong number, GeneratedCase generated)
     {
         // A case on which the sides diverge is spent: the exchanges would only repeat its divergence.
@@ -111,9 +177,11 @@ internal sealed class DivergenceSearch
     /// <param name="number">The number of the case.</param>
     /// <param name="generated">The case.</param>
     /// <param name="patterns">The patterns of unknown data.</param>
-    /// <returns>The divergence of the minimized case, or <see langword="null"/> when the outcomes agree.</returns>
+    /// <returns>
+    /// The divergence of the minimized case, or <see langword="null"/> when the outcomes agree or the minimized case agrees when it is
+    /// run again (<see cref="UnstableCases"/>).
+    /// </returns>
     /// <exception cref="InvalidOperationException">A side does not evaluate partially (<see cref="SupportsPartial"/>).</exception>
-    /// <exception cref="SideFailureException">The minimized case agrees when it is run again: a side is not deterministic.</exception>
     internal Divergence? CheckPartial(ulong seed, ulong number, GeneratedCase generated, IReadOnlyList<UnknownAttribute> patterns)
     {
         if (library is not IPartialSide partialLibrary || oracle is not IPartialSide partialOracle)
@@ -131,13 +199,16 @@ internal sealed class DivergenceSearch
             "we return",
             libraryOnUnknowns,
             new PartialRecorder(patterns),
-            Partial: true);
+            Partial: true,
+            UnstableSide.Library,
+            UnstableSide.Oracle);
         return CheckChannel(channel, seed, number, generated);
     }
 
     private Divergence? CheckChannel(Channel channel, ulong seed, ulong number, GeneratedCase generated)
     {
-        if (Outcomes(channel, generated).Kind is null)
+        (SideOutcome firstVariant, SideOutcome firstReference, DivergenceKind? firstKind) = Outcomes(channel, generated);
+        if (firstKind is null)
         {
             return null;
         }
@@ -151,10 +222,13 @@ internal sealed class DivergenceSearch
         (SideOutcome variantOutcome, SideOutcome referenceOutcome, DivergenceKind? kind) = Outcomes(channel, minimized);
         if (kind is not { } divergenceKind)
         {
-            string run = string.Create(CultureInfo.InvariantCulture, $"case {number} of seed {seed}");
-            throw new SideFailureException(
-                $"{run}: the minimized case does not diverge again: a side is not deterministic",
-                $"{run}: the minimized case '{minimized.Text}' does not diverge again: a side is not deterministic");
+            // The case diverged and the descent kept only nodes that diverged, so a side gave another outcome for the same text and
+            // bindings. That is a finding of the run and not a reason to end it: the run goes on with the next case, so that a long run
+            // is not lost to one case, and the number of the case, which --case reproduces, is in the findings and the journal line.
+            // The rare case is run again, so that the finding names the side that varies, which is all that tells the priority of it.
+            UnstableSide side = VariedSide(channel, generated, firstVariant, firstReference, minimized, variantOutcome, referenceOutcome);
+            unstableCases.Add(new UnstableCase(seed, number, ComparisonName(channel), minimized.Text, side));
+            return null;
         }
 
         string signature = channel.Prefix + Signature.Of(minimized, variantOutcome, referenceOutcome, divergenceKind, channel.Variant, channel.Reference);
@@ -172,6 +246,72 @@ internal sealed class DivergenceSearch
 
         return divergence;
     }
+
+    // Which side of the comparison varies: each side evaluates the original text and the minimized text again, with the same bindings,
+    // RepeatsOfUnstableCase times, and varies when one of the runs gives an outcome that differs from the outcome the side gave when the
+    // text was checked. A side that gave no other outcome in the runs is not named; none is named when the variation did not come back.
+    private static UnstableSide VariedSide(
+        Channel channel,
+        GeneratedCase generated,
+        SideOutcome generatedVariant,
+        SideOutcome generatedReference,
+        GeneratedCase minimized,
+        SideOutcome minimizedVariant,
+        SideOutcome minimizedReference)
+    {
+        bool variantVaries = Varies(channel, generated, generatedVariant, generatedReference, ofVariant: true)
+            || Varies(channel, minimized, minimizedVariant, minimizedReference, ofVariant: true);
+        bool referenceVaries = Varies(channel, generated, generatedVariant, generatedReference, ofVariant: false)
+            || Varies(channel, minimized, minimizedVariant, minimizedReference, ofVariant: false);
+        if (variantVaries && referenceVaries)
+        {
+            return channel.VariantSide == channel.ReferenceSide ? channel.VariantSide : UnstableSide.Both;
+        }
+
+        if (variantVaries)
+        {
+            return channel.VariantSide;
+        }
+
+        return referenceVaries ? channel.ReferenceSide : UnstableSide.None;
+    }
+
+    // Whether the variant or the reference of the comparison gives, in one of the repeated runs of a text, an outcome that differs from
+    // the one it gave when the text was checked. The exchange takes the outcome of its reference as it was, so that only the variant
+    // is evaluated again when the variant is asked.
+    private static bool Varies(Channel channel, GeneratedCase generated, SideOutcome variantOutcome, SideOutcome referenceOutcome, bool ofVariant)
+    {
+        for (int run = 0; run < RepeatsOfUnstableCase; run++)
+        {
+            SideOutcome again;
+            SideOutcome before;
+            if (!ofVariant)
+            {
+                again = channel.Reference.Evaluate(generated.Text, generated.Bindings);
+                before = referenceOutcome;
+            }
+            else if (channel.Exchange is { } exchange)
+            {
+                again = exchange.Evaluate(generated.Text, generated.Bindings, referenceOutcome);
+                before = variantOutcome;
+            }
+            else
+            {
+                again = channel.Variant.Evaluate(generated.Text, generated.Bindings);
+                before = variantOutcome;
+            }
+
+            if (DivergenceKinds.Compare(before, again) is not null)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // The name of a comparison for the message about an unstable case: empty for the sides on the text, else the kind of the comparison.
+    private static string ComparisonName(Channel channel) => channel.Partial ? "partial evaluation" : channel.Prefix.TrimEnd(':', ' ');
 
     // How the outcomes of a node on the way down agree: they diverge, or agree because both sides give an error, or agree
     // otherwise. A node is evaluated once on each side, whatever the verdict is used for.
@@ -262,7 +402,9 @@ internal sealed class DivergenceSearch
         string VariantPhrase,
         ICaseSide Values,
         ICaseRecorder Recorder,
-        bool Partial);
+        bool Partial,
+        UnstableSide VariantSide,
+        UnstableSide ReferenceSide);
 
     // The case of a new partial signature in one line, since it is no case of the regression corpus: the expression, quoted with the
     // escapes of JSON so that it stays on one line, and the unknown data; a finding message carries it, and the bindings come with
