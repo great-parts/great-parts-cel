@@ -1,0 +1,2102 @@
+[
+  {
+    "Library": "Celly",
+    "Scenario": "E1",
+    "Expression": "order.total > 1000.0 && order.status == 'approved'",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'total'; ERROR: 1:30: undefined field 'status')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'total'; ERROR: 1:30: undefined field 'status')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'total'; ERROR: 1:30: undefined field 'status')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E1",
+    "Expression": "order.total > 1000.0 && order.status == 'approved'",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: total)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: total)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: total)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E1",
+    "Expression": "order.total > 1000.0 && order.status == 'approved'",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E1",
+    "Expression": "order.total > 1000.0 && order.status == 'approved'",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E1",
+    "Expression": "order.total > 1000.0 && order.status == 'approved'",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E1",
+    "Expression": "order.total > 1000.0 && order.status == 'approved'",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E1",
+    "Expression": "order.total > 1000.0 && order.status == 'approved'",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E2/10",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E2/10",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E2/10",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E2/10",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E2/10",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E2/10",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E2/10",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E2/100",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E2/100",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E2/100",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E2/100",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E2/100",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E2/100",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E2/100",
+    "Expression": "order.lines.all(l, l.qty > 0 && l.price >= 0.0)",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E3/10",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E3/10",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E3/10",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E3/10",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E3/10",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E3/10",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E3/10",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E3/100",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E3/100",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E3/100",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E3/100",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E3/100",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E3/100",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E3/100",
+    "Expression": "order.lines.exists(l, l.sku.startsWith('SKU-'))",
+    "Lines": 100,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E4/10",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 10,
+    "Expected": "[double:208,double:280,double:361]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E4/10",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 10,
+    "Expected": "[double:208,double:280,double:361]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E4/10",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 10,
+    "Expected": "[double:208,double:280,double:361]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E4/10",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 10,
+    "Expected": "[double:208,double:280,double:361]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E4/10",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 10,
+    "Expected": "[double:208,double:280,double:361]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E4/10",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 10,
+    "Expected": "[double:208,double:280,double:361]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E4/10",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 10,
+    "Expected": "[double:208,double:280,double:361]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E4/100",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 100,
+    "Expected": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'lines')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E4/100",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 100,
+    "Expected": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E4/100",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 100,
+    "Expected": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E4/100",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 100,
+    "Expected": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E4/100",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 100,
+    "Expected": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E4/100",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 100,
+    "Expected": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E4/100",
+    "Expression": "order.lines.filter(l, l.qty > 10).map(l, double(l.qty) * l.price)",
+    "Lines": 100,
+    "Expected": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "[double:208,double:280,double:361,double:275,double:371,double:476,double:590,double:426,double:555,double:693,double:598,double:760,double:931,double:605,double:791,double:986,double:1190,double:786,double:1005,double:1233,double:988,double:1240,double:1501,double:935,double:1211,double:1496,double:1790,double:1146,double:1455,double:1773,double:1378,double:1720,double:2071,double:1265,double:1631,double:2006,double:2390,double:1506,double:1905,double:2313,double:1768,double:2200,double:2641,double:1595,double:2051,double:2516,double:2990,double:1866,double:2355,double:2853]",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E5",
+    "Expression": "order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'customer')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'customer')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'customer')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E5",
+    "Expression": "order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: customer)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: customer)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: customer)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E5",
+    "Expression": "order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E5",
+    "Expression": "order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E5",
+    "Expression": "order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E5",
+    "Expression": "order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E5",
+    "Expression": "order.customer.email.matches('^[^@]+@[^@]+[.][a-z]+$')",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E6",
+    "Expression": "has(order.discount) ? order.total - order.discount : order.total",
+    "Lines": 10,
+    "Expected": "double:1400",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:1: undefined field 'discount'; ERROR: 1:28: undefined field 'total'; ERROR: 1:42: undefined field 'discount'; ERROR: 1:59: undefined field 'total')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:1: undefined field 'discount'; ERROR: 1:28: undefined field 'total'; ERROR: 1:42: undefined field 'discount'; ERROR: 1:59: undefined field 'total')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:1: undefined field 'discount'; ERROR: 1:28: undefined field 'total'; ERROR: 1:42: undefined field 'discount'; ERROR: 1:59: undefined field 'total')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E6",
+    "Expression": "has(order.discount) ? order.total - order.discount : order.total",
+    "Lines": 10,
+    "Expected": "double:1400",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: total)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: total)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: total)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E6",
+    "Expression": "has(order.discount) ? order.total - order.discount : order.total",
+    "Lines": 10,
+    "Expected": "double:1400",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "double:1400",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E6",
+    "Expression": "has(order.discount) ? order.total - order.discount : order.total",
+    "Lines": 10,
+    "Expected": "double:1400",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "double:1400",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E6",
+    "Expression": "has(order.discount) ? order.total - order.discount : order.total",
+    "Lines": 10,
+    "Expected": "double:1400",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "double:1400",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E6",
+    "Expression": "has(order.discount) ? order.total - order.discount : order.total",
+    "Lines": 10,
+    "Expected": "double:1400",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "double:1400",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E6",
+    "Expression": "has(order.discount) ? order.total - order.discount : order.total",
+    "Lines": 10,
+    "Expected": "double:1400",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "double:1400",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "double:1400",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E7",
+    "Expression": "order.created + duration('72h') > now",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'created')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'created')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:6: undefined field 'created')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E7",
+    "Expression": "order.created + duration('72h') > now",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: created)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: created)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: created)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E7",
+    "Expression": "order.created + duration('72h') > now",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E7",
+    "Expression": "order.created + duration('72h') > now",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelNoSuchOverloadException: No overload exists to ADD types 'Google.Protobuf.WellKnownTypes.Timestamp' and 'Google.Protobuf.WellKnownTypes.Duration'.)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelNoSuchOverloadException: No overload exists to ADD types 'Google.Protobuf.WellKnownTypes.Timestamp' and 'Google.Protobuf.WellKnownTypes.Duration'.)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelNoSuchOverloadException: No overload exists to ADD types 'Google.Protobuf.WellKnownTypes.Timestamp' and 'Google.Protobuf.WellKnownTypes.Duration'.)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E7",
+    "Expression": "order.created + duration('72h') > now",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E7",
+    "Expression": "order.created + duration('72h') > now",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E7",
+    "Expression": "order.created + duration('72h') > now",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E8",
+    "Expression": "size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:11: undefined field 'lines'; ERROR: 1:34: undefined field 'currency')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:11: undefined field 'lines'; ERROR: 1:34: undefined field 'currency')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:11: undefined field 'lines'; ERROR: 1:34: undefined field 'currency')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E8",
+    "Expression": "size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: lines)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E8",
+    "Expression": "size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E8",
+    "Expression": "size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E8",
+    "Expression": "size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E8",
+    "Expression": "size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E8",
+    "Expression": "size(order.lines) <= 100 && order.currency in ['RUB', 'USD', 'EUR']",
+    "Lines": 10,
+    "Expected": "bool:true",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "bool:true",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "bool:true",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "Celly",
+    "Scenario": "E9",
+    "Expression": "'Order ' + order.id + ': ' + order.status",
+    "Lines": 10,
+    "Expected": "string:'Order ORD-0001: approved'",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:17: undefined field 'id'; ERROR: 1:35: undefined field 'status')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:17: undefined field 'id'; ERROR: 1:35: undefined field 'status')",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(InvalidOperationException: check: ERROR: 1:17: undefined field 'id'; ERROR: 1:35: undefined field 'status')",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "DotnetCel",
+    "Scenario": "E9",
+    "Expression": "'Order ' + order.id + ': ' + order.status",
+    "Lines": 10,
+    "Expected": "string:'Order ORD-0001: approved'",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: id)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "ERROR(CelEvaluationException: no such field: id)",
+        "Correct": false
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "ERROR(CelEvaluationException: no such field: id)",
+        "Correct": false
+      }
+    ],
+    "Correct": false
+  },
+  {
+    "Library": "Cel.NET",
+    "Scenario": "E9",
+    "Expression": "'Order ' + order.id + ': ' + order.status",
+    "Lines": 10,
+    "Expected": "string:'Order ORD-0001: approved'",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "TelusCel",
+    "Scenario": "E9",
+    "Expression": "'Order ' + order.id + ': ' + order.status",
+    "Lines": 10,
+    "Expected": "string:'Order ORD-0001: approved'",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GreatPartsCel",
+    "Scenario": "E9",
+    "Expression": "'Order ' + order.id + ': ' + order.status",
+    "Lines": 10,
+    "Expected": "string:'Order ORD-0001: approved'",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Input",
+    "Scenario": "E9",
+    "Expression": "'Order ' + order.id + ': ' + order.status",
+    "Lines": 10,
+    "Expected": "string:'Order ORD-0001: approved'",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  },
+  {
+    "Library": "GPCel-Simple",
+    "Scenario": "E9",
+    "Expression": "'Order ' + order.id + ': ' + order.status",
+    "Lines": 10,
+    "Expected": "string:'Order ORD-0001: approved'",
+    "Variants": [
+      {
+        "Variant": "original text: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: compile, evaluate",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      },
+      {
+        "Variant": "text with tail: full cycle",
+        "Result": "string:'Order ORD-0001: approved'",
+        "Correct": true
+      }
+    ],
+    "Correct": true
+  }
+]

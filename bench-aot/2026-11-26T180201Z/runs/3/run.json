@@ -1,0 +1,9 @@
+{
+  "run": 3,
+  "job": "Default",
+  "runtime": "aot",
+  "cases": null,
+  "filter": "*",
+  "started": "2026-11-26T17:03:07.610Z",
+  "finished": "2026-11-26T18:02:01.242Z"
+}

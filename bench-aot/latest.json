@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "kind": "bench",
+  "generatedAtUtc": "2026-11-26T18:02:01Z",
+  "greatPartsCelCommit": "5781cafa559d36cb30b413f2a23bded8eb62464c",
+  "inputs": {
+    "runs": 3,
+    "job": "Default",
+    "runtime": "aot",
+    "cases": null
+  },
+  "runs": [
+    {
+      "run": 1,
+      "job": "Default",
+      "runtime": "aot",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-26T15:02:21.231Z",
+      "finished": "2026-11-26T16:03:21.575Z"
+    },
+    {
+      "run": 2,
+      "job": "Default",
+      "runtime": "aot",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-26T16:03:21.575Z",
+      "finished": "2026-11-26T17:03:07.610Z"
+    },
+    {
+      "run": 3,
+      "job": "Default",
+      "runtime": "aot",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-26T17:03:07.610Z",
+      "finished": "2026-11-26T18:02:01.242Z"
+    }
+  ],
+  "thresholds": null,
+  "files": {
+    "summary": "report.md",
+    "verification": "verify.json",
+    "thresholds": null,
+    "runs": "runs/<k>/run.json and runs/<k>/summary.md"
+  },
+  "run": {
+    "id": 45844760833,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/45844760833"
+  }
+}
