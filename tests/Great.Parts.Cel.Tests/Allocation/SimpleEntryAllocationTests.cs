@@ -16,6 +16,14 @@ namespace Great.Parts.Cel.Tests.Allocation;
 // runtime only in some. A list or a dictionary in a property is a lazy view that a call makes; a list of classes makes a view, and a
 // pair of the description and the instance only for an element read that is of a class derived from the declared one (an element of a
 // sealed class is bare); a structure is boxed. Their bytes are written to the output of the test and have no threshold.
+//
+// The class runs alone, in the group of the tests of the memory of the cache (the collection does not run in parallel with any other
+// test): CelExpression.Evaluate reads the cache of the process, and other classes of the assembly fill it on purpose so that its
+// environments and programs are evicted all the time (SimpleEntryClassThreadsTests: 64 threads over 80 shapes of dictionaries, more than
+// the 64 environments of level 1). When the environment or the program of a measured text is evicted between two calls, the call builds
+// the environment and compiles the text again and allocates tens of kilobytes (51 424 bytes on macOS with net11.0, run 46037049987),
+// and the smallest of five calls is no longer the steady state.
+[Collection(SimpleEntryMemoryGroup.Name)]
 [Trait("Requirement", "U-7")]
 [Trait("Requirement", "P-4")]
 public sealed class SimpleEntryAllocationTests
