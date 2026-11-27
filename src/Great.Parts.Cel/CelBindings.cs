@@ -71,9 +71,8 @@ public sealed class CelBindings : IEnumerable<KeyValuePair<string, CelValue>>
     // Limits Add<T> to the names of the array, or lifts the limit with null. The array is read, not copied, and must not change meanwhile.
     internal void SetNameFilter(string[]? names) => _nameFilter = names;
 
-    // Whether the filter, which is set, lets the name in: a scan, the reference comparison of string.Equals first, which tells the
-    // literal that the declaration and the binding of a generated registration both hold; the other names differ in length or in a
-    // character.
+    // Whether the set filter lets the name in. string.Equals compares the references first, so the literal that a generated
+    // registration shares between the declaration and the binding matches at once.
     private static bool Passes(string[] names, string name)
     {
         for (int i = 0; i < names.Length; i++)

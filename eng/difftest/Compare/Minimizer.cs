@@ -217,25 +217,24 @@ internal static class Minimizer
 
     /// <summary>
     /// The instance of the step of the fold of <c>map</c>, <c>transformList</c>, <c>transformMapEntry</c> or <c>sortBy</c> in which
-    /// cel-go and the library part:
-    /// <c>[a] + [b]</c> with <c>a</c> the first instance of the transform (for <c>sortBy</c>, of the key) that is unknown on both
-    /// sides and <c>b</c> the next that
-    /// is an error on both. The fold adds <c>[transform]</c> to the accumulator at each element, and cel-go returns the unknown
-    /// first operand of a binary function after it has evaluated the second and dropped its error, so an unknown element followed by
-    /// an error element gives the unknown, where the library gives the error. The step of <c>transformMapEntry</c> in cel-go is
-    /// <c>@mapInsert</c> with two arguments, and <c>sortBy</c> keeps its keys by <c>map</c>, so both go through the same binary
-    /// function; <c>transformMap</c> is not among them, its step has three arguments, for which cel-go gives the error first. The instances of the bodies agree one by one and the
-    /// divergence is in their sum alone, so without this instance the case stays the macro. The instances of the transform are the
-    /// element of the range in place of the variable, as in <see cref="BodyInstances"/>, but only for a list: a literal of at
-    /// least two elements without optional elements, whose nodes are in parentheses, or in <c>dyn()</c> when the range is, and once
-    /// more in <c>dyn()</c> when its elements are literals of two types; or any other range whose value is a list of at least two
-    /// elements, read as <c>range[i]</c>. A map has no order that cel-go keeps, so it gives none. The elements are taken in
-    /// order; one that a predicate of the macro leaves out is skipped, and a predicate that is not a value of <c>bool</c> on the
-    /// library (an error, unknown parts, a compile error) gives no instance, since the step of that element is no plain append.
-    /// No instance either when an instance of the transform is of another kind than a value, unknown parts or an error on both sides
-    /// (it diverges, or a side does not compile it), when an error comes before the first unknown element (both sides give that
-    /// error), or when there is no unknown element or no error element after it: a divergence of such an instance is the one of
-    /// that case and is not hidden by the sum.
+    /// cel-go and the library part: <c>[a] + [b]</c> with <c>a</c> the first instance of the transform (for <c>sortBy</c>, of the
+    /// key) that is unknown on both sides and <c>b</c> the next that is an error on both. The fold adds <c>[transform]</c> to the
+    /// accumulator at each element, and cel-go returns the unknown first operand of a binary function after it has evaluated the
+    /// second and dropped its error, so an unknown element followed by an error element gives the unknown, where the library gives
+    /// the error. The step of <c>transformMapEntry</c> in cel-go is <c>@mapInsert</c> with two arguments, and <c>sortBy</c> keeps
+    /// its keys by <c>map</c>, so both go through the same binary function; <c>transformMap</c> is not among them, its step has
+    /// three arguments, for which cel-go gives the error first. The instances of the bodies agree one by one and the divergence is
+    /// in their sum alone, so without this instance the case stays the macro. The instances of the transform are the element of the
+    /// range in place of the variable, as in <see cref="BodyInstances"/>, but only for a list: a literal of at least two elements
+    /// without optional elements, whose nodes are in parentheses, or in <c>dyn()</c> when the range is, and once more in
+    /// <c>dyn()</c> when its elements are literals of two types; or any other range whose value is a list of at least two elements,
+    /// read as <c>range[i]</c>. A map has no order that cel-go keeps, so it gives none. The elements are taken in order; one that a
+    /// predicate of the macro leaves out is skipped, and a predicate that is not a value of <c>bool</c> on the library (an error,
+    /// unknown parts, a compile error) gives no instance, since the step of that element is no plain append. No instance either
+    /// when an instance of the transform is of another kind than a value, unknown parts or an error on both sides (it diverges, or
+    /// a side does not compile it), when an error comes before the first unknown element (both sides give that error), or when
+    /// there is no unknown element or no error element after it: a divergence of such an instance is the one of that case and is
+    /// not hidden by the sum.
     /// </summary>
     /// <param name="node">The node.</param>
     /// <param name="rangeValue">

@@ -3,6 +3,7 @@ using System.Linq;
 using Great.Parts.Cel.Checking;
 using Great.Parts.Cel.Evaluation;
 using Great.Parts.Cel.Syntax;
+using Great.Parts.Cel.Types;
 using Xunit;
 
 namespace Great.Parts.Cel.Tests.Evaluation;
@@ -94,11 +95,50 @@ public sealed class PlanReadNamesTests
     public static void PartialPlan_HasNoSet()
     {
         CelParseResult parsed = Plans.Environment.Parse("n + 1");
-        CheckResult checkedResult = Plans.Environment.Check(parsed.ParsedExpr!);
+        CheckResult checkedResult = Plans.Environment.Check(parsed.GetParsedExprOrThrow());
         Assert.True(checkedResult.IsSuccess);
 
         Plan plan = Planner.For(checkedResult.Expression, Plans.Environment.Declarations, null, partial: true).Run();
 
         Assert.Null(plan.ReadNames);
+    }
+
+    // The environment of the macros that bind a local, cel.bind and sortBy, with the variable n: int.
+    private static readonly CelEnvironment BindingMacros = new CelEnvironmentBuilder(CelStandardLibrary.V1)
+        .AddExtension(CelExtensions.Bindings(1))
+        .AddExtension(CelExtensions.Lists(4))
+        .AddVariable("n", CelType.Int)
+        .Build()
+        .GetEnvironmentOrThrow();
+
+    // The variable of cel.bind and the hidden name that sortBy binds its receiver to are locals: the plan lists only the variable
+    // that the bound value, the receiver or the body reads, with type checking and without it.
+    [Theory]
+    [InlineData("cel.bind(x, n + 1, x * x)")]
+    [InlineData("cel.bind(x, 2, x * n)")]
+    [InlineData("[3, 1, 2].sortBy(e, e * n)")]
+    [InlineData("[n, 1].sortBy(e, -e)")]
+    public static void PlansOfTheBindingMacros_ListOnlyTheVariableTheyRead(string expression)
+    {
+        CelParsedExpr parsed = BindingMacros.Parse(expression).GetParsedExprOrThrow();
+        CheckResult checkedResult = BindingMacros.Check(parsed);
+        Assert.True(checkedResult.IsSuccess, expression);
+
+        Assert.Equal(["n"], Sorted(Planner.Plan(checkedResult.Expression, BindingMacros.Declarations).ReadNames));
+        Assert.Equal(["n"], Sorted(Planner.PlanWithoutTypeCheck(parsed, BindingMacros.Declarations).ReadNames));
+    }
+
+    // A variable of the environment that the variable of cel.bind hides is read from the slot of the binding, not from the bindings.
+    [Fact]
+    public static void CheckedPlan_DoesNotListAVariableThatTheVariableOfCelBindHides()
+    {
+        CelParsedExpr parsed = BindingMacros.Parse("cel.bind(n, 2, n * n)").GetParsedExprOrThrow();
+        CheckResult checkedResult = BindingMacros.Check(parsed);
+        Assert.True(checkedResult.IsSuccess);
+
+        string[]? names = Planner.Plan(checkedResult.Expression, BindingMacros.Declarations).ReadNames;
+
+        Assert.NotNull(names);
+        Assert.Empty(names);
     }
 }
