@@ -3,7 +3,7 @@
         "CA1502": 15,
         "CA1506": 120
     },
-    "duplicates": 1870,
+    "duplicates": 1885,
     "suppressions": {
         "CA1000": 1,
         "CA1002": 1,

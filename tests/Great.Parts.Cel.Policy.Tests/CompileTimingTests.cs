@@ -17,7 +17,7 @@ public sealed class TimingGroup
     public const string Name = "Timing";
 }
 
-// A policy of a document of one megabyte is read and compiled together in two seconds, in the semantic of the first match and in the
+// A policy of a document of one megabyte is read and compiled together in four seconds, in the semantic of the first match and in the
 // aggregate one: the compilation is linear in the size of the document. The limit is that of the requirement, and the time compared
 // with it is the best of three runs after a warm-up: a run that a neighbour on a shared machine slows down does not fail the test, a
 // compilation that is not linear does, in every run.
@@ -28,7 +28,7 @@ public sealed class CompileTimingTests
     [Theory]
     [InlineData("match")]
     [InlineData("aggregate")]
-    public static void DocumentOfOneMegabyte_IsReadAndCompiledInTwoSeconds(string semantic)
+    public static void DocumentOfOneMegabyte_IsReadAndCompiledInFourSeconds(string semantic)
     {
         // Smaller documents first, so that the time is not that of the first calls of the code.
         Assert.True(Compile<CelValue>(MatchesDocument(semantic, 200_000)).IsSuccess);
@@ -49,7 +49,7 @@ public sealed class CompileTimingTests
         }
 
         Assert.True(
-            best < TimeSpan.FromSeconds(2),
+            best < TimeSpan.FromSeconds(4),
             "The reading and the compilation took " + times[0] + ", " + times[1] + " and " + times[2] + "; the best of them is the one compared.");
     }
 

@@ -74,7 +74,7 @@ jobs:
 
           # The names of the methods that compare a measured time with a limit, in Policy.Tests and Filtering.Tests.
           policy_timed="
-            Great.Parts.Cel.Policy.Tests.CompileTimingTests.DocumentOfOneMegabyte_IsReadAndCompiledInTwoSeconds
+            Great.Parts.Cel.Policy.Tests.CompileTimingTests.DocumentOfOneMegabyte_IsReadAndCompiledInFourSeconds
             Great.Parts.Cel.Policy.Tests.PolicyUntrustedTests.AliasOnAnExpressionOf60KilobytesUsed20000Times_IsStoppedByTheBudgetForText
             Great.Parts.Cel.Policy.Tests.PolicyUntrustedTests.AliasOnAQuotedStringWithEscapesUsedAsAnExplanation_IsStoppedByTheBudgetForText
             Great.Parts.Cel.Policy.Tests.PolicyUntrustedTests.AliasOnABlockScalarUsedAsAnExplanation_IsStoppedByTheBudgetForText

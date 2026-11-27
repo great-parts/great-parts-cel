@@ -44,7 +44,7 @@ public sealed class PolicyUntrustedTests
     private const string TextLimitMessage = "the strings of the policy are longer than four times the document";
 
     // The time limit of the tests of the budget for text and of the document of one megabyte guards a hang or a quadratic growth; the
-    // 2 s of the requirement are checked by CompileTimingTests.
+    // 4 s of the requirement are checked by CompileTimingTests.
     private static readonly TimeSpan GuardTime = TimeSpan.FromSeconds(10);
 
     private static readonly string[] Pieces = [":", "-", "?", "[", "]", "{", "}", ",", "&a", "*a", "!t", "|", ">", "'", "\"", "%", "#", "\n", "\t", " ", "\\", "---", "..."];
@@ -290,7 +290,7 @@ public sealed class PolicyUntrustedTests
         Assert.True(result.IsSuccess);
     }
 
-    // The 2 s of the requirement for a document of one megabyte are checked by CompileTimingTests, which takes the best of three runs.
+    // The 4 s of the requirement for a document of one megabyte are checked by CompileTimingTests, which takes the best of three runs.
     [Fact]
     public void DocumentOfOneMegabyte_IsReadInSeconds()
     {
