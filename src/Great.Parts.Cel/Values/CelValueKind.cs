@@ -13,9 +13,10 @@ namespace Great.Parts.Cel.Values;
 /// error that is a value inside evaluation. Enumeration values of CEL are <see cref="Int"/> values.
 /// </para>
 /// <para>
-/// New kinds can be added: on .NET 11 the kind <c>Decimal</c> exists, and code compiled for .NET 10 can
-/// meet a value of that kind when it runs on .NET 11. A <see langword="switch"/> over kinds needs a
-/// default branch. The numeric values are part of the public contract and do not change.
+/// New kinds can be added: <c>Decimal</c> (on .NET 10 and on .NET 11), <see cref="Date"/> and
+/// <see cref="TimeOfDay"/> came in version 2.0, so code written for version 1.x can meet a value of
+/// these kinds. A <see langword="switch"/> over kinds needs a default branch. The numeric values are
+/// part of the public contract and do not change.
 /// </para>
 /// </remarks>
 [SuppressMessage(

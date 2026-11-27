@@ -9,8 +9,8 @@ This page says how much of the CEL specification the library passes. The measure
 | Pinned commit of cel-spec | `3dd8162270505540492e4198a35717c173e1506a` |
 | Cases in the suite | 2,771 |
 | Cases that pass | 2,755 of 2,771 |
-| Date of the run | the first run of `ci.yml` on `main` with this commit |
-| Run | the first run of `ci.yml` on `main` with this commit |
+| Date of the run | filled in when the release is made: the date of the report of the run on the pinned commit |
+| Run | filled in when the release is made: the link to that report in the branch `reports` (see [Reports of the runs](#reports-of-the-runs)) |
 
 The run is the workflow `ci.yml` on the `main` branch. It runs the suite in every cell of its matrix: `net10.0` and `net11.0`, under JIT on Ubuntu and on macOS and under Native AOT on linux-x64. The share is the same in every cell. The runner prints it as one line, for example `cel-spec 3dd8162: 2755/2771 passed, 2026-11-18 (jit, linux-x64, net11.0)`.
 
@@ -45,8 +45,8 @@ The package `Great.Parts.Cel.Policy` is measured by the conformance suite of [ce
 | Pinned commit of cel-policy | `8e4cf0378e3f0d3406b537afbcc6f59562652ad6` (2026-08-18) |
 | Tests in the suite | 91 |
 | Tests that pass | 85 of 91 |
-| Date of the run | the first run of `ci.yml` on `main` with this commit |
-| Run | the first run of `ci.yml` on `main` with this commit |
+| Date of the run | filled in when the release is made: the date of the report of the run on the pinned commit |
+| Run | filled in when the release is made: the link to that report in the branch `reports` (see [Reports of the runs](#reports-of-the-runs)) |
 
 The runner translates the environment description of cel-go (`config.yaml`) into the JSON form of the library and gives every set of extensions the one version the library has: a version that the suite names, such as `strings` 2, or leaves out is read as that one, because the catalog of the library holds the functions of every version of a set and the result of an evaluation does not depend on the version. The functions of the declarations are written by the runner, as the harness of cel-go writes them. The [skip list](../tests/Great.Parts.Cel.Conformance/CelPolicy/skips.md) has 6 tests, each with its reason:
 

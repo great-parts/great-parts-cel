@@ -158,7 +158,7 @@ Console.WriteLine(check.IsValid); // Output: True
 
 ## Functions of the application
 
-`AddFunction("isBlocked", (string inn) => …)` adds a function; `AddMethod<TReceiver, TResult>("isKpp", s => …)` adds a method on a receiver, called as `inn.isKpp()`. A function runs synchronously on the thread that evaluates: load the data first, put it in `CelBindings`, and never block on `.Result` or `.Wait()` inside a function.
+`AddFunction("isBlocked", (string inn) => …)` adds a function; `AddMethod<string, bool>("isKpp", s => …)` adds a method on a receiver, called as `kpp.isKpp()`. A function runs synchronously on the thread that evaluates: load the data first, put it in `CelBindings`, and never block on `.Result` or `.Wait()` inside a function.
 
 ## Common mistakes
 

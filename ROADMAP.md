@@ -21,8 +21,8 @@ Versions 1.x are not supported: there are no fixes for them, security fixes incl
    - A public syntax tree, a way to give the library a parse tree from another parser, and the checked expression (`CheckedExpr`);
    - unknown values and an asynchronous driver of an evaluation;
    - `DateOnly` and `TimeOnly`, and `round` and `quantize` for `decimal`;
-   - `protovalidate`, `char`, integers wider than 64 bits and object literals of .NET types;
+   - the `formats` extension set, with checks that a string has a text format (an e-mail address, a host name, a host and port, an IP prefix, a URI), in the core of the library; `char`, integers wider than 64 bits and object literals of .NET types;
    - the packages `Great.Parts.Cel.Policy`, for policies in the [CEL policy format](https://github.com/cel-expr/cel-policy) (YAML documents of rules that compile to CEL expressions), and `Great.Parts.Cel.Filtering`, for filters in the syntax of [AIP-160](https://google.aip.dev/160) (the `filter` string of a list method of an API); both build on the core of the library, which has the hooks they need, such as the position of an expression in its source document (`CelCompileOptions.SourceLocation`);
-   - `browser-wasm` and a playground in the browser;
+   - `browser-wasm`;
    - a run of the tests on .NET 12 in CI after it comes out.
 5. **Freeze and release.** The extension points are reviewed, the record of the public API is fixed, the changelog and the README of the packages are written, the pinned commit of cel-spec moves for the last time, and the version 2.0.0 is released.
