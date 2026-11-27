@@ -14,7 +14,7 @@ namespace Great.Parts.Cel.Tests.Examples.Library;
 // row that shows the digits is written as string(x). The rows without a directive have the same outcome on both targets; the
 // exponent of a result is kept above 0 on net11.0 and folded into the coefficient on net10.0, and a result of more digits than
 // the platform holds is Overflow.
-[Trait("Requirement", "F-25")]
+[Trait("Requirement", "F-33")]
 public sealed class DecimalRoundingTests
 {
     private const string HalfEven = """

@@ -86,7 +86,7 @@ internal sealed class MapPlanNode : PlanNode
                     return false;
                 }
 
-                pending = Defer(pending, key);
+                pending = Defer(frame, pending, key);
             }
             else if (!pending.IsUnknown)
             {
@@ -104,7 +104,7 @@ internal sealed class MapPlanNode : PlanNode
                     return false;
                 }
 
-                pending = Defer(pending, value);
+                pending = Defer(frame, pending, value);
             }
             else if (!pending.IsUnknown)
             {

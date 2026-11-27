@@ -92,7 +92,7 @@ internal sealed class OptionalMapPlanNode : PlanNode
                     return false;
                 }
 
-                pending = Defer(pending, key);
+                pending = Defer(frame, pending, key);
             }
 
             frame.Push(key);
@@ -154,7 +154,7 @@ internal sealed class OptionalMapPlanNode : PlanNode
                 return Entry.Fail;
             }
 
-            pending = Defer(pending, value);
+            pending = Defer(frame, pending, value);
             return Entry.Drop;
         }
 

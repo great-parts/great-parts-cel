@@ -70,7 +70,7 @@ internal abstract class LogicalPlanNode : PlanNode
         {
             if (value.IsUnknown)
             {
-                unknown = Defer(unknown, value);
+                unknown = Defer(frame, unknown, value);
             }
         }
 

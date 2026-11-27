@@ -36,7 +36,7 @@ internal sealed class AppendPlanNode : PlanNode
         CelValue element = _element.Evaluate(frame);
         if (element.Kind == CelValueKind.Error)
         {
-            return element.IsUnknown ? Defer(accumulator, element) : element;
+            return element.IsUnknown ? Defer(frame, accumulator, element) : element;
         }
 
         if (accumulator.IsUnknown)

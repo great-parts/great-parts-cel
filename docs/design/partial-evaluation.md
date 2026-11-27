@@ -20,7 +20,7 @@ Every node already returns an `Error` operand as its result without doing its op
 
 An error to the right of an unknown operand is the result of a strict call, as the language definition says: `x + 1 / 0` with `x` unknown is `DivisionByZero`. cel-go returns the unknown for a binary function and the error for a function of three or more arguments. The same rule makes `fail(1) + 1 / 0`, where `fail` is an asynchronous function whose call is not made yet, `DivisionByZero` at the first pass, while the synchronous evaluation gives the error of `fail`.
 
-**Cost.** An operation not done because of an unknown argument charges nothing for itself, as with an error argument. An unknown attribute charges 1.
+**Cost.** An operation not done because of an unknown argument charges nothing for itself, as with an error argument. An unknown attribute charges 1. The union of the unknown values of two operands is charged by `PlanNode.Defer` before `UnknownSet.Merge` runs, also when `Merge` returns an operand: 1 + ⌈(a + b)/10⌉ units for sets of a and b entries (`UnknownSet.MergeUnits`), so that a loop which is unknown in every run, which unites a set of growing size in each, is bound by the cost limit as the square it grows as; the first unknown operand is not charged. The asynchronous driver uses the same union and the same charge.
 
 ## Attribute patterns
 

@@ -173,6 +173,17 @@ Everything else that the expansion adds is part of the step and costs 0: the rea
 | `exists_one` | 1 for each step, without a short circuit |
 | `map` (2 and 3 arguments), `filter` | 1 for each step; the result is a list: 1 for the empty list and 1 for each element added |
 
+## Unknown values
+
+The rows apply to a partial evaluation (`EvaluatePartial`, `CelCompileOptions.PartialEvaluation`) and to the asynchronous driver, whose calls that are not made yet are unknown values too. An operation that is not done because of an unknown operand charges nothing for itself, as with an error operand; the rows are the unknown values themselves.
+
+| Operation | Units |
+| :- | :- |
+| an attribute that matches a pattern of unknown data | 1 |
+| the union of the unknown values of two operands, a and b the numbers of entries of the two sets | 1 + ⌈(a + b)/10⌉ |
+
+An entry is one unknown part of a result: the trail of an attribute or a call that is not made yet. The union is charged before it is made, also when one set already holds the other, since the check reads both; the first unknown operand has nothing to unite with and is not charged. A loop that is unknown in every run makes a union of growing size in each one, so the units, and not only the number of runs, bound its time and memory. For example, `y + x` with both unknown costs 1 + 1 for the attributes and 1 + ⌈2/10⌉ = 2 for the union, which is 4.
+
 ## Extension sets
 
 A call of a function of an extension set is charged like a call of the standard library: a fixed part and, where the cost grows with the data, a part computed from the arguments, both charged before the function runs; what the function builds while it runs is charged as the result grows, before the memory it needs is taken. An argument that is invalid without any work on the data gives its error after the constant unit alone. The rows of each set are given with the set, see [Extension sets](extensions.md).

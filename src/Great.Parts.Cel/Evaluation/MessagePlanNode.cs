@@ -152,7 +152,7 @@ internal sealed class MessagePlanNode : PlanNode
                 // An unknown value of a partial evaluation waits for the other values: a real error among them is the result.
                 if (value.IsUnknown)
                 {
-                    pending = Defer(pending, value);
+                    pending = Defer(frame, pending, value);
                     continue;
                 }
 

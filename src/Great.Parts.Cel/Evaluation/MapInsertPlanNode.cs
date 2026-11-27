@@ -62,14 +62,14 @@ internal sealed class MapInsertPlanNode : PlanNode
                     return key;
                 }
 
-                pending = Defer(pending, key);
+                pending = Defer(frame, pending, key);
             }
         }
 
         CelValue operand = _operand.Evaluate(frame);
         if (operand.Kind == CelValueKind.Error)
         {
-            return operand.IsUnknown ? Defer(pending, operand) : operand;
+            return operand.IsUnknown ? Defer(frame, pending, operand) : operand;
         }
 
         if (pending.IsUnknown)

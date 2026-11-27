@@ -67,7 +67,7 @@ internal abstract class PlanNode
     // the first error value the arguments pushed so far are popped and the error is returned. An unknown value of a partial
     // evaluation is not the end: the other arguments are evaluated, and a real error among them is the result, as an error is
     // the result of a strict call whatever the other arguments are; otherwise the result is the union of the unknown values.
-    private protected static bool TryPushArguments(Frame frame, ImmutableArray<PlanNode> arguments, out CelValue error)
+    private protected bool TryPushArguments(Frame frame, ImmutableArray<PlanNode> arguments, out CelValue error)
     {
         CelValue pending = default;
         int pushed = 0;
@@ -83,7 +83,7 @@ internal abstract class PlanNode
                     return false;
                 }
 
-                pending = Defer(pending, value);
+                pending = Defer(frame, pending, value);
                 continue;
             }
 
@@ -103,9 +103,21 @@ internal abstract class PlanNode
     }
 
     // The unknown value that an unknown operand adds to those of the operands before it: the first one when there is none yet
-    // (pending is not an unknown value), otherwise the union.
-    private protected static CelValue Defer(CelValue pending, CelValue unknown) =>
-        pending.TryGetUnknown(out UnknownSet? earlier) && unknown.TryGetUnknown(out UnknownSet? later)
-            ? CelValue.FromUnknown(UnknownSet.Merge(earlier, later))
-            : unknown;
+    // (pending is not an unknown value), otherwise the union. The union is charged before it is made, even when one set already holds
+    // the other, since the check reads both: a loop that is unknown in every pass makes a union of growing size in each one.
+    private protected CelValue Defer(Frame frame, CelValue pending, CelValue unknown)
+    {
+        if (!pending.TryGetUnknown(out UnknownSet? earlier) || !unknown.TryGetUnknown(out UnknownSet? later))
+        {
+            return unknown;
+        }
+
+        if (frame.Metered)
+        {
+            frame.Offset = Offset;
+            frame.Charge(UnknownSet.MergeUnits(earlier, later));
+        }
+
+        return CelValue.FromUnknown(UnknownSet.Merge(earlier, later));
+    }
 }
