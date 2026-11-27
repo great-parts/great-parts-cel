@@ -170,7 +170,8 @@ The configuration of a part is `eng/stryker-parts/<part>.json`: the settings of 
 | `syntax-macros` | `Syntax/ExtensionMacros.cs`, `Macros.cs`, `CelMacroCall.cs`, `CelComprehensionNode.cs`, `Literals.cs` |
 | `protobuf-reading` | `Syntax/Protobuf/ProtoReader.cs`, `ExprReader.cs`, `TreeLoader.cs`, `SourceInfoReader.cs`, `CheckedMessageValidator.cs`, `ProtoErrors.cs` |
 | `protobuf-writing` | `Syntax/Protobuf/ProtoWriter.cs`, `ExprWriter.cs`, `ExprData.cs`, `ExprForm.cs`, `ParsedExprCodec.cs`, `Checking/Protobuf/**/*.cs` |
-| `evaluation-planner` | `Evaluation/Planner.cs`, `Evaluation/MessagePlanner.cs`, `Evaluation/LiteralPlanner.cs`, `Evaluation/PartialPlanner.cs` |
+| `evaluation-planner-core` | `Evaluation/Planner.cs` |
+| `evaluation-planner-nodes` | `Evaluation/MessagePlanner.cs`, `Evaluation/LiteralPlanner.cs`, `Evaluation/PartialPlanner.cs` |
 | `evaluation-attributes` | the plan nodes of names, fields, selections and attributes: `Evaluation/Attribute*.cs`, `ConditionalAttributePlanNode.cs`, `ConditionalPlanNode.cs`, `FieldPlanNode.cs`, `InputFieldPlanNode.cs`, `InputFrame.cs`, `SelectPlanNode.cs`, `OptionalSelectPlanNode.cs`, `NamePlanNode.cs`, `VariablePlanNode.cs`, `LocalPlanNode.cs`, `SlotPlanNode.cs`, `KeyPlanNode.cs` |
 | `evaluation-collections` | `Evaluation/AppendPlanNode.cs`, `Evaluation/ListBuilder.cs`, `Evaluation/ListPlanNode.cs`, `Evaluation/MapInsertPlanNode.cs`, `Evaluation/MapPlanNode.cs`, `Evaluation/MessagePlanNode.cs`, `Evaluation/OptionalListPlanNode.cs`, `Evaluation/OptionalMapPlanNode.cs`, `Evaluation/OptionalOrPlanNode.cs`, `Evaluation/RecordPlanNode.cs`, `Evaluation/ValueRecord.cs`, `Evaluation/UnknownPattern.cs`, `Evaluation/PartialState.cs` |
 | `evaluation-calls` | `Evaluation/AsyncCallPlanNode.cs`, `Evaluation/AsyncCallTable.cs`, `Evaluation/CallPlanNode.cs`, `Evaluation/DispatchPlanNode.cs`, `Evaluation/FusedComparisonPlanNode.cs`, `Evaluation/Invocation.cs`, `Evaluation/ComprehensionPlanNode.cs`, `Evaluation/LogicalPlanNode.cs`, `Evaluation/AndPlanNode.cs`, `Evaluation/OrPlanNode.cs`, `Evaluation/NotStrictlyFalsePlanNode.cs`, `Evaluation/ConstantPlanNode.cs`, `Evaluation/BlockPlanNode.cs`, `Evaluation/BlockSlots.cs` |
@@ -180,7 +181,11 @@ The configuration of a part is `eng/stryker-parts/<part>.json`: the settings of 
 | `declarations-overloads` | `Declarations/CallSite.cs`, `OverloadIds.cs`, `CelOverloadDecl.cs`, `CelFunctionDecl.cs`, `CelVariableDecl.cs`, `CelFunctionOptions.cs`, `FunctionDescriptions.cs` |
 | `declarations-extensions` | `Declarations/ExtensionChecks.cs`, `ExtensionDefinition.cs`, `CelExtension.cs`, `ApplicationExtension.cs`, `LibraryDeclarations.cs`, `AbbreviationChecks.cs`, `MacroForm.cs`, `TypeSource.cs` |
 | `declarations-sets` | `Declarations/DelegateDeclaration.cs`, `BuildErrors.cs`, `DeclarationSet.cs`, `DeclarationText.cs`, `SourcedDeclaration.cs`, `UnmappedDeclaration.cs`, `AbstractTypeDeclaration.cs` |
-| `root-diagnostics` | `*.cs` (the files of the project directory), `Diagnostics/**/*.cs`, `SimpleEntry/**/*.cs` |
+| `root-environment` | `CelEnvironment.cs`, `CelEnvironmentBuilder.cs`, `CelEnvironmentBuilder.Delta.cs`, `CelEnvironmentBuilder.Formats.cs`, `CelEnvironmentBuilder.Policy.cs` |
+| `root-program` | `CelProgram.cs`, `CelProgram.Delta.cs`, `CelCompilationCache.cs`, `CelCompilationCache.Delta.cs`, `CelCompileOptions.cs`, `CelCompileOptions.Delta.cs`, `CelCompileOptions.Policy.cs`, `CelCompileResult.cs`, `CelBuildResult.cs`, `CelStandardLibrary.cs`, `CelExtensions.cs`, `CelExtensions.Delta.cs`, `CelExtensions.Formats.cs`, `CelEvalOptions.cs`, `CelEvalOptions.Delta.cs`, `CelEvalResult.cs`, `CelExpression.cs`, `CelSyntax.cs`, `CelValidationResult.cs` |
+| `root-evaluation` | `AsyncDriver.cs`, `AsyncEvaluation.cs`, `CelAnonymousData.cs`, `CelAttributePattern.cs`, `CelBindings.cs`, `CelPartialEvalResult.cs`, `CelUnknown.cs`, `DocumentMap.cs`, `ResidualSource.cs`, `CelEnvironment.Async.cs` |
+| `diagnostics` | `Diagnostics/**/*.cs` |
+| `simple-entry` | `SimpleEntry/**/*.cs` |
 | `checking-checker` | `Checking/Checker.cs` |
 | `checking-support` | the other files of `Checking/` except `Checking/Protobuf/` (`Checking/CelCheckedExpr.cs`, `CelReference.cs`, `CheckedExpression.cs`, `CheckErrors.cs`, `CheckResult.cs`, `DeclarationIndex.cs`, `EnvironmentDescription.cs`, `Reference.cs`, `ReferencedNames.cs`), `Configuration/CelEnvironmentJson.cs`, `Configuration/JsonPositions.cs` |
 | `configuration-reader` | `Configuration/EnvironmentReader.cs`, `Configuration/EnvironmentReader.Extensions.cs`, `Configuration/EnvironmentReader.Functions.cs`, `Configuration/EnvironmentReader.ObjectTypes.cs`, `Configuration/EnvironmentReader.Variables.cs` |
@@ -219,7 +224,21 @@ The run 45794043873 (19 parts of the new and the changed ones) stopped `declarat
 | `values-conversion-result` | 176 | 3.8 h |
 | `values-conversion-time-views` | 142 | 3.4 h |
 
-`declarations-checks` is one file, `Declarations/DeclarationChecks.cs` (661 lines of code), and is not cut further, for the reason given above. At 45 s it would not end; at the time of a mutant that `declarations` had in the run of 2026-11-24 (14 s) it takes 3.3 h, and the run 45794043873 gives only that the time of a mutant was at least 15 s there, so the part is run first and cut by its time if it is stopped (the file could be split in the source into two files, which the parts then divide). The library is 63 parts.
+`declarations-checks` is one file, `Declarations/DeclarationChecks.cs` (661 lines of code), and is not cut further, for the reason given above. At 45 s it would not end; at the time of a mutant that `declarations` had in the run of 2026-11-24 (14 s) it takes 3.3 h, and the run 45794043873 gives only that the time of a mutant was at least 15 s there, so the part is run first and cut by its time if it is stopped (the file could be split in the source into two files, which the parts then divide).
+
+The run 45952874919 (12 parts) ended ten parts with a score of 100 % and stopped two at the limit of 6 h: `evaluation-planner` (517 mutants to check) and `root-diagnostics` (1,264). The time of a mutant there was about 30 to 35 s, and the preparation about 1.5 h. The two are cut by the rule above, at 35 s a mutant: 1.6 h + mutants x 35 s is below 5 h, which is at most about 350 mutants. The mutants of a file are counted by its lines of code at the density of its part (`evaluation-planner` 0.70 mutants a line over 740 lines; `root-diagnostics` 0.43 over 2,964 lines). The two became seven parts:
+
+| Part | Lines of code | Mutants to check, about | Time at 35 s a mutant, with the preparation of 1.6 h |
+| :- | -: | -: | -: |
+| `evaluation-planner-core` | 612 | 428 | 6.1 h (5.2 h at 30 s) |
+| `evaluation-planner-nodes` | 128 | 90 | 2.5 h |
+| `root-environment` | 690 | 294 | 4.5 h |
+| `root-program` | 673 | 287 | 4.4 h |
+| `root-evaluation` | 648 | 276 | 4.3 h |
+| `diagnostics` | 452 | 193 | 3.4 h |
+| `simple-entry` | 501 | 213 | 3.7 h |
+
+`evaluation-planner-core` is one file, `Evaluation/Planner.cs`, and is not cut further, for the reason given above; the run of the part gives its time of a mutant, and if it is stopped the file is split in the source. The library is 68 parts.
 
 - Two tests of `eng/tests` keep the cut of the parts: every `.cs` file of the project is in exactly one part, so a new directory or file that no part names fails `eng/test`, and a part file differs from `stryker-config.json` only in `mutate`, so a change of a common setting is made in every file, as for the control set ([Control set](#control-set)).
 - `since` and `mutate` work together in the tool: a part mutates the changed files that its patterns name. Stryker.NET marks the other files' mutants `Removed by mutate filter`; `eng/checks mutation` knows the patterns, so a changed file outside them is no `ENG504` in this part, and one inside them that the report lacks is ([mutation](#mutation)).

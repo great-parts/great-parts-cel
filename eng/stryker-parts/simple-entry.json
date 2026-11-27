@@ -16,10 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "Evaluation/Planner.cs",
-      "Evaluation/MessagePlanner.cs",
-      "Evaluation/LiteralPlanner.cs",
-      "Evaluation/PartialPlanner.cs"
+      "SimpleEntry/**/*.cs"
     ],
     "thresholds": {
       "high": 80,

@@ -1,0 +1,45 @@
+{
+  "stryker-config": {
+    "project": "src/Great.Parts.Cel/Great.Parts.Cel.csproj",
+    "test-projects": [
+      "../../tests/Great.Parts.Cel.Tests/Great.Parts.Cel.Tests.csproj",
+      "../../tests/Great.Parts.Cel.Properties/Great.Parts.Cel.Properties.csproj",
+      "../../tests/Great.Parts.Cel.Conformance/Great.Parts.Cel.Conformance.csproj"
+    ],
+    "target-framework": "net11.0",
+    "test-runner": "mtp",
+    "coverage-analysis": "perTest",
+    "reporters": ["json", "progress"],
+    "mutation-level": "Standard",
+    "since": {
+      "enabled": true,
+      "target": "main"
+    },
+    "mutate": [
+      "CelProgram.cs",
+      "CelProgram.Delta.cs",
+      "CelCompilationCache.cs",
+      "CelCompilationCache.Delta.cs",
+      "CelCompileOptions.cs",
+      "CelCompileOptions.Delta.cs",
+      "CelCompileOptions.Policy.cs",
+      "CelCompileResult.cs",
+      "CelBuildResult.cs",
+      "CelStandardLibrary.cs",
+      "CelExtensions.cs",
+      "CelExtensions.Delta.cs",
+      "CelExtensions.Formats.cs",
+      "CelEvalOptions.cs",
+      "CelEvalOptions.Delta.cs",
+      "CelEvalResult.cs",
+      "CelExpression.cs",
+      "CelSyntax.cs",
+      "CelValidationResult.cs"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 80,
+      "break": 80
+    }
+  }
+}

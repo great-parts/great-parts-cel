@@ -16,9 +16,7 @@
       "target": "main"
     },
     "mutate": [
-      "*.cs",
-      "Diagnostics/**/*.cs",
-      "SimpleEntry/**/*.cs"
+      "Diagnostics/**/*.cs"
     ],
     "thresholds": {
       "high": 80,
