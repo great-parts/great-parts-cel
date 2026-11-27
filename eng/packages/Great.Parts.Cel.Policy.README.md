@@ -7,13 +7,13 @@
 [![CI status](https://img.shields.io/github/actions/workflow/status/great-parts/great-parts-cel/ci.yml?branch=main&label=ci)](https://github.com/great-parts/great-parts-cel/actions/workflows/ci.yml)
 [![OpenSSF Best Practices](https://img.shields.io/cii/level/16897)](https://www.bestpractices.dev/projects/16897)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/great-parts/great-parts-cel?label=openssf%20scorecard&style=flat)](https://scorecard.dev/viewer/?uri=github.com/great-parts/great-parts-cel)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/great-parts/great-parts-cel/blob/main/LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/LICENSE)
 
 CEL Policy for [Great.Parts.Cel](https://www.nuget.org/packages/Great.Parts.Cel), the CEL (Common Expression Language) library for .NET / C#.
 
 A policy is a YAML document of rules: variables, conditions, outputs and nested rules, with first-match or aggregate semantics. The package reads the document and compiles it in a CEL environment into one program, as cel-go does; every error reports its line and column in the document, also inside indented YAML blocks. The package reads YAML with its own reader, depends only on `Great.Parts.Cel` and uses no reflection, so it works under trimming and Native AOT and in the browser.
 
-Documentation: start with [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md), seven short scenarios from the first expression to a web service; the pages are listed in the Documentation section below.
+Documentation: start with [Getting Started](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/getting-started.md), seven short scenarios from the first expression to a web service; the pages are listed in the Documentation section below.
 
 ## Install
 
@@ -59,15 +59,15 @@ The package carries a file `AGENTS.md` in its root: what the package reads, the 
 
 ## Documentation
 
-The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
+The documentation of a release is the content of the repository at the tag of the release. The links on this page point to the tag `v2.0.0` of the repository.
 
-- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
-- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
-- [Extension sets](https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md): `optional` and `bindings`, which a policy needs
-- [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
-- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
-- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/getting-started.md): seven scenarios, from the simple entry to a web service
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/README.md)
+- [Extension sets](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/extensions.md): `optional` and `bindings`, which a policy needs
+- [Error codes](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/error-codes.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/CHANGELOG.md)
 
 ## License
 
-[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/main/LICENSE).
+[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/LICENSE).

@@ -9,10 +9,10 @@ This page says how much of the CEL specification the library passes. The measure
 | Pinned commit of cel-spec | `3dd8162270505540492e4198a35717c173e1506a` |
 | Cases in the suite | 2,771 |
 | Cases that pass | 2,755 of 2,771 |
-| Date of the run | filled in when the release is made: the date of the report of the run on the pinned commit |
-| Run | filled in when the release is made: the link to that report in the branch `reports` (see [Reports of the runs](#reports-of-the-runs)) |
+| Date of the run | 2026-11-27 |
+| Run | [report of the run of 2026-11-27](https://github.com/great-parts/great-parts-cel/commit/c0123d1a1b0e304561c77618c2671f3e340916ea), directory `conformance-master/` of the branch `reports` |
 
-The run is the workflow `ci.yml` on the `main` branch. It runs the suite in every cell of its matrix: `net10.0` and `net11.0`, under JIT on Ubuntu and on macOS and under Native AOT on linux-x64. The share is the same in every cell. The runner prints it as one line, for example `cel-spec 3dd8162: 2755/2771 passed, 2026-11-18 (jit, linux-x64, net11.0)`.
+The pinned commit is also the last commit of the master branch of cel-spec, so the date and the link are those of the report of the nightly run on that branch (see [The master branch of cel-spec](#the-master-branch-of-cel-spec)): the same suite, with the skip list not applied, which gives the same share. The workflow `ci.yml` on the `main` branch runs the suite in every cell of its matrix: `net10.0` and `net11.0`, under JIT on Ubuntu and on macOS and under Native AOT on linux-x64. The share is the same in every cell. The runner prints it as one line, for example `cel-spec 3dd8162: 2755/2771 passed, 2026-11-18 (jit, linux-x64, net11.0)`.
 
 The share is counted from all cases of the suite: a case on the skip list that does not pass is a case that did not pass, not a case left out of the count. The pinned commit includes every commit of the master branch of cel-spec that is older than 6 weeks on the day of a release.
 
@@ -45,8 +45,10 @@ The package `Great.Parts.Cel.Policy` is measured by the conformance suite of [ce
 | Pinned commit of cel-policy | `8e4cf0378e3f0d3406b537afbcc6f59562652ad6` (2026-08-18) |
 | Tests in the suite | 91 |
 | Tests that pass | 85 of 91 |
-| Date of the run | filled in when the release is made: the date of the report of the run on the pinned commit |
-| Run | filled in when the release is made: the link to that report in the branch `reports` (see [Reports of the runs](#reports-of-the-runs)) |
+| Date of the run | 2026-11-27 |
+| Run | [report of the run of 2026-11-27](https://github.com/great-parts/great-parts-cel/commit/23f20c50f52e56c9d5c7a7cc9f9592531cbb9451), directory `conformance-master-policy/` of the branch `reports` |
+
+The pinned commit is also the last commit of the master branch of cel-policy, so the date and the link are those of the report of the nightly run of the workflow `conformance-master.yml` on that branch: the same suite, with the skip list not applied, which gives the same share.
 
 The runner translates the environment description of cel-go (`config.yaml`) into the JSON form of the library and gives every set of extensions the one version the library has: a version that the suite names, such as `strings` 2, or leaves out is read as that one, because the catalog of the library holds the functions of every version of a set and the result of an evaluation does not depend on the version. The functions of the declarations are written by the runner, as the harness of cel-go writes them. The [skip list](../tests/Great.Parts.Cel.Conformance/CelPolicy/skips.md) has 6 tests, each with its reason:
 
@@ -72,11 +74,11 @@ The workflow [`conformance-master.yml`](https://github.com/great-parts/great-par
 | :- | :- |
 | Commit of cel-spec master | `3dd8162` |
 | Cases in the suite | 2,771 |
-| Cases that pass | 2,745 of 2,771 |
-| Date of the run | 2026-11-16 |
-| Run | [run 43869365994](https://github.com/great-parts/great-parts-cel/actions/runs/43869365994) |
+| Cases that pass | 2,755 of 2,771 |
+| Date of the run | 2026-11-27 |
+| Run | [report of the run of 2026-11-27](https://github.com/great-parts/great-parts-cel/commit/c0123d1a1b0e304561c77618c2671f3e340916ea), directory `conformance-master/` of the branch `reports` |
 
-The run of master does not apply the skip list of the pinned commit. The table shows the last run before the pinned commit moved to `3dd8162`, the last commit of master: then 26 cases did not pass, the case `network_ext/ip_type/is_ip_cidr_compile_error`, 10 cases of `timestamps.textproto` with durations in the range of `google.protobuf.Duration`, which this library now has (see [Limits](limits.md#values)), and the 15 cases of `wrappers.textproto` that are on the skip list above. While the pinned commit is the last commit of master, the run of master gives the share of the pinned commit without the skip list.
+The run of master does not apply the skip list of the pinned commit. The pinned commit is the last commit of master, so the 16 cases that do not pass are the 16 cases of the skip list above: the case `network_ext/ip_type/is_ip_cidr_compile_error` and the 15 cases of `wrappers.textproto`. While the pinned commit is the last commit of master, the run of master gives the share of the pinned commit without the skip list. The workflow runs the suite of cel-policy the same way, and its reports are in the directory `conformance-master-policy/` of the branch `reports`.
 
 ## Differential run against cel-go
 
@@ -86,4 +88,4 @@ Differences from cel-go that have been analysed and are not counted as bugs of t
 
 ## Reports of the runs
 
-Every figure on this page has the date of its run, the commit of cel-spec and a link to the report of the run. A report is a file in the branch `reports` of this repository, with the date and the time of the run (UTC), the commit of cel-spec and the commit of this repository. The link of a figure points to a commit of that branch, so it works as long as the figure is published; a link to a run of GitHub Actions would not, because GitHub keeps the logs of the runs for 90 days only. Workflows write the branch with the token of the run, and nothing of it is written to `main`. The result on the master branch of cel-spec is published to the branch automatically after each nightly run, and the result of the speed comparison after each measurement (directory `bench/`). The tables above date from the days before the first report and link runs of GitHub Actions; the link of a figure is replaced by the link of the report of its run once the branch has it.
+Every figure on this page has the date of its run, the commit of cel-spec and a link to the report of the run. A report is a file in the branch `reports` of this repository, with the date and the time of the run (UTC), the commit of cel-spec and the commit of this repository. The link of a figure points to a commit of that branch, so it works as long as the figure is published; a link to a run of GitHub Actions would not, because GitHub keeps the logs of the runs for 90 days only. Workflows write the branch with the token of the run, and nothing of it is written to `main`. The result on the master branch of cel-spec is published to the branch automatically after each nightly run, and the result of the speed comparison after each measurement (directory `bench/`). The figures of the three tables above link the commits of the branch `reports` that hold the reports of their runs.

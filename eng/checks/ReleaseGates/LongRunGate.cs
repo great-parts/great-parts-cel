@@ -13,7 +13,8 @@ namespace Great.Parts.Cel.Eng.Checks;
 /// <c>budget</c> of a manual run is not in the answer of the API, so the length of the job is the evidence. A run on an ancestor counts when
 /// no path that the differential run depends on (<see cref="CodePaths"/>) changed between the run and the tag; the closest such run is taken.
 /// A change of <c>Directory.Build.props</c> or of a project under <c>src/</c> that only touches the metadata of the packages is not a change
-/// of such a path (<see cref="PackageMetadataChange"/>).
+/// of such a path (<see cref="PackageMetadataChange"/>); nor is a change of a <c>*.cs</c> file in comments and blank lines only, nor a move of
+/// a line between <c>PublicAPI.Shipped.txt</c> and <c>PublicAPI.Unshipped.txt</c> of a project (<see cref="CommentOnlyChange"/>).
 /// </summary>
 internal static class LongRunGate
 {
@@ -114,10 +115,12 @@ internal static class LongRunGate
     }
 
     // A changed path is a change of the code when it is in the list, except a file that holds the metadata of the packages, when nothing
-    // but that metadata changed in it.
+    // but that metadata changed in it, and a file whose change is only in comments and blank lines (*.cs) or in the file of the public API
+    // that holds a line (PublicAPI.Shipped.txt and PublicAPI.Unshipped.txt of a project together; R-16).
     private static bool IsCodeChange(string root, string sha, string commit, string path) =>
         CodePaths.Any(prefix => path.StartsWith(prefix, StringComparison.Ordinal))
-        && !(PackageMetadataChange.Holds(path) && PackageMetadataChange.IsOnlyMetadata(root, sha, commit, path));
+        && !(PackageMetadataChange.Holds(path) && PackageMetadataChange.IsOnlyMetadata(root, sha, commit, path))
+        && !(CommentOnlyChange.Holds(path) && CommentOnlyChange.IsOnlyComments(root, sha, commit, path));
 
     private static bool HasLongJob(string jobs)
     {

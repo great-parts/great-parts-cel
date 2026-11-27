@@ -7,13 +7,13 @@
 [![CI status](https://img.shields.io/github/actions/workflow/status/great-parts/great-parts-cel/ci.yml?branch=main&label=ci)](https://github.com/great-parts/great-parts-cel/actions/workflows/ci.yml)
 [![OpenSSF Best Practices](https://img.shields.io/cii/level/16897)](https://www.bestpractices.dev/projects/16897)
 [![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/great-parts/great-parts-cel?label=openssf%20scorecard&style=flat)](https://scorecard.dev/viewer/?uri=github.com/great-parts/great-parts-cel)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/great-parts/great-parts-cel/blob/main/LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/LICENSE)
 
 AIP-160 filters for [Great.Parts.Cel](https://www.nuget.org/packages/Great.Parts.Cel), the CEL (Common Expression Language) library for .NET / C#.
 
 A list method of an API often takes a `filter`: the text of [AIP-160](https://google.aip.dev/160), such as `author.name = "Frank Herbert" AND published > "2026-01-01T00:00:00Z"`. The package translates the text into an ordinary CEL expression of your environment, type-checks it there and compiles it into a program that tells for each item whether it matches. Every error has its place in the text of the filter, and a client that sends the filter gets the errors back, not an exception. The package depends only on `Great.Parts.Cel` and uses no reflection, so it works under trimming and Native AOT and in the browser.
 
-Documentation: start with [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md), seven short scenarios from the first expression to a web service; the pages are listed in the Documentation section below.
+Documentation: start with [Getting Started](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/getting-started.md), seven short scenarios from the first expression to a web service; the pages are listed in the Documentation section below.
 
 ## Install
 
@@ -101,7 +101,7 @@ AIP-160 asks a service to document what it restricts and what it reads different
 
 AIP-160 has no official test suite, so the package is checked by a corpus of its own: the rules of the tables above are covered by cases that translate and by cases that are an error, and the corpus runs on every platform that the library supports, except `browser-wasm`.
 
-AIP-160: own test corpus, 369 cases, run on 2026-11-24, [the corpus](https://github.com/great-parts/great-parts-cel/tree/main/tests/filtering/testdata).
+AIP-160: own test corpus, 369 cases, run on 2026-11-24, [the corpus](https://github.com/great-parts/great-parts-cel/tree/v2.0.0/tests/filtering/testdata).
 
 The corpus is a set of cases, not a measure of conformance: there is no share and no badge for it.
 
@@ -111,15 +111,15 @@ The package carries a file `AGENTS.md` in its root: when to use the package, wha
 
 ## Documentation
 
-The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
+The documentation of a release is the content of the repository at the tag of the release. The links on this page point to the tag `v2.0.0` of the repository.
 
-- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
-- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
-- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)
-- [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
-- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
-- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/getting-started.md): seven scenarios, from the simple entry to a web service
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/README.md)
+- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/type-mapping.md)
+- [Error codes](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/error-codes.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/CHANGELOG.md)
 
 ## License
 
-[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/main/LICENSE).
+[Apache License 2.0](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/LICENSE).

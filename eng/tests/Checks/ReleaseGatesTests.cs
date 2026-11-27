@@ -250,6 +250,104 @@ public sealed class ReleaseGatesTests
         return fixture;
     }
 
+    // R-16: a change of a *.cs file only in comments and blank lines does not cancel the run.
+    [Theory]
+    [InlineData("src/Lib.cs", "class A { }\n", "// A note.\nclass A { }\n")]
+    [InlineData("eng/difftest/Compare/Minimizer.cs", "class A\n{\n    void M() { }\n}\n", "/// <summary>The type.</summary>\nclass A\n{\n    void M() { } // tail\n\n}\n")]
+    [InlineData("src/Lib.cs", "class A\r\n{\r\n    /* one */ int x;\r\n}\r\n", "class A\n{\n    /* two\n       lines */ int x;\n}\n")]
+    [InlineData("src/Lib.cs", "class A { string s = \"//x\"; char c = '\\''; }\n", "class A { string s = \"//x\"; char c = '\\''; }\n// after\n")]
+    [InlineData("src/Lib.cs", "class A { string s = @\"//x\"\"/*\"; }\n", "class A { string s = @\"//x\"\"/*\"; } // c\n")]
+    [InlineData("src/Lib.cs", "class A { string s = $\"{x}//{{y}}\"; }\n", "class A { string s = $\"{x}//{{y}}\"; } /* c */\n")]
+    [InlineData("src/Lib.cs", "#if NET10_0\nclass A { }\n#endif\n", "#if NET10_0\n// c\nclass A { }\n#endif\n")]
+    public static void Eng904_RunOnAnAncestorAndOnlyCommentsOfACodeFileChangedSince_Passes(string path, string before, string after)
+    {
+        using Fixture fixture = FixtureWithFileChangedAfterTheRun(path, before, after, out _);
+
+        Result.Expect(fixture.Gates(), 0);
+    }
+
+    [Theory]
+    [InlineData("src/Lib.cs", "#if NET10_0\nclass A { }\n#endif\n", "#if NET11_0\nclass A { }\n#endif\n")]
+    [InlineData("src/Lib.cs", "#if NET10_0 // old\nclass A { }\n#endif\n", "#if NET10_0 // new\nclass A { }\n#endif\n")]
+    [InlineData("src/Lib.cs", "class A { int x = 1; // one\n}\n", "class A { int x = 2; // one\n}\n")]
+    [InlineData("src/Lib.cs", "class A { int x; }\n", "/* class A { int x; } */\n")]
+    [InlineData("src/Lib.cs", "class A { int x; }\n", "class A { /* int x; */ }\n")]
+    [InlineData("src/Lib.cs", "// class A { }\n", "class A { }\n")]
+    [InlineData("src/Lib.cs", "class A { string s = \"//a\"; }\n", "class A { string s = \"//b\"; }\n")]
+    [InlineData("src/Lib.cs", "class A { string s = @\"/*a\"; }\n", "class A { string s = @\"/*b\"; }\n")]
+    [InlineData("src/Lib.cs", "class A { string s = $\"{x}\"; }\n", "class A { string s = $\"{y}\"; }\n")]
+    [InlineData("src/Lib.cs", "#if false\nint x;\n#endif\n", "#if false\nint y;\n#endif\n")]
+    [InlineData("src/Lib.cs", "class A { }\n", "class A { }\n/* not closed\n")]
+    [InlineData("src/Lib.cs", "class A { string s = \"\"\"a\"\"\"; }\n", "class A { string s = \"\"\"a\"\"\"; } // c\n")]
+    [InlineData("eng/difftest/Compare/Minimizer.cs", "class A { }\n", "class B { }\n")]
+    public static void Eng904_RunOnAnAncestorAndTheCodeOfACodeFileChangedSince_IsReportedWithThePath(string path, string before, string after)
+    {
+        using Fixture fixture = FixtureWithFileChangedAfterTheRun(path, before, after, out string run);
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: {path}");
+    }
+
+    // R-16: the lines of PublicAPI.Shipped.txt and PublicAPI.Unshipped.txt of a project are compared together.
+    [Fact]
+    public void Eng904_RunOnAnAncestorAndALineMovedFromUnshippedToShippedSince_Passes()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeFilesAfterTheRun(
+            ("src/Lib/PublicAPI.Shipped.txt", "#nullable enable\nA.M() -> void\n", "#nullable enable\nA.M() -> void\nA.N() -> int\n"),
+            ("src/Lib/PublicAPI.Unshipped.txt", "#nullable enable\nA.N() -> int\n", "#nullable enable\n"));
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(fixture.Gates(), 0);
+    }
+
+    [Fact]
+    public void Eng904_RunOnAnAncestorAndANewLineOfThePublicApiSince_IsReportedWithThePath()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeFilesAfterTheRun(
+            ("src/Lib/PublicAPI.Shipped.txt", "A.M() -> void\n", "A.M() -> void\n"),
+            ("src/Lib/PublicAPI.Unshipped.txt", "A.N() -> int\n", "A.N() -> int\nA.K() -> int\n"));
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: src/Lib/PublicAPI.Unshipped.txt");
+    }
+
+    [Fact]
+    public void Eng904_RunOnAnAncestorAndALineOfThePublicApiRemovedSince_IsReportedWithThePath()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeFilesAfterTheRun(
+            ("src/Lib/PublicAPI.Shipped.txt", "A.M() -> void\n", "A.M() -> void\n"),
+            ("src/Lib/PublicAPI.Unshipped.txt", "A.N() -> int\n", string.Empty));
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: src/Lib/PublicAPI.Unshipped.txt");
+    }
+
+    [Fact]
+    public void Eng904_RunOnAnAncestorAndALineMovedToAnotherProjectSince_IsReportedWithThePaths()
+    {
+        using Fixture fixture = Fixture.Create("v1.2.0");
+        string run = fixture.ChangeFilesAfterTheRun(
+            ("src/A/PublicAPI.Unshipped.txt", "X.M() -> void\n", string.Empty),
+            ("src/B/PublicAPI.Shipped.txt", string.Empty, "X.M() -> void\n"));
+        fixture.Stubs.Api.RunCommits = [run];
+
+        Result.Expect(
+            fixture.Gates(),
+            1,
+            $"tag/v1.2.0(1,1): error {EngCodes.Eng904}: no successful long run of difftest-nightly.yml (at least 2 h) on commit {fixture.Head[..8]} or on an ancestor with no change of the code: the closest run is on {run[..8]}, and these paths changed since it: src/A/PublicAPI.Unshipped.txt, src/B/PublicAPI.Shipped.txt");
+    }
+
     [Fact]
     public void Eng904_RunOnAnAncestorAndTheMetadataFileIsNewSince_IsReported()
     {
@@ -928,6 +1026,29 @@ public sealed class ReleaseGatesTests
             Root.Write(path, "changed\n");
             Git("add", "-A");
             Commit("change " + path);
+            Git("tag", "-f", Tag);
+            Git("update-ref", "refs/remotes/origin/main", "HEAD");
+            return run;
+        }
+
+        // As ChangeFileAfterTheRun, for several files changed in one commit.
+        internal string ChangeFilesAfterTheRun(params (string Path, string Before, string After)[] files)
+        {
+            foreach ((string path, string before, string _) in files)
+            {
+                Root.Write(path, before);
+            }
+
+            Git("add", "-A");
+            Commit("add files");
+            string run = Head;
+            foreach ((string path, string _, string after) in files)
+            {
+                Root.Write(path, after);
+            }
+
+            Git("add", "-A");
+            Commit("change files");
             Git("tag", "-f", Tag);
             Git("update-ref", "refs/remotes/origin/main", "HEAD");
             return run;

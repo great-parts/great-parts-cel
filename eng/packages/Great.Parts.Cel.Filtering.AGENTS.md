@@ -26,11 +26,11 @@ This file is for an agent that helps a developer use the package `Great.Parts.Ce
 
 ## Documentation
 
-The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
+The documentation of a release is the content of the repository at the tag of the release. The links on this page point to the tag `v2.0.0` of the repository.
 
-- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
-- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)
-- [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
-- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
-- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
-- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/getting-started.md): seven scenarios, from the simple entry to a web service
+- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/type-mapping.md)
+- [Error codes](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/error-codes.md)
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/README.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/CHANGELOG.md)

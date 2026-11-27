@@ -12,6 +12,8 @@ A fix of a vulnerability is listed under `Security` of its version, with the GHS
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-27
+
 ### Added
 
 - The package `Great.Parts.Cel.DependencyInjection`: `AddCel` and `AddKeyedCel` register a CEL environment, its compilation cache and an `ICelEvaluator` as singletons, one for the application or several by name (keyed services); `CelOptions` sets the default cost limit and the capacities of the cache, bound by the application itself; `ValidateCel` validates the options of an application with a CEL expression over their fields. The package reads no configuration and uses no reflection, so it works under Native AOT.
@@ -67,6 +69,7 @@ A fix of a vulnerability is listed under `Security` of its version, with the GHS
 - A variable of the application named `decimal` is the build error `DuplicateType` when the `decimal` extension set is added, since the name of a type and of a variable must differ; rename the variable. Without the set the name is free as before.
 - The cost of `contains` and of the functions `indexOf`, `lastIndexOf`, `replace` and `split` of the extension set `strings` multiplies the part of the lengths, ⌈Lₐ/10⌉, by q = max(1, ⌈Lₚ/64⌉), Lₚ the length of the string searched for in UTF-16 code units: a pattern of at most 64 code units costs what it cost in 1.x, a longer one costs q times as much for the part of the lengths. The search is not linear in the worst case, so the cost pays for the worst case: a pattern that is a literal is searched by a `SearchValues<string>` that compilation prepared, any other pattern by the ordinal search of .NET. A limit that a call passed in 1.x it may not pass in 2.0 when the pattern is longer than 64 code units. `contains` now also rejects, as the other functions do, a match that would cut a surrogate pair, which only a pattern with a lone surrogate from the data can make. See [Cost](docs/cost.md#the-search-for-a-substring).
 - The cost of `distinct`, `sets.contains`, `sets.intersects` and `sets.equivalent` is the hashing of the elements and the one comparison of each element that is found, where it was the comparison of every pair: `[1, 2, 3].distinct()` costs the same, `[1, 2, 2].distinct()` costs 1 more, and a call on long lists costs much less; an element that holds an object of the application is still compared with the others of its kind in the order of the pairs. A limit that a call passed in 1.x it may not pass in 2.0 when a list is short, since the hashing of each element is charged. A number of 2^53 or more in absolute value (an `int`, a `uint` or a `double`, an infinity included) is not hashed, since CEL equality is not transitive from there on: such numbers, and values with an error inside, are compared with each other in the order of the pairs, so a long list of identifiers of 64 bits costs and takes as in 1.x, and a value with an error inside is no longer compared with a value of another kind. The `sets` functions index the whole list that is looked in, so an element of it that is an error ends the call wherever it stands. See [Cost](docs/cost.md#hashing-in-distinct-and-sets).
+- The union of the unknown values of two operands in a partial evaluation and in the asynchronous driver is charged before it is made, 1 + ⌈(a + b)/10⌉ units, so a cost limit now stops a loop that is unknown in every run; the reported `Cost` of an evaluation that unites unknown values is higher than the sum of the other rows. The result, the trails and the residual expression do not change. See [Cost](docs/cost.md#unknown-values).
 
 ## [1.0.1] - 2026-11-17
 
@@ -104,6 +107,7 @@ The first stable release of the packages `Great.Parts.Cel` and `Great.Parts.Cel.
 
 None: 1.0.0 is the first release, so there is no earlier version whose results or errors change. From this version on, a change of the result or of the error of an expression that was valid before is listed here, in the entry of its version.
 
-[Unreleased]: https://github.com/great-parts/great-parts-cel/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/great-parts/great-parts-cel/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/great-parts/great-parts-cel/compare/v1.0.1...v2.0.0
 [1.0.1]: https://github.com/great-parts/great-parts-cel/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/great-parts/great-parts-cel/releases/tag/v1.0.0

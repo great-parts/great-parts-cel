@@ -715,6 +715,7 @@ static Great.Parts.Cel.Values.CelList.CreateCopy<T>(System.Collections.Generic.I
 static Great.Parts.Cel.Values.CelList.CreateSorted<T>(System.Collections.Generic.IReadOnlyCollection<T>! source, System.Func<T, Great.Parts.Cel.Values.CelValue>! elementConverter) -> Great.Parts.Cel.Values.CelList!
 static Great.Parts.Cel.Values.CelList.CreateView<T>(System.Collections.Generic.IReadOnlyList<T>! source, System.Func<T, Great.Parts.Cel.Values.CelValue>! elementConverter) -> Great.Parts.Cel.Values.CelList!
 static Great.Parts.Cel.Values.CelMap.Create(System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<Great.Parts.Cel.Values.CelValue, Great.Parts.Cel.Values.CelValue>>! entries) -> Great.Parts.Cel.Values.CelMap!
+static Great.Parts.Cel.Values.CelMap.Create(params System.ReadOnlySpan<System.Collections.Generic.KeyValuePair<Great.Parts.Cel.Values.CelValue, Great.Parts.Cel.Values.CelValue>> entries) -> Great.Parts.Cel.Values.CelMap!
 static Great.Parts.Cel.Values.CelMap.CreateView<TKey, TValue>(System.Collections.Generic.IReadOnlyDictionary<TKey, TValue>! source, System.Func<TValue, Great.Parts.Cel.Values.CelValue>! valueConverter, bool keepSourceOrder) -> Great.Parts.Cel.Values.CelMap!
 static Great.Parts.Cel.Values.CelObjectType.FromDate(System.DateOnly value) -> Great.Parts.Cel.Values.CelValue
 static Great.Parts.Cel.Values.CelObjectType.FromInstance(object! instance) -> Great.Parts.Cel.Values.CelValue

@@ -177,21 +177,21 @@ Console.WriteLine(check.IsValid); // Output: True
 
 ## Documentation
 
-The documentation of a release is the content of the repository at the tag of the release. Until the release of 2.0, the links on this page point to the `main` branch of the repository.
+The documentation of a release is the content of the repository at the tag of the release. The links on this page point to the tag `v2.0.0` of the repository.
 
-- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/main/docs/getting-started.md): seven scenarios, from the simple entry to a web service
-- [FluentValidation recipe](https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/fluentvalidation.md)
-- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/main/README.md)
-- [Standard library](https://github.com/great-parts/great-parts-cel/blob/main/docs/standard-library.md)
-- [Extension sets](https://github.com/great-parts/great-parts-cel/blob/main/docs/extensions.md)
-- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/main/docs/type-mapping.md)
-- [Error codes](https://github.com/great-parts/great-parts-cel/blob/main/docs/error-codes.md)
-- [Limits](https://github.com/great-parts/great-parts-cel/blob/main/docs/limits.md) and [Cost](https://github.com/great-parts/great-parts-cel/blob/main/docs/cost.md)
-- [Source generator diagnostics](https://github.com/great-parts/great-parts-cel/blob/main/docs/generator-diagnostics.md)
-- [Application functions](https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/application-functions.md) and [Time zone database](https://github.com/great-parts/great-parts-cel/blob/main/docs/recipes/time-zone-database.md)
-- [Decimal](https://github.com/great-parts/great-parts-cel/blob/main/docs/decimal.md)
-- [API concepts](https://github.com/great-parts/great-parts-cel/blob/main/docs/api-concepts.md)
-- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/main/docs/versioning.md)
-- [Changelog](https://github.com/great-parts/great-parts-cel/blob/main/CHANGELOG.md)
+- [Getting Started](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/getting-started.md): seven scenarios, from the simple entry to a web service
+- [FluentValidation recipe](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/recipes/fluentvalidation.md)
+- [README of the repository](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/README.md)
+- [Standard library](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/standard-library.md)
+- [Extension sets](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/extensions.md)
+- [Type mapping](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/type-mapping.md)
+- [Error codes](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/error-codes.md)
+- [Limits](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/limits.md) and [Cost](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/cost.md)
+- [Source generator diagnostics](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/generator-diagnostics.md)
+- [Application functions](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/recipes/application-functions.md) and [Time zone database](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/recipes/time-zone-database.md)
+- [Decimal](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/decimal.md)
+- [API concepts](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/api-concepts.md)
+- [Versioning and compatibility](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/docs/versioning.md)
+- [Changelog](https://github.com/great-parts/great-parts-cel/blob/v2.0.0/CHANGELOG.md)
 
 The packages are built and published by GitHub Actions with attestations of origin; how to verify them is in the README of the repository.
