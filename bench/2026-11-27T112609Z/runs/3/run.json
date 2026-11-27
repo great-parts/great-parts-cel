@@ -1,0 +1,9 @@
+{
+  "run": 3,
+  "job": "Default",
+  "runtime": "jit",
+  "cases": null,
+  "filter": "*",
+  "started": "2026-11-27T09:29:16.569Z",
+  "finished": "2026-11-27T10:54:01.552Z"
+}

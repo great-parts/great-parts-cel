@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "kind": "bench",
+  "generatedAtUtc": "2026-11-27T11:26:09Z",
+  "greatPartsCelCommit": "927d92df05ffb30c4262d719d1960feb1cd08509",
+  "inputs": {
+    "runs": 3,
+    "job": "Default",
+    "runtime": "jit",
+    "cases": null
+  },
+  "runs": [
+    {
+      "run": 1,
+      "job": "Default",
+      "runtime": "jit",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-27T06:36:52.301Z",
+      "finished": "2026-11-27T08:00:44.949Z"
+    },
+    {
+      "run": 2,
+      "job": "Default",
+      "runtime": "jit",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-27T08:00:44.949Z",
+      "finished": "2026-11-27T09:29:16.569Z"
+    },
+    {
+      "run": 3,
+      "job": "Default",
+      "runtime": "jit",
+      "cases": null,
+      "filter": "*",
+      "started": "2026-11-27T09:29:16.569Z",
+      "finished": "2026-11-27T10:54:01.552Z"
+    }
+  ],
+  "thresholds": {
+    "job": "Default",
+    "verdicts": [
+      {
+        "limit": "hybrid search of the literal prefix of matches, 64 code units",
+        "verdict": "holds: 64"
+      },
+      {
+        "limit": "build of the automaton of the pattern E5",
+        "verdict": "holds: 1094 ns"
+      },
+      {
+        "limit": "index of the values of a list (distinct, sets): scan or buckets, the limit of the library is 64 values",
+        "verdict": "no verdict; threshold by the rule: 32 (the limit of the library: 64)"
+      },
+      {
+        "limit": "substring search: time per cost unit",
+        "verdict": "no verdict; time per unit from M = 64 to M = 1024: 0.06 times for a literal, 0.44 times for the data"
+      },
+      {
+        "limit": "simple entry: evaluate and data",
+        "verdict": "no verdict; scalars: evaluate 246.9 ns, data 14.3 ns; lines: evaluate 1.25 us, data 15.5 ns"
+      },
+      {
+        "limit": "CelMap.Create of the row of an order",
+        "verdict": "no verdict; 46.7 ns, 248 B"
+      }
+    ]
+  },
+  "files": {
+    "summary": "report.md",
+    "verification": "verify.json",
+    "thresholds": "thresholds.json",
+    "runs": "runs/<k>/run.json and runs/<k>/summary.md"
+  },
+  "run": {
+    "id": 45952887623,
+    "attempt": 1,
+    "event": "workflow_dispatch",
+    "url": "https://github.com/great-parts/great-parts-cel/actions/runs/45952887623"
+  }
+}
